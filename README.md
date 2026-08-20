@@ -2,11 +2,7 @@
 
 The Afilianet mobile app, built with [Expo](https://expo.dev), React Native, and TypeScript. This guide assumes no prior programming experience.
 
-## ⚠️ Known limitation: sign in doesn't fully work yet
-
-The backend (`afilianet-api`) doesn't have a login endpoint yet — there's no way to type an email and password and get signed in for real. This is a backend gap, not a bug in this app; it's tracked as the #1 blocker for Phase 7A. See **"Signing in during development"** below for the workaround used until the backend team ships it.
-
-Everything else in this app (organizations, home dashboard, wallet, commissions, compliance status) talks to real, working backend endpoints.
+Sign in with a real email and password — the login screen talks to afilianet-api's Sanctum-backed login endpoint, and everything past it (organizations, home dashboard, wallet, commissions, compliance status) talks to real, working backend endpoints too.
 
 ## 1. Install dependencies
 
@@ -87,13 +83,24 @@ This app supports three environments, each with its own settings file:
 
 ## Signing in during development
 
-Since `afilianet-api` has no login endpoint yet, the login screen has a **development-only** fallback below the normal email/password form: "Sign in with a token." To use it:
+Use any real account's email and password. If you need a throwaway account to test with, create one from the `afilianet-api` folder:
 
-1. In the `afilianet-api` folder, run `php artisan tinker`.
-2. Run: `$user = \App\Modules\Users\Models\User::first(); $user->createToken('dev')->plainTextToken;`
-3. Copy the token it prints and paste it into the "Access token" field on the login screen, then tap "Sign in with token."
+```bash
+php artisan tinker
+```
 
-This option only appears in development builds — it's automatically excluded from production.
+```php
+$user = new \App\Modules\Users\Models\User();
+$user->uuid = (string) \Illuminate\Support\Str::uuid();
+$user->first_name = 'Test';
+$user->last_name = 'User';
+$user->email = 'test@example.com';
+$user->password = \Illuminate\Support\Facades\Hash::make('Password123!');
+$user->status = \App\Modules\Users\Enums\UserStatus::Active;
+$user->save();
+```
+
+Both `active` and `pending` accounts can sign in; `suspended` and `blocked` accounts get a clear error instead.
 
 ## Project structure
 

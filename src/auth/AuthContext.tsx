@@ -14,8 +14,6 @@ export interface AuthContextValue {
   user: User | null;
   error: ApiError | null;
   signIn: (email: string, password: string) => Promise<void>;
-  /** Dev-only escape hatch while afilianet-api has no login endpoint. */
-  signInWithToken: (token: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 

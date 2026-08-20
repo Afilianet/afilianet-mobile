@@ -1,5 +1,5 @@
 import { apiRequest } from "./client";
-import type { AffiliateProfile, Commission, ComplianceCase, Organization, User, WalletSummary } from "../types/api";
+import type { AffiliateProfile, Commission, ComplianceCase, LoginResponse, Organization, User, WalletSummary } from "../types/api";
 
 export async function fetchMe(): Promise<User> {
   const { data } = await apiRequest<{ data: User }>("/api/v1/me");
@@ -31,24 +31,25 @@ export async function fetchMyCompliance(): Promise<ComplianceCase> {
   return data;
 }
 
-export interface SignInResult {
-  user: User;
-  token: string;
-}
-
-/**
- * Calls the login endpoint afilianet-api is expected to expose, but does not
- * yet: POST /api/v1/auth/login. The Authentication module in the backend is
- * currently an empty stub, so this will fail with a 404 (or network error if
- * the route doesn't even resolve) until that work lands. See README.md
- * "Known limitation" for the workaround used during this phase.
- */
-export async function signIn(email: string, password: string): Promise<SignInResult> {
-  const { data } = await apiRequest<{ data: SignInResult }>("/api/v1/auth/login", {
+export async function signIn(email: string, password: string): Promise<LoginResponse> {
+  // Not wrapped in {data: ...} -- see the LoginResponse comment in types/api.ts.
+  return apiRequest<LoginResponse>("/api/v1/auth/login", {
     method: "POST",
     body: { email, password },
     skipAuth: true,
     skipOrganization: true,
   });
-  return data;
+}
+
+/**
+ * Best-effort server-side logout. Callers should still clear local session
+ * state even if this throws (offline, already-expired token, etc.) -- see
+ * AuthProvider.signOut.
+ */
+export async function signOutRequest(): Promise<void> {
+  await apiRequest<{ message: string }>("/api/v1/auth/logout", {
+    method: "POST",
+    skipOrganization: true,
+    skipUnauthorizedHandling: true,
+  });
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { configureApiClient } from "../api/client";
 import { isApiError } from "../api/errors";
-import { fetchMe, signIn as signInRequest } from "../api/endpoints";
+import { fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
 import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
 import { tokenStorage } from "./tokenStorage";
@@ -22,6 +22,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    try {
+      // Best-effort: revoke the token server-side. If this fails (offline,
+      // token already invalid, ...) we still tear down the local session below --
+      // a user must always be able to sign out of their device.
+      await signOutRequest();
+    } catch {
+      // ignored -- local logout below always proceeds regardless.
+    }
     tokenRef.current = null;
     await tokenStorage.clearToken();
     setUser(null);
@@ -70,19 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         try {
           const result = await signInRequest(email, password);
-          tokenRef.current = result.token;
-          await tokenStorage.setToken(result.token);
-          setUser(result.user);
-          setStatus("signedIn");
-        } catch (err) {
-          if (isApiError(err)) setError(err);
-          throw err;
-        }
-      },
-      async signInWithToken(token: string) {
-        setError(null);
-        try {
-          await establishSession(token);
+          // The login response already includes a User, but we still load
+          // /api/v1/me via establishSession() so there's exactly one code
+          // path (also used by session restore) that decides what "signed
+          // in" means -- not two slightly-divergent ones.
+          await establishSession(result.token);
         } catch (err) {
           if (isApiError(err)) setError(err);
           throw err;

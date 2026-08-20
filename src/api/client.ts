@@ -30,6 +30,9 @@ export interface ApiRequestOptions {
   headers?: Record<string, string>;
   skipAuth?: boolean;
   skipOrganization?: boolean;
+  /** Skip the onUnauthorized side effect (e.g. for the logout call itself, which
+   * may legitimately 401 on an already-invalid token and shouldn't retrigger sign-out). */
+  skipUnauthorizedHandling?: boolean;
   timeoutMs?: number;
 }
 
@@ -115,7 +118,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (!response.ok) {
     const kind = kindForStatus(response.status);
     const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload));
-    if (kind === "unauthorized") onUnauthorized();
+    if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
     throw error;
   }
 
