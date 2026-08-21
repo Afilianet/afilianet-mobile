@@ -1,5 +1,14 @@
 import { apiRequest } from "./client";
-import type { AffiliateProfile, Commission, ComplianceCase, LoginResponse, Organization, User, WalletSummary } from "../types/api";
+import type {
+  AffiliateProfile,
+  Commission,
+  ComplianceCase,
+  LoginResponse,
+  Organization,
+  PaginatedResponse,
+  User,
+  WalletSummary,
+} from "../types/api";
 
 export async function fetchMe(): Promise<User> {
   const { data } = await apiRequest<{ data: User }>("/api/v1/me");
@@ -29,6 +38,21 @@ export async function fetchMyCommissions(): Promise<Commission[]> {
 export async function fetchMyCompliance(): Promise<ComplianceCase> {
   const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance");
   return data;
+}
+
+/**
+ * A preview of who this affiliate has directly sponsored. There's no
+ * dedicated self-scoped endpoint for this -- it's the admin-shaped
+ * /affiliates/{affiliate}/sponsored route, which authorizes viewing your
+ * own affiliate id, so callers must pass the id from fetchMyAffiliateProfile().
+ */
+export async function fetchSponsoredAffiliates(
+  affiliateId: string,
+  perPage = 5,
+): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(
+    `/api/v1/affiliates/${affiliateId}/sponsored?per_page=${perPage}`,
+  );
 }
 
 export async function signIn(email: string, password: string): Promise<LoginResponse> {

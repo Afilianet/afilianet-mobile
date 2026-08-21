@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "./theme";
 
-type BadgeTone = "neutral" | "success" | "warning" | "danger";
+export type BadgeTone = "neutral" | "success" | "warning" | "danger";
 
 const toneColors: Record<BadgeTone, { background: string; text: string }> = {
   neutral: { background: "#EEF0F3", text: colors.textSecondary },
