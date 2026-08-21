@@ -11,6 +11,18 @@ export interface LoginResponse {
   user: User;
 }
 
+// Shape of afilianet-api's paginated resource collections (e.g.
+// GET /api/v1/affiliates/{id}/sponsored) -- Laravel's paginator meta.
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta?: {
+    current_page?: number;
+    last_page?: number;
+    per_page?: number;
+    total?: number;
+  };
+}
+
 export interface User {
   id: string;
   first_name: string;

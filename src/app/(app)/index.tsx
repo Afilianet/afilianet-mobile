@@ -1,100 +1,255 @@
-import type { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { friendlyMessage, isApiError } from "../../api/errors";
-import { Badge } from "../../components/ui/Badge";
-import { Card } from "../../components/ui/Card";
-import { colors, spacing, typography } from "../../components/ui/theme";
+import { useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
+import { Card } from "../../components/ui/Card";
+import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
+import { colors, spacing, typography } from "../../components/ui/theme";
+import { SectionCard } from "../../components/SectionCard";
+import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
+import { useCompliance } from "../../hooks/useCompliance";
+import { useCommissions } from "../../hooks/useCommissions";
+import { useWallet } from "../../hooks/useWallet";
+import { useSponsoredAffiliates } from "../../hooks/useSponsoredAffiliates";
+import { routes } from "../../navigation/routes";
+import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
-import { useHomeDashboard } from "../../hooks/useHomeDashboard";
+import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../utils/statusCopy";
+import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
-import type { UseQueryResult } from "@tanstack/react-query";
+import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
 export default function HomeScreen() {
-  const { user } = useAuth();
   const { activeOrganization } = useOrganization();
-  const { affiliate, wallet, commissions, compliance } = useHomeDashboard();
+
+  const affiliateQuery = useAffiliateProfile();
+  const complianceQuery = useCompliance();
+  const commissionsQuery = useCommissions();
+  const walletQuery = useWallet();
+  const sponsoredQuery = useSponsoredAffiliates(affiliateQuery.data?.id);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const walletViewedRef = useRef(false);
+
+  useEffect(() => {
+    analytics.capture("home_viewed");
+  }, []);
+
+  useEffect(() => {
+    if (walletQuery.isSuccess && !walletViewedRef.current) {
+      walletViewedRef.current = true;
+      analytics.capture("wallet_section_viewed");
+    }
+  }, [walletQuery.isSuccess]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        affiliateQuery.refetch(),
+        complianceQuery.refetch(),
+        commissionsQuery.refetch(),
+        walletQuery.refetch(),
+        sponsoredQuery.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>
-        {user ? `Hi, ${user.first_name}` : "Welcome"}
-      </Text>
-      <Text style={styles.orgName}>{activeOrganization?.name ?? "No organization selected"}</Text>
+    <ScrollView
+      testID="home-scroll"
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+    >
+      <Header />
 
-      <DashboardCard title="Affiliate status" query={affiliate}>
-        {(data) => (
-          <View style={styles.row}>
-            <Badge label={data.status} tone={data.status === "active" ? "success" : "neutral"} />
-            <Text style={styles.meta}>{data.affiliate_code}</Text>
-          </View>
-        )}
-      </DashboardCard>
+      {noAffiliateProfile ? (
+        <EnrollmentBanner />
+      ) : (
+        <SectionCard title="Affiliate status" query={affiliateQuery} isEmpty={() => false}>
+          {(affiliate) => <AffiliateStatusContent affiliate={affiliate} />}
+        </SectionCard>
+      )}
 
-      <DashboardCard title="Commissions" query={commissions}>
-        {(data) => {
-          const latest = data[0];
-          return (
-            <View>
-              <Text style={styles.bigNumber}>{data.length}</Text>
-              <Text style={styles.meta}>
-                {latest ? `Most recent: ${latest.status}` : "No commissions yet"}
-              </Text>
-            </View>
-          );
-        }}
-      </DashboardCard>
+      <ComplianceCard query={complianceQuery} />
 
-      <DashboardCard title="Wallet" query={wallet}>
-        {(data) =>
-          data.length === 0 ? (
-            <Text style={styles.meta}>No wallet balance yet</Text>
-          ) : (
-            <View style={{ gap: spacing.xs }}>
-              {data.map((walletSummary) => (
-                <Text key={walletSummary.currency} style={styles.bigNumber}>
-                  {formatMoney(walletSummary.available_balance, walletSummary.currency)}
-                </Text>
-              ))}
-            </View>
-          )
-        }
-      </DashboardCard>
+      <SectionCard
+        title="Commissions"
+        query={commissionsQuery}
+        isEmpty={(list) => list.length === 0}
+        emptyTitle="No commissions yet"
+      >
+        {(list) => <CommissionsContent commissions={list} />}
+      </SectionCard>
 
-      <DashboardCard title="Compliance" query={compliance}>
-        {(data) => (
-          <View style={styles.row}>
-            <Badge label={data.status} tone={data.status === "approved" ? "success" : "warning"} />
-            {data.current_step ? <Text style={styles.meta}>{data.current_step}</Text> : null}
-          </View>
-        )}
-      </DashboardCard>
+      <SectionCard title="Wallet" query={walletQuery} isEmpty={(list) => list.length === 0} emptyTitle="No wallet balance yet">
+        {(list) => <WalletContent wallets={list} />}
+      </SectionCard>
+
+      {activeOrganization && affiliateQuery.isSuccess ? (
+        <NetworkPreviewCard sponsor={affiliateQuery.data.sponsor} query={sponsoredQuery} />
+      ) : null}
     </ScrollView>
   );
 }
 
-function DashboardCard<T>({
-  title,
+function Header() {
+  const { user } = useAuth();
+  const { activeOrganization, organizations } = useOrganization();
+  const router = useRouter();
+
+  const orgLabel = activeOrganization?.name ?? "No organization selected";
+
+  return (
+    <View style={styles.header}>
+      <Text style={styles.greeting}>{user ? `Hi, ${user.first_name}` : "Welcome"}</Text>
+      {organizations.length > 1 ? (
+        <Pressable onPress={() => router.push(routes.organizationPicker as never)} style={styles.orgSwitcher}>
+          <Text style={styles.orgName}>{orgLabel}</Text>
+          <Text style={styles.orgSwitcherChevron}>⌄</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.orgName}>{orgLabel}</Text>
+      )}
+    </View>
+  );
+}
+
+function EnrollmentBanner() {
+  return (
+    <Card style={styles.enrollmentCard}>
+      <Text style={styles.enrollmentTitle}>Join the affiliate program</Text>
+      <Text style={styles.meta}>
+        You don&apos;t have an affiliate profile in this organization yet. Contact your organization admin to get enrolled.
+      </Text>
+    </Card>
+  );
+}
+
+function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) {
+  const status = affiliateStatusCopy(affiliate.status);
+  return (
+    <View style={styles.stateGroupLocal}>
+      <View style={styles.row}>
+        <Badge label={status.label} tone={status.tone} />
+        <Text style={styles.code}>{affiliate.affiliate_code}</Text>
+      </View>
+      {affiliate.joined_at ? <Text style={styles.meta}>Joined {formatDate(affiliate.joined_at)}</Text> : null}
+      <Text style={styles.meta}>
+        {affiliate.activated_at ? `Activated ${formatDate(affiliate.activated_at)}` : "Not yet activated"}
+      </Text>
+    </View>
+  );
+}
+
+function handleComplianceCta() {
+  analytics.capture("compliance_cta_pressed");
+  Alert.alert("Coming soon", "Identity verification will be available in an upcoming update.");
+}
+
+function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) {
+  const notStarted = complianceStatusCopy("not_started");
+
+  return (
+    <SectionCard
+      title="Compliance"
+      query={query}
+      emptyContent={
+        <View style={styles.stateGroupLocal}>
+          <Badge label={notStarted.label} tone={notStarted.tone} />
+          {notStarted.description ? <Text style={styles.meta}>{notStarted.description}</Text> : null}
+          <Button label="Start verification" variant="secondary" onPress={handleComplianceCta} />
+        </View>
+      }
+    >
+      {(compliance: ComplianceCase) => {
+        const status = complianceStatusCopy(compliance.status);
+        return (
+          <View style={styles.stateGroupLocal}>
+            <Badge label={status.label} tone={status.tone} />
+            {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
+            {compliance.status !== "approved" ? (
+              <Button label="Continue verification" variant="secondary" onPress={handleComplianceCta} />
+            ) : null}
+          </View>
+        );
+      }}
+    </SectionCard>
+  );
+}
+
+function CommissionsContent({ commissions }: { commissions: Commission[] }) {
+  const recent = [...commissions]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
+  return (
+    <View style={styles.stateGroupLocal}>
+      {recent.map((commission) => {
+        const status = commissionStatusCopy(commission.status);
+        return (
+          <View key={commission.id} style={styles.commissionRow}>
+            <View style={styles.commissionMeta}>
+              <Text style={styles.meta}>{formatDate(commission.created_at)}</Text>
+              <Badge label={status.label} tone={status.tone} />
+            </View>
+            <Text style={styles.amount}>{formatMoney(commission.amount, commission.currency)}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function WalletContent({ wallets }: { wallets: WalletSummary[] }) {
+  return (
+    <View style={styles.stateGroupLocal}>
+      {wallets.map((wallet) => (
+        <View key={wallet.currency} style={styles.walletBlock}>
+          <Text style={styles.walletCurrency}>{wallet.currency}</Text>
+          <Text style={styles.meta}>Pending: {formatMoney(wallet.pending_balance, wallet.currency)}</Text>
+          <Text style={styles.amount}>Available: {formatMoney(wallet.available_balance, wallet.currency)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function NetworkPreviewCard({
+  sponsor,
   query,
-  children,
 }: {
-  title: string;
-  query: UseQueryResult<T>;
-  children: (data: T) => ReactNode;
+  sponsor: AffiliateRef | null | undefined;
+  query: ReturnType<typeof useSponsoredAffiliates>;
 }) {
   return (
-    <Card style={styles.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {query.isLoading ? (
-        <Text style={styles.meta}>Loading...</Text>
-      ) : query.isError ? (
-        <Text style={styles.error}>
-          {isApiError(query.error) ? friendlyMessage(query.error) : "Couldn't load this."}
-        </Text>
-      ) : query.data !== undefined ? (
-        children(query.data)
-      ) : null}
-    </Card>
+    <SectionCard
+      title="Network"
+      query={query}
+      isEmpty={(page) => page.data.length === 0 && !sponsor}
+      emptyTitle="No network activity yet"
+    >
+      {(page) => {
+        const total = page.meta?.total ?? page.data.length;
+        const isExact = page.meta?.total !== undefined || page.data.length < 5;
+        return (
+          <View style={styles.stateGroupLocal}>
+            <Text style={styles.meta}>{sponsor ? `Sponsored by ${sponsor.affiliate_code}` : "No sponsor"}</Text>
+            <Text style={styles.meta}>
+              {total} direct referral{total === 1 ? "" : "s"}
+              {isExact ? "" : "+"}
+            </Text>
+          </View>
+        );
+      }}
+    </SectionCard>
   );
 }
 
@@ -107,39 +262,71 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
+  header: {
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
   greeting: {
     ...typography.title,
     color: colors.textPrimary,
   },
+  orgSwitcher: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
   orgName: {
     ...typography.body,
     color: colors.textSecondary,
-    marginBottom: spacing.sm,
   },
-  card: {
+  orgSwitcherChevron: {
+    ...typography.body,
+    color: colors.textSecondary,
+  },
+  enrollmentCard: {
     gap: spacing.xs,
   },
-  cardTitle: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: "700",
-    textTransform: "uppercase",
+  enrollmentTitle: {
+    ...typography.heading,
+    color: colors.textPrimary,
+  },
+  stateGroupLocal: {
+    gap: spacing.sm,
+    alignItems: "flex-start",
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
   },
-  bigNumber: {
-    ...typography.heading,
-    color: colors.textPrimary,
+  code: {
+    ...typography.body,
+    color: colors.textSecondary,
   },
   meta: {
     ...typography.body,
     color: colors.textSecondary,
   },
-  error: {
-    ...typography.body,
-    color: colors.danger,
+  amount: {
+    ...typography.heading,
+    color: colors.textPrimary,
+  },
+  commissionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    gap: spacing.sm,
+  },
+  commissionMeta: {
+    gap: spacing.xs,
+  },
+  walletBlock: {
+    gap: 2,
+  },
+  walletCurrency: {
+    ...typography.caption,
+    fontWeight: "700",
+    color: colors.textSecondary,
   },
 });

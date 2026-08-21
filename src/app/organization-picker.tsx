@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../components/ui/Card";
 import { colors, spacing, typography } from "../components/ui/theme";
 import { routes } from "../navigation/routes";
+import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
 
 export default function OrganizationPickerScreen() {
@@ -11,11 +12,17 @@ export default function OrganizationPickerScreen() {
 
   async function handleSelect(organizationId: string) {
     await selectOrganization(organizationId);
+    analytics.capture("organization_switched");
     router.replace(routes.home as never);
   }
 
   return (
     <View style={styles.screen}>
+      {router.canGoBack() ? (
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Text style={styles.close}>Close</Text>
+        </Pressable>
+      ) : null}
       <Text style={styles.title}>Choose an organization</Text>
       <View style={styles.list}>
         {organizations.map((org) => (
@@ -41,6 +48,11 @@ const styles = StyleSheet.create({
   title: {
     ...typography.heading,
     color: colors.textPrimary,
+  },
+  close: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: "600",
   },
   list: {
     gap: spacing.sm,
