@@ -1,0 +1,179 @@
+/* Afilianet · tokens 1.0.0 · 2026-08-20
+   Un solo archivo con todas las variables. Cárgalo antes de cualquier hoja de componentes.
+   Equivalente exacto de afilianet.tokens.json. */
+
+:root {
+  /* Marca — violeta */
+  --violeta-900: #22156B;
+  --violeta-700: #3D26B8;
+  --violeta-600: #5533E6;
+  --violeta-500: #6D4AFF;
+  --violeta-400: #8F73FF;
+  --violeta-300: #A78BFA;
+  --violeta-200: #C9B8FF;
+  --violeta-100: #E7DEFF;
+  --violeta-050: #F4F0FF;
+
+  /* Neutros — noche (fríos, chroma baja) */
+  --noche-950: #0C0A14;
+  --noche-900: #14101F;
+  --noche-800: #1C1730;
+  --noche-700: #2A2340;
+  --noche-600: #3B3355;
+  --noche-500: #575072;
+  --noche-400: #857CA8;
+  --noche-300: #A9A2C4;
+  --noche-200: #C9C5DC;
+  --noche-100: #E4E1EE;
+  --noche-050: #F3F2F8;
+  --noche-000: #FFFFFF;
+
+  /* Acento y semánticos */
+  --aqua-500: #2DD4BF;
+  --aqua-600: #14A99A;
+  --aqua-100: #D3F6F1;
+  --exito-500: #2DD4BF;
+  --alerta-500: #F2B94B;
+  --alerta-100: #FCF0D8;
+  --error-500: #FF6A5E;
+  --error-100: #FFE3E0;
+  --info-500: #6D4AFF;
+
+  /* Aliases semánticos — tema oscuro (por defecto en producto) */
+  --fondo-app: var(--noche-950);
+  --superficie-1: var(--noche-900);
+  --superficie-2: var(--noche-800);
+  --superficie-elevada: var(--noche-800);
+  --borde-suave: var(--noche-700);
+  --borde-fuerte: var(--noche-600);
+  --texto-1: #ECEAF4;
+  --texto-2: var(--noche-300);
+  --texto-3: var(--noche-400);
+  --texto-sobre-marca: #FFFFFF;
+  --accion-primaria: var(--violeta-500);
+  --accion-primaria-hover: var(--violeta-400);
+  --accion-primaria-activa: var(--violeta-600);
+  --foco-anillo: var(--violeta-300);
+}
+
+/* Tema claro — landing, documentos, correo */
+[data-tema="claro"] {
+  --fondo-app: var(--noche-000);
+  --superficie-1: var(--noche-050);
+  --superficie-2: var(--violeta-050);
+  --superficie-elevada: var(--noche-000);
+  --borde-suave: var(--noche-100);
+  --borde-fuerte: var(--noche-200);
+  --texto-1: var(--noche-950);
+  --texto-2: var(--noche-500);
+  --texto-3: var(--noche-500);
+  --accion-primaria: var(--violeta-500);
+  --accion-primaria-hover: var(--violeta-600);
+  --accion-primaria-activa: var(--violeta-700);
+}
+
+:root {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --peso-regular: 400;
+  --peso-medio: 500;
+  --peso-semi: 600;
+  --peso-bold: 700;
+  --peso-extra: 800;
+
+  /* Escala tipográfica — razón 1.25, redondeada a px legibles */
+  --texto-3xs: 11px;
+  --texto-2xs: 12px;
+  --texto-xs: 13px;
+  --texto-sm: 14px;
+  --texto-md: 16px;
+  --texto-lg: 18px;
+  --texto-xl: 21px;
+  --texto-2xl: 26px;
+  --texto-3xl: 32px;
+  --texto-4xl: 40px;
+  --texto-5xl: 52px;
+  --texto-6xl: 68px;
+  --texto-7xl: 88px;
+
+  --alto-apretado: 1.05;
+  --alto-titulo: 1.15;
+  --alto-normal: 1.5;
+  --alto-suelto: 1.65;
+
+  --track-display: -0.035em;
+  --track-titulo: -0.02em;
+  --track-normal: 0em;
+  --track-etiqueta: 0.14em;
+
+  /* Roles */
+  --display-familia: var(--font-sans);
+  --display-peso: var(--peso-extra);
+  --titulo-peso: var(--peso-bold);
+  --cuerpo-peso: var(--peso-regular);
+  --etiqueta-familia: var(--font-mono);
+}
+
+:root {
+  /* Base 4px */
+  --esp-0: 0px;
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 20px;
+  --esp-6: 24px;
+  --esp-8: 32px;
+  --esp-10: 40px;
+  --esp-12: 48px;
+  --esp-16: 64px;
+  --esp-20: 80px;
+  --esp-24: 96px;
+  --esp-32: 128px;
+
+  --ancho-contenido: 1200px;
+  --ancho-lectura: 68ch;
+  --toque-min: 44px;
+  --gutter-movil: 20px;
+  --gutter-web: 40px;
+}
+
+:root {
+  --radio-0: 0px;
+  --radio-sm: 8px;
+  --radio-md: 12px;
+  --radio-lg: 16px;
+  --radio-xl: 20px;
+  --radio-2xl: 24px;
+  --radio-3xl: 32px;
+  --radio-pill: 999px;
+  --radio-icono-app: 22%;
+  --borde-1: 1px;
+  --borde-2: 2px;
+}
+
+:root {
+  /* Sombras frías, nunca negras puras */
+  --sombra-0: none;
+  --sombra-1: 0 1px 2px rgba(12, 10, 20, 0.24);
+  --sombra-2: 0 4px 12px rgba(12, 10, 20, 0.28);
+  --sombra-3: 0 12px 32px rgba(12, 10, 20, 0.36);
+  --sombra-4: 0 24px 64px rgba(12, 10, 20, 0.44);
+  --resplandor-marca: 0 8px 28px rgba(109, 74, 255, 0.35);
+  --anillo-interno: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --anillo-foco: 0 0 0 3px rgba(167, 139, 250, 0.45);
+  --vidrio: blur(20px) saturate(140%);
+}
+
+:root {
+  --dur-instante: 90ms;
+  --dur-rapida: 160ms;
+  --dur-media: 240ms;
+  --dur-lenta: 400ms;
+  --ease-salida: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-entrada: cubic-bezier(0.4, 0, 1, 1);
+  --ease-estandar: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-resorte: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --escala-presion: 0.975;
+}

@@ -1,9 +1,10 @@
-import { Pressable, ScrollView, StyleSheet, Text } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
+import { Avatar } from "../../components/ui/Avatar";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
-import { colors, radius, spacing, typography } from "../../components/ui/theme";
+import { colors, measures, radius, spacing, typography } from "../../components/ui/theme";
 import { useOrganization } from "../../state/OrganizationContext";
 
 export default function ProfileScreen() {
@@ -12,11 +13,14 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Card style={styles.card}>
-        <Text style={styles.name}>
-          {user?.first_name} {user?.last_name}
-        </Text>
-        <Text style={styles.email}>{user?.email}</Text>
+      <Card style={styles.identityCard}>
+        <Avatar name={`${user?.first_name ?? ""} ${user?.last_name ?? ""}`} size={52} />
+        <View style={styles.identityText}>
+          <Text style={styles.name}>
+            {user?.first_name} {user?.last_name}
+          </Text>
+          <Text style={styles.email}>{user?.email}</Text>
+        </View>
       </Card>
 
       {organizations.length > 1 ? (
@@ -45,15 +49,15 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, gap: spacing.md },
+  content: { padding: measures.mobileGutter, gap: spacing.md },
   card: { gap: spacing.xs },
-  name: { ...typography.heading, color: colors.textPrimary },
+  identityCard: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
+  identityText: { gap: 2 },
+  name: { ...typography.subtitle, color: colors.textPrimary },
   email: { ...typography.body, color: colors.textSecondary },
   sectionTitle: {
-    ...typography.caption,
-    fontWeight: "700",
-    color: colors.textSecondary,
-    textTransform: "uppercase",
+    ...typography.label,
+    color: colors.textTertiary,
     marginBottom: spacing.xs,
   },
   orgRow: {
@@ -64,11 +68,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,
   },
-  orgRowActive: {
-    backgroundColor: colors.background,
-  },
-  orgName: {
-    ...typography.body,
-    color: colors.textPrimary,
-  },
+  orgRowActive: { backgroundColor: colors.surfaceRaised },
+  orgName: { ...typography.body, color: colors.textPrimary },
 });

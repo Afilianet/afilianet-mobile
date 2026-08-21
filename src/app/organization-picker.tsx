@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../components/ui/Card";
-import { colors, spacing, typography } from "../components/ui/theme";
+import { IconButton } from "../components/ui/IconButton";
+import { colors, measures, spacing, typography } from "../components/ui/theme";
+import { Icon } from "../design-system/icons/Icon";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
@@ -19,9 +21,11 @@ export default function OrganizationPickerScreen() {
   return (
     <View style={styles.screen}>
       {router.canGoBack() ? (
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Text style={styles.close}>Close</Text>
-        </Pressable>
+        <View style={styles.close}>
+          <IconButton label="Close" onPress={() => router.back()}>
+            <Icon name="cerrar" size={18} color={colors.textPrimary} />
+          </IconButton>
+        </View>
       ) : null}
       <Text style={styles.title}>Choose an organization</Text>
       <View style={styles.list}>
@@ -42,17 +46,15 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: spacing.lg,
+    padding: measures.mobileGutter,
     gap: spacing.lg,
   },
   title: {
-    ...typography.heading,
+    ...typography.subtitle,
     color: colors.textPrimary,
   },
   close: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: "600",
+    alignSelf: "flex-start",
   },
   list: {
     gap: spacing.sm,

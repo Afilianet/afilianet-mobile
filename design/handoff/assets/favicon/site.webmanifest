@@ -1,0 +1,26 @@
+{
+  "name": "Afilianet",
+  "short_name": "Afilianet",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0C0A14",
+  "theme_color": "#6D4AFF",
+  "icons": [
+    {
+      "src": "/android-chrome-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/afilianet-app-icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

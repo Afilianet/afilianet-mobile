@@ -1,16 +1,41 @@
 import { StyleSheet, View, type ViewProps } from "react-native";
-import { colors, radius, spacing } from "./theme";
+import { colors, radius } from "./theme";
 
-export function Card({ style, ...viewProps }: ViewProps) {
-  return <View style={[styles.card, style]} {...viewProps} />;
+interface CardProps extends ViewProps {
+  padding?: number;
+  bordered?: boolean;
+  /** Floating surfaces (sheets, popovers) -- adds shadow + inner highlight ring instead of relying on border alone. */
+  elevated?: boolean;
+}
+
+export function Card({ padding = 20, bordered = true, elevated = false, style, ...viewProps }: CardProps) {
+  return (
+    <View
+      style={[
+        styles.card,
+        { padding, backgroundColor: elevated ? colors.surfaceElevated : colors.surface },
+        bordered && !elevated ? styles.bordered : null,
+        elevated ? styles.elevated : null,
+        style,
+      ]}
+      {...viewProps}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
+  },
+  bordered: {
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.md,
+  },
+  elevated: {
+    shadowColor: "#0C0A14",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });

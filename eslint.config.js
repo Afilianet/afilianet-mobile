@@ -6,6 +6,6 @@ module.exports = defineConfig([
   ...expoConfig,
   prettierConfig,
   {
-    ignores: ["dist/*", ".expo/*", "node_modules/*", "scripts/select-env.js", "eslint.config.js"],
+    ignores: ["dist/*", ".expo/*", "node_modules/*", "scripts/select-env.js", "eslint.config.js", "design/handoff/**"],
   },
 ]);

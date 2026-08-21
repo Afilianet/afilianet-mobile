@@ -1,0 +1,265 @@
+{
+  "meta": {
+    "marca": "Afilianet",
+    "version": "1.0.0",
+    "fecha": "2026-08-20",
+    "tema_por_defecto": "oscuro",
+    "nota": "Fuente única de verdad. Los CSS de tokens/ y este JSON deben cambiar juntos."
+  },
+  "color": {
+    "violeta": {
+      "100": "#E7DEFF",
+      "200": "#C9B8FF",
+      "300": "#A78BFA",
+      "400": "#8F73FF",
+      "500": "#6D4AFF",
+      "600": "#5533E6",
+      "700": "#3D26B8",
+      "900": "#22156B",
+      "050": "#F4F0FF"
+    },
+    "noche": {
+      "100": "#E4E1EE",
+      "200": "#C9C5DC",
+      "300": "#A9A2C4",
+      "400": "#857CA8",
+      "500": "#575072",
+      "600": "#3B3355",
+      "700": "#2A2340",
+      "800": "#1C1730",
+      "900": "#14101F",
+      "950": "#0C0A14",
+      "050": "#F3F2F8",
+      "000": "#FFFFFF"
+    },
+    "aqua": {
+      "100": "#D3F6F1",
+      "500": "#2DD4BF",
+      "600": "#14A99A"
+    }
+  },
+  "semantico": {
+    "exito": {
+      "base": "#2DD4BF",
+      "suave": "#D3F6F1",
+      "sobreOscuro": "rgba(45,212,191,0.14)",
+      "texto": "#2DD4BF",
+      "uso": "Liquidado, verificado, dentro de cuota."
+    },
+    "alerta": {
+      "base": "#F2B94B",
+      "suave": "#FCF0D8",
+      "sobreOscuro": "rgba(242,185,75,0.14)",
+      "texto": "#F2B94B",
+      "uso": "En proceso, pendiente, por vencer. Requiere espera, no acción inmediata."
+    },
+    "error": {
+      "base": "#FF6A5E",
+      "suave": "#FFE3E0",
+      "sobreOscuro": "rgba(255,106,94,0.14)",
+      "texto": "#FF6A5E",
+      "uso": "Rechazado, bloqueado, revertido. Siempre con salida accionable."
+    },
+    "info": {
+      "base": "#6D4AFF",
+      "suave": "#E7DEFF",
+      "sobreOscuro": "rgba(109,74,255,0.18)",
+      "texto": "#C9B8FF",
+      "uso": "Estado de marca: campaña activa, programado, nivel."
+    }
+  },
+  "tema": {
+    "oscuro": {
+      "fondoApp": "{color.noche.950}",
+      "superficie1": "{color.noche.900}",
+      "superficie2": "{color.noche.800}",
+      "superficieElevada": "{color.noche.800}",
+      "bordeSuave": "{color.noche.700}",
+      "bordeFuerte": "{color.noche.600}",
+      "texto1": "#ECEAF4",
+      "texto2": "{color.noche.300}",
+      "texto3": "{color.noche.400}",
+      "textoSobreMarca": "#FFFFFF",
+      "accionPrimaria": "{color.violeta.500}",
+      "accionPrimariaHover": "{color.violeta.400}",
+      "accionPrimariaActiva": "{color.violeta.600}",
+      "focoAnillo": "{color.violeta.300}"
+    },
+    "claro": {
+      "fondoApp": "{color.noche.000}",
+      "superficie1": "{color.noche.050}",
+      "superficie2": "{color.violeta.050}",
+      "superficieElevada": "{color.noche.000}",
+      "bordeSuave": "{color.noche.100}",
+      "bordeFuerte": "{color.noche.200}",
+      "texto1": "{color.noche.950}",
+      "texto2": "{color.noche.500}",
+      "texto3": "{color.noche.500}",
+      "textoSobreMarca": "#FFFFFF",
+      "accionPrimaria": "{color.violeta.500}",
+      "accionPrimariaHover": "{color.violeta.600}",
+      "accionPrimariaActiva": "{color.violeta.700}",
+      "focoAnillo": "{color.violeta.300}"
+    }
+  },
+  "tipografia": {
+    "familia": {
+      "sans": "\"Manrope\", ui-sans-serif, system-ui, -apple-system, \"Helvetica Neue\", sans-serif",
+      "mono": "\"JetBrains Mono\", ui-monospace, \"SFMono-Regular\", Menlo, monospace"
+    },
+    "peso": {
+      "regular": 400,
+      "medio": 500,
+      "semi": 600,
+      "bold": 700,
+      "extra": 800
+    },
+    "escala": {
+      "3xs": 11,
+      "2xs": 12,
+      "xs": 13,
+      "sm": 14,
+      "md": 16,
+      "lg": 18,
+      "xl": 21,
+      "2xl": 26,
+      "3xl": 32,
+      "4xl": 40,
+      "5xl": 52,
+      "6xl": 68,
+      "7xl": 88
+    },
+    "alto": {
+      "apretado": 1.05,
+      "titulo": 1.15,
+      "normal": 1.5,
+      "suelto": 1.65
+    },
+    "tracking": {
+      "display": "-0.035em",
+      "titulo": "-0.02em",
+      "normal": "0em",
+      "etiqueta": "0.14em"
+    },
+    "roles": {
+      "display": {
+        "familia": "sans",
+        "peso": 800,
+        "tamano": "4xl",
+        "alto": "apretado",
+        "tracking": "display"
+      },
+      "titulo": {
+        "familia": "sans",
+        "peso": 700,
+        "tamano": "2xl",
+        "alto": "titulo",
+        "tracking": "titulo"
+      },
+      "subtitulo": {
+        "familia": "sans",
+        "peso": 700,
+        "tamano": "lg",
+        "alto": "titulo",
+        "tracking": "titulo"
+      },
+      "cuerpo": {
+        "familia": "sans",
+        "peso": 400,
+        "tamano": "sm",
+        "alto": "normal",
+        "tracking": "normal"
+      },
+      "cuerpoFuerte": {
+        "familia": "sans",
+        "peso": 600,
+        "tamano": "sm",
+        "alto": "normal",
+        "tracking": "normal"
+      },
+      "etiqueta": {
+        "familia": "mono",
+        "peso": 500,
+        "tamano": "3xs",
+        "alto": "normal",
+        "tracking": "etiqueta",
+        "transform": "uppercase"
+      },
+      "cifra": {
+        "familia": "mono",
+        "peso": 400,
+        "tamano": "sm",
+        "alto": "normal",
+        "tracking": "normal"
+      }
+    }
+  },
+  "espaciado": {
+    "0": 0,
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "10": 40,
+    "12": 48,
+    "16": 64,
+    "20": 80,
+    "24": 96,
+    "32": 128,
+    "base": 4
+  },
+  "radio": {
+    "0": 0,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 20,
+    "2xl": 24,
+    "3xl": 32,
+    "pill": 999,
+    "iconoApp": "22%"
+  },
+  "borde": {
+    "fino": 1,
+    "grueso": 2
+  },
+  "sombra": {
+    "0": "none",
+    "1": "0 1px 2px rgba(12,10,20,0.24)",
+    "2": "0 4px 12px rgba(12,10,20,0.28)",
+    "3": "0 12px 32px rgba(12,10,20,0.36)",
+    "4": "0 24px 64px rgba(12,10,20,0.44)",
+    "resplandorMarca": "0 8px 28px rgba(109,74,255,0.35)",
+    "anilloInterno": "inset 0 1px 0 rgba(255,255,255,0.06)",
+    "anilloFoco": "0 0 0 3px rgba(167,139,250,0.45)",
+    "vidrio": "blur(20px) saturate(140%)"
+  },
+  "movimiento": {
+    "duracion": {
+      "instante": "90ms",
+      "rapida": "160ms",
+      "media": "240ms",
+      "lenta": "400ms"
+    },
+    "curva": {
+      "salida": "cubic-bezier(0.32,0.72,0,1)",
+      "entrada": "cubic-bezier(0.4,0,1,1)",
+      "estandar": "cubic-bezier(0.2,0,0.2,1)",
+      "resorte": "cubic-bezier(0.34,1.4,0.64,1)"
+    },
+    "escalaPresion": 0.975
+  },
+  "medidas": {
+    "anchoContenido": 1200,
+    "anchoLectura": "68ch",
+    "toqueMinimo": 44,
+    "gutterMovil": 20,
+    "gutterWeb": 40,
+    "railConsola": 268,
+    "panelDetalle": 460,
+    "tablaMinima": 640
+  }
+}
