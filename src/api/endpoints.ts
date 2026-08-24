@@ -102,12 +102,16 @@ export async function fetchMyInvitations(perPage = 10): Promise<PaginatedRespons
 
 /**
  * Drill-down into a specific affiliate's profile. Per afilianet-api's
- * AffiliateProfilePolicy::view, a plain affiliate can only legally view
- * their OWN id here -- not even their direct downline. Being sponsored-by
- * or a sponsor-of someone grants no extra visibility. Org owner/admin/
- * manager roles can view any affiliate in their organization. Expect and
- * handle a 403 for the common case (a plain affiliate tapping into someone
- * else's row) -- that's the backend working as designed, not a bug.
+ * AffiliateProfilePolicy::view, a plain affiliate can view: themselves, any
+ * org owner/admin/manager can view anyone, and (as of the downline
+ * visibility fix) an affiliate can view anyone who is their descendant via
+ * EITHER the sponsor tree or the placement tree, at any depth -- not just
+ * direct children. Siblings, cousins, unrelated same-org affiliates, and
+ * ancestors (the reverse direction) still 403. Callers should still handle
+ * 403 as a clean, expected outcome rather than a generic failure -- it's a
+ * real, reachable case (tapping into someone outside your downline), just
+ * no longer the default outcome for tapping your own direct-sponsored/
+ * placement-children rows.
  */
 export async function fetchAffiliateDetails(affiliateId: string): Promise<AffiliateProfile> {
   const { data } = await apiRequest<{ data: AffiliateProfile }>(`/api/v1/affiliates/${affiliateId}`);
