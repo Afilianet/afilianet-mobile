@@ -2,6 +2,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { ForbiddenState } from "./ForbiddenState";
 import { RetryButton } from "./RetryButton";
 import { SkeletonGroup } from "./Skeleton";
 import { Card } from "./ui/Card";
@@ -34,7 +35,9 @@ export function SectionCard<T>({
   emptyContent,
   children,
 }: SectionCardProps<T>) {
-  const notFound = isApiError(query.error) && query.error.kind === "not_found";
+  const apiError = isApiError(query.error) ? query.error : null;
+  const notFound = apiError?.kind === "not_found";
+  const forbidden = apiError?.kind === "forbidden";
   const showEmpty = notFound || (query.data !== undefined && (isEmpty?.(query.data) ?? false));
 
   let body: ReactNode = null;
@@ -44,10 +47,12 @@ export function SectionCard<T>({
     // refetch of already-successful data, so pull-to-refresh doesn't reset
     // a populated card back to a skeleton.
     body = <SkeletonGroup />;
+  } else if (forbidden) {
+    body = <ForbiddenState compact area={title.toLowerCase()} />;
   } else if (query.isError && !notFound) {
     body = (
       <View style={styles.stateGroup}>
-        <Text style={styles.error}>{isApiError(query.error) ? friendlyMessage(query.error) : "Couldn't load this."}</Text>
+        <Text style={styles.error}>{apiError ? friendlyMessage(apiError) : "Couldn't load this."}</Text>
         <RetryButton onPress={() => void query.refetch()} loading={query.isFetching} />
       </View>
     );
@@ -75,10 +80,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   title: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    fontWeight: "700",
-    textTransform: "uppercase",
+    ...typography.label,
+    color: colors.textTertiary,
   },
   stateGroup: {
     gap: spacing.sm,

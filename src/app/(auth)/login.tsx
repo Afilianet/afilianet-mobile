@@ -4,7 +4,8 @@ import { useAuth } from "../../auth/AuthContext";
 import { loginErrorMessage } from "../../api/errors";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
-import { colors, spacing, typography } from "../../components/ui/theme";
+import { colors, measures, spacing, typography } from "../../components/ui/theme";
+import { Logo } from "../../design-system/icons/Logo";
 
 export default function LoginScreen() {
   const { signIn, error } = useAuth();
@@ -29,7 +30,9 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Afilianet</Text>
+        <View style={styles.brand}>
+          <Logo variant="blanco" height={32} />
+        </View>
         <Text style={styles.subtitle}>Sign in to your account</Text>
 
         <View style={styles.form}>
@@ -50,7 +53,14 @@ export default function LoginScreen() {
             placeholder="••••••••"
           />
           {error ? <Text style={styles.error}>{loginErrorMessage(error)}</Text> : null}
-          <Button label="Sign in" onPress={handleSignIn} loading={submitting} disabled={!email || !password} />
+          <Button
+            label="Sign in"
+            size="lg"
+            fullWidth
+            onPress={handleSignIn}
+            loading={submitting}
+            disabled={!email || !password}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -62,19 +72,16 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: spacing.lg,
+    padding: measures.mobileGutter,
     gap: spacing.lg,
   },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-    textAlign: "center",
+  brand: {
+    alignItems: "center",
   },
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
     textAlign: "center",
-    marginTop: -spacing.md,
   },
   form: {
     gap: spacing.md,

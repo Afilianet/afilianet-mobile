@@ -6,7 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
-import { colors, spacing, typography } from "../../components/ui/theme";
+import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { SectionCard } from "../../components/SectionCard";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useCompliance } from "../../hooks/useCompliance";
@@ -16,7 +16,7 @@ import { useSponsoredAffiliates } from "../../hooks/useSponsoredAffiliates";
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
-import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../utils/statusCopy";
+import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.lg,
+    padding: measures.mobileGutter,
     gap: spacing.md,
   },
   header: {
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   enrollmentTitle: {
-    ...typography.heading,
+    ...typography.subtitle,
     color: colors.textPrimary,
   },
   stateGroupLocal: {
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   amount: {
-    ...typography.heading,
+    ...typography.subtitle,
     color: colors.textPrimary,
   },
   commissionRow: {

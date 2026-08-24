@@ -129,6 +129,17 @@ beforeEach(() => {
   mockedFetchSponsoredAffiliates.mockResolvedValue(EMPTY_SPONSORED);
 });
 
+// The "resilience"/"offline" tests below deliberately let useApiQuery's real
+// retry policy run (it's set per-query, so this client's own `retry: false`
+// default doesn't override it -- see useApiQuery.ts), producing genuine
+// setTimeout-driven exponential backoff. Clearing the client immediately
+// after each test cancels any retry/gc timers tied to it instead of leaving
+// them to fire on their own or pile up as open handles across this file's
+// 15 tests.
+afterEach(() => {
+  queryClient.clear();
+});
+
 describe("Home: header", () => {
   it("greets the user by first name and shows the active organization", async () => {
     const { findByText } = await renderHome();
