@@ -92,3 +92,20 @@ const INVITATION_STATUS: Record<string, StatusCopy> = {
 export function invitationStatusCopy(status: string): StatusCopy {
   return lookup(INVITATION_STATUS, status);
 }
+
+// app/Modules/Ledger/Enums/LedgerEntryStatus.php -- exactly 3 values,
+// confirmed against the enum's own docblock. `status` in the API response
+// is already effectiveStatus() (a stored "pending" row whose available_at
+// has passed reports as "available" here, computed server-side). "reversed"
+// is a real third value: a reversal entry is terminal and never itself
+// matures or gets reversed, and is toned "danger" for the same reason
+// CommissionStatus.reversed is -- it represents money taken back.
+const LEDGER_ENTRY_STATUS: Record<string, StatusCopy> = {
+  pending: { label: "Pending", tone: "warning" },
+  available: { label: "Available", tone: "success" },
+  reversed: { label: "Reversed", tone: "danger" },
+};
+
+export function ledgerEntryStatusCopy(status: string): StatusCopy {
+  return lookup(LEDGER_ENTRY_STATUS, status);
+}

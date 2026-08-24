@@ -7,6 +7,7 @@ export const routes = {
   profile: "/(app)/profile",
   organizationPicker: "/organization-picker",
   referral: "/referral",
+  commissions: "/commissions",
 } as const;
 
 // A function, not a flat path: this is a top-level route (like referral/

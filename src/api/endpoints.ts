@@ -4,6 +4,7 @@ import type {
   Commission,
   ComplianceCase,
   Invitation,
+  LedgerEntry,
   LoginResponse,
   Organization,
   PaginatedResponse,
@@ -31,9 +32,41 @@ export async function fetchMyWallet(): Promise<WalletSummary[]> {
   return data;
 }
 
+/**
+ * /commissions/mine is actually paginated server-side (page 1, 25/page by
+ * default) -- this just reads the first page's `data` array for Home's
+ * "recent 5" preview, which never needed more than that. For the full,
+ * paginated Commissions screen, use fetchMyCommissionsPage below instead of
+ * changing this function's shape (Home's existing consumer expects a flat
+ * array, not a {data,meta} envelope).
+ */
 export async function fetchMyCommissions(): Promise<Commission[]> {
   const { data } = await apiRequest<{ data: Commission[] }>("/api/v1/commissions/mine");
   return data;
+}
+
+export async function fetchMyCommissionsPage(
+  page = 1,
+  perPage = 25,
+): Promise<PaginatedResponse<Commission>> {
+  return apiRequest<PaginatedResponse<Commission>>(
+    `/api/v1/commissions/mine?per_page=${perPage}&page=${page}`,
+  );
+}
+
+/**
+ * Self-scoped ledger activity for one currency (GET /wallet/{currency}/entries).
+ * Currency-scoped deliberately, never combined -- an affiliate's balances
+ * are always separate per currency, and so is their activity history.
+ */
+export async function fetchWalletActivity(
+  currency: string,
+  page = 1,
+  perPage = 20,
+): Promise<PaginatedResponse<LedgerEntry>> {
+  return apiRequest<PaginatedResponse<LedgerEntry>>(
+    `/api/v1/wallet/${currency}/entries?per_page=${perPage}&page=${page}`,
+  );
 }
 
 export async function fetchMyCompliance(): Promise<ComplianceCase> {

@@ -142,7 +142,7 @@ export interface Commission {
   commission_plan_id?: string | null;
   commission_rule_id?: string | null;
   type: string;
-  network_level: number;
+  network_level: number | null;
   basis_amount: string;
   rate_basis_points: number;
   amount: string;
@@ -165,6 +165,28 @@ export interface WalletDetail extends WalletSummary {
   total_credited: string;
   total_debited: string;
   lifetime_earned: string;
+}
+
+// LedgerEntryResource (GET /api/v1/wallet/{currency}/entries) -- one row
+// per ledger transaction backing a wallet's balance. `status` is already
+// the backend's *effective* status (a stored "pending" row whose
+// available_at has passed reports as "available" here, same pattern as
+// Invitation's effective status). `source_type` is a short class basename
+// only (e.g. "Commission") -- the backend deliberately never exposes the
+// source row's id here.
+export interface LedgerEntry {
+  id: string;
+  type: "commission" | "commission_reversal" | "adjustment_credit" | "adjustment_debit" | "payout" | "payout_reversal";
+  status: string;
+  amount: string;
+  currency: string;
+  available_at: string | null;
+  effective_at: string;
+  source_type: string | null;
+  is_reversal: boolean;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export interface PayoutDestinationRef {

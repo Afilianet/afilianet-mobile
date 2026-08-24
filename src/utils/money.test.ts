@@ -1,4 +1,4 @@
-import { currencyExponent, formatMoney } from "./money";
+import { addMoney, currencyExponent, formatMoney } from "./money";
 
 describe("currencyExponent", () => {
   it("returns 2 decimals for USD/MXN/EUR", () => {
@@ -49,5 +49,37 @@ describe("formatMoney", () => {
 
   it("returns the raw string for a non-numeric amount instead of throwing", () => {
     expect(formatMoney("not-a-number", "USD")).toBe("not-a-number");
+  });
+
+  it("formats a negative amount clearly", () => {
+    expect(formatMoney("-50.00", "MXN")).toMatch(/-.*50\.00/);
+  });
+});
+
+describe("addMoney", () => {
+  it("adds two 2-decimal amounts without floating-point drift", () => {
+    // The classic float trap: 0.1 + 0.2 !== 0.3 in IEEE754. Chosen so a
+    // Number()-based implementation would visibly fail this exact case.
+    expect(addMoney("100.10", "200.20", "MXN")).toBe("300.30");
+  });
+
+  it("adds two 0-decimal amounts", () => {
+    expect(addMoney("500", "250", "JPY")).toBe("750");
+  });
+
+  it("adds two 3-decimal amounts", () => {
+    expect(addMoney("100.500", "0.001", "BHD")).toBe("100.501");
+  });
+
+  it("adds a negative reversal to a positive balance", () => {
+    expect(addMoney("100.00", "-30.00", "MXN")).toBe("70.00");
+  });
+
+  it("produces a negative total when debits exceed credits", () => {
+    expect(addMoney("10.00", "-50.00", "MXN")).toBe("-40.00");
+  });
+
+  it("handles two negative amounts", () => {
+    expect(addMoney("-10.00", "-5.00", "MXN")).toBe("-15.00");
   });
 });
