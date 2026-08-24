@@ -10,6 +10,8 @@ import { colors, spacing, typography } from "./ui/theme";
 
 interface SectionCardProps<T> {
   title: string;
+  /** Concise explanation of what this section means -- rendered under the title, e.g. to distinguish sponsor from placement. */
+  helpText?: string;
   query: UseQueryResult<T, unknown>;
   /** Returns true when `data` should render as the empty state instead of `children`. */
   isEmpty?: (data: T) => boolean;
@@ -28,6 +30,7 @@ interface SectionCardProps<T> {
  */
 export function SectionCard<T>({
   title,
+  helpText,
   query,
   isEmpty,
   emptyTitle,
@@ -70,6 +73,7 @@ export function SectionCard<T>({
   return (
     <Card style={styles.card}>
       <Text style={styles.title}>{title}</Text>
+      {helpText ? <Text style={styles.helpText}>{helpText}</Text> : null}
       {body}
     </Card>
   );
@@ -82,6 +86,10 @@ const styles = StyleSheet.create({
   title: {
     ...typography.label,
     color: colors.textTertiary,
+  },
+  helpText: {
+    ...typography.caption,
+    color: colors.textSecondary,
   },
   stateGroup: {
     gap: spacing.sm,

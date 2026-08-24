@@ -76,3 +76,19 @@ const COMMISSION_STATUS: Record<string, StatusCopy> = {
 export function commissionStatusCopy(status: string): StatusCopy {
   return lookup(COMMISSION_STATUS, status);
 }
+
+// app/Modules/Identity/Enums/InvitationStatus.php. "expired" is intentionally
+// neutral rather than danger here (unlike ComplianceStatus.expired) -- an
+// expired invitation isn't a failure needing the sponsor's action, it's just
+// a lapsed, no-longer-actionable link, closer to the official rule's
+// "draft/archived/unavailable -> neutral" bucket than to an error state.
+const INVITATION_STATUS: Record<string, StatusCopy> = {
+  pending: { label: "Pending", tone: "warning" },
+  accepted: { label: "Accepted", tone: "success" },
+  expired: { label: "Expired", tone: "neutral" },
+  revoked: { label: "Revoked", tone: "danger" },
+};
+
+export function invitationStatusCopy(status: string): StatusCopy {
+  return lookup(INVITATION_STATUS, status);
+}
