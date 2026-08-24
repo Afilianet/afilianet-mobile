@@ -1,4 +1,4 @@
-import { affiliateStatusCopy, commissionStatusCopy, complianceStatusCopy } from "./statusMapping";
+import { affiliateStatusCopy, commissionStatusCopy, complianceStatusCopy, invitationStatusCopy } from "./statusMapping";
 
 describe("affiliateStatusCopy", () => {
   it("maps every AffiliateStatus enum case per the official semantic rules", () => {
@@ -41,5 +41,18 @@ describe("commissionStatusCopy", () => {
 
   it("falls back safely for an unknown status", () => {
     expect(commissionStatusCopy("something-new").tone).toBe("neutral");
+  });
+});
+
+describe("invitationStatusCopy", () => {
+  it("maps every InvitationStatus enum case (using the backend's effective status)", () => {
+    expect(invitationStatusCopy("pending").tone).toBe("warning");
+    expect(invitationStatusCopy("accepted").tone).toBe("success");
+    expect(invitationStatusCopy("expired").tone).toBe("neutral");
+    expect(invitationStatusCopy("revoked").tone).toBe("danger");
+  });
+
+  it("falls back safely for an unknown status", () => {
+    expect(invitationStatusCopy("something-new").tone).toBe("neutral");
   });
 });

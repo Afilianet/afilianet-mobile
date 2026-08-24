@@ -3,6 +3,7 @@ import type {
   AffiliateProfile,
   Commission,
   ComplianceCase,
+  Invitation,
   LoginResponse,
   Organization,
   PaginatedResponse,
@@ -41,17 +42,100 @@ export async function fetchMyCompliance(): Promise<ComplianceCase> {
 }
 
 /**
- * A preview of who this affiliate has directly sponsored. There's no
- * dedicated self-scoped endpoint for this -- it's the admin-shaped
- * /affiliates/{affiliate}/sponsored route, which authorizes viewing your
- * own affiliate id, so callers must pass the id from fetchMyAffiliateProfile().
+ * A preview of who this affiliate has directly sponsored, via the
+ * /affiliates/{affiliate}/sponsored route (policy-gated to your own
+ * affiliate id, or another affiliate's id if you're viewing them -- see
+ * fetchAffiliateSponsored below, same endpoint shape). `page` defaults to 1
+ * so Home's existing preview call site (which never passes it) is unaffected.
  */
 export async function fetchSponsoredAffiliates(
   affiliateId: string,
   perPage = 5,
+  page = 1,
 ): Promise<PaginatedResponse<AffiliateProfile>> {
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
-    `/api/v1/affiliates/${affiliateId}/sponsored?per_page=${perPage}`,
+    `/api/v1/affiliates/${affiliateId}/sponsored?per_page=${perPage}&page=${page}`,
+  );
+}
+
+// GET /affiliates/me/sponsor -- {data: null} if the affiliate has no
+// sponsor (root of the tree), not a 404.
+export async function fetchMySponsor(): Promise<AffiliateProfile | null> {
+  const { data } = await apiRequest<{ data: AffiliateProfile | null }>("/api/v1/affiliates/me/sponsor");
+  return data;
+}
+
+// GET /affiliates/me/placement-parent -- same {data: null}-for-root shape
+// as fetchMySponsor. Sponsor and placement parent are independent
+// relationships in this domain and are never assumed equal.
+export async function fetchMyPlacementParent(): Promise<AffiliateProfile | null> {
+  const { data } = await apiRequest<{ data: AffiliateProfile | null }>("/api/v1/affiliates/me/placement-parent");
+  return data;
+}
+
+export async function fetchMySponsored(
+  page = 1,
+  perPage = 20,
+): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(
+    `/api/v1/affiliates/me/sponsored?per_page=${perPage}&page=${page}`,
+  );
+}
+
+export async function fetchMyPlacementChildren(
+  page = 1,
+  perPage = 20,
+): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(
+    `/api/v1/affiliates/me/placement-children?per_page=${perPage}&page=${page}`,
+  );
+}
+
+/**
+ * Invitations this affiliate personally sponsored (created from their own
+ * referral link) -- not invitations addressed to them. `status` is already
+ * effective (expired-but-stored-as-pending rows report as "expired").
+ */
+export async function fetchMyInvitations(perPage = 10): Promise<PaginatedResponse<Invitation>> {
+  return apiRequest<PaginatedResponse<Invitation>>(`/api/v1/affiliates/me/invitations?per_page=${perPage}`);
+}
+
+/**
+ * Drill-down into a specific affiliate's profile. Per afilianet-api's
+ * AffiliateProfilePolicy::view, a plain affiliate can view: themselves, any
+ * org owner/admin/manager can view anyone, and (as of the downline
+ * visibility fix) an affiliate can view anyone who is their descendant via
+ * EITHER the sponsor tree or the placement tree, at any depth -- not just
+ * direct children. Siblings, cousins, unrelated same-org affiliates, and
+ * ancestors (the reverse direction) still 403. Callers should still handle
+ * 403 as a clean, expected outcome rather than a generic failure -- it's a
+ * real, reachable case (tapping into someone outside your downline), just
+ * no longer the default outcome for tapping your own direct-sponsored/
+ * placement-children rows.
+ */
+export async function fetchAffiliateDetails(affiliateId: string): Promise<AffiliateProfile> {
+  const { data } = await apiRequest<{ data: AffiliateProfile }>(`/api/v1/affiliates/${affiliateId}`);
+  return data;
+}
+
+/** Same endpoint/shape as fetchSponsoredAffiliates -- named separately for the drill-down call sites' clarity. */
+export async function fetchAffiliateSponsored(
+  affiliateId: string,
+  page = 1,
+  perPage = 20,
+): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(
+    `/api/v1/affiliates/${affiliateId}/sponsored?per_page=${perPage}&page=${page}`,
+  );
+}
+
+export async function fetchAffiliatePlacementChildren(
+  affiliateId: string,
+  page = 1,
+  perPage = 20,
+): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(
+    `/api/v1/affiliates/${affiliateId}/placement-children?per_page=${perPage}&page=${page}`,
   );
 }
 

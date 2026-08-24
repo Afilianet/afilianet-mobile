@@ -86,6 +86,10 @@ export interface AffiliateProfile {
   user?: { id: string; first_name: string; last_name: string };
   affiliate_code: string;
   status: string;
+  // Absent (not null) from GET /affiliates/me/sponsor and
+  // /affiliates/me/placement-parent's responses -- those endpoints only
+  // eager-load organization+user on the returned profile, not its own
+  // sponsor/placementParent relations.
   sponsor?: AffiliateRef | null;
   placement_parent?: AffiliateRef | null;
   placement_position?: unknown;
@@ -94,6 +98,20 @@ export interface AffiliateProfile {
   activated_at: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+}
+
+// SponsoredInvitationResource (GET /api/v1/affiliates/me/invitations) --
+// deliberately excludes full email/phone, organization, sponsor, invited_by,
+// and the token/hash. `status` is already the backend's *effective* status
+// (a stored "pending" row past expires_at is reported as "expired" here).
+export interface Invitation {
+  id: string;
+  status: "pending" | "accepted" | "expired" | "revoked";
+  masked_email: string | null;
+  masked_phone: string | null;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
 }
 
 export interface ComplianceCase {
