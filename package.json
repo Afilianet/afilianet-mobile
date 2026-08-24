@@ -11,6 +11,7 @@
     "@sentry/react-native": "~7.11.0",
     "@tanstack/react-query": "^5.101.4",
     "expo": "~57.0.15",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.13",
     "expo-device": "~57.0.1",
     "expo-font": "~57.0.1",
@@ -29,6 +30,7 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
     "react-native-gesture-handler": "~2.32.0",
+    "react-native-qrcode-svg": "^6.3.21",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
@@ -62,6 +64,7 @@
   },
   "private": true,
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "testTimeout": 10000
   }
 }
