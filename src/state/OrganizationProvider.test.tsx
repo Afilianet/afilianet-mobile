@@ -92,6 +92,18 @@ beforeEach(() => {
   queryClient.clear();
 });
 
+// This file renders against the app's shared singleton QueryClient (see
+// api/queryClient.ts), not a per-test instance, because it exercises real
+// cross-query invalidation behavior. `beforeEach`'s `clear()` prevents one
+// test's cache from leaking into the next, but the *last* test's cache --
+// and the query garbage-collection timers that come with it -- would
+// otherwise sit on the singleton (and therefore on this worker's event
+// loop) until the process exits. Clearing again after the last test closes
+// that gap instead of leaving it for --forceExit to paper over.
+afterAll(() => {
+  queryClient.clear();
+});
+
 const ORG = {
   id: "org-1",
   name: "Acme",

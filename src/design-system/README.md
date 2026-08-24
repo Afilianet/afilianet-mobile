@@ -42,9 +42,17 @@ the initial brand integration; see the Phase 7A.2 final report / git history for
   `react-native-svg`. **To add a new official icon**: transcribe its path/shape data into
   `iconPaths` in `paths.ts`, add its name to the `IconName` union, then use
   `<Icon name="..." />`. There is no build-time SVG-to-component step.
-- **`icons/Logo.tsx`** renders the isotipo mark (SVG) and the "Afilianet" wordmark (native `Text`
-  using the loaded Manrope font) separately, rather than embedding text inside the SVG — RN's SVG
-  text support is less reliable across platforms than native `Text`.
+- **`icons/Logo.tsx`** transcribes the official horizontal wordmark
+  (`design/handoff/assets/logo/afilianet-logo-{blanco,violeta}.svg`) as a single
+  `react-native-svg` tree — same viewBox, rect coordinates, and `<text>` geometry
+  (position/size/letter-spacing) as the source, using `react-native-svg`'s own `Text` element so
+  the mark and wordmark scale together as one vector unit. `fontFamily` points at the loaded
+  Manrope 800 weight, since the source SVG's CSS font stack has no equivalent in React Native. An
+  earlier version of this component approximated the wordmark with RN's native `Text` sized
+  independently of the mark; it was replaced because react-native-svg's `Text` element renders the
+  official asset's exact geometry instead of an approximation, and because the native-`Text`
+  version had also silently used the mark's violet for the violeta variant's wordmark instead of
+  the source's `#0C0A14`.
 
 `src/components/ui/theme.ts` (the pre-existing import path used across the app) is a thin
 re-export of `theme.ts` under the same names, so screens and components don't import from
