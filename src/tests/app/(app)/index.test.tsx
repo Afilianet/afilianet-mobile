@@ -263,6 +263,14 @@ describe("Home: commissions", () => {
     expect(await findByText("Void")).toBeTruthy();
     expect(await findByText("Reversed")).toBeTruthy();
   });
+
+  it("navigates to the Commissions screen from the summary", async () => {
+    mockedFetchMyCommissions.mockResolvedValue([baseCommission]);
+    const { findByText } = await renderHome();
+    const link = await findByText("View all commissions");
+    fireEvent.press(link);
+    expect(mockRouter.push).toHaveBeenCalledWith("/commissions");
+  });
 });
 
 describe("Home: wallet", () => {
@@ -286,6 +294,16 @@ describe("Home: wallet", () => {
     expect(await findByText("MXN")).toBeTruthy();
     expect(await findByText(/250\.00/)).toBeTruthy();
     expect(await findByText(/3,500\.00/)).toBeTruthy();
+  });
+
+  it("navigates to the Wallet screen from the summary", async () => {
+    mockedFetchMyWallet.mockResolvedValue([
+      { currency: "USD", status: "active", pending_balance: "100.00", available_balance: "250.00" },
+    ] satisfies WalletSummary[]);
+    const { findByText } = await renderHome();
+    const link = await findByText("View wallet");
+    fireEvent.press(link);
+    expect(mockRouter.push).toHaveBeenCalledWith("/(app)/wallet");
   });
 });
 

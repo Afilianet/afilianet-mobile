@@ -198,6 +198,7 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
 }
 
 function CommissionsContent({ commissions }: { commissions: Commission[] }) {
+  const router = useRouter();
   const recent = [...commissions]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5);
@@ -216,11 +217,13 @@ function CommissionsContent({ commissions }: { commissions: Commission[] }) {
           </View>
         );
       })}
+      <Button label="View all commissions" variant="ghost" size="sm" onPress={() => router.push(routes.commissions as never)} />
     </View>
   );
 }
 
 function WalletContent({ wallets }: { wallets: WalletSummary[] }) {
+  const router = useRouter();
   return (
     <View style={styles.stateGroupLocal}>
       {wallets.map((wallet) => (
@@ -230,6 +233,7 @@ function WalletContent({ wallets }: { wallets: WalletSummary[] }) {
           <Text style={styles.amount}>Available: {formatMoney(wallet.available_balance, wallet.currency)}</Text>
         </View>
       ))}
+      <Button label="View wallet" variant="ghost" size="sm" onPress={() => router.push(routes.wallet as never)} />
     </View>
   );
 }

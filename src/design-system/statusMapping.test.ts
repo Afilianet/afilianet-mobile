@@ -1,4 +1,10 @@
-import { affiliateStatusCopy, commissionStatusCopy, complianceStatusCopy, invitationStatusCopy } from "./statusMapping";
+import {
+  affiliateStatusCopy,
+  commissionStatusCopy,
+  complianceStatusCopy,
+  invitationStatusCopy,
+  ledgerEntryStatusCopy,
+} from "./statusMapping";
 
 describe("affiliateStatusCopy", () => {
   it("maps every AffiliateStatus enum case per the official semantic rules", () => {
@@ -54,5 +60,17 @@ describe("invitationStatusCopy", () => {
 
   it("falls back safely for an unknown status", () => {
     expect(invitationStatusCopy("something-new").tone).toBe("neutral");
+  });
+});
+
+describe("ledgerEntryStatusCopy", () => {
+  it("maps the ledger entry's effective status", () => {
+    expect(ledgerEntryStatusCopy("pending").tone).toBe("warning");
+    expect(ledgerEntryStatusCopy("available").tone).toBe("success");
+    expect(ledgerEntryStatusCopy("reversed").tone).toBe("danger");
+  });
+
+  it("falls back safely for an unknown status", () => {
+    expect(ledgerEntryStatusCopy("something-new").tone).toBe("neutral");
   });
 });
