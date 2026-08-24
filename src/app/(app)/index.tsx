@@ -8,6 +8,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { SectionCard } from "../../components/SectionCard";
+import { Icon } from "../../design-system/icons/Icon";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useCompliance } from "../../hooks/useCompliance";
 import { useCommissions } from "../../hooks/useCommissions";
@@ -19,6 +20,7 @@ import { useOrganization } from "../../state/OrganizationContext";
 import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
+import { canShareReferral } from "../../utils/referral";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
 export default function HomeScreen() {
@@ -134,6 +136,7 @@ function EnrollmentBanner() {
 }
 
 function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) {
+  const router = useRouter();
   const status = affiliateStatusCopy(affiliate.status);
   return (
     <View style={styles.stateGroupLocal}>
@@ -145,6 +148,15 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
       <Text style={styles.meta}>
         {affiliate.activated_at ? `Activated ${formatDate(affiliate.activated_at)}` : "Not yet activated"}
       </Text>
+      {canShareReferral(affiliate.status) ? (
+        <Button
+          label="Share referral link"
+          variant="secondary"
+          size="sm"
+          iconLeft={<Icon name="compartir" size={14} color={colors.textPrimary} />}
+          onPress={() => router.push(routes.referral as never)}
+        />
+      ) : null}
     </View>
   );
 }

@@ -6,4 +6,5 @@ export const routes = {
   wallet: "/(app)/wallet",
   profile: "/(app)/profile",
   organizationPicker: "/organization-picker",
+  referral: "/referral",
 } as const;
