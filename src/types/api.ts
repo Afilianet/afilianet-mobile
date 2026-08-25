@@ -114,13 +114,68 @@ export interface Invitation {
   accepted_at: string | null;
 }
 
+// app/Modules/Identity/Enums/ComplianceStatus.php. "not_started" is never
+// actually returned by the backend (a case doesn't exist until POST
+// .../start is called) -- it's synthesized client-side when GET
+// /api/v1/compliance 404s. Computed server-side via
+// ComplianceCase::effectiveStatus() (past expires_at on a non-terminal
+// case reports as "expired" here, not enforced by any scheduled job).
+export type ComplianceStatus =
+  | "not_started"
+  | "in_progress"
+  | "pending_review"
+  | "manual_review"
+  | "approved"
+  | "rejected"
+  | "expired";
+
+// app/Modules/Identity/Enums/ComplianceStepType.php. Which of these six
+// exist for a given case is organization-configured
+// (Organization::requiredComplianceSteps(), default is
+// [identity_document, terms_acceptance]) -- never assume a case has all six.
+export type ComplianceStepType =
+  | "identity_information"
+  | "identity_document"
+  | "biometric_liveness"
+  | "face_match"
+  | "verbal_consent"
+  | "terms_acceptance";
+
+// app/Modules/Identity/Enums/ComplianceStepStatus.php. "in_progress" and
+// "manual_review" are declared server-side but never actually reachable
+// from current backend code paths (ComplianceService only ever sets
+// pending/passed/failed) -- kept here for type completeness, not because
+// the mobile app expects to see them today.
+export type ComplianceStepStatus = "pending" | "in_progress" | "passed" | "failed" | "manual_review" | "skipped";
+
+// ComplianceStepResource -- deliberately omits provider_reference (a
+// vendor-specific reference, never safe to expose). `provider` (a plain
+// label like "fake-identity") is explicitly safe per the resource's own
+// docblock. attempt_count/score/completed_at always reflect the latest
+// attempt only.
+export interface ComplianceStep {
+  id: string;
+  step_type: ComplianceStepType;
+  status: ComplianceStepStatus;
+  provider: string | null;
+  score: number | null;
+  attempt_count: number;
+  completed_at: string | null;
+  created_at: string;
+}
+
+// ComplianceCaseResource -- deliberately excludes `metadata` (may carry
+// provider-adjacent detail not meant for API consumers). There is
+// currently no HTTP endpoint to submit/attempt a step or upload evidence --
+// afilianet-api has no real verification vendor integrated yet, so this
+// case is read-only from the mobile app beyond starting it.
 export interface ComplianceCase {
   id: string;
   organization_id?: string;
   user?: { id: string; first_name: string; last_name: string };
   affiliate?: AffiliateRef | null;
-  status: string;
-  current_step: string | null;
+  status: ComplianceStatus;
+  current_step: ComplianceStepType | null;
   risk_level: string | null;
   started_at: string | null;
   submitted_at: string | null;
@@ -129,8 +184,7 @@ export interface ComplianceCase {
   rejected_at: string | null;
   expires_at: string | null;
   rejection_reason: string | null;
-  // ComplianceStepResource's exact fields weren't inventoried for this phase.
-  steps?: unknown[];
+  steps?: ComplianceStep[];
   created_at: string;
 }
 

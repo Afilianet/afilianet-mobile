@@ -3,6 +3,7 @@ import type {
   AffiliateProfile,
   Commission,
   ComplianceCase,
+  ComplianceStep,
   Invitation,
   LedgerEntry,
   LoginResponse,
@@ -74,6 +75,32 @@ export async function fetchWalletActivity(
 
 export async function fetchMyCompliance(): Promise<ComplianceCase> {
   const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance");
+  return data;
+}
+
+/**
+ * POST /api/v1/compliance/start -- no request body. Creates the case plus
+ * one ComplianceStep row per organization-configured required step type.
+ * 422 if this affiliate already has an active case -- there is no
+ * idempotent "get or create" here, so callers should only reach this from
+ * the not-started empty state.
+ */
+export async function startCompliance(): Promise<ComplianceCase> {
+  const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance/start", {
+    method: "POST",
+  });
+  return data;
+}
+
+/**
+ * GET /api/v1/compliance/steps -- the affiliate's own required steps for
+ * their latest case, read-only. afilianet-api has no real verification
+ * vendor integrated yet and deliberately exposes no endpoint to submit or
+ * attempt a step (ComplianceService::attemptStep() is only ever called
+ * internally/by tests) -- there is nothing for this app to POST to.
+ */
+export async function fetchComplianceSteps(): Promise<ComplianceStep[]> {
+  const { data } = await apiRequest<{ data: ComplianceStep[] }>("/api/v1/compliance/steps");
   return data;
 }
 
