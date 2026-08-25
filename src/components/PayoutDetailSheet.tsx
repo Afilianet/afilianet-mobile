@@ -1,11 +1,17 @@
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { friendlyMessage, isApiError } from "../api/errors";
 import { payoutStatusCopy } from "../design-system/statusMapping";
 import { Icon } from "../design-system/icons/Icon";
+import { useCancelPayout } from "../hooks/useCancelPayout";
+import { analytics } from "../services/analytics";
 import type { Payout } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
 import { Badge } from "./ui/Badge";
+import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
+import type { ToastTone } from "./ui/Toast";
 import { colors, measures, radius, spacing, typography } from "./ui/theme";
 
 /**
@@ -13,17 +19,61 @@ import { colors, measures, radius, spacing, typography } from "./ui/theme";
  * /payouts/{uuid} exists but returns nothing this list item doesn't
  * already have, and re-fetching by id would be a wasted round trip).
  *
- * Deliberately has no cancel action: afilianet-api's PayoutService has a
- * cancelPayout() method, but no route/controller ever exposes it (verified
- * live -- PATCH /payouts/{uuid} is a 405, no other cancel-shaped route
- * exists). Showing a "Cancel" button here would call an endpoint that
- * doesn't exist. This is a real backend gap, not a client omission -- see
- * the Phase 7B.5 report.
+ * The cancel action only ever shows for a "requested" payout -- the state
+ * machine itself (only "requested" is cancellable) is enforced entirely
+ * server-side by PayoutService::cancelPayout(); this is a display rule, not
+ * a duplicate of that logic. `onCancelled` fires with a message (and toast
+ * tone) for the parent screen to show non-blockingly once this sheet has
+ * already closed itself -- both a genuine success and the 422
+ * already-transitioned race close the sheet, since either way the payout
+ * object this sheet was built from is now stale.
  */
-export function PayoutDetailSheet({ payout, onClose }: { payout: Payout | null; onClose: () => void }) {
+export function PayoutDetailSheet({
+  payout,
+  onClose,
+  onCancelled,
+}: {
+  payout: Payout | null;
+  onClose: () => void;
+  onCancelled: (message: string, tone: ToastTone) => void;
+}) {
+  const cancelMutation = useCancelPayout();
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
   if (!payout) return null;
 
   const status = payoutStatusCopy(payout.status);
+  const canCancel = payout.status === "requested";
+
+  async function submitCancel(target: Payout) {
+    setCancelError(null);
+    try {
+      await cancelMutation.mutateAsync({ payoutId: target.id, currency: target.currency });
+      analytics.capture("payout_cancelled");
+      onClose();
+      onCancelled("Withdrawal cancelled.", "success");
+    } catch (error) {
+      if (isApiError(error) && error.kind === "validation") {
+        onClose();
+        onCancelled("This payout already moved on, so it could no longer be cancelled. Your payout list has been refreshed.", "neutral");
+        return;
+      }
+      setCancelError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+    }
+  }
+
+  function confirmCancel() {
+    if (!payout) return;
+    const target = payout;
+    Alert.alert(
+      "Cancel withdrawal?",
+      "This cancels your payout request and releases the reserved amount back to your eligible balance.",
+      [
+        { text: "Keep withdrawal", style: "cancel" },
+        { text: "Cancel withdrawal", style: "destructive", onPress: () => void submitCancel(target) },
+      ],
+    );
+  }
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -59,6 +109,19 @@ export function PayoutDetailSheet({ payout, onClose }: { payout: Payout | null; 
               {payout.failure_reason ? <Field label="Reason" value={payout.failure_reason} /> : null}
               <Field label="Created" value={formatDate(payout.created_at)} />
             </View>
+
+            {canCancel ? (
+              <View style={styles.cancelBlock}>
+                {cancelError ? <Text style={styles.cancelError}>{cancelError}</Text> : null}
+                <Button
+                  label="Cancel withdrawal"
+                  variant="danger"
+                  fullWidth
+                  loading={cancelMutation.isPending}
+                  onPress={confirmCancel}
+                />
+              </View>
+            ) : null}
           </ScrollView>
         </View>
       </View>
@@ -139,6 +202,14 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     flexShrink: 1,
     textAlign: "right",
+  },
+  cancelBlock: {
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  cancelError: {
+    ...typography.body,
+    color: colors.danger,
   },
   fieldValueMono: {
     ...typography.numeric,

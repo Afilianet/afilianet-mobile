@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
 import { ApiError } from "../../api/errors";
 import {
+  cancelPayout,
   fetchMyAffiliateProfile,
   fetchMyPayouts,
   fetchPayoutDestinations,
@@ -31,6 +33,7 @@ jest.mock("../../api/endpoints", () => ({
   fetchPayoutDestinations: jest.fn(),
   fetchPayoutEligibility: jest.fn(),
   fetchMyPayouts: jest.fn(),
+  cancelPayout: jest.fn(),
 }));
 
 jest.mock("../../services/analytics", () => ({
@@ -42,7 +45,23 @@ const mockedFetchMyWallet = fetchMyWallet as jest.Mock;
 const mockedFetchPayoutDestinations = fetchPayoutDestinations as jest.Mock;
 const mockedFetchPayoutEligibility = fetchPayoutEligibility as jest.Mock;
 const mockedFetchMyPayouts = fetchMyPayouts as jest.Mock;
+const mockedCancelPayout = cancelPayout as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
+
+/** Auto-confirms the "Cancel withdrawal?" Alert by invoking its destructive button. */
+function autoConfirmCancelAlert() {
+  return jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
+    const destructive = buttons?.find((button) => button.style === "destructive");
+    destructive?.onPress?.();
+  });
+}
+
+async function openRequestedPayoutDetail(findByText: (text: RegExp | string) => Promise<unknown>) {
+  const row = await findByText(/100\.00/);
+  await act(async () => {
+    fireEvent.press(row as never);
+  });
+}
 
 const ORG_A: Organization = {
   id: "org-a",
@@ -237,18 +256,15 @@ describe("Payouts: history and statuses", () => {
 });
 
 describe("Payouts: detail sheet", () => {
-  it("opens on tap and explains the status in plain language, with no cancel action", async () => {
+  it("opens on tap and explains the status in plain language, with a cancel action for a requested payout", async () => {
     mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
-    const { findByText, queryByText } = await renderPayouts();
+    const { findByText } = await renderPayouts();
 
-    const row = await findByText(/100\.00/);
-    await act(async () => {
-      fireEvent.press(row);
-    });
+    await openRequestedPayoutDetail(findByText);
 
     expect(await findByText("Payout details")).toBeTruthy();
     expect(await findByText(/has been requested and that amount is reserved/i)).toBeTruthy();
-    expect(queryByText("Cancel")).toBeNull();
+    expect(await findByText("Cancel withdrawal")).toBeTruthy();
   });
 
   it("explains failed without implying a ledger refund", async () => {
@@ -264,6 +280,142 @@ describe("Payouts: detail sheet", () => {
 
     expect(await findByText(/reservation was released/i)).toBeTruthy();
     expect(queryByText(/refund/i)).toBeNull();
+  });
+
+  it.each(["processing", "paid", "failed", "cancelled"] as const)(
+    "hides the cancel action for a %s payout",
+    async (status) => {
+      mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status })]));
+      const { findByText, queryByText } = await renderPayouts();
+
+      const row = await findByText(/100\.00/);
+      await act(async () => {
+        fireEvent.press(row);
+      });
+
+      expect(await findByText("Payout details")).toBeTruthy();
+      expect(queryByText("Cancel withdrawal")).toBeNull();
+    },
+  );
+});
+
+describe("Payouts: cancellation", () => {
+  it("requires confirmation before cancelling -- dismissing the alert never calls the API", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const { findByText } = await renderPayouts();
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Cancel withdrawal?",
+      expect.stringMatching(/releases the reserved amount/i),
+      expect.any(Array),
+    );
+    expect(mockedCancelPayout).not.toHaveBeenCalled();
+
+    alertSpy.mockRestore();
+  });
+
+  it("cancels the payout, closes the sheet, and shows a non-blocking confirmation", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    mockedCancelPayout.mockResolvedValue(payout({ status: "cancelled", cancelled_at: "2026-01-03T00:00:00Z" }));
+    const alertSpy = autoConfirmCancelAlert();
+    const { findByText, queryByText } = await renderPayouts();
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+
+    expect(mockedCancelPayout.mock.calls[0][0]).toBe("payout-1");
+    await waitFor(() => expect(queryByText("Payout details")).toBeNull());
+    expect(await findByText(/withdrawal cancelled/i)).toBeTruthy();
+
+    alertSpy.mockRestore();
+  });
+
+  it("invalidates payout history, eligibility, and wallet queries after cancellation", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    mockedCancelPayout.mockResolvedValue(payout({ status: "cancelled", cancelled_at: "2026-01-03T00:00:00Z" }));
+    const alertSpy = autoConfirmCancelAlert();
+    const { findByText } = await renderPayouts();
+    await findByText("MXN");
+
+    const payoutsCallsBefore = mockedFetchMyPayouts.mock.calls.length;
+    const eligibilityCallsBefore = mockedFetchPayoutEligibility.mock.calls.length;
+    const walletCallsBefore = mockedFetchMyWallet.mock.calls.length;
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+    await waitFor(() => expect(mockedFetchMyPayouts.mock.calls.length).toBeGreaterThan(payoutsCallsBefore));
+
+    await waitFor(() => expect(mockedFetchPayoutEligibility.mock.calls.length).toBeGreaterThan(eligibilityCallsBefore));
+    await waitFor(() => expect(mockedFetchMyWallet.mock.calls.length).toBeGreaterThan(walletCallsBefore));
+
+    alertSpy.mockRestore();
+  });
+
+  it("refreshes payout data and shows a clear message when the payout already transitioned (422 race)", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    mockedCancelPayout.mockRejectedValue(
+      new ApiError("validation", 'Cannot move a payout from "processing" to "cancelled".', 422),
+    );
+    const alertSpy = autoConfirmCancelAlert();
+    const { findByText, queryByText } = await renderPayouts();
+
+    const payoutsCallsBefore = mockedFetchMyPayouts.mock.calls.length;
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+
+    await waitFor(() => expect(queryByText("Payout details")).toBeNull());
+    expect(await findByText(/already moved on/i)).toBeTruthy();
+    await waitFor(() => expect(mockedFetchMyPayouts.mock.calls.length).toBeGreaterThan(payoutsCallsBefore));
+
+    alertSpy.mockRestore();
+  });
+
+  it("shows a permission error and keeps the sheet open on a 403", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    mockedCancelPayout.mockRejectedValue(new ApiError("forbidden", "This action is unauthorized.", 403));
+    const alertSpy = autoConfirmCancelAlert();
+    const { findByText } = await renderPayouts();
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+
+    expect(await findByText(/don't have permission/i)).toBeTruthy();
+    expect(await findByText("Payout details")).toBeTruthy();
+
+    alertSpy.mockRestore();
+  });
+
+  it("fires payout_cancelled with no properties, only on success", async () => {
+    mockedFetchMyPayouts.mockResolvedValue(payoutsPage([payout({ status: "requested" })]));
+    mockedCancelPayout.mockResolvedValue(payout({ status: "cancelled", cancelled_at: "2026-01-03T00:00:00Z" }));
+    const alertSpy = autoConfirmCancelAlert();
+    const { findByText } = await renderPayouts();
+
+    await openRequestedPayoutDetail(findByText);
+    await act(async () => {
+      fireEvent.press(await findByText("Cancel withdrawal"));
+    });
+    await waitFor(() => expect(mockedCancelPayout).toHaveBeenCalledTimes(1));
+
+    const cancelledCall = mockedCapture.mock.calls.find(([event]) => event === "payout_cancelled");
+    expect(cancelledCall).toHaveLength(1); // event name only, no properties argument at all
+
+    alertSpy.mockRestore();
   });
 });
 

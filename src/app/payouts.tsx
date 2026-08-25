@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../api/errors";
 import { AddDestinationSheet } from "../components/AddDestinationSheet";
@@ -14,6 +14,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
+import { Toast, type ToastTone } from "../components/ui/Toast";
 import { Icon } from "../design-system/icons/Icon";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useMyPayouts } from "../hooks/useMyPayouts";
@@ -33,13 +34,27 @@ export default function PayoutsScreen() {
   const payoutsQuery = useMyPayouts();
   const [selected, setSelected] = useState<Payout | null>(null);
   const [addingDestination, setAddingDestination] = useState(false);
+  const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     analytics.capture("payouts_viewed");
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
   function openDetail(payout: Payout) {
     setSelected(payout);
+  }
+
+  function showToast(message: string, tone: ToastTone) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, tone });
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
   }
 
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
@@ -115,12 +130,18 @@ export default function PayoutsScreen() {
         ) : null}
       </ScrollView>
 
-      <PayoutDetailSheet payout={selected} onClose={() => setSelected(null)} />
+      <PayoutDetailSheet
+        payout={selected}
+        onClose={() => setSelected(null)}
+        onCancelled={(message, tone) => showToast(message, tone)}
+      />
       <AddDestinationSheet
         visible={addingDestination}
         onClose={() => setAddingDestination(false)}
         onCreated={() => setAddingDestination(false)}
       />
+
+      {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
     </View>
   );
 }
