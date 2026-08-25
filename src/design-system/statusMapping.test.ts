@@ -4,6 +4,7 @@ import {
   complianceStatusCopy,
   invitationStatusCopy,
   ledgerEntryStatusCopy,
+  payoutStatusCopy,
 } from "./statusMapping";
 
 describe("affiliateStatusCopy", () => {
@@ -72,5 +73,32 @@ describe("ledgerEntryStatusCopy", () => {
 
   it("falls back safely for an unknown status", () => {
     expect(ledgerEntryStatusCopy("something-new").tone).toBe("neutral");
+  });
+});
+
+describe("payoutStatusCopy", () => {
+  it("maps every PayoutStatus enum case, including in-flight statuses as warning", () => {
+    expect(payoutStatusCopy("requested").tone).toBe("warning");
+    expect(payoutStatusCopy("processing").tone).toBe("warning");
+    expect(payoutStatusCopy("paid").tone).toBe("success");
+    expect(payoutStatusCopy("failed").tone).toBe("danger");
+    expect(payoutStatusCopy("cancelled").tone).toBe("neutral");
+  });
+
+  it("provides plain-language explanations for every status", () => {
+    expect(payoutStatusCopy("requested").description).toMatch(/reserved/i);
+    expect(payoutStatusCopy("processing").description).toMatch(/reserved/i);
+    expect(payoutStatusCopy("paid").description).toMatch(/ledger was debited/i);
+    expect(payoutStatusCopy("failed").description).toMatch(/reservation was released/i);
+    expect(payoutStatusCopy("cancelled").description).toMatch(/reservation was released/i);
+  });
+
+  it("never implies a ledger refund for failed/cancelled", () => {
+    expect(payoutStatusCopy("failed").description).not.toMatch(/refund/i);
+    expect(payoutStatusCopy("cancelled").description).not.toMatch(/refund/i);
+  });
+
+  it("falls back safely for an unknown status", () => {
+    expect(payoutStatusCopy("something-new").tone).toBe("neutral");
   });
 });

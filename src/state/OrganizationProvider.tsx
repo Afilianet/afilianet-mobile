@@ -9,7 +9,8 @@ import type { Organization } from "../types/api";
 import { OrganizationContext, type OrganizationContextValue, type OrganizationStatus } from "./OrganizationContext";
 
 // Root keys of every tenant-scoped React Query hook (useAffiliateProfile,
-// useCompliance, useCommissions, useWallet, useSponsoredAffiliates). Query
+// useCompliance, useCommissions, useWallet, useSponsoredAffiliates,
+// useMyPayouts, usePayoutDestinations, usePayoutEligibility). Query
 // keys already include the org id, so switching orgs is a cache-miss on its
 // own -- this invalidation is a second, explicit safety net so no stale
 // Org A data can linger in the cache. It targets the PREVIOUS org's id
@@ -17,7 +18,14 @@ import { OrganizationContext, type OrganizationContextValue, type OrganizationSt
 // domain root -- a bare-root invalidation would also match the org just
 // switched *to*, which is still actively observed, and would trigger a
 // redundant duplicate fetch racing the new query's own initial fetch.
-const TENANT_QUERY_DOMAINS = ["affiliate", "compliance", "commissions", "wallet"] as const;
+const TENANT_QUERY_DOMAINS = [
+  "affiliate",
+  "compliance",
+  "commissions",
+  "wallet",
+  "payouts",
+  "payout-destinations",
+] as const;
 
 const ACTIVE_ORG_KEY = "afilianet_active_organization_id";
 

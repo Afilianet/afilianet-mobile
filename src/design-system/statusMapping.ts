@@ -109,3 +109,41 @@ const LEDGER_ENTRY_STATUS: Record<string, StatusCopy> = {
 export function ledgerEntryStatusCopy(status: string): StatusCopy {
   return lookup(LEDGER_ENTRY_STATUS, status);
 }
+
+// app/Modules/Payments/Enums/PayoutStatus.php. requested/processing both
+// mean "reserved, not yet paid" -- warning, matching the same bucket every
+// other domain uses for an in-flight/not-yet-final state. paid -> success.
+// failed/cancelled -> danger/neutral respectively: failed is an error the
+// affiliate may want to act on (e.g. fix a destination), cancelled was the
+// affiliate's own choice and isn't a failure.
+const PAYOUT_STATUS: Record<string, StatusCopy> = {
+  requested: {
+    label: "Requested",
+    tone: "warning",
+    description: "The withdrawal has been requested and that amount is reserved.",
+  },
+  processing: {
+    label: "Processing",
+    tone: "warning",
+    description: "The payout is being processed and remains reserved.",
+  },
+  paid: {
+    label: "Paid",
+    tone: "success",
+    description: "The payout was confirmed and the wallet ledger was debited.",
+  },
+  failed: {
+    label: "Failed",
+    tone: "danger",
+    description: "The payout did not complete. The reservation was released.",
+  },
+  cancelled: {
+    label: "Cancelled",
+    tone: "neutral",
+    description: "The request was cancelled before payment. The reservation was released.",
+  },
+};
+
+export function payoutStatusCopy(status: string): StatusCopy {
+  return lookup(PAYOUT_STATUS, status);
+}

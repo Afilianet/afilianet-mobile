@@ -194,12 +194,19 @@ export interface PayoutDestinationRef {
   display_label: string;
 }
 
+export type PayoutStatus = "requested" | "processing" | "paid" | "failed" | "cancelled";
+
+// PayoutResource (GET /api/v1/payouts, /payouts/mine, /payouts/{uuid}) --
+// deliberately excludes provider_reference (never established as safe to
+// expose). `destination` is always eager-loaded by every controller action
+// that returns a Payout, so it's null only when the destination itself was
+// deleted, never simply "not loaded".
 export interface Payout {
   id: string;
   destination?: PayoutDestinationRef | null;
   currency: string;
   amount: string;
-  status: string;
+  status: PayoutStatus;
   requested_at: string | null;
   processing_at: string | null;
   paid_at: string | null;
@@ -209,4 +216,41 @@ export interface Payout {
   failure_reason: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+}
+
+// PayoutDestinationResource (GET/POST/PATCH /api/v1/payout-destinations) --
+// deliberately excludes provider_reference (an opaque provider-side token
+// that must never be exposed publicly). There is no raw bank/account
+// number anywhere in this model to begin with -- see PayoutDestination's
+// own docblock in afilianet-api. Destination creation today is real but
+// self-attested: no payment-provider tokenization flow exists yet, so
+// `provider`/`display_label` are whatever the client sends, not verified
+// against a real bank.
+export interface PayoutDestination {
+  id: string;
+  type: "bank_account" | "provider_account";
+  currency: string | null;
+  country: string;
+  provider: string | null;
+  display_label: string;
+  status: "active" | "inactive";
+  verified_at: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// PayoutEligibilityResource (GET /api/v1/wallet/{currency}/payout-eligibility)
+// -- a computed figure, not a stored row. eligible_balance is already
+// available_balance - outstanding_reservations - reserve, calculated
+// server-side; never re-derive this client-side. `reserve` is currently
+// always "0" (no reserve-percentage feature configured/exposed yet in
+// afilianet-api) but is still real backend output, not invented.
+export interface PayoutEligibility {
+  currency: string;
+  available_balance: string;
+  outstanding_reservations: string;
+  reserve: string;
+  eligible_balance: string;
+  minimum_payout: string;
 }

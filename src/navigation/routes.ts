@@ -8,6 +8,7 @@ export const routes = {
   organizationPicker: "/organization-picker",
   referral: "/referral",
   commissions: "/commissions",
+  payouts: "/payouts",
 } as const;
 
 // A function, not a flat path: this is a top-level route (like referral/
@@ -19,4 +20,8 @@ export const routes = {
 // top-level segment sidesteps that entirely.
 export function networkAffiliateDetail(affiliateUuid: string): string {
   return `/network-affiliate/${affiliateUuid}`;
+}
+
+export function payoutRequest(currency: string): string {
+  return `/payout-request/${currency}`;
 }
