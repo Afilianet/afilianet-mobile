@@ -200,14 +200,26 @@ describe("Commissions: detail sheet", () => {
 
 describe("Commissions: pagination", () => {
   it("loads the next page and appends without duplicates", async () => {
+    // c-3 gets a distinct amount so it has text unique to page 2 -- every
+    // commission here otherwise renders the identical "Direct sale" label,
+    // so findAllByText("Direct sale") can't tell "page 1 only" apart from
+    // "page 1 + page 2" by itself. findAllByText/findByText resolve as soon
+    // as a query stops throwing (i.e. finds at least one match), NOT once a
+    // specific count is reached -- so asserting a count straight off
+    // findAllByText right after firing "Load more" can observe the interim
+    // 2-row DOM (fetchNextPage's response hasn't landed/re-rendered yet) and
+    // pass or fail depending on scheduling. Waiting for $30.00 (page-2-only)
+    // to actually appear is a real, unambiguous signal that the second page
+    // has been merged into the cache and rendered; only then is checking the
+    // row count race-free.
     mockedFetchMyCommissionsPage.mockImplementation((p: number) =>
       Promise.resolve(
         p === 1
           ? page([commission({ id: "c-1" }), commission({ id: "c-2" })], 1, 2, 3)
-          : page([commission({ id: "c-2" }), commission({ id: "c-3" })], 2, 2, 3),
+          : page([commission({ id: "c-2" }), commission({ id: "c-3", amount: "30.00" })], 2, 2, 3),
       ),
     );
-    const { findByLabelText, findAllByText } = await renderCommissions();
+    const { findByLabelText, findByText, findAllByText, getAllByText } = await renderCommissions();
     expect((await findAllByText("Direct sale")).length).toBe(2);
 
     const loadMore = await findByLabelText("Load more recent commissions");
@@ -215,7 +227,8 @@ describe("Commissions: pagination", () => {
       fireEvent.press(loadMore);
     });
 
-    expect((await findAllByText("Direct sale")).length).toBe(3); // 3 unique rows, not 4
+    expect(await findByText(/30\.00/)).toBeTruthy(); // page 2's new commission has actually rendered
+    expect(getAllByText("Direct sale")).toHaveLength(3); // 3 unique rows, not 4 -- safe now that page 2 is confirmed in
     expect(mockedFetchMyCommissionsPage).toHaveBeenCalledWith(2);
   });
 
