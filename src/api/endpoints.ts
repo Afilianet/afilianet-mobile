@@ -246,6 +246,20 @@ export async function requestPayout(input: {
   return data;
 }
 
+/**
+ * POST /api/v1/payouts/{payout}/cancel -- no request body. Only ever valid
+ * while the payout is still "requested" (PayoutService::cancelPayout()
+ * enforces this server-side, via PayoutPolicy's self-affiliate-or-manager
+ * `cancel` ability plus the state machine itself); an already-transitioned
+ * payout renders as a clean 422, not something this client checks first.
+ */
+export async function cancelPayout(payoutId: string): Promise<Payout> {
+  const { data } = await apiRequest<{ data: Payout }>(`/api/v1/payouts/${payoutId}/cancel`, {
+    method: "POST",
+  });
+  return data;
+}
+
 export async function signIn(email: string, password: string): Promise<LoginResponse> {
   // Not wrapped in {data: ...} -- see the LoginResponse comment in types/api.ts.
   return apiRequest<LoginResponse>("/api/v1/auth/login", {
