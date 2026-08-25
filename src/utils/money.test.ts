@@ -1,4 +1,4 @@
-import { addMoney, currencyExponent, formatMoney } from "./money";
+import { addMoney, currencyExponent, formatMoney, parseAmountInput, toMinorUnits } from "./money";
 
 describe("currencyExponent", () => {
   it("returns 2 decimals for USD/MXN/EUR", () => {
@@ -81,5 +81,80 @@ describe("addMoney", () => {
 
   it("handles two negative amounts", () => {
     expect(addMoney("-10.00", "-5.00", "MXN")).toBe("-15.00");
+  });
+});
+
+describe("toMinorUnits", () => {
+  it("converts a 2-decimal amount to integer minor units", () => {
+    expect(toMinorUnits("100.50", "MXN")).toBe(10050n);
+  });
+
+  it("converts a 0-decimal amount", () => {
+    expect(toMinorUnits("500", "JPY")).toBe(500n);
+  });
+
+  it("converts a 3-decimal amount", () => {
+    expect(toMinorUnits("1.235", "BHD")).toBe(1235n);
+  });
+
+  it("preserves sign for negative amounts", () => {
+    expect(toMinorUnits("-40.00", "MXN")).toBe(-4000n);
+  });
+});
+
+describe("parseAmountInput", () => {
+  it("accepts a valid 2-decimal amount", () => {
+    const result = parseAmountInput("100.50", "MXN");
+    expect(result).toEqual({ valid: true, minorUnits: 10050, decimal: "100.50" });
+  });
+
+  it("accepts a whole-number amount for a 0-decimal currency", () => {
+    const result = parseAmountInput("500", "JPY");
+    expect(result).toEqual({ valid: true, minorUnits: 500, decimal: "500" });
+  });
+
+  it("accepts a 3-decimal amount for BHD", () => {
+    const result = parseAmountInput("1.235", "BHD");
+    expect(result).toEqual({ valid: true, minorUnits: 1235, decimal: "1.235" });
+  });
+
+  it("rejects a negative amount", () => {
+    const result = parseAmountInput("-10.00", "MXN");
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects zero", () => {
+    const result = parseAmountInput("0", "MXN");
+    expect(result).toEqual({ valid: false, error: "Enter an amount greater than zero." });
+  });
+
+  it("rejects zero with trailing decimals", () => {
+    const result = parseAmountInput("0.00", "MXN");
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects more decimal places than the currency allows", () => {
+    const result = parseAmountInput("100.123", "MXN");
+    expect(result).toEqual({ valid: false, error: "Enter up to 2 decimal places." });
+  });
+
+  it("rejects any decimal places for a 0-decimal currency", () => {
+    const result = parseAmountInput("100.5", "JPY");
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects malformed input", () => {
+    expect(parseAmountInput("abc", "MXN").valid).toBe(false);
+    expect(parseAmountInput("12.34.56", "MXN").valid).toBe(false);
+    expect(parseAmountInput("1,000", "MXN").valid).toBe(false);
+    expect(parseAmountInput("1e5", "MXN").valid).toBe(false);
+    expect(parseAmountInput("+100", "MXN").valid).toBe(false);
+    expect(parseAmountInput("", "MXN").valid).toBe(false);
+  });
+
+  it("never uses float arithmetic -- exact at the boundary of IEEE754 drift", () => {
+    // 0.1 + 0.2 !== 0.3 in float; parsing "0.30" directly must still be exact.
+    const result = parseAmountInput("0.30", "MXN");
+    expect(result).toEqual({ valid: true, minorUnits: 30, decimal: "0.30" });
   });
 });

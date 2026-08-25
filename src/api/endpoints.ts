@@ -8,6 +8,9 @@ import type {
   LoginResponse,
   Organization,
   PaginatedResponse,
+  Payout,
+  PayoutDestination,
+  PayoutEligibility,
   User,
   WalletSummary,
 } from "../types/api";
@@ -170,6 +173,77 @@ export async function fetchAffiliatePlacementChildren(
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
     `/api/v1/affiliates/${affiliateId}/placement-children?per_page=${perPage}&page=${page}`,
   );
+}
+
+/**
+ * GET /api/v1/payouts -- shared with org managers at the API level (a
+ * manager sees every payout in the org), but the mobile app only ever acts
+ * as the affiliate, and the backend automatically scopes a plain affiliate
+ * to their own payouts server-side (no separate "/mine" route exists by
+ * design -- see PayoutPolicy's docblock in afilianet-api).
+ */
+export async function fetchMyPayouts(page = 1, perPage = 20): Promise<PaginatedResponse<Payout>> {
+  return apiRequest<PaginatedResponse<Payout>>(`/api/v1/payouts?per_page=${perPage}&page=${page}`);
+}
+
+export async function fetchPayoutDestinations(page = 1, perPage = 20): Promise<PaginatedResponse<PayoutDestination>> {
+  return apiRequest<PaginatedResponse<PayoutDestination>>(
+    `/api/v1/payout-destinations?per_page=${perPage}&page=${page}`,
+  );
+}
+
+/**
+ * Real, callable endpoint today -- but destination creation is currently
+ * self-attested (no payment-provider tokenization flow exists yet in
+ * afilianet-api). Deliberately does NOT accept a `provider_reference` field
+ * from this app: exposing a free-text "bank reference" input would invite
+ * users to paste real account/CLABE data into a field with no secure vault
+ * behind it. Only fields with no raw-banking-data risk are sent.
+ */
+export async function createPayoutDestination(input: {
+  type: "bank_account" | "provider_account";
+  country: string;
+  display_label: string;
+  currency?: string;
+}): Promise<PayoutDestination> {
+  const { data } = await apiRequest<{ data: PayoutDestination }>("/api/v1/payout-destinations", {
+    method: "POST",
+    body: input,
+  });
+  return data;
+}
+
+/**
+ * GET /api/v1/wallet/{currency}/payout-eligibility -- the backend's own
+ * computed eligible_balance (available_balance - outstanding reservations
+ * - reserve). Never re-derive this client-side from wallet + payout history;
+ * use exactly what this endpoint returns.
+ */
+export async function fetchPayoutEligibility(currency: string): Promise<PayoutEligibility> {
+  const { data } = await apiRequest<{ data: PayoutEligibility }>(`/api/v1/wallet/${currency}/payout-eligibility`);
+  return data;
+}
+
+/**
+ * POST /api/v1/payouts. `amount_minor` is an integer minor-units value,
+ * not a decimal string -- see money.ts's parseAmountInput/toMinorUnits.
+ * `idempotency_key` is optional server-side (it auto-generates one if
+ * omitted), but that only protects the SERVER from an internal double-post
+ * -- it does nothing for a client-side retry unless the client sends its
+ * OWN key and reuses it across retries of the same logical attempt, which
+ * is exactly what useRequestPayout does.
+ */
+export async function requestPayout(input: {
+  payout_destination_id: string;
+  currency: string;
+  amount_minor: number;
+  idempotency_key: string;
+}): Promise<Payout> {
+  const { data } = await apiRequest<{ data: Payout }>("/api/v1/payouts", {
+    method: "POST",
+    body: input,
+  });
+  return data;
 }
 
 export async function signIn(email: string, password: string): Promise<LoginResponse> {

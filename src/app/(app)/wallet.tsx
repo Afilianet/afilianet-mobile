@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
@@ -6,16 +7,19 @@ import { ErrorState } from "../../components/ErrorState";
 import { LedgerEntryRow } from "../../components/LedgerEntryRow";
 import { PaginatedSectionCard } from "../../components/PaginatedSectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
+import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useWallet } from "../../hooks/useWallet";
 import { useWalletActivity } from "../../hooks/useWalletActivity";
+import { payoutRequest, routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import type { WalletSummary } from "../../types/api";
 import { addMoney, formatMoney } from "../../utils/money";
 
 export default function WalletScreen() {
+  const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();
 
@@ -29,7 +33,10 @@ export default function WalletScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="wallet-scroll">
-      <Text style={styles.heading}>Wallet</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.heading}>Wallet</Text>
+        <Button label="Payouts" variant="ghost" size="sm" onPress={() => router.push(routes.payouts as never)} />
+      </View>
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />
@@ -67,8 +74,14 @@ export default function WalletScreen() {
 }
 
 function WalletCurrencyCard({ wallet }: { wallet: WalletSummary }) {
+  const router = useRouter();
   const activityQuery = useWalletActivity(wallet.currency);
   const total = addMoney(wallet.pending_balance, wallet.available_balance, wallet.currency);
+  // A cheap heuristic, not the real eligibility check -- the Payout Request
+  // screen calls the actual GET .../payout-eligibility endpoint (which also
+  // subtracts outstanding reservations/reserve) before allowing a request.
+  // This just avoids showing "Withdraw" for a wallet with nothing in it.
+  const canWithdraw = Number(wallet.available_balance) > 0;
 
   return (
     <View style={styles.currencyBlock}>
@@ -77,6 +90,14 @@ function WalletCurrencyCard({ wallet }: { wallet: WalletSummary }) {
         <BalanceRow label="Pending" value={formatMoney(wallet.pending_balance, wallet.currency)} />
         <BalanceRow label="Available" value={formatMoney(wallet.available_balance, wallet.currency)} />
         <BalanceRow label="Total" value={formatMoney(total, wallet.currency)} strong />
+        {canWithdraw ? (
+          <Button
+            label="Withdraw"
+            variant="secondary"
+            size="sm"
+            onPress={() => router.push(payoutRequest(wallet.currency) as never)}
+          />
+        ) : null}
       </Card>
 
       <PaginatedSectionCard
@@ -110,6 +131,11 @@ const styles = StyleSheet.create({
   content: {
     padding: measures.mobileGutter,
     gap: spacing.md,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   heading: {
     ...typography.title,
