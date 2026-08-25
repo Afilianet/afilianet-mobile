@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
 import { Card } from "../../components/ui/Card";
@@ -161,13 +161,14 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
   );
 }
 
-function handleComplianceCta() {
-  analytics.capture("compliance_cta_pressed");
-  Alert.alert("Coming soon", "Identity verification will be available in an upcoming update.");
-}
-
 function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) {
+  const router = useRouter();
   const notStarted = complianceStatusCopy("not_started");
+
+  function goToCompliance() {
+    analytics.capture("compliance_cta_pressed");
+    router.push(routes.compliance as never);
+  }
 
   return (
     <SectionCard
@@ -177,7 +178,7 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
           {notStarted.description ? <Text style={styles.meta}>{notStarted.description}</Text> : null}
-          <Button label="Start verification" variant="secondary" onPress={handleComplianceCta} />
+          <Button label="Start verification" variant="secondary" onPress={goToCompliance} />
         </View>
       }
     >
@@ -188,7 +189,7 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
             {compliance.status !== "approved" ? (
-              <Button label="Continue verification" variant="secondary" onPress={handleComplianceCta} />
+              <Button label="Continue verification" variant="secondary" onPress={goToCompliance} />
             ) : null}
           </View>
         );

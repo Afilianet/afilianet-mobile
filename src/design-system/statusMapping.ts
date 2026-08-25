@@ -65,6 +65,23 @@ export function complianceStatusCopy(status: string): StatusCopy {
   return lookup(COMPLIANCE_STATUS, status);
 }
 
+// app/Modules/Identity/Enums/ComplianceStepStatus.php. "in_progress" and
+// "manual_review" are declared server-side but not currently reachable in
+// practice (ComplianceService only ever sets pending/passed/failed) --
+// mapped here anyway for completeness, same official tone rule as above.
+const COMPLIANCE_STEP_STATUS: Record<string, StatusCopy> = {
+  pending: { label: "Pending", tone: "warning" },
+  in_progress: { label: "In progress", tone: "warning" },
+  passed: { label: "Passed", tone: "success" },
+  failed: { label: "Failed", tone: "danger" },
+  manual_review: { label: "Manual review", tone: "warning" },
+  skipped: { label: "Skipped", tone: "neutral" },
+};
+
+export function complianceStepStatusCopy(status: string): StatusCopy {
+  return lookup(COMPLIANCE_STEP_STATUS, status);
+}
+
 // app/Modules/Commissions/Enums/CommissionStatus.php
 const COMMISSION_STATUS: Record<string, StatusCopy> = {
   pending: { label: "Pending", tone: "warning" },

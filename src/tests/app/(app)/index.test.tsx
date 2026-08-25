@@ -230,6 +230,36 @@ describe("Home: compliance", () => {
     expect(await findByText("Rejected")).toBeTruthy();
     expect(await findByText("Continue verification")).toBeTruthy();
   });
+
+  it("navigates to the Compliance screen from the not-started CTA", async () => {
+    const { findByText } = await renderHome();
+    await act(async () => {
+      fireEvent.press(await findByText("Start verification"));
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
+  });
+
+  it("navigates to the Compliance screen from the continue-verification CTA", async () => {
+    mockedFetchMyCompliance.mockResolvedValue({
+      id: "case-1",
+      status: "rejected",
+      current_step: null,
+      risk_level: null,
+      started_at: null,
+      submitted_at: null,
+      reviewed_at: null,
+      approved_at: null,
+      rejected_at: "2026-01-05T00:00:00Z",
+      expires_at: null,
+      rejection_reason: "Document unclear",
+      created_at: "2026-01-01T00:00:00Z",
+    } satisfies ComplianceCase);
+    const { findByText } = await renderHome();
+    await act(async () => {
+      fireEvent.press(await findByText("Continue verification"));
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
+  });
 });
 
 describe("Home: commissions", () => {

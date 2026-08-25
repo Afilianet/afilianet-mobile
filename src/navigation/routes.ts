@@ -9,6 +9,7 @@ export const routes = {
   referral: "/referral",
   commissions: "/commissions",
   payouts: "/payouts",
+  compliance: "/compliance",
 } as const;
 
 // A function, not a flat path: this is a top-level route (like referral/
