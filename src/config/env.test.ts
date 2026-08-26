@@ -47,4 +47,40 @@ describe("config/env", () => {
     expect(config.sentryDsn).toBe("");
     expect(config.posthogApiKey).toBe("");
   });
+
+  describe("isDevelopmentSimulatorEnabled", () => {
+    const ORIGINAL_DEV = (global as { __DEV__?: boolean }).__DEV__;
+
+    afterEach(() => {
+      (global as { __DEV__?: boolean }).__DEV__ = ORIGINAL_DEV;
+    });
+
+    it("is true only when both __DEV__ and EXPO_PUBLIC_APP_ENV=development hold", () => {
+      (global as { __DEV__?: boolean }).__DEV__ = true;
+      process.env.EXPO_PUBLIC_APP_ENV = "development";
+      expect(require("./env").isDevelopmentSimulatorEnabled).toBe(true);
+    });
+
+    it("is false in a real build even if EXPO_PUBLIC_APP_ENV is misconfigured as development", () => {
+      // __DEV__ false is what an actual release/production JS bundle
+      // compiles to -- this must win regardless of the env var, since a
+      // misconfigured .env should never be the only thing keeping
+      // Fake-provider controls out of a shipped build.
+      (global as { __DEV__?: boolean }).__DEV__ = false;
+      process.env.EXPO_PUBLIC_APP_ENV = "development";
+      expect(require("./env").isDevelopmentSimulatorEnabled).toBe(false);
+    });
+
+    it("is false when EXPO_PUBLIC_APP_ENV is production, even under __DEV__", () => {
+      (global as { __DEV__?: boolean }).__DEV__ = true;
+      process.env.EXPO_PUBLIC_APP_ENV = "production";
+      expect(require("./env").isDevelopmentSimulatorEnabled).toBe(false);
+    });
+
+    it("is false when EXPO_PUBLIC_APP_ENV is staging", () => {
+      (global as { __DEV__?: boolean }).__DEV__ = true;
+      process.env.EXPO_PUBLIC_APP_ENV = "staging";
+      expect(require("./env").isDevelopmentSimulatorEnabled).toBe(false);
+    });
+  });
 });

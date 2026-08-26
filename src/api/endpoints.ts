@@ -1,6 +1,7 @@
 import { apiRequest } from "./client";
 import type {
   AffiliateProfile,
+  AttemptStepPayload,
   Commission,
   ComplianceCase,
   ComplianceStep,
@@ -92,15 +93,28 @@ export async function startCompliance(): Promise<ComplianceCase> {
   return data;
 }
 
-/**
- * GET /api/v1/compliance/steps -- the affiliate's own required steps for
- * their latest case, read-only. afilianet-api has no real verification
- * vendor integrated yet and deliberately exposes no endpoint to submit or
- * attempt a step (ComplianceService::attemptStep() is only ever called
- * internally/by tests) -- there is nothing for this app to POST to.
- */
+/** GET /api/v1/compliance/steps -- the affiliate's own required steps for their latest case. */
 export async function fetchComplianceSteps(): Promise<ComplianceStep[]> {
   const { data } = await apiRequest<{ data: ComplianceStep[] }>("/api/v1/compliance/steps");
+  return data;
+}
+
+/**
+ * POST /api/v1/compliance/steps/{step}/attempt -- rate-limited server-side
+ * (30/minute per user). Returns the full case (steps included), not just
+ * the attempted step, so callers can refresh everything from one response.
+ * Backend alone decides pass/fail, the case's next status (including
+ * manual_review/approved), and whether the affiliate activates -- this app
+ * never infers any of that client-side, only reads back what's returned.
+ * `outcome`/`score` only ever exercise afilianet-api's Fake verification
+ * providers; see DevelopmentStepSimulator for the only place that's meant
+ * to be reachable from.
+ */
+export async function attemptComplianceStep(stepId: string, payload: AttemptStepPayload): Promise<ComplianceCase> {
+  const { data } = await apiRequest<{ data: ComplianceCase }>(`/api/v1/compliance/steps/${stepId}/attempt`, {
+    method: "POST",
+    body: payload,
+  });
   return data;
 }
 

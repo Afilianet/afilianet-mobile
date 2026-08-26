@@ -165,10 +165,7 @@ export interface ComplianceStep {
 }
 
 // ComplianceCaseResource -- deliberately excludes `metadata` (may carry
-// provider-adjacent detail not meant for API consumers). There is
-// currently no HTTP endpoint to submit/attempt a step or upload evidence --
-// afilianet-api has no real verification vendor integrated yet, so this
-// case is read-only from the mobile app beyond starting it.
+// provider-adjacent detail not meant for API consumers).
 export interface ComplianceCase {
   id: string;
   organization_id?: string;
@@ -187,6 +184,14 @@ export interface ComplianceCase {
   steps?: ComplianceStep[];
   created_at: string;
 }
+
+// POST /api/v1/compliance/steps/{step}/attempt's body, exactly matching
+// AttemptComplianceStepRequest's per-step-type validation rules --
+// identity_information takes no fields at all (the request must be empty).
+// `outcome`/`score` only ever exercise afilianet-api's Fake verification
+// providers (no real vendor integrated) -- never presented to a real user
+// as a genuine verification action, see DevelopmentStepSimulator.
+export type AttemptStepPayload = { accepted: boolean } | { outcome: "pass" | "fail"; score?: number } | Record<string, never>;
 
 export interface Commission {
   id: string;

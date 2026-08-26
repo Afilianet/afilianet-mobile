@@ -1,16 +1,20 @@
 import { Text } from "react-native";
 import type { ComplianceStep } from "../../../types/api";
 import { styles } from "./styles";
+import type { StepDetailProps } from "./types";
 
 /**
- * afilianet-api handles this step type as "self-reported, no external
- * verification" server-side (ComplianceService::runProvider()) -- but
- * there's still no HTTP endpoint to submit it, so this is description-only
- * today. A future real form (collecting name/DOB/address, etc.) belongs
- * entirely in this file; ComplianceStepCard's dispatch and the overview
- * screen never need to change to add one.
+ * The endpoint accepts this step with an empty body (see
+ * AttemptComplianceStepRequest -- any field submitted here is rejected),
+ * and ComplianceService::runProvider() never reads its payload either
+ * ("self-reported, no external verification"). There is nothing meaningful
+ * for a form to collect yet, so this stays read-only -- never invent DOB,
+ * address, CURP, RFC, or document-number fields the backend doesn't
+ * consume. `attempt`/`isPending` are accepted only to keep this
+ * component's signature uniform with ComplianceStepCard's dispatch table;
+ * a future real form belongs entirely in this file.
  */
-export function IdentityInformationStep({ step }: { step: ComplianceStep }) {
+export function IdentityInformationStep({ step }: StepDetailProps) {
   return <Text style={styles.description}>{describe(step)}</Text>;
 }
 
