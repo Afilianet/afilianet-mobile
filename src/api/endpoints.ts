@@ -8,6 +8,7 @@ import type {
   Invitation,
   LedgerEntry,
   LoginResponse,
+  Notification,
   Organization,
   PaginatedResponse,
   Payout,
@@ -299,6 +300,41 @@ export async function cancelPayout(payoutId: string): Promise<Payout> {
     method: "POST",
   });
   return data;
+}
+
+/** GET /api/v1/notifications -- self-scoped, newest first, standard Laravel paginator (per_page default 25, capped at 100). */
+export async function fetchNotifications(page = 1, perPage = 25): Promise<PaginatedResponse<Notification>> {
+  return apiRequest<PaginatedResponse<Notification>>(`/api/v1/notifications?per_page=${perPage}&page=${page}`);
+}
+
+/**
+ * GET /api/v1/notifications/unread-count -- exact response shape is
+ * `{"data": {"count": N}}` (not a bare number, not `{count: N}` alone) --
+ * confirmed against afilianet-api's NotificationController::unreadCount().
+ * Always the backend's own count, never derived by summing loaded pages.
+ */
+export async function fetchUnreadNotificationCount(): Promise<number> {
+  const { data } = await apiRequest<{ data: { count: number } }>("/api/v1/notifications/unread-count");
+  return data.count;
+}
+
+/**
+ * POST /api/v1/notifications/{uuid}/read -- idempotent server-side
+ * (NotificationService::markAsRead() only writes read_at if still null),
+ * so repeated calls are always safe.
+ */
+export async function markNotificationRead(notificationId: string): Promise<Notification> {
+  const { data } = await apiRequest<{ data: Notification }>(`/api/v1/notifications/${notificationId}/read`, {
+    method: "POST",
+  });
+  return data;
+}
+
+/** POST /api/v1/notifications/read-all -- no body, no count in the response; only a confirmation message. */
+export async function markAllNotificationsRead(): Promise<void> {
+  await apiRequest<{ message: string }>("/api/v1/notifications/read-all", {
+    method: "POST",
+  });
 }
 
 export async function signIn(email: string, password: string): Promise<LoginResponse> {
