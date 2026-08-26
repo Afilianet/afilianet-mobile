@@ -22,3 +22,16 @@ export const config = {
 };
 
 export type AppConfig = typeof config;
+
+/**
+ * Gates development-only QA tooling (currently: the compliance Fake-
+ * provider simulator, see DevelopmentStepSimulator). Requires BOTH signals,
+ * never just one: `__DEV__` is a React Native/Metro build-time constant
+ * that's inlined `false` and dead-code-eliminated out of a release bundle
+ * (not merely hidden at runtime), and EXPO_PUBLIC_APP_ENV is this app's own
+ * explicit deployment-environment declaration, set per environment file
+ * (.env vs .env.staging vs .env.production). Either one alone is a real,
+ * independent guard; both together means a release build can never ship
+ * this tooling even if one check were ever misconfigured.
+ */
+export const isDevelopmentSimulatorEnabled = __DEV__ && config.appEnv === "development";
