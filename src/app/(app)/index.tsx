@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
+import { NotificationBell } from "../../components/NotificationBell";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -111,7 +112,10 @@ function Header() {
 
   return (
     <View style={styles.header}>
-      <Text style={styles.greeting}>{user ? `Hi, ${user.first_name}` : "Welcome"}</Text>
+      <View style={styles.headerTopRow}>
+        <Text style={styles.greeting}>{user ? `Hi, ${user.first_name}` : "Welcome"}</Text>
+        <NotificationBell />
+      </View>
       {organizations.length > 1 ? (
         <Pressable onPress={() => router.push(routes.organizationPicker as never)} style={styles.orgSwitcher}>
           <Text style={styles.orgName}>{orgLabel}</Text>
@@ -282,6 +286,11 @@ const styles = StyleSheet.create({
   header: {
     gap: spacing.xs,
     marginBottom: spacing.sm,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   greeting: {
     ...typography.title,

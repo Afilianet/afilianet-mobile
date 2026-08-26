@@ -313,3 +313,59 @@ export interface PayoutEligibility {
   eligible_balance: string;
   minimum_payout: string;
 }
+
+// app/Modules/Notifications/Enums/NotificationType.php -- a deliberately
+// closed enum (a type is only ever added alongside the listener that
+// creates it). Never assume a 15th type; an unrecognized value must fail
+// safely (no icon/label/navigation) rather than guessed at.
+export type NotificationType =
+  | "compliance_started"
+  | "compliance_action_required"
+  | "compliance_manual_review"
+  | "compliance_approved"
+  | "compliance_rejected"
+  | "affiliate_activated"
+  | "invitation_accepted"
+  | "commission_earned"
+  | "commission_reversed"
+  | "payout_requested"
+  | "payout_processing"
+  | "payout_paid"
+  | "payout_failed"
+  | "payout_cancelled";
+
+// The exact, whitelisted keys NotificationResource's listeners ever put in
+// `payload` (app/Modules/Notifications/Listeners/Notify*.php) -- `screen` is
+// a short label ("compliance"/"profile"/"network"/"commissions"/"payouts"),
+// never a route or URL, and must still be validated against an explicit
+// whitelist before use (see notificationDestination.ts) rather than trusted
+// directly. `amount`/`currency` are the one deliberate case of transaction
+// data in payload -- the affiliate's own single commission/payout, already
+// server-rendered into `title`/`body` too, never an aggregate balance.
+export interface NotificationPayload {
+  screen?: string;
+  case_id?: string;
+  step_type?: string;
+  commission_id?: string;
+  payout_id?: string;
+  amount?: string;
+  currency?: string;
+}
+
+// NotificationResource -- deliberately named `payload`, not `data`: a
+// `data` key would collide with Laravel's single-resource response
+// wrapping and silently un-wrap POST .../read's envelope (confirmed via
+// the resource's own docblock in afilianet-api, caught by that module's
+// own HTTP tests). `title`/`body` are server-rendered, authoritative
+// display copy for every type -- never reconstructed client-side.
+// `read_at` (not a boolean `is_read`) is the only read-state field: null
+// means unread.
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  payload: NotificationPayload;
+  read_at: string | null;
+  created_at: string;
+}

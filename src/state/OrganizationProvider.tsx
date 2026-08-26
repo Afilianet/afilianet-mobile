@@ -25,6 +25,7 @@ const TENANT_QUERY_DOMAINS = [
   "wallet",
   "payouts",
   "payout-destinations",
+  "notifications",
 ] as const;
 
 const ACTIVE_ORG_KEY = "afilianet_active_organization_id";

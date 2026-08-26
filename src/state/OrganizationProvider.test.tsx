@@ -224,14 +224,22 @@ describe("organization switching and tenant query isolation", () => {
       await orgValue.selectOrganization("org-b");
     });
 
-    expect(invalidateSpy).toHaveBeenCalledTimes(6);
+    expect(invalidateSpy).toHaveBeenCalledTimes(7);
 
     type Predicate = (query: { queryKey: unknown[] }) => boolean;
     const predicates = invalidateSpy.mock.calls.map(
       ([options]) => (options as unknown as { predicate: Predicate }).predicate,
     );
 
-    for (const domain of ["affiliate", "compliance", "commissions", "wallet", "payouts", "payout-destinations"]) {
+    for (const domain of [
+      "affiliate",
+      "compliance",
+      "commissions",
+      "wallet",
+      "payouts",
+      "payout-destinations",
+      "notifications",
+    ]) {
       // Every domain's cached data for the org we just left (org-a) should be
       // matched by exactly one of the invalidation calls...
       const matchesOldOrg = predicates.some((predicate) => predicate({ queryKey: [domain, "me", "org-a"] }));

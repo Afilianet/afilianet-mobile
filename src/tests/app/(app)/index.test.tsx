@@ -7,6 +7,7 @@ import {
   fetchMyCompliance,
   fetchMyWallet,
   fetchSponsoredAffiliates,
+  fetchUnreadNotificationCount,
 } from "../../../api/endpoints";
 import { AuthContext, type AuthContextValue } from "../../../auth/AuthContext";
 import { OrganizationContext, type OrganizationContextValue } from "../../../state/OrganizationContext";
@@ -25,6 +26,7 @@ jest.mock("../../../api/endpoints", () => ({
   fetchMyCommissions: jest.fn(),
   fetchMyWallet: jest.fn(),
   fetchSponsoredAffiliates: jest.fn(),
+  fetchUnreadNotificationCount: jest.fn(),
 }));
 
 const mockedFetchMyAffiliateProfile = fetchMyAffiliateProfile as jest.Mock;
@@ -32,6 +34,7 @@ const mockedFetchMyCompliance = fetchMyCompliance as jest.Mock;
 const mockedFetchMyCommissions = fetchMyCommissions as jest.Mock;
 const mockedFetchMyWallet = fetchMyWallet as jest.Mock;
 const mockedFetchSponsoredAffiliates = fetchSponsoredAffiliates as jest.Mock;
+const mockedFetchUnreadNotificationCount = fetchUnreadNotificationCount as jest.Mock;
 
 const USER: User = {
   id: "user-1",
@@ -127,6 +130,7 @@ beforeEach(() => {
   mockedFetchMyCommissions.mockResolvedValue([]);
   mockedFetchMyWallet.mockResolvedValue([]);
   mockedFetchSponsoredAffiliates.mockResolvedValue(EMPTY_SPONSORED);
+  mockedFetchUnreadNotificationCount.mockResolvedValue(0);
 });
 
 // The "resilience"/"offline" tests below deliberately let useApiQuery's real
@@ -404,5 +408,37 @@ describe("Home: pull-to-refresh", () => {
 
     expect(mockedFetchMyAffiliateProfile).toHaveBeenCalledTimes(2);
     expect(mockedFetchMyWallet).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Home: notification bell", () => {
+  it("shows no badge when there are zero unread notifications", async () => {
+    mockedFetchUnreadNotificationCount.mockResolvedValue(0);
+    const { findByText, queryByText } = await renderHome();
+    await findByText("Hi, Jordan");
+    expect(queryByText("0")).toBeNull();
+  });
+
+  it("shows the exact count for 1-99 unread notifications", async () => {
+    mockedFetchUnreadNotificationCount.mockResolvedValue(7);
+    const { findByLabelText } = await renderHome();
+    expect(await findByLabelText("Notifications, 7 unread")).toBeTruthy();
+  });
+
+  it("shows 99+ for 100 or more unread notifications, never the exact backend count", async () => {
+    mockedFetchUnreadNotificationCount.mockResolvedValue(150);
+    const { findByText, queryByText } = await renderHome();
+    expect(await findByText("99+")).toBeTruthy();
+    expect(queryByText("150")).toBeNull();
+  });
+
+  it("navigates to the notifications screen when pressed", async () => {
+    mockedFetchUnreadNotificationCount.mockResolvedValue(3);
+    const { findByLabelText } = await renderHome();
+    const bell = await findByLabelText("Notifications, 3 unread");
+    await act(async () => {
+      fireEvent.press(bell);
+    });
+    expect(mockRouter.push).toHaveBeenCalledWith("/notifications");
   });
 });
