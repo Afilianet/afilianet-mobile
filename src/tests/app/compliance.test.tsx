@@ -299,7 +299,20 @@ describe("Compliance: starting a case", () => {
       fireEvent.press(startButton);
     });
 
-    expect(await findByText(/couldn't start verification/i)).toBeTruthy();
+    expect(await findByText(/something went wrong on our end/i)).toBeTruthy();
+  });
+
+  it("distinguishes an offline start failure from a generic server failure", async () => {
+    mockedFetchMyCompliance.mockRejectedValue(NOT_FOUND);
+    mockedStartCompliance.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
+    const { findByText } = await renderCompliance();
+
+    const startButton = await findByText("Start verification");
+    await act(async () => {
+      fireEvent.press(startButton);
+    });
+
+    expect(await findByText(/you're offline/i)).toBeTruthy();
   });
 });
 
@@ -384,7 +397,11 @@ describe("Compliance: terms acceptance", () => {
       fireEvent.press(await findByText("Accept terms"));
     });
 
-    expect(alertSpy).toHaveBeenCalledWith("Accept terms?", expect.stringMatching(/provisional/i), expect.any(Array));
+    expect(alertSpy).toHaveBeenCalledWith(
+      "Accept terms?",
+      expect.stringMatching(/review the full terms/i),
+      expect.any(Array),
+    );
     expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
 
     alertSpy.mockRestore();
@@ -393,7 +410,7 @@ describe("Compliance: terms acceptance", () => {
   it("discloses that no real terms document exists, without inventing legal text", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText(/no terms document is available to review yet/i)).toBeTruthy();
+    expect(await findByText(/terms document hasn't been published/i)).toBeTruthy();
   });
 
   it("submits accepted:true and refreshes compliance, steps, and affiliate profile", async () => {

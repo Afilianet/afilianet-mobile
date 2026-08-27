@@ -8,18 +8,22 @@ interface EmptyStateProps {
   title: string;
   description?: string;
   action?: ReactNode;
+  /** Drops full-screen centering/padding for embedding inside a card (e.g. a sub-section), matching ForbiddenState's compact mode. */
+  compact?: boolean;
 }
 
 /** "Aún no hay datos" -- distinct from ErrorState/ForbiddenState. Always offers a primary action that creates the first record, where one exists. */
-export function EmptyState({ title, description, action }: EmptyStateProps) {
+export function EmptyState({ title, description, action, compact = false }: EmptyStateProps) {
   return (
-    <View style={styles.container}>
-      <View style={styles.mark}>
-        <Isotipo variant="violeta" size={28} />
+    <View style={[styles.container, compact ? styles.containerCompact : null]}>
+      <View style={[styles.mark, compact ? styles.markCompact : null]}>
+        <Isotipo variant="violeta" size={compact ? 18 : 28} />
       </View>
-      <View style={styles.copy}>
-        <Text style={styles.title}>{title}</Text>
-        {description ? <Text style={styles.description}>{description}</Text> : null}
+      <View style={[styles.copy, compact ? styles.copyCompact : null]}>
+        <Text style={[styles.title, compact ? styles.textLeft : null]}>{title}</Text>
+        {description ? (
+          <Text style={[styles.description, compact ? styles.textLeft : null]}>{description}</Text>
+        ) : null}
       </View>
       {action}
     </View>
@@ -34,6 +38,12 @@ const styles = StyleSheet.create({
     gap: spacing[4],
     padding: spacing[6],
   },
+  containerCompact: {
+    flex: undefined,
+    padding: 0,
+    alignItems: "flex-start",
+    gap: spacing[2],
+  },
   mark: {
     width: 56,
     height: 56,
@@ -45,9 +55,20 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     opacity: 0.7,
   },
+  markCompact: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
   copy: {
     gap: spacing[2],
     maxWidth: 320,
+  },
+  copyCompact: {
+    maxWidth: undefined,
+  },
+  textLeft: {
+    textAlign: "left",
   },
   title: {
     fontSize: fontSize.lg,

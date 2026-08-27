@@ -15,6 +15,7 @@ import { useCompliance } from "../../hooks/useCompliance";
 import { useCommissions } from "../../hooks/useCommissions";
 import { useWallet } from "../../hooks/useWallet";
 import { useSponsoredAffiliates } from "../../hooks/useSponsoredAffiliates";
+import { useUnreadNotificationCount } from "../../hooks/useUnreadNotificationCount";
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
@@ -32,6 +33,10 @@ export default function HomeScreen() {
   const commissionsQuery = useCommissions();
   const walletQuery = useWallet();
   const sponsoredQuery = useSponsoredAffiliates(affiliateQuery.data?.id);
+  // Same query key as NotificationBell's own call, so this shares its cache
+  // entry rather than firing a second request -- this instance exists only
+  // so pull-to-refresh can include the unread badge in its refetch batch.
+  const unreadCountQuery = useUnreadNotificationCount();
 
   const [refreshing, setRefreshing] = useState(false);
   const walletViewedRef = useRef(false);
@@ -56,6 +61,7 @@ export default function HomeScreen() {
         commissionsQuery.refetch(),
         walletQuery.refetch(),
         sponsoredQuery.refetch(),
+        unreadCountQuery.refetch(),
       ]);
     } finally {
       setRefreshing(false);
@@ -250,6 +256,7 @@ function NetworkPreviewCard({
   sponsor: AffiliateRef | null | undefined;
   query: ReturnType<typeof useSponsoredAffiliates>;
 }) {
+  const router = useRouter();
   return (
     <SectionCard
       title="Network"
@@ -267,6 +274,7 @@ function NetworkPreviewCard({
               {total} direct referral{total === 1 ? "" : "s"}
               {isExact ? "" : "+"}
             </Text>
+            <Button label="View network" variant="ghost" size="sm" onPress={() => router.push(routes.network as never)} />
           </View>
         );
       }}

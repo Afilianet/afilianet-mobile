@@ -8,6 +8,10 @@ import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
 
+function humanizeRole(role: string): string {
+  return role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
+}
+
 export default function OrganizationPickerScreen() {
   const { organizations, selectOrganization } = useOrganization();
   const router = useRouter();
@@ -15,7 +19,19 @@ export default function OrganizationPickerScreen() {
   async function handleSelect(organizationId: string) {
     await selectOrganization(organizationId);
     analytics.capture("organization_switched");
-    router.replace(routes.home as never);
+    // Reached two different ways: (a) a forced redirect when there's no
+    // active org yet (root layout, org-picker is the only stack frame --
+    // canGoBack() is false), where replace() is the right non-back-able
+    // transition; (b) a voluntary switch pushed on top of an already-mounted
+    // Home (canGoBack() is true), where replace() would swap this frame for
+    // a *new* Home instance instead of popping back to the one underneath,
+    // leaving a redundant duplicate frame on the stack. back() dismisses the
+    // picker and reveals that already-mounted Home directly.
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(routes.home as never);
+    }
   }
 
   return (
@@ -30,10 +46,15 @@ export default function OrganizationPickerScreen() {
       <Text style={styles.title}>Choose an organization</Text>
       <View style={styles.list}>
         {organizations.map((org) => (
-          <Pressable key={org.id} onPress={() => handleSelect(org.id)}>
+          <Pressable
+            key={org.id}
+            onPress={() => handleSelect(org.id)}
+            accessibilityRole="button"
+            accessibilityLabel={org.my_role ? `Switch to ${org.name}, role ${humanizeRole(org.my_role)}` : `Switch to ${org.name}`}
+          >
             <Card style={styles.card}>
               <Text style={styles.orgName}>{org.name}</Text>
-              {org.my_role ? <Text style={styles.orgRole}>{org.my_role}</Text> : null}
+              {org.my_role ? <Text style={styles.orgRole}>{humanizeRole(org.my_role)}</Text> : null}
             </Card>
           </Pressable>
         ))}

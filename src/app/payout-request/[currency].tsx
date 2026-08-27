@@ -6,6 +6,7 @@ import { friendlyMessage, isApiError } from "../../api/errors";
 import { AddDestinationSheet } from "../../components/AddDestinationSheet";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { ForbiddenState } from "../../components/ForbiddenState";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -97,6 +98,8 @@ export default function PayoutRequestScreen() {
 
         {eligibilityQuery.isPending ? (
           <SkeletonGroup lines={4} />
+        ) : eligibilityError?.kind === "forbidden" ? (
+          <ForbiddenState area="payout eligibility" />
         ) : eligibilityError ? (
           <ErrorState
             error={eligibilityError}

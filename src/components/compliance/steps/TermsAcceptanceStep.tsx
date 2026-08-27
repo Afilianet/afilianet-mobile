@@ -30,7 +30,7 @@ export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProp
     analytics.capture("compliance_step_opened");
     Alert.alert(
       "Accept terms?",
-      "This organization hasn't published a reviewable terms document yet. Accepting here records a provisional acceptance for development purposes -- it is not production-ready legal consent.",
+      "This organization hasn't published a reviewable terms document yet. Accepting now records your acceptance -- you'll be asked to review the full terms once they're published.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -47,7 +47,8 @@ export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProp
   return (
     <View style={styles.container}>
       <Text style={sharedStyles.description}>
-        No terms document is available to review yet. Accepting is provisional until real terms text is published.
+        A terms document hasn&apos;t been published for this organization yet. Accepting now records your
+        acceptance; you&apos;ll be asked to review the full terms once they&apos;re available.
       </Text>
       <Button label="Accept terms" variant="secondary" size="sm" loading={isPending} onPress={confirm} />
     </View>

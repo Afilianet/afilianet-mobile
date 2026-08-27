@@ -30,6 +30,7 @@ export function TextInput({ label, helperText, error, mono = false, style, onFoc
         placeholderTextColor={colors.textTertiary}
         autoCapitalize="none"
         autoCorrect={false}
+        accessibilityLabel={label}
         onFocus={(event) => {
           setFocused(true);
           onFocus?.(event);
@@ -40,7 +41,15 @@ export function TextInput({ label, helperText, error, mono = false, style, onFoc
         }}
         {...inputProps}
       />
-      {error || helperText ? <Text style={[styles.helper, error ? styles.error : null]}>{error || helperText}</Text> : null}
+      {error || helperText ? (
+        <Text
+          style={[styles.helper, error ? styles.error : null]}
+          accessibilityRole={error ? "alert" : undefined}
+          accessibilityLiveRegion={error ? "polite" : undefined}
+        >
+          {error || helperText}
+        </Text>
+      ) : null}
     </View>
   );
 }

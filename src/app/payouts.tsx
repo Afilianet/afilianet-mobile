@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../api/errors";
 import { AddDestinationSheet } from "../components/AddDestinationSheet";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { ForbiddenState } from "../components/ForbiddenState";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { PayoutDetailSheet } from "../components/PayoutDetailSheet";
 import { PayoutRow } from "../components/PayoutRow";
@@ -16,6 +17,7 @@ import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Toast, type ToastTone } from "../components/ui/Toast";
 import { Icon } from "../design-system/icons/Icon";
+import { payoutDestinationStatusCopy } from "../design-system/statusMapping";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useMyPayouts } from "../hooks/useMyPayouts";
 import { usePayoutDestinations } from "../hooks/usePayoutDestinations";
@@ -35,6 +37,7 @@ export default function PayoutsScreen() {
   const [selected, setSelected] = useState<Payout | null>(null);
   const [addingDestination, setAddingDestination] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -57,13 +60,32 @@ export default function PayoutsScreen() {
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        affiliateQuery.refetch(),
+        walletQuery.refetch(),
+        destinationsQuery.refetch(),
+        payoutsQuery.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
-  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile;
+  const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
+  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
   const destinations = destinationsQuery.data?.data ?? [];
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} testID="payouts-scroll">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        testID="payouts-scroll"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+      >
         <View style={styles.header}>
           <Text style={styles.heading}>Payouts</Text>
           <IconButton label="Close" onPress={() => router.back()}>
@@ -78,6 +100,8 @@ export default function PayoutsScreen() {
             title="Join the affiliate program"
             description="You need an affiliate profile in this organization to request payouts."
           />
+        ) : forbidden ? (
+          <ForbiddenState area="payouts" />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}
@@ -185,10 +209,11 @@ function BalanceRow({ label, value, strong }: { label: string; value: string; st
 }
 
 function DestinationRow({ destination }: { destination: PayoutDestination }) {
+  const status = payoutDestinationStatusCopy(destination.status);
   return (
-    <View style={styles.destinationRow} accessible accessibilityLabel={`${destination.display_label}, ${destination.status}`}>
+    <View style={styles.destinationRow} accessible accessibilityLabel={`${destination.display_label}, ${status.label}`}>
       <Text style={styles.destinationLabel}>{destination.display_label}</Text>
-      <Badge label={destination.status === "active" ? "Active" : "Inactive"} tone={destination.status === "active" ? "success" : "neutral"} />
+      <Badge label={status.label} tone={status.tone} />
     </View>
   );
 }

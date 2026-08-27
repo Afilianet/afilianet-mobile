@@ -10,9 +10,10 @@ import type { AffiliateProfile, Organization } from "../../types/api";
 import ReferralScreen from "../../app/referral";
 
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: jest.fn() }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
 }));
 
 jest.mock("../../api/endpoints", () => ({
@@ -249,11 +250,14 @@ describe("Referral: loading and error", () => {
 });
 
 describe("Referral: invitations section", () => {
-  it("shows an honest placeholder instead of fabricated or admin-only invitation data", async () => {
+  it("points to the real invitations list on Network instead of duplicating it", async () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
-    const { findByText } = await renderReferral();
+    const { findByText, getByText } = await renderReferral();
 
     expect(await findByText("My invitations")).toBeTruthy();
-    expect(await findByText(/isn't available yet/i)).toBeTruthy();
+    expect(await findByText(/see who you've invited/i)).toBeTruthy();
+
+    fireEvent.press(getByText("View invitations"));
+    expect(mockPush).toHaveBeenCalledWith("/(app)/network");
   });
 });

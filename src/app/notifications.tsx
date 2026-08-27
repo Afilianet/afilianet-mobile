@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NotificationRow } from "../components/NotificationRow";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { Button } from "../components/ui/Button";
@@ -21,10 +21,20 @@ export default function NotificationsScreen() {
   const unreadCountQuery = useUnreadNotificationCount();
   const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     analytics.capture("notifications_viewed");
   }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([notificationsQuery.refetch(), unreadCountQuery.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function handleOpen(notification: Notification) {
     analytics.capture("notification_opened");
@@ -54,7 +64,11 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView testID="notifications-scroll" contentContainerStyle={styles.content}>
+      <ScrollView
+        testID="notifications-scroll"
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+      >
         <View style={styles.header}>
           <Text style={styles.heading}>Notifications</Text>
           <IconButton label="Close" onPress={() => router.back()}>

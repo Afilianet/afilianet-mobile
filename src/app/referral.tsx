@@ -1,11 +1,12 @@
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { isApiError } from "../api/errors";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { ForbiddenState } from "../components/ForbiddenState";
 import { SkeletonGroup } from "../components/Skeleton";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -16,7 +17,9 @@ import { Toast } from "../components/ui/Toast";
 import { Icon } from "../design-system/icons/Icon";
 import { Isotipo } from "../design-system/icons/Logo";
 import { affiliateStatusCopy } from "../design-system/statusMapping";
+import { fontSize } from "../design-system/tokens";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
+import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
 import { buildReferralUrl, canShareReferral } from "../utils/referral";
@@ -26,7 +29,17 @@ export default function ReferralScreen() {
   const affiliateQuery = useAffiliateProfile();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await affiliateQuery.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     analytics.capture("referral_screen_viewed");
@@ -45,11 +58,16 @@ export default function ReferralScreen() {
   }
 
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
-  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile;
+  const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
+  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} testID="referral-scroll">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        testID="referral-scroll"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+      >
         <View style={styles.close}>
           <IconButton label="Close" onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
@@ -63,6 +81,8 @@ export default function ReferralScreen() {
             title="Join the affiliate program"
             description="You need an affiliate profile in this organization to get a referral link."
           />
+        ) : forbidden ? (
+          <ForbiddenState area="your referral link" />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}
@@ -70,7 +90,11 @@ export default function ReferralScreen() {
             retrying={affiliateQuery.isFetching}
           />
         ) : affiliateQuery.data ? (
-          <ReferralBody affiliate={affiliateQuery.data} onCopied={() => showToast("Link copied")} />
+          <ReferralBody
+            affiliate={affiliateQuery.data}
+            onCopied={() => showToast("Link copied")}
+            onViewInvitations={() => router.push(routes.network as never)}
+          />
         ) : null}
       </ScrollView>
 
@@ -79,7 +103,15 @@ export default function ReferralScreen() {
   );
 }
 
-function ReferralBody({ affiliate, onCopied }: { affiliate: AffiliateProfile; onCopied: () => void }) {
+function ReferralBody({
+  affiliate,
+  onCopied,
+  onViewInvitations,
+}: {
+  affiliate: AffiliateProfile;
+  onCopied: () => void;
+  onViewInvitations: () => void;
+}) {
   const status = affiliateStatusCopy(affiliate.status);
   const shareable = canShareReferral(affiliate.status);
   const url = buildReferralUrl(affiliate.affiliate_code);
@@ -173,29 +205,25 @@ function ReferralBody({ affiliate, onCopied }: { affiliate: AffiliateProfile; on
         </>
       ) : null}
 
-      <InvitationsSection />
+      <InvitationsSection onViewInvitations={onViewInvitations} />
     </View>
   );
 }
 
 /**
- * afilianet-api has no self-scoped "invitations I created" endpoint --
- * GET /api/v1/organizations/{organization}/invitations exists but is
- * admin/manager-only (InvitationPolicy), and there's no
- * invited_by_user_id/sponsor_affiliate_id filter an affiliate could safely
- * use even if it weren't. This section is an honest placeholder rather than
- * a call to that admin endpoint (which would 403) or fabricated data --
- * see the Phase 7B.2 report for the missing-backend-contract writeup.
+ * Self-scoped invitation tracking (GET /api/v1/affiliates/me/invitations) is
+ * real and already surfaced in full on the Network tab's "My invitations"
+ * section -- this card is just a pointer from Referral to that existing
+ * list, not a duplicate of it.
  */
-function InvitationsSection() {
+function InvitationsSection({ onViewInvitations }: { onViewInvitations: () => void }) {
   return (
     <Card style={styles.card}>
       <Text style={styles.label}>My invitations</Text>
       <Text style={styles.invitationsMessage}>
-        Invitation tracking isn&apos;t available yet -- the backend doesn&apos;t currently expose a way
-        for an affiliate to see invitations created from their own referral link. This section will
-        populate once that endpoint exists.
+        See who you&apos;ve invited and their status under Network.
       </Text>
+      <Button label="View invitations" variant="secondary" size="sm" onPress={onViewInvitations} />
     </Card>
   );
 }
@@ -233,7 +261,7 @@ const styles = StyleSheet.create({
   },
   code: {
     ...typography.numeric,
-    fontSize: 20,
+    fontSize: fontSize.xl,
     color: colors.textPrimary,
     letterSpacing: 1,
   },

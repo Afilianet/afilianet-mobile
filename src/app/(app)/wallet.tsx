@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { ForbiddenState } from "../../components/ForbiddenState";
 import { LedgerEntryRow } from "../../components/LedgerEntryRow";
 import { PaginatedSectionCard } from "../../components/PaginatedSectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
@@ -22,17 +23,34 @@ export default function WalletScreen() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     analytics.capture("wallet_viewed");
   }, []);
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([affiliateQuery.refetch(), walletQuery.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
-  const profileLoadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile;
+  const profileForbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
+  const profileLoadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !profileForbidden;
   const walletApiError = isApiError(walletQuery.error) ? walletQuery.error : null;
+  const walletForbidden = walletApiError?.kind === "forbidden";
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="wallet-scroll">
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      testID="wallet-scroll"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+    >
       <View style={styles.headerRow}>
         <Text style={styles.heading}>Wallet</Text>
         <Button label="Payouts" variant="ghost" size="sm" onPress={() => router.push(routes.payouts as never)} />
@@ -45,6 +63,8 @@ export default function WalletScreen() {
           title="Join the affiliate program"
           description="You need an affiliate profile in this organization to have a wallet."
         />
+      ) : profileForbidden ? (
+        <ForbiddenState area="your wallet" />
       ) : profileLoadFailed ? (
         <ErrorState
           error={affiliateQuery.error}
@@ -54,6 +74,8 @@ export default function WalletScreen() {
       ) : affiliateQuery.data ? (
         walletQuery.isPending ? (
           <SkeletonGroup lines={4} />
+        ) : walletForbidden ? (
+          <ForbiddenState area="your wallet" />
         ) : walletApiError ? (
           <ErrorState error={walletApiError} onRetry={() => void walletQuery.refetch()} retrying={walletQuery.isFetching} />
         ) : walletQuery.data && walletQuery.data.length > 0 ? (

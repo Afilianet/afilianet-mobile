@@ -6,6 +6,7 @@ import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
 import { commissionTypeLabel } from "./CommissionRow";
 import { Badge } from "./ui/Badge";
+import { DetailField as Field } from "./ui/DetailField";
 import { IconButton } from "./ui/IconButton";
 import { colors, measures, radius, spacing, typography } from "./ui/theme";
 
@@ -82,22 +83,11 @@ export function CommissionDetailSheet({ commission, onClose }: { commission: Com
   );
 }
 
-function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <View style={styles.field} accessible accessibilityLabel={`${label}: ${value}`}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <Text style={[styles.fieldValue, mono ? styles.fieldValueMono : null]} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(12,10,20,0.6)",
+    backgroundColor: colors.overlay,
   },
   sheet: {
     backgroundColor: colors.surfaceElevated,
@@ -139,28 +129,5 @@ const styles = StyleSheet.create({
   },
   fields: {
     gap: spacing.sm,
-  },
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  fieldLabel: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  fieldValue: {
-    ...typography.body,
-    color: colors.textPrimary,
-    flexShrink: 1,
-    textAlign: "right",
-  },
-  fieldValueMono: {
-    ...typography.numeric,
-    fontSize: 13,
   },
 });

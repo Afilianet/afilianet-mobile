@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { payoutStatusCopy } from "../design-system/statusMapping";
+import { fontSize } from "../design-system/tokens";
 import type { Payout } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
   },
   amount: {
     ...typography.numeric,
-    fontSize: 15,
+    fontSize: fontSize.sm,
     color: colors.textPrimary,
   },
   meta: {
