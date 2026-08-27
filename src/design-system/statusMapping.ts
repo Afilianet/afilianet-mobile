@@ -164,3 +164,14 @@ const PAYOUT_STATUS: Record<string, StatusCopy> = {
 export function payoutStatusCopy(status: string): StatusCopy {
   return lookup(PAYOUT_STATUS, status);
 }
+
+// PayoutDestination.status ("active" | "inactive") -- not a lifecycle enum
+// like the others above, just whether the destination can currently be used.
+const PAYOUT_DESTINATION_STATUS: Record<string, StatusCopy> = {
+  active: { label: "Active", tone: "success" },
+  inactive: { label: "Inactive", tone: "neutral" },
+};
+
+export function payoutDestinationStatusCopy(status: string): StatusCopy {
+  return lookup(PAYOUT_DESTINATION_STATUS, status);
+}

@@ -9,6 +9,7 @@ import { queryClient } from "../api/queryClient";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth } from "../auth/AuthContext";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
+import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
 import { routes } from "../navigation/routes";
 import { initSentry } from "../services/sentry";
@@ -58,7 +59,7 @@ export default function RootLayout() {
 
 function RootNavigation() {
   const { status: authStatus } = useAuth();
-  const { status: orgStatus, organizations, activeOrganization } = useOrganization();
+  const { status: orgStatus, organizations, activeOrganization, error: orgError, refresh: refreshOrganizations } = useOrganization();
   const segments = useSegments();
   const router = useRouter();
 
@@ -86,6 +87,14 @@ function RootNavigation() {
 
   if (authStatus === "loading") {
     return <LoadingState message="Starting up..." />;
+  }
+
+  // Without this, a failed organization load leaves every tenant-scoped
+  // query disabled (they all gate on activeOrganization) with no way to
+  // recover -- every screen would sit in permanent, silent loading. This is
+  // the one place that state is visible regardless of which screen is active.
+  if (authStatus === "signedIn" && orgStatus === "error") {
+    return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 
   return <Slot />;

@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { isApiError } from "../../api/errors";
+import { friendlyMessage, isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
 import { SectionCard } from "../../components/SectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
@@ -67,6 +67,9 @@ export default function ProfileScreen() {
                 key={org.id}
                 onPress={() => selectOrganization(org.id)}
                 style={[styles.orgRow, isActive && styles.orgRowActive]}
+                accessibilityRole="button"
+                accessibilityLabel={`Switch to ${org.name}`}
+                accessibilityHint={isActive ? "Currently active organization" : undefined}
               >
                 <Text style={styles.orgName}>{org.name}</Text>
                 {isActive ? <Badge label="Active" tone="success" /> : null}
@@ -114,8 +117,19 @@ function ComplianceSummary({ query, onPress }: { query: ReturnType<typeof useCom
   let badge = null;
   if (query.isPending) {
     badge = <SkeletonGroup lines={1} />;
-  } else if (otherError) {
-    badge = <Text style={styles.fieldValue}>Couldn&apos;t load your verification status.</Text>;
+  } else if (otherError && isApiError(query.error)) {
+    badge = (
+      <View style={styles.stateGroup}>
+        <Text style={styles.fieldValue}>{friendlyMessage(query.error)}</Text>
+        <Button
+          label="Try again"
+          variant="secondary"
+          size="sm"
+          loading={query.isFetching}
+          onPress={() => void query.refetch()}
+        />
+      </View>
+    );
   } else {
     const copy = complianceStatusCopy(notFound ? "not_started" : query.data?.status ?? "not_started");
     badge = <Badge label={copy.label} tone={copy.tone} />;
@@ -180,6 +194,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    minHeight: 44,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
     borderRadius: radius.md,

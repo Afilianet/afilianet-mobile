@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Icon } from "../design-system/icons/Icon";
+import { fontSize, fontWeight } from "../design-system/tokens";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
 import { routes } from "../navigation/routes";
 import { IconButton } from "./ui/IconButton";
@@ -43,8 +44,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -2,
     right: -2,
-    minWidth: 16,
-    height: 16,
+    minWidth: 18,
+    height: 18,
     borderRadius: radius.pill,
     backgroundColor: colors.danger,
     alignItems: "center",
@@ -53,9 +54,9 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     ...typography.caption,
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: fontSize["3xs"],
+    lineHeight: fontSize["3xs"] + 2,
     color: colors.textOnBrand,
-    fontWeight: "700",
+    fontWeight: fontWeight.bold,
   },
 });

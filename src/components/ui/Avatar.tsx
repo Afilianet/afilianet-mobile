@@ -1,5 +1,6 @@
 import { Image, StyleSheet, Text, View } from "react-native";
 import { violet, night } from "../../design-system/tokens";
+import { fontFamilies } from "../../design-system/theme";
 import { colors, radius } from "./theme";
 
 type AvatarTone = "brand" | "neutral";
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   initials: {
-    fontFamily: "Manrope_700Bold",
+    fontFamily: fontFamilies.sans.bold,
     letterSpacing: -0.3,
   },
 });

@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
+import { ForbiddenState } from "../../components/ForbiddenState";
 import { InvitationRow } from "../../components/InvitationRow";
 import { PaginatedSectionCard } from "../../components/PaginatedSectionCard";
 import { SectionCard } from "../../components/SectionCard";
@@ -33,6 +34,7 @@ export default function NetworkScreen() {
   const sponsoredQuery = useMySponsored();
   const placementChildrenQuery = useMyPlacementChildren();
   const invitationsQuery = useMyInvitations();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     analytics.capture("network_viewed");
@@ -48,11 +50,33 @@ export default function NetworkScreen() {
     router.push(routes.referral as never);
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        affiliateQuery.refetch(),
+        sponsorQuery.refetch(),
+        placementParentQuery.refetch(),
+        sponsoredQuery.refetch(),
+        placementChildrenQuery.refetch(),
+        invitationsQuery.refetch(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
-  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile;
+  const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
+  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="network-scroll">
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      testID="network-scroll"
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+    >
       <Text style={styles.heading}>Network</Text>
 
       {affiliateQuery.isPending ? (
@@ -62,6 +86,8 @@ export default function NetworkScreen() {
           title="Join the affiliate program"
           description="You need an affiliate profile in this organization to see your network."
         />
+      ) : forbidden ? (
+        <ForbiddenState area="your network" />
       ) : loadFailed ? (
         <ErrorState
           error={affiliateQuery.error}

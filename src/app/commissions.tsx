@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../api/errors";
 import { CommissionDetailSheet } from "../components/CommissionDetailSheet";
 import { CommissionRow } from "../components/CommissionRow";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
+import { ForbiddenState } from "../components/ForbiddenState";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { SkeletonGroup } from "../components/Skeleton";
 import { Card } from "../components/ui/Card";
@@ -25,6 +26,7 @@ export default function CommissionsScreen() {
   const walletQuery = useWallet();
   const commissionsQuery = useMyCommissions();
   const [selected, setSelected] = useState<Commission | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     analytics.capture("commissions_viewed");
@@ -35,12 +37,26 @@ export default function CommissionsScreen() {
     setSelected(commission);
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([affiliateQuery.refetch(), walletQuery.refetch(), commissionsQuery.refetch()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
-  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile;
+  const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
+  const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content} testID="commissions-scroll">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        testID="commissions-scroll"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
+      >
         <View style={styles.header}>
           <Text style={styles.heading}>Commissions</Text>
           <IconButton label="Close" onPress={() => router.back()}>
@@ -55,6 +71,8 @@ export default function CommissionsScreen() {
             title="Join the affiliate program"
             description="You need an affiliate profile in this organization to earn commissions."
           />
+        ) : forbidden ? (
+          <ForbiddenState area="commissions" />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import { friendlyMessage, isApiError } from "../api/errors";
 import { Icon } from "../design-system/icons/Icon";
 import { useCreatePayoutDestination } from "../hooks/useCreatePayoutDestination";
 import { Button } from "./ui/Button";
@@ -58,8 +59,8 @@ export function AddDestinationSheet({
       });
       setLabel("");
       onCreated(destination.id);
-    } catch {
-      setError("Couldn't add this destination. Please try again.");
+    } catch (error) {
+      setError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
     }
   }
 
@@ -124,7 +125,7 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: "flex-end",
-    backgroundColor: "rgba(12,10,20,0.6)",
+    backgroundColor: colors.overlay,
   },
   sheet: {
     backgroundColor: colors.surfaceElevated,

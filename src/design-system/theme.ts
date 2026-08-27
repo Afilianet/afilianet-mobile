@@ -54,6 +54,13 @@ export const colors = {
   // Full base/soft/overDark/text groups for components that need a
   // background + border + text triad (Badge, status pills).
   semantic,
+
+  // Not an official token (afilianet.tokens.json has no overlay/backdrop
+  // entry) -- this is night[950] (the dark theme's own background color) at
+  // 60% opacity, centralizing a value three bottom-sheet components each
+  // hardcoded independently. Raise with design before changing the color;
+  // this just removes the duplication of the same literal.
+  overlay: "rgba(12, 10, 20, 0.6)",
 } as const;
 
 export type BadgeTone = "neutral" | "brand" | "success" | "warning" | "danger";

@@ -395,6 +395,29 @@ describe("Home: loading", () => {
   });
 });
 
+describe("Home: network", () => {
+  it("navigates to the Network screen from the preview card", async () => {
+    mockedFetchSponsoredAffiliates.mockResolvedValue({
+      data: [
+        {
+          id: "aff-2",
+          affiliate_code: "AFF200",
+          status: "active",
+          joined_at: null,
+          activated_at: null,
+          metadata: null,
+          created_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      meta: { total: 1 },
+    });
+    const { findByText } = await renderHome();
+    const link = await findByText("View network");
+    fireEvent.press(link);
+    expect(mockRouter.push).toHaveBeenCalledWith("/(app)/network");
+  });
+});
+
 describe("Home: pull-to-refresh", () => {
   it("refetches tenant queries on pull-to-refresh", async () => {
     const { findByText, getByTestId } = await renderHome();
@@ -408,6 +431,7 @@ describe("Home: pull-to-refresh", () => {
 
     expect(mockedFetchMyAffiliateProfile).toHaveBeenCalledTimes(2);
     expect(mockedFetchMyWallet).toHaveBeenCalledTimes(2);
+    expect(mockedFetchUnreadNotificationCount).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { isApiError } from "../api/errors";
+import { friendlyMessage, isApiError } from "../api/errors";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -58,9 +58,7 @@ export default function ComplianceScreen() {
     try {
       await startMutation.mutateAsync();
     } catch (error) {
-      setStartError(
-        isApiError(error) ? "We couldn't start verification. Please try again." : "Something went wrong. Please try again.",
-      );
+      setStartError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
     }
   }
 
@@ -172,7 +170,13 @@ function StepsCard({ query }: { query: ReturnType<typeof useComplianceSteps> }) 
       </View>
     );
   } else if (query.data) {
-    body = <Text style={styles.meta}>No required steps configured for this organization.</Text>;
+    body = (
+      <EmptyState
+        compact
+        title="No required steps"
+        description="This organization hasn't configured any required verification steps."
+      />
+    );
   }
 
   return (
