@@ -78,6 +78,17 @@ export function DocumentCaptureFlow({
       // A 409 (already in progress) is recovered from automatically by the
       // hook itself -- only surface a real error here.
       if (isApiError(error) && error.status === 409) return;
+      // 503 (DocumentProcessingException::identityEngineUnavailable() --
+      // Phase 9C.2a's provider gate discovered the engine isn't
+      // operationally available right now) is a distinct OPERATIONAL state,
+      // never framed as a document rejection/identity-flow reset -- the
+      // evidence already uploaded stays exactly as it is, and the affiliate
+      // can simply try submitting again later (a manual retry via the same
+      // "Submit for verification" button -- never an automatic loop).
+      if (isApiError(error) && error.status === 503) {
+        setSubmitError("Document verification is temporarily unavailable. Please try again in a few minutes.");
+        return;
+      }
       setSubmitError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
     }
   }
@@ -91,7 +102,7 @@ export function DocumentCaptureFlow({
   }
 
   if (effectiveResult && (effectiveResult.status === "completed" || effectiveResult.status === "failed")) {
-    return <DocumentResultView result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} />;
+    return <DocumentResultView stepId={stepId} result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} />;
   }
 
   if (activeCapture) {

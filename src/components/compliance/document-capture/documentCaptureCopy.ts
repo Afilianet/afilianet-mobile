@@ -1,5 +1,5 @@
 import type { BadgeTone } from "../../../design-system/theme";
-import type { DocumentType, DocumentVerdict, EvidenceType } from "../../../types/api";
+import type { DocumentType, DocumentVerdict, EvidenceType, ProviderUnavailableReason } from "../../../types/api";
 
 // DocumentRequirements.php's REQUIRED map, mirrored client-side purely to
 // drive the capture checklist UI -- the backend independently enforces the
@@ -45,6 +45,41 @@ const DATE_FIELDS = new Set(["date_of_birth", "expiration_date"]);
 export function fieldLabel(name: string): string {
   return FIELD_LABELS[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+// Format guidance for the confirmation FORM's editable inputs (Phase
+// 9C.2a) -- these mirror DocumentConfirmableFields::rulesFor() in
+// afilianet-api (never invented independently), so a correction typed here
+// is likely to pass server-side validation on the first try. An unlisted
+// field renders with no helper text.
+const FIELD_HELPER_TEXT: Record<string, string> = {
+  date_of_birth: "Format: YYYY-MM-DD",
+  expiration_date: "Format: YYYY-MM-DD",
+  expiration_year: "4-digit year",
+  curp: "18 characters",
+  elector_key: "18 characters",
+  sex: "M, F, or X",
+  issuing_country: "3-letter code, e.g. MEX",
+  nationality: "3-letter code, e.g. MEX",
+};
+
+export function confirmationFieldHelperText(name: string): string | undefined {
+  return FIELD_HELPER_TEXT[name];
+}
+
+// Rendered in a monospaced field to match TextInput's existing convention
+// for code-like values (CLABE/RFC/invitation codes) -- these are all
+// fixed-format codes, not prose.
+export const MONO_CONFIRMATION_FIELDS = new Set([
+  "curp",
+  "elector_key",
+  "passport_number",
+  "date_of_birth",
+  "expiration_date",
+  "expiration_year",
+  "issuing_country",
+  "nationality",
+  "sex",
+]);
 
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -121,4 +156,79 @@ export function friendlyFailureReason(reason: string | null): string {
     return "Document verification is temporarily unavailable. Please try again in a few minutes.";
   }
   return "Something went wrong while processing your document. Please try again.";
+}
+
+/**
+ * Phase 9C.2a: maps the server-authoritative provider-visibility signal
+ * (ComplianceStep.configured_provider/provider_actionable/
+ * provider_unavailable_reason) to safe, generic copy -- never exposes a
+ * service URL, secret/token, internal OCR class, container name, or stack
+ * trace. `retryable` only true for the one genuinely transient reason
+ * (engine_unavailable) -- everything else is a configuration state a
+ * "retry" can't fix, so no retry action is offered for those.
+ */
+export function providerUnavailableCopy(
+  configuredProvider: string | null,
+  reason: ProviderUnavailableReason | null,
+): { title: string; description: string; retryable: boolean } {
+  if (reason === "engine_unavailable") {
+    return {
+      title: "Temporarily unavailable",
+      description: "Document verification is temporarily unavailable. Please try again in a few minutes.",
+      retryable: true,
+    };
+  }
+  if (reason === "not_configured") {
+    return {
+      title: "Not set up yet",
+      description: "Document verification isn't set up for this organization yet.",
+      retryable: false,
+    };
+  }
+  if (reason === "provider_misconfigured" || reason === "provider_not_implemented") {
+    return {
+      title: "Not available",
+      description: "Document verification isn't available for this organization right now.",
+      retryable: false,
+    };
+  }
+  // configuredProvider is something this app has no dedicated UI for
+  // (e.g. "fake" outside a dev/QA context, or a future provider) -- same
+  // honest, non-alarming framing as the existing Incode message, never
+  // implying anything is broken.
+  return {
+    title: "Different flow",
+    description: "Document verification for this organization uses a different flow.",
+    retryable: false,
+  };
+}
+
+/**
+ * Phase 9C.2a: which UI state a document-processing result maps to, layered
+ * on top of DocumentProcessingStatus/DocumentVerdict/DocumentConfirmationStatus
+ * -- these are UI mappings only, never new backend domain states
+ * (confirmation_required/confirmation_status are read directly from the
+ * backend, never inferred from confidence).
+ *
+ * This is the PRIMARY state for badge/heading purposes -- "review" wins over
+ * "confirmation_required" when both are true (a review-verdict result can
+ * still have confirmable fields; the review notice takes visual priority),
+ * but the confirmation FORM itself renders independently whenever
+ * confirmation_status is "pending" and verdict isn't "fail" (see
+ * DocumentResultView) -- confirmation is never gated on which of these
+ * primary states is showing.
+ */
+export type DocumentResultUiState = "processing" | "confirmation_required" | "confirmed" | "review" | "completed" | "failed";
+
+export function documentResultUiState(result: {
+  status: string;
+  verdict: DocumentVerdict | null;
+  confirmation_status: string;
+}): DocumentResultUiState {
+  if (result.status === "pending" || result.status === "processing") return "processing";
+  if (result.status === "failed") return "failed";
+  if (result.verdict === "review") return "review";
+  if (result.confirmation_status === "pending") return "confirmation_required";
+  if (result.confirmation_status === "confirmed") return "confirmed";
+  return "completed";
 }

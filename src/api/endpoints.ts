@@ -186,6 +186,28 @@ export async function fetchDocumentResult(stepId: string): Promise<DocumentProce
 }
 
 /**
+ * Phase 9C.2a: confirms/corrects the extracted fields on the step's latest
+ * COMPLETED document-processing result -- PATCH .../document-result,
+ * `{"fields": {...}}` exactly matching ConfirmDocumentResultRequest's
+ * accepted shape (afilianet-api). `fields` must be exactly the confirmable
+ * field set for this result (all-or-nothing) -- callers should derive it
+ * from the result's own `extracted_fields`, never invent a broader schema.
+ * Never touches ComplianceStep/ComplianceCase state server-side. A repeated
+ * IDENTICAL submission is a safe no-op; a repeated DIFFERENT submission
+ * after confirmation returns 409 (see useConfirmDocumentResult.ts).
+ */
+export async function confirmDocumentResult(
+  stepId: string,
+  fields: Record<string, string>,
+): Promise<DocumentProcessingResult> {
+  const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/document-result`,
+    { method: "PATCH", body: { fields } },
+  );
+  return data;
+}
+
+/**
  * A preview of who this affiliate has directly sponsored, via the
  * /affiliates/{affiliate}/sponsored route (policy-gated to your own
  * affiliate id, or another affiliate's id if you're viewing them -- see

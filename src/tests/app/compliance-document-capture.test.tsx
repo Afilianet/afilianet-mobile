@@ -160,6 +160,13 @@ function step(overrides: Partial<ComplianceStep> = {}): ComplianceStep {
     attempt_count: 0,
     completed_at: null,
     created_at: "2026-01-01T00:00:00Z",
+    // Phase 9C.2a defaults: this org is actionable-Afilianet, matching
+    // every existing test's assumption that the real capture flow renders
+    // by default -- tests that need a different provider-visibility
+    // scenario override these explicitly.
+    configured_provider: "afilianet",
+    provider_actionable: true,
+    provider_unavailable_reason: null,
     ...overrides,
   };
 }
@@ -199,6 +206,9 @@ function documentResult(overrides: Partial<DocumentProcessingResult> = {}): Docu
     verdict: null,
     confidence: null,
     extracted_fields: [],
+    confirmed_fields: null,
+    confirmation_required: false,
+    confirmation_status: "not_required",
     failure_reason: null,
     processor_version: "afilianet-document-engine-1",
     attempt_number: 1,
@@ -446,6 +456,49 @@ describe("Document capture: processing and polling", () => {
   });
 });
 
+describe("Document capture: operational unavailability (Phase 9C.2a, 503 on trigger)", () => {
+  it("shows a distinct temporarily-unavailable message on a 503, never a document-rejection message, and never auto-retries", async () => {
+    mockedTriggerDocumentProcessing.mockRejectedValue(
+      new ApiError("server", "Document processing is temporarily unavailable - please try again later.", 503),
+    );
+
+    const { getByText, findByText, findAllByText, queryByText } = await renderCompliance();
+    await chooseIne(getByText, findByText);
+
+    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+    const sides: [string, string][] = [
+      ["Front", "file:///tmp/front.jpg"],
+      ["Back", "file:///tmp/back.jpg"],
+    ];
+    for (let i = 0; i < sides.length; i++) {
+      const [label, uri] = sides[i];
+      mockLaunchCamera.mockResolvedValueOnce({
+        canceled: false,
+        assets: [{ uri, width: 1200, height: 800, fileSize: 500_000, mimeType: "image/jpeg" }],
+      });
+      fireEvent.press(getByText(label) as never);
+      fireEvent.press((await findByText("Open camera")) as never);
+      fireEvent.press((await findByText("Use this photo")) as never);
+      // "Captured" alone is ambiguous once both sides are done -- wait for
+      // the expected COUNT of captured rows instead.
+      await waitFor(async () => expect((await findAllByText("Captured")).length).toBe(i + 1));
+    }
+
+    fireEvent.press(getByText("Submit for verification"));
+
+    // The Badge's own title text ("Temporarily unavailable") also matches
+    // this regex -- assert on the fuller description sentence specifically,
+    // not just any node containing "temporarily unavailable".
+    expect(await findByText(/document verification is temporarily unavailable/i)).toBeTruthy();
+    // Never framed as a document rejection/invalid-document/identity result.
+    expect(queryByText(/rejected|invalid document|couldn't be verified/i)).toBeNull();
+
+    // A manual retry (pressing Submit again) is always available -- this is
+    // never an automatic loop; the mutation only ever fires once per press.
+    expect(mockedTriggerDocumentProcessing).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Document capture: result review (read-only, no fake confirmation)", () => {
   it("renders only normalized fields, with friendly labels, never raw check names or object keys", async () => {
     mockedFetchDocumentResult.mockResolvedValue(
@@ -474,12 +527,15 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
     expect(queryByText(/0\.97|0\.79/)).toBeNull();
   });
 
-  it("never offers a Save/Confirm action -- the backend confirmation endpoint does not exist", async () => {
+  it("never offers a confirm action when this result doesn't require confirmation", async () => {
     mockedFetchDocumentResult.mockResolvedValue(
       documentResult({
         status: "completed",
         verdict: "review",
         extracted_fields: [{ name: "curp", value: "PEGJ900515HDFRZNO8", confidence: 0.79, confirmation_required: true }],
+        // confirmation_status left at the builder's default ("not_required") --
+        // see the "Document confirmation" describe block below for the real
+        // confirmation-required/editable-form coverage (Phase 9C.2a).
       }),
     );
 
@@ -528,19 +584,50 @@ describe("Document capture: technical failure and manual review", () => {
   });
 });
 
-describe("Document capture: provider awareness", () => {
-  it("never shows the Afilianet capture flow when the step's provider is incode", async () => {
-    mockedFetchComplianceSteps.mockResolvedValue([step({ provider: "incode" })]);
+describe("Document capture: provider awareness (Phase 9C.2a authoritative gate)", () => {
+  it("never shows the Afilianet capture flow when configured_provider is incode", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      step({ configured_provider: "incode", provider_actionable: false, provider_unavailable_reason: null }),
+    ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/different flow/i)).toBeTruthy();
+    // The Badge title itself is also "Different flow" -- assert on the
+    // fuller description sentence specifically, not just any matching node.
+    expect(await findByText(/uses a different flow/i)).toBeTruthy();
     expect(queryByText("Which document will you provide?")).toBeNull();
     expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
   });
 
-  it("shows the real capture flow when provider is null (unattempted) or a Fake label", async () => {
-    mockedFetchComplianceSteps.mockResolvedValue([step({ provider: "fake-identity" })]);
+  it("shows the real capture flow when configured_provider is afilianet and actionable, ignoring step.provider's attempt-history label", async () => {
+    // `provider` (attempt history) intentionally set to a stale/irrelevant
+    // value here -- the gate must use configured_provider/provider_actionable
+    // only, never `provider`.
+    mockedFetchComplianceSteps.mockResolvedValue([
+      step({ provider: "fake-identity", configured_provider: "afilianet", provider_actionable: true }),
+    ]);
     const { findByText } = await renderCompliance();
     expect(await findByText("Which document will you provide?")).toBeTruthy();
+  });
+
+  it("shows a safe unavailable state, never the capture flow, when afilianet is configured but not actionable", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      step({ configured_provider: "afilianet", provider_actionable: false, provider_unavailable_reason: "engine_unavailable" }),
+    ]);
+    const { queryByText, findByText } = await renderCompliance();
+    // The Badge title itself is also "Temporarily unavailable" -- assert on
+    // the fuller description sentence specifically.
+    expect(await findByText(/document verification is temporarily unavailable/i)).toBeTruthy();
+    expect(queryByText("Which document will you provide?")).toBeNull();
+    expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
+  });
+
+  it("never assumes Afilianet or Fake for an unconfigured/null provider", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      step({ configured_provider: null, provider_actionable: false, provider_unavailable_reason: "not_configured" }),
+    ]);
+    const { queryByText, findByText } = await renderCompliance();
+    expect(await findByText(/isn't set up for this organization yet/i)).toBeTruthy();
+    expect(queryByText("Which document will you provide?")).toBeNull();
+    expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
   });
 });
 

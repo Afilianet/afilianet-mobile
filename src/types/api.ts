@@ -148,11 +148,29 @@ export type ComplianceStepType =
 // the mobile app expects to see them today.
 export type ComplianceStepStatus = "pending" | "in_progress" | "passed" | "failed" | "manual_review" | "skipped";
 
+// app/Modules/Identity/Enums/VerificationProvider.php.
+export type VerificationProvider = "fake" | "afilianet" | "incode" | "aws_rekognition";
+
+// ComplianceProviderResolver::describe()'s closed, safe reason-code set
+// (Phase 9C.2a) -- never a raw exception message, config key, URL, or
+// credential. See ProviderAvailability's docblock in afilianet-api.
+export type ProviderUnavailableReason =
+  | "not_configured"
+  | "provider_misconfigured"
+  | "provider_not_implemented"
+  | "engine_unavailable";
+
 // ComplianceStepResource -- deliberately omits provider_reference (a
 // vendor-specific reference, never safe to expose). `provider` (a plain
 // label like "fake-identity") is explicitly safe per the resource's own
 // docblock. attempt_count/score/completed_at always reflect the latest
-// attempt only.
+// attempt only -- `provider` itself is null until a first attempt exists.
+//
+// `configured_provider`/`provider_actionable`/`provider_unavailable_reason`
+// (Phase 9C.2a) are a SEPARATE, server-authoritative signal -- never
+// inferred from attempts, available BEFORE any attempt exists. This is what
+// mobile must use to decide whether to even show the Afilianet capture flow
+// -- never `provider` above, and never a client-side guess.
 export interface ComplianceStep {
   id: string;
   step_type: ComplianceStepType;
@@ -162,6 +180,9 @@ export interface ComplianceStep {
   attempt_count: number;
   completed_at: string | null;
   created_at: string;
+  configured_provider: VerificationProvider | null;
+  provider_actionable: boolean;
+  provider_unavailable_reason: ProviderUnavailableReason | null;
 }
 
 // ComplianceCaseResource -- deliberately excludes `metadata` (may carry
@@ -379,12 +400,26 @@ export interface ExtractedField {
   confirmation_required: boolean;
 }
 
+// The mobile-facing lifecycle of confirmation for one result (Phase 9C.2a) --
+// "not_required" (nothing confirmable was extracted), "pending" (confirmable
+// fields exist, not yet confirmed), "confirmed" (confirmed_fields is set).
+// Server-computed -- never inferred client-side from confidence/verdict.
+export type DocumentConfirmationStatus = "not_required" | "pending" | "confirmed";
+
 // DocumentProcessingResultResource -- deliberately excludes raw OCR text,
-// storage keys/provider, and confirmed_fields (reserved for a future
-// confirmation endpoint that does not exist yet -- see Phase 9C.2's report).
-// `validation_checks`/`quality` exist server-side but are intentionally not
-// modeled here -- mobile never renders raw check names/processor internals,
-// only the normalized verdict/confidence/failure_reason.
+// storage keys/provider. `validation_checks`/`quality` exist server-side but
+// are intentionally not modeled here -- mobile never renders raw check
+// names/processor internals, only the normalized verdict/confidence/
+// failure_reason.
+//
+// `confirmed_fields`/`confirmation_required`/`confirmation_status`
+// (Phase 9C.2a) are strictly separate from `extracted_fields` -- confirming
+// NEVER rewrites extracted_fields (the original OCR output stays intact for
+// history/audit); `confirmed_fields` is null until the owning affiliate
+// confirms via PATCH .../document-result. A field name present in
+// `confirmed_fields` is not necessarily present in `extracted_fields`'s
+// current render order, but in practice both key sets match exactly (see
+// DocumentConfirmableFields in afilianet-api).
 export interface DocumentProcessingResult {
   id: string;
   document_type: DocumentType;
@@ -392,6 +427,9 @@ export interface DocumentProcessingResult {
   verdict: DocumentVerdict | null;
   confidence: number | null;
   extracted_fields: ExtractedField[];
+  confirmed_fields: Record<string, string> | null;
+  confirmation_required: boolean;
+  confirmation_status: DocumentConfirmationStatus;
   failure_reason: string | null;
   processor_version: string;
   attempt_number: number;
