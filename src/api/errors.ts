@@ -5,6 +5,7 @@ export type ApiErrorKind =
   | "forbidden" // 403
   | "validation" // 422
   | "not_found" // 404
+  | "conflict" // 409
   | "rate_limited" // 429
   | "server" // 5xx
   | "unknown";
@@ -36,6 +37,7 @@ export function kindForStatus(status: number): ApiErrorKind {
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
   if (status === 422) return "validation";
+  if (status === 409) return "conflict";
   if (status === 429) return "rate_limited";
   if (status >= 500) return "server";
   return "unknown";
@@ -55,6 +57,8 @@ export function friendlyMessage(error: ApiError): string {
       return error.message || "Some information isn't valid.";
     case "not_found":
       return "We couldn't find that.";
+    case "conflict":
+      return error.message || "This can't be completed right now.";
     case "rate_limited":
       return "Too many attempts. Please wait a moment and try again.";
     case "server":

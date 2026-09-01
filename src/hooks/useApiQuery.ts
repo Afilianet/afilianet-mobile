@@ -1,7 +1,7 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { isApiError } from "../api/errors";
 
-const NON_RETRYABLE = new Set(["unauthorized", "forbidden", "validation", "not_found"]);
+const NON_RETRYABLE = new Set(["unauthorized", "forbidden", "validation", "not_found", "conflict"]);
 
 /**
  * useQuery preconfigured with the app's retry policy: don't retry errors

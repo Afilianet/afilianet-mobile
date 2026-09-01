@@ -29,6 +29,14 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Afilianet to access your camera to capture identity documents for verification.",
+          "microphonePermission": false,
+          "photosPermission": false
+        }
+      ],
       "@sentry/react-native"
     ],
     "experiments": {

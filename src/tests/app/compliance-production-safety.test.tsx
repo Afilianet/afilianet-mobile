@@ -104,6 +104,9 @@ function step(overrides: Partial<ComplianceStep> = {}): ComplianceStep {
     attempt_count: 0,
     completed_at: null,
     created_at: "2026-01-01T00:00:00Z",
+    configured_provider: "afilianet",
+    provider_actionable: true,
+    provider_unavailable_reason: null,
     ...overrides,
   };
 }

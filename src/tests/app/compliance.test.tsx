@@ -5,6 +5,7 @@ import { ApiError } from "../../api/errors";
 import {
   attemptComplianceStep,
   fetchComplianceSteps,
+  fetchDocumentResult,
   fetchMyAffiliateProfile,
   fetchMyCompliance,
   startCompliance,
@@ -26,6 +27,10 @@ jest.mock("../../api/endpoints", () => ({
   startCompliance: jest.fn(),
   fetchComplianceSteps: jest.fn(),
   attemptComplianceStep: jest.fn(),
+  requestEvidenceUpload: jest.fn(),
+  completeEvidenceUpload: jest.fn(),
+  triggerDocumentProcessing: jest.fn(),
+  fetchDocumentResult: jest.fn(),
 }));
 
 jest.mock("../../services/analytics", () => ({
@@ -37,6 +42,7 @@ const mockedFetchMyCompliance = fetchMyCompliance as jest.Mock;
 const mockedStartCompliance = startCompliance as jest.Mock;
 const mockedFetchComplianceSteps = fetchComplianceSteps as jest.Mock;
 const mockedAttemptComplianceStep = attemptComplianceStep as jest.Mock;
+const mockedFetchDocumentResult = fetchDocumentResult as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
 
 /** Auto-confirms the "Accept terms?" Alert by invoking its "Accept" button. */
@@ -114,6 +120,9 @@ function step(overrides: Partial<ComplianceStep> = {}): ComplianceStep {
     attempt_count: 0,
     completed_at: null,
     created_at: "2026-01-01T00:00:00Z",
+    configured_provider: "afilianet",
+    provider_actionable: true,
+    provider_unavailable_reason: null,
     ...overrides,
   };
 }
@@ -142,6 +151,10 @@ beforeEach(() => {
   mockedFetchMyAffiliateProfile.mockResolvedValue(AFFILIATE);
   mockedFetchMyCompliance.mockResolvedValue(complianceCase());
   mockedFetchComplianceSteps.mockResolvedValue([step()]);
+  // No document-processing attempt exists yet by default -- identity_document
+  // steps in this file exercise the dispatch/status mechanism, not the real
+  // capture flow's depth (see compliance-document-capture.test.tsx for that).
+  mockedFetchDocumentResult.mockRejectedValue(NOT_FOUND);
 });
 
 afterEach(() => {
@@ -231,10 +244,10 @@ describe("Compliance: required steps", () => {
     expect(queryByText("Terms acceptance")).toBeNull();
   });
 
-  it("shows a pending step as not-yet-actionable rather than a fake working CTA", async () => {
+  it("shows the real Afilianet document-capture flow for a pending identity_document step", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "pending" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText(/isn't available in this app version yet/i)).toBeTruthy();
+    expect(await findByText("Which document will you provide?")).toBeTruthy();
   });
 
   it("shows a passed step as completed, with its completion date", async () => {
@@ -245,11 +258,13 @@ describe("Compliance: required steps", () => {
     expect(await findByText(/Completed/)).toBeTruthy();
   });
 
-  it("shows a failed step's retry-needed state without offering a non-functional retry action", async () => {
+  it("shows a failed identity_document step with a real way to try again, not a non-functional retry action", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "failed", attempt_count: 1 })]);
     const { findByText, queryByText } = await renderCompliance();
     expect(await findByText("Failed")).toBeTruthy();
-    expect(await findByText(/couldn't be verified/i)).toBeTruthy();
+    // No prior document-processing result exists in this file's default mocks,
+    // so document_type can't be recovered -- the real capture flow asks again.
+    expect(await findByText("Which document will you provide?")).toBeTruthy();
     expect(queryByText("Retry")).toBeNull();
   });
 
