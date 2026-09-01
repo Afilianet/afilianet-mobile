@@ -5,6 +5,11 @@ import type {
   Commission,
   ComplianceCase,
   ComplianceStep,
+  DocumentProcessingResult,
+  DocumentType,
+  Evidence,
+  EvidenceType,
+  EvidenceUploadAuthorization,
   Invitation,
   LedgerEntry,
   LoginResponse,
@@ -116,6 +121,67 @@ export async function attemptComplianceStep(stepId: string, payload: AttemptStep
     method: "POST",
     body: payload,
   });
+  return data;
+}
+
+/**
+ * Phase 9B evidence upload-session flow, step 1: authorizes one upload for
+ * one step. Never sends the binary here -- only intent (type/mime/size).
+ * The response's `upload.url` is echoed back verbatim on a direct PUT (see
+ * useDocumentCapture.ts), treated identically whether it's a real S3
+ * presigned URL or the local-dev signed-route stand-in -- this function
+ * never special-cases either.
+ */
+export async function requestEvidenceUpload(
+  stepId: string,
+  params: { evidence_type: EvidenceType; mime_type: string; size: number },
+): Promise<EvidenceUploadAuthorization> {
+  const { data } = await apiRequest<{ data: EvidenceUploadAuthorization }>(
+    `/api/v1/compliance/steps/${stepId}/evidence/uploads`,
+    { method: "POST", body: params },
+  );
+  return data;
+}
+
+/** Phase 9B evidence upload-session flow, step 3 (after the direct PUT in step 2): confirms the object actually landed. */
+export async function completeEvidenceUpload(evidenceId: string): Promise<Evidence> {
+  const { data } = await apiRequest<{ data: Evidence }>(`/api/v1/compliance/evidence/${evidenceId}/complete`, {
+    method: "POST",
+    body: {},
+  });
+  return data;
+}
+
+/**
+ * Phase 9C.1's Afilianet Document Engine: triggers an async processing
+ * attempt for the identity_document step. `document_type` is
+ * client-declared intent (which parser to run), never a verification
+ * outcome -- there is no `outcome`/`score` field here, unlike
+ * attemptComplianceStep's Fake-provider-only payload. Returns 202
+ * immediately (a `pending` DocumentProcessingResult) -- the real outcome is
+ * only ever read back via fetchDocumentResult's polling.
+ */
+export async function triggerDocumentProcessing(
+  stepId: string,
+  documentType: DocumentType,
+): Promise<DocumentProcessingResult> {
+  const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/document-processing`,
+    { method: "POST", body: { document_type: documentType } },
+  );
+  return data;
+}
+
+/**
+ * The latest document-processing attempt for a step. 404s
+ * (`DocumentProcessingException::noResultYet()`) when processing has never
+ * been triggered for this step -- callers should treat that as "no result
+ * yet", not a hard error (see useDocumentResult.ts).
+ */
+export async function fetchDocumentResult(stepId: string): Promise<DocumentProcessingResult> {
+  const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/document-result`,
+  );
   return data;
 }
 

@@ -33,6 +33,8 @@ This starts everything the API needs — `app`, `horizon` (queue worker), `nginx
 
 Docker is the primary, supported way to run the backend for this project — prefer it over `php artisan serve`, which isn't part of the documented workflow here (queued jobs like notification dispatch rely on `horizon`, which only runs inside the Compose stack).
 
+`docker compose up -d` does **not** start the `identity-engine` service (the real OCR engine behind `identity_document` document capture) by default — it has no `depends_on` coupling to the rest of the stack. To exercise the real document-capture flow (not just its surrounding screens), also run `docker compose up -d identity-engine` and set `IDENTITY_ENGINE_URL=http://identity-engine:8000` / `IDENTITY_ENGINE_SERVICE_TOKEN=local-dev-only-insecure-token` in `afilianet-api`'s `.env` — see that repo's `docs/identity/IDENTITY_ENGINE.md` section M. Without it, `identity_document` processing attempts fail closed with a clear "unavailable" result in local/dev too (never a fabricated pass).
+
 ## 3. Start the app
 
 ```bash
@@ -112,6 +114,18 @@ app(AffiliateEnrollmentService::class)->enroll($org, $user); // status starts "p
 
 Both `active` and `pending` accounts can sign in; `suspended` and `blocked` accounts get a clear error instead. Always create the affiliate profile via `AffiliateEnrollmentService::enroll()`, not a raw model `create()` — it's what dispatches the `AffiliateEnrolled` event the rest of the domain (including notifications) depends on.
 
+**To actually exercise the real `identity_document` document-capture flow** (not just have it fall through to the Fake provider), the organization needs `compliance_config.providers.identity_document` explicitly set to `"afilianet"` when you create it — an organization with no `providers` key resolves every compliance step to the Fake provider by default, regardless of whether a real document-processing attempt happened:
+
+```php
+$org = Organization::factory()->create([
+    'name' => 'Test Org',
+    'compliance_config' => [
+        'required_steps' => ['identity_document', 'terms_acceptance'],
+        'providers' => ['identity_document' => 'afilianet'],
+    ],
+]);
+```
+
 When you're done with a throwaway account, delete its organization (cascades every domain row it owns) and the user itself:
 
 ```php
@@ -121,9 +135,28 @@ User::find($user->id)->delete();
 
 ## The compliance verification simulator
 
-The five identity/biometric compliance step types (`identity_document`, `biometric_liveness`, `face_match`, `verbal_consent`, and read-only `identity_information`) have no real verification provider behind them yet — afilianet-api only implements Fake/test providers for these. To exercise them in development, the app shows an additional **development-only pass/fail simulator** on each of those steps, gated by `isDevelopmentSimulatorEnabled` in `src/config/env.ts` (`__DEV__ && EXPO_PUBLIC_APP_ENV=development` — both conditions, so it can never appear in a release build regardless of how one is misconfigured). Only `terms_acceptance` has a real, user-submittable production path today.
+Four compliance step types (`biometric_liveness`, `face_match`, `verbal_consent`, and read-only `identity_information`) have no real verification provider behind them yet — afilianet-api only implements Fake/test providers for these. To exercise them in development, the app shows an additional **development-only pass/fail simulator** on each of those steps, gated by `isDevelopmentSimulatorEnabled` in `src/config/env.ts` (`__DEV__ && EXPO_PUBLIC_APP_ENV=development` — both conditions, so it can never appear in a release build regardless of how one is misconfigured). `terms_acceptance` has a real, user-submittable production path, and `identity_document` now has a real capture flow too (see below) — the simulator still appears alongside it for quick QA, but is never the primary interaction for that step.
 
 **This simulator must never be reachable outside local development.** Don't set `EXPO_PUBLIC_APP_ENV=development` in a staging or production environment file.
+
+## Identity document capture (`identity_document`)
+
+The app has a real camera-capture flow for the `identity_document` compliance step, driving afilianet-api's Afilianet Document Engine end-to-end — not a simulation. Supported document types (exactly what the backend has a real parser for; the app never invents a third option):
+
+- **Mexican INE** (`mx_ine`) — captures the **front and back**.
+- **Passport** (`passport`) — captures the **identity page**.
+
+**Flow**: choose a document type → capture each required side with the device camera (with a guidance screen, a local preview, and Retake before uploading) → each photo is uploaded through the real Phase 9B evidence flow (`POST .../evidence/uploads` → a direct PUT to the returned URL, S3 in production and a signed local route in dev → `POST .../evidence/{evidence}/complete`) → `POST .../document-processing` triggers async OCR/parsing → the app polls `GET .../document-result` (stopping automatically once the attempt completes or fails) → the normalized result (verdict + whatever fields OCR actually found) is shown to the affiliate.
+
+**Permissions**: the app requests camera access only (`expo-image-picker`'s `NSCameraUsageDescription` on iOS, `android.permission.CAMERA` on Android) — photo-library and microphone permissions are explicitly disabled in `app.json`'s plugin config, since this flow never picks from the library or records audio. A denied/restricted permission shows a clear in-app message with a link to the device's Settings, not a silent failure.
+
+**Read-only result, no confirmation yet**: afilianet-api's `confirmed_fields` column (reserved for a future "review and correct your extracted fields" flow) has **no submission endpoint today** — see `DOCUMENT_ENGINE.md` section K. The app shows extracted fields for the affiliate's own review only; it never offers a Save/Confirm action that would silently do nothing, and it never declares a step passed on its own — every outcome shown is read back from what the backend actually recorded.
+
+**Provider-aware**: this flow only appears when the organization's `identity_document` provider is Afilianet (or not yet attempted) — never when it's `incode`, which will use its own SDK-driven flow in a future phase. The app never chooses a provider itself.
+
+**Privacy**: no document image, extracted field value, CURP, passport number, elector key, evidence id, or step id is ever sent to analytics or logged. Temporary local captures are deleted after a successful upload.
+
+**Current limitation, stated plainly**: real OCR (Tesseract, via a separate `afilianet-identity-engine` service) has only been validated in this project against clean, rendered synthetic test images — not real phone-camera photos, not multiple INE layout generations. A real, working pipeline is not the same claim as a production-validated identity-verification capability — see `afilianet-api/docs/identity/IDENTITY_ENGINE.md` section R for the full, honest breakdown. Real camera-device capture (actual permission prompts, actual photos) has not been manually verified on a physical device or simulator in this development environment either — only the surrounding screens' bundling and the backend contract have been.
 
 ## Project structure
 
@@ -153,7 +186,7 @@ src/
 - Network (sponsor, placement parent, direct sponsored, placement children, invitations) and affiliate drill-down
 - Commissions list and detail
 - Wallet (balances, activity ledger) and payouts (destinations, eligibility, request, cancel)
-- Compliance (case status, required steps, terms acceptance; see the simulator note above for the other step types)
+- Compliance (case status, required steps, terms acceptance, real `identity_document` document capture — see above; see the simulator note above for the other step types)
 - In-app notifications (feed, unread badge, mark read/read-all, whitelisted deep links)
 - Profile (identity, affiliate status, compliance access, organization switching, sign out)
 
@@ -161,8 +194,9 @@ src/
 
 These are known gaps, not implemented in this app version:
 
-- **Incode** (or any real identity/biometric verification provider) — `identity_document`, `biometric_liveness`, `face_match`, and `verbal_consent` only have Fake test providers server-side; see the simulator note above.
-- **S3 (or any) evidence storage** — there's nowhere to upload verification evidence to yet, which is part of why the steps above have no real submission path.
+- **Incode** (or any real third-party identity/biometric verification provider) — `biometric_liveness`, `face_match`, and `verbal_consent` only have Fake test providers server-side; see the simulator note above. Incode's own SDK-driven capture flow for `identity_document` is a separate, future integration — this app's current document-capture flow is Afilianet-owned only, and never appears when an organization is configured for Incode.
+- **`identity_document` field confirmation** — the affiliate can review what OCR extracted, but there's no backend endpoint yet to submit corrections (`confirmed_fields`); see the capture section above.
+- **Real, production-validated OCR accuracy** — the pipeline is real (not simulated), but only tested against synthetic images so far; see the capture section above.
 - **Push notifications** — the in-app notification inbox and unread badge are real; device push (APNs/FCM) isn't wired up.
 - **A real payout provider** — payout destinations are self-attested labels only (never a verified bank/card link), and payouts don't move real money.
 - **Terms of Service versioning** — there's no published, versioned terms document yet; the terms-acceptance step records a provisional acceptance and is explicit with the user that formal terms haven't been published.

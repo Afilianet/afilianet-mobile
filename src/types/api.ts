@@ -314,6 +314,92 @@ export interface PayoutEligibility {
   minimum_payout: string;
 }
 
+// app/Modules/Identity/Enums/EvidenceType.php -- mobile only ever submits
+// the identity_document capture types (Phase 9C.2); the other cases exist
+// server-side for biometric/consent evidence, not built on mobile yet.
+export type EvidenceType = "id_document_front" | "id_document_back" | "id_document_page";
+
+// app/Modules/Identity/Enums/EvidenceStatus.php (Phase 9B).
+export type EvidenceStatus = "pending_upload" | "uploaded" | "rejected" | "expired";
+
+// EvidenceResource -- deliberately excludes storage_provider/storage_key/
+// sha256_hash (never safe to expose -- the client already knows what it
+// uploaded). `provider` is a plain vendor label, safe to show.
+export interface Evidence {
+  id: string;
+  type: EvidenceType;
+  status: EvidenceStatus;
+  provider: string | null;
+  mime_type: string;
+  size: number;
+  captured_at: string | null;
+  retention_until: string | null;
+  created_at: string;
+}
+
+// EvidenceUploadAuthorizationResource -- the response to POST
+// .../evidence/uploads. `upload.url`/`headers` are echoed back verbatim on
+// the direct PUT -- never a bucket name, object key, or AWS credentials.
+// The client must treat this the same whether it's a real S3 presigned URL
+// or the local-dev signed-route stand-in.
+export interface EvidenceUploadAuthorization {
+  evidence: Evidence;
+  upload: {
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    expires_at: string;
+  };
+}
+
+// app/Modules/Identity/Enums/DocumentType.php -- the only two document
+// types afilianet-api has a real parser for. Client-declared intent at
+// trigger time, never a verification outcome.
+export type DocumentType = "mx_ine" | "passport";
+
+// app/Modules/Identity/Enums/DocumentProcessingStatus.php -- the lifecycle
+// of one processing ATTEMPT, deliberately distinct from both EvidenceStatus
+// and ComplianceStepStatus (see DocumentProcessingResult below).
+export type DocumentProcessingStatus = "pending" | "processing" | "completed" | "failed";
+
+// app/Modules/Identity/Enums/DocumentVerdict.php -- only set when status is
+// "completed". Maps to ComplianceStep.status server-side (pass/review both
+// -> step "passed", review additionally routes the CASE to manual_review;
+// fail -> step "failed", retryable) -- mobile never re-derives this mapping
+// itself, only reads back what the step/case already show.
+export type DocumentVerdict = "pass" | "review" | "fail";
+
+// App\Modules\Identity\Documents\ExtractedField -- one normalized value OCR
+// found, never a raw OCR fragment. `value` is null-able in principle but a
+// field is only ever included here when something was actually found.
+export interface ExtractedField {
+  name: string;
+  value: string | null;
+  confidence: number;
+  confirmation_required: boolean;
+}
+
+// DocumentProcessingResultResource -- deliberately excludes raw OCR text,
+// storage keys/provider, and confirmed_fields (reserved for a future
+// confirmation endpoint that does not exist yet -- see Phase 9C.2's report).
+// `validation_checks`/`quality` exist server-side but are intentionally not
+// modeled here -- mobile never renders raw check names/processor internals,
+// only the normalized verdict/confidence/failure_reason.
+export interface DocumentProcessingResult {
+  id: string;
+  document_type: DocumentType;
+  status: DocumentProcessingStatus;
+  verdict: DocumentVerdict | null;
+  confidence: number | null;
+  extracted_fields: ExtractedField[];
+  failure_reason: string | null;
+  processor_version: string;
+  attempt_number: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
 // app/Modules/Notifications/Enums/NotificationType.php -- a deliberately
 // closed enum (a type is only ever added alongside the listener that
 // creates it). Never assume a 15th type; an unrecognized value must fail
