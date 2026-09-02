@@ -80,6 +80,7 @@ function renderBody(
       <ProviderUnavailableState
         configuredProvider={step.configured_provider}
         reason={step.provider_unavailable_reason}
+        featureLabel="Document verification"
         onCheckAgain={onCheckAgain}
         checking={false}
       />

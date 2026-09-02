@@ -135,7 +135,7 @@ User::find($user->id)->delete();
 
 ## The compliance verification simulator
 
-Four compliance step types (`biometric_liveness`, `face_match`, `verbal_consent`, and read-only `identity_information`) have no real verification provider behind them yet — afilianet-api only implements Fake/test providers for these. To exercise them in development, the app shows an additional **development-only pass/fail simulator** on each of those steps, gated by `isDevelopmentSimulatorEnabled` in `src/config/env.ts` (`__DEV__ && EXPO_PUBLIC_APP_ENV=development` — both conditions, so it can never appear in a release build regardless of how one is misconfigured). `terms_acceptance` has a real, user-submittable production path, and `identity_document` now has a real capture flow too (see below) — the simulator still appears alongside it for quick QA, but is never the primary interaction for that step.
+Three compliance step types (`biometric_liveness`, `verbal_consent`, and read-only `identity_information`) have no real verification provider behind them yet — afilianet-api only implements Fake/test providers for these. To exercise them in development, the app shows an additional **development-only pass/fail simulator** on each of those steps, gated by `isDevelopmentSimulatorEnabled` in `src/config/env.ts` (`__DEV__ && EXPO_PUBLIC_APP_ENV=development` — both conditions, so it can never appear in a release build regardless of how one is misconfigured). `terms_acceptance` has a real, user-submittable production path, and `identity_document`/`face_match` now have real capture flows too (see below) — the simulator still appears alongside each, for quick QA, but is never the primary interaction for those steps.
 
 **This simulator must never be reachable outside local development.** Don't set `EXPO_PUBLIC_APP_ENV=development` in a staging or production environment file.
 
@@ -157,6 +157,37 @@ The app has a real camera-capture flow for the `identity_document` compliance st
 **Privacy**: no document image, extracted field value, confirmed field value, CURP, passport number, elector key, evidence id, or step id is ever sent to analytics or logged. Temporary local captures are deleted after a successful upload.
 
 **Current limitation, stated plainly**: real OCR (Tesseract, via a separate `afilianet-identity-engine` service) has only been validated in this project against clean, rendered synthetic test images — not real phone-camera photos, not multiple INE layout generations. A real, working pipeline is not the same claim as a production-validated identity-verification capability — see `afilianet-api/docs/identity/IDENTITY_ENGINE.md` section R for the full, honest breakdown. Real camera-device capture (actual permission prompts, actual photos) has not been manually verified on a physical device or simulator in this development environment either — only the surrounding screens' bundling and the backend contract have been.
+
+## Face match capture (`face_match`)
+
+The app has a real selfie-capture flow for the `face_match` compliance step, driving afilianet-api's Afilianet Face Match integration (Phase 9D.2) end-to-end — not a simulation. **This phase is face match only** — no liveness challenge, no anti-spoofing, no document re-validation, no verbal consent, no face enrollment/database, and no client-side similarity/threshold tuning; the app never attempts any of that.
+
+**What a "Face matched" result actually means, and what it doesn't**: a `match` verdict means only *"the selfie appears sufficiently similar to the identity document's portrait according to the configured face-comparison engine."* It does **not** mean liveness was checked, the document is authentic, the affiliate's government identity has been verified, or fraud has been ruled out. The app never says "Identity verified" for a face-match result — only "Face matched" or equivalent — and liveness remains a distinct, not-yet-built future step (see "Deferred" below).
+
+**Ordering dependency**: face match requires a completed `identity_document` result to source a reference portrait from. The app never locally infers "the document step is done enough" — it reacts to the backend's own signal (a `409` at the trigger step if no usable reference exists yet) and shows safe guidance pointing back at the Identity document step, rather than guessing ahead of the backend.
+
+**A real, non-obvious architecture detail**: the `face_match` compliance step does not accept its own evidence upload — afilianet-api only allows `selfie` evidence against the sibling `biometric_liveness` step's id (and reads it back case-wide when face-match processing runs). The app resolves that sibling step from the case's full steps list before ever offering selfie capture, and shows a safe "isn't fully set up for this organization yet" message if an organization enabled `face_match` without also requiring `biometric_liveness`.
+
+**Flow**: capture a selfie with the device's **front-facing** camera (guidance screen → native camera → local preview → Retake before uploading) → the photo uploads through the same Phase 9B evidence flow document-capture uses (`POST .../evidence/uploads` → direct PUT → `POST .../evidence/{evidence}/complete`), with `evidence_type: "selfie"` against the `biometric_liveness` step id → `POST .../face-match-processing` triggers the async comparison → the app polls `GET .../face-match-result` (stopping automatically once the attempt reaches a terminal status) → a normalized, safe result is shown.
+
+**Capture guidance is deliberately non-liveness**: "look directly at the camera," "only one person in frame," "good lighting," "keep your face clear and reasonably close" — never "blink," "turn your head," or "smile" (those belong to a future liveness step, not this one).
+
+**Result semantics** (mirrors the backend's own state machine, never invented client-side):
+- `match` → "Face matched," Compliance state refreshes. No retry offered (the step is now resolved; a further trigger would `409`).
+- `review` → "Needs review" — the backend routed this to manual review (same `manual_review` mechanism as document review). The app reflects this state and waits; it never converts review to pass/fail locally, and never repeatedly resubmits selfies to try to escape it.
+- `no_match` → "We couldn't confirm the match" — a genuinely-run comparison that concluded the faces don't match. This is retryable; a "Retake selfie" action is offered. Never framed with words like "fraud," "fake person," or "identity stolen."
+- A technical/capture-quality failure (no verdict at all) maps to safe copy per `failure_reason` — e.g. no face detected, more than one face, face too small/blurry, or the engine being temporarily unavailable. **Probe** (selfie) vs **reference** (document portrait) failures are kept distinct: a reference-side problem (the stored document portrait, not the selfie, was unreadable) never blames or asks for a selfie retake — it points back at the Identity document step instead, since retaking the selfie can't fix it.
+
+**Duplicate submission**: the Submit button is disabled the moment a trigger request is in flight (and a client-side guard additionally prevents a second mutation from starting even if a tap slipped through before the disabled state visually applied) — the backend's own 409 ("already in progress") is still the authoritative backstop, silently recovered from by refreshing the result query rather than shown as an error.
+
+**Provider-aware, server-authoritative**: identical gating pattern to `identity_document` — this flow only appears when `configured_provider === "afilianet"` **and** `provider_actionable === true`, both read directly from the backend. `configured_provider === "incode"` shows its own distinct message; unavailable-but-Afilianet-configured (e.g. the face-match engine isn't operationally enabled) shows a safe "temporarily unavailable" state with manual "Check again," both before capture and if triggering returns `503` after entry was allowed — never an automatic retry loop, never framed as a biometric mismatch.
+
+**Privacy**: no selfie image URI/bytes, evidence id, similarity score, or any face-match engine/model internal is ever sent to analytics or logged — only safe, non-identifying event names (e.g. `face_match_selfie_captured`, `face_match_processing_triggered`). Temporary local captures are deleted after a successful upload; no selfie or face data is persisted to `AsyncStorage` or any local database.
+
+**Current limitations, stated plainly**:
+- The identity engine's face-comparison threshold (`FACE_MATCH_COSINE_THRESHOLD`, an OpenCV Zoo SFace reference value) has not been validated against real photos — a documented, known gap on the backend side (see `afilianet-api/docs/identity/FACE_MATCH_INTEGRATION.md`). A synthetic "different identity" fixture pair has measured similarity *above* that threshold, meaning that particular pair can currently report `match` rather than `no_match` through the real engine — this is a backend calibration gap to track, not something this app can or should compensate for client-side.
+- Real front-camera selfie capture (actual permission prompts, actual photos) has not been manually verified on a physical device or simulator in this development environment — only the surrounding screens' bundling and the backend contract have been.
+- Face Match ≠ Liveness and Face Match ≠ government identity verification, in both senses: this app makes neither claim in its UI copy, and neither capability is implemented — see Phase 9E for the (future) liveness step.
 
 ## Project structure
 
@@ -186,7 +217,7 @@ src/
 - Network (sponsor, placement parent, direct sponsored, placement children, invitations) and affiliate drill-down
 - Commissions list and detail
 - Wallet (balances, activity ledger) and payouts (destinations, eligibility, request, cancel)
-- Compliance (case status, required steps, terms acceptance, real `identity_document` document capture — see above; see the simulator note above for the other step types)
+- Compliance (case status, required steps, terms acceptance, real `identity_document` document capture and real `face_match` selfie capture — see above; see the simulator note above for the other step types)
 - In-app notifications (feed, unread badge, mark read/read-all, whitelisted deep links)
 - Profile (identity, affiliate status, compliance access, organization switching, sign out)
 
@@ -194,8 +225,10 @@ src/
 
 These are known gaps, not implemented in this app version:
 
-- **Incode** (or any real third-party identity/biometric verification provider) — `biometric_liveness`, `face_match`, and `verbal_consent` only have Fake test providers server-side; see the simulator note above. Incode's own SDK-driven capture flow for `identity_document` is a separate, future integration — this app's current document-capture flow is Afilianet-owned only, and never appears when an organization is configured for Incode (now enforced via the server-authoritative `configured_provider`/`provider_actionable` gate — see the capture section above).
+- **Incode** (or any real third-party identity/biometric verification provider) — `biometric_liveness` and `verbal_consent` only have Fake test providers server-side; see the simulator note above. Incode's own SDK-driven capture flows for `identity_document`/`face_match` are separate, future integrations — this app's current capture flows are Afilianet-owned only, and never appear when an organization is configured for Incode (enforced via the server-authoritative `configured_provider`/`provider_actionable` gate — see the capture sections above).
+- **Liveness / anti-spoofing** (Phase 9E, not yet built) — `face_match` alone never checks liveness; `biometric_liveness` remains simulator-only until that phase.
 - **Real, production-validated OCR accuracy** — the pipeline is real (not simulated), but only tested against synthetic images so far; see the capture section above.
+- **Real, production-validated face-match threshold calibration** — the pipeline is real, but the comparison threshold is an unvalidated reference default; see the face match capture section above.
 - **No typed picker for constrained confirmation fields** (e.g. passport `sex`, which the backend requires as exactly `M`/`F`/`X`) — the confirmation form renders every confirmable field as a plain text input with a short format hint; an invalid value surfaces as a normal field-level validation error rather than being prevented up front by a picker/select control.
 - **Push notifications** — the in-app notification inbox and unread badge are real; device push (APNs/FCM) isn't wired up.
 - **A real payout provider** — payout destinations are self-attested labels only (never a verified bank/card link), and payouts don't move real money.

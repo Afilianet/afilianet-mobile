@@ -10,6 +10,7 @@ import type {
   Evidence,
   EvidenceType,
   EvidenceUploadAuthorization,
+  FaceMatchProcessingResult,
   Invitation,
   LedgerEntry,
   LoginResponse,
@@ -203,6 +204,38 @@ export async function confirmDocumentResult(
   const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/document-result`,
     { method: "PATCH", body: { fields } },
+  );
+  return data;
+}
+
+/**
+ * Phase 9D.2's Afilianet Face Match: triggers an async processing attempt
+ * for the face_match step. No request body -- unlike triggerDocumentProcessing,
+ * there is no client-declared intent field at all (TriggerFaceMatchProcessingRequest
+ * prohibits `outcome`/`score` and accepts nothing else); which evidence
+ * feeds the comparison is resolved entirely server-side (the case's latest
+ * uploaded `selfie` evidence as the probe, and the portrait evidence type
+ * from the case's latest completed identity_document result as the
+ * reference). Returns 202 immediately (a `pending` FaceMatchProcessingResult) --
+ * the real outcome is only ever read back via fetchFaceMatchResult's polling.
+ */
+export async function triggerFaceMatchProcessing(stepId: string): Promise<FaceMatchProcessingResult> {
+  const { data } = await apiRequest<{ data: FaceMatchProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/face-match-processing`,
+    { method: "POST", body: {} },
+  );
+  return data;
+}
+
+/**
+ * The latest face-match processing attempt for a step. 404s
+ * (`FaceMatchProcessingException::noResultYet()`) when processing has never
+ * been triggered for this step -- callers should treat that as "no result
+ * yet", not a hard error (see useFaceMatchResult.ts).
+ */
+export async function fetchFaceMatchResult(stepId: string): Promise<FaceMatchProcessingResult> {
+  const { data } = await apiRequest<{ data: FaceMatchProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/face-match-result`,
   );
   return data;
 }
