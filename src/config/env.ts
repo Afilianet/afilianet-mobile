@@ -1,7 +1,14 @@
-export type AppEnvironment = "development" | "staging" | "production";
+// "internal" (Phase: Internal Alpha) is a real-backend, real-provider build
+// for handing to a non-programmer product owner on a physical device -- it
+// is NOT a fifth thing conceptually, it behaves exactly like "production"
+// everywhere that matters (isDevelopmentSimulatorEnabled below, Sentry
+// sample rate) except its own API base URL/Sentry environment tag, so an
+// Alpha crash is never confused with a real production one. See
+// README.md "Environments" for what each value is for.
+export type AppEnvironment = "development" | "internal" | "staging" | "production";
 
 function parseAppEnvironment(value: string | undefined): AppEnvironment {
-  if (value === "staging" || value === "production") {
+  if (value === "internal" || value === "staging" || value === "production") {
     return value;
   }
   return "development";

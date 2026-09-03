@@ -16,7 +16,11 @@ describe("config/env", () => {
     expect(require("./env").config.appEnv).toBe("development");
   });
 
-  it("accepts staging and production", () => {
+  it("accepts internal, staging, and production", () => {
+    process.env.EXPO_PUBLIC_APP_ENV = "internal";
+    expect(require("./env").config.appEnv).toBe("internal");
+
+    jest.resetModules();
     process.env.EXPO_PUBLIC_APP_ENV = "staging";
     expect(require("./env").config.appEnv).toBe("staging");
   });
@@ -80,6 +84,12 @@ describe("config/env", () => {
     it("is false when EXPO_PUBLIC_APP_ENV is staging", () => {
       (global as { __DEV__?: boolean }).__DEV__ = true;
       process.env.EXPO_PUBLIC_APP_ENV = "staging";
+      expect(require("./env").isDevelopmentSimulatorEnabled).toBe(false);
+    });
+
+    it("is false when EXPO_PUBLIC_APP_ENV is internal, even under __DEV__ -- Internal Alpha must prefer real backend behavior", () => {
+      (global as { __DEV__?: boolean }).__DEV__ = true;
+      process.env.EXPO_PUBLIC_APP_ENV = "internal";
       expect(require("./env").isDevelopmentSimulatorEnabled).toBe(false);
     });
   });

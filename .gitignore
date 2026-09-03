@@ -36,6 +36,7 @@ yarn-error.*
 # local env files (committed *.example templates are the only .env* files tracked)
 .env
 .env.local
+.env.internal
 .env.staging
 .env.production
 .env*.local
