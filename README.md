@@ -71,15 +71,87 @@ All of these assume `docker compose up -d` is running in `afilianet-api` (see ab
 
 After changing `.env`, stop and restart `npm start` (Expo only reads `.env` at startup).
 
-## Switching between development, staging, and production
+## Environments
 
-This app supports three environments, each with its own settings file:
+This app supports four environments, each with its own settings file:
 
-- `.env` — used by `npm start` (development, edited by you locally)
-- `.env.staging` — used by `npm run start:staging`
-- `.env.production` — used by `npm run start:production`
+| Environment | Settings file | Run with | Purpose |
+| --- | --- | --- | --- |
+| `development` | `.env` | `npm start` | Local development against a Docker backend you control. |
+| `internal` | `.env.internal` | `npm run start:internal` | Internal Alpha — a real backend, real providers, handed to a non-programmer for real device testing. |
+| `staging` | `.env.staging` | `npm run start:staging` | A shared pre-production backend, once one exists. |
+| `production` | `.env.production` | `npm run start:production` | The real, live backend. |
 
-`.env.staging` and `.env.production` don't exist until you create them — copy `.env.staging.example` / `.env.production.example` and fill in the real staging/production API URLs (and Sentry/PostHog keys, once you have them). These files are intentionally left out of git (see `.gitignore`) since they may eventually hold real credentials — never commit them.
+`.env.internal`, `.env.staging`, and `.env.production` don't exist until you create them — copy the matching `.example` file (`.env.internal.example` / `.env.staging.example` / `.env.production.example`) and fill in real values. These files are intentionally left out of git (see `.gitignore`) — never commit them, even though the values in this app happen not to be secrets (see below).
+
+Each environment file sets the same four things:
+
+- **`EXPO_PUBLIC_API_BASE_URL`** — which backend this build talks to. Never edited automatically between environments; a build only uses whatever its own environment file says, so a `staging`/`internal` build can never silently point at production.
+- **`EXPO_PUBLIC_APP_ENV`** — this build's own identifier (`"development"` / `"internal"` / `"staging"` / `"production"`), read in `src/config/env.ts`. This is the single signal that gates the development-only Compliance simulator (see below) and tags Sentry error reports by environment, so an Internal Alpha crash is never confused with a real production one.
+- **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; both no-op when blank.
+
+**Every `EXPO_PUBLIC_*` variable is bundled into the client and visible to anyone who inspects the app** — that's how Expo's public env vars work, and it's why this app never puts a real secret in one. A Sentry DSN and a PostHog project API key are both designed to be public/write-only values (this is normal, documented practice for both services), not secrets in the traditional sense. `afilianet-api`'s own server-side credentials (database passwords, the identity-engine service token, etc.) never appear anywhere in this repo or this app's bundle.
+
+**Development-only tooling** (`isDevelopmentSimulatorEnabled` in `src/config/env.ts`) requires BOTH `__DEV__` (a build-time constant, compiled out of every release/EAS build regardless of environment) AND `EXPO_PUBLIC_APP_ENV=development` — so it is structurally impossible in an `internal`, `staging`, or `production` build, even if an environment file were misconfigured. Internal Alpha always exercises real backend/provider behavior, never the Fake-provider simulator.
+
+## Internal Alpha — getting Afilianet onto a physical phone
+
+There are two paths, in order of how fast they get an installable/usable app onto a real device.
+
+### Fastest path: Expo Go (no build, no store, no account needed)
+
+This works **today**, with nothing to install beyond the free Expo Go app, and is the fastest way to get Afilianet in front of a product owner on a real phone:
+
+1. Make sure the `afilianet-api` Docker stack is running on a machine reachable from the phone's Wi-Fi network (see "Set up your environment file" above).
+2. Find that machine's LAN IP (Windows: `ipconfig`, look for "IPv4 Address").
+3. `cp .env.internal.example .env.internal` (PowerShell: `Copy-Item .env.internal.example .env.internal`), then set `EXPO_PUBLIC_API_BASE_URL=http://<that-LAN-IP>:8000`.
+4. `npm run start:internal`, then scan the QR code with **Expo Go** (iOS App Store / Android Play Store) on the phone, same Wi-Fi network as the Docker host.
+
+This is a real `internal`-environment run (real backend, real providers, no dev simulator) — it just isn't a standalone installable app; Expo Go has to stay installed and the phone has to stay on the same network as the backend, and the app disappears from Expo Go once you close it (no home-screen icon of its own). For that, use an EAS build instead.
+
+### Standalone installable app: EAS Build
+
+[EAS Build](https://docs.expo.dev/build/introduction/) compiles a real native binary in the cloud — an APK you can hand someone to sideload, or (once Apple prerequisites exist) a TestFlight build. `eas.json` in this repo already defines three build profiles:
+
+| Profile | Produces | Distribution | Use for |
+| --- | --- | --- | --- |
+| `development` | Android APK / iOS simulator build | internal | A native dev build, if `expo start`'s Expo-Go-based flow above is ever insufficient (no custom native module currently requires this). |
+| `internal` | Android APK | internal (direct install/sideload) | **Internal Alpha** — this is the one to use. |
+| `production` | Android App Bundle (`.aab`) | store submission | The real Play Store / App Store release, later. |
+
+**Before running an `internal` or `development` build**, set a real, reachable `EXPO_PUBLIC_API_BASE_URL` — `eas.json` deliberately leaves it unset for those two profiles (a cloud build has no access to your local `.env.internal`, and guessing a URL here risks silently baking in a stale one). Edit `eas.json`'s `build.internal.env.EXPO_PUBLIC_API_BASE_URL` directly, or run `eas env:create` to set it as a proper EAS environment variable — either way, use the same kind of reachable URL described above (a real staging deployment, or a LAN IP if the tester's phone and the Docker host are on the same network).
+
+**Setup, one-time** (needs a free or paid [Expo/EAS account](https://expo.dev/signup) — this repo has no EAS project configured yet):
+
+```bash
+npx eas-cli login          # opens a browser to sign in / create an account
+npx eas-cli build:configure  # links this repo to an EAS project (writes extra.eas.projectId into app.json)
+```
+
+**Android internal build** (the priority path — no Apple account needed):
+
+```bash
+npx eas-cli build --platform android --profile internal
+```
+
+This uploads the project, builds in the cloud, and prints a download link (and a QR code) for the resulting `.apk` when done — typically several minutes. Download it to the phone and open it to install (Android will ask to allow installs from this source the first time; that's expected for a non-Play-Store APK).
+
+**iOS internal build** — see "iOS readiness" below; it needs a paid Apple Developer account before any command here will succeed.
+
+```bash
+npx eas-cli build --platform ios --profile internal
+```
+
+### iOS readiness
+
+An iOS build (simulator or device) requires, in order:
+
+1. An [Apple Developer Program](https://developer.apple.com/programs/) membership (paid, $99/year) under whichever Apple ID will own this app.
+2. Running `npx eas-cli build --platform ios --profile internal` while logged into both EAS and (when prompted) that Apple ID — `eas build` handles certificate/provisioning-profile creation automatically via `eas credentials` the first time.
+3. For a **real device** (not the simulator): the device's UDID must be registered to that Apple Developer account first (`npx eas-cli device:create` walks through this) — Apple requires every ad-hoc/internal-distribution device to be explicitly registered.
+4. For **TestFlight** instead of a direct install: an App Store Connect app record under that account, then `npx eas-cli submit --platform ios --profile production` (or an ad-hoc internal build via step 2 for a non-TestFlight direct install).
+
+None of this is a code problem — it's entirely Apple account/credential state, external to this repo.
 
 ## Signing in during development
 
@@ -233,17 +305,37 @@ These are known gaps, not implemented in this app version:
 - **Push notifications** — the in-app notification inbox and unread badge are real; device push (APNs/FCM) isn't wired up.
 - **A real payout provider** — payout destinations are self-attested labels only (never a verified bank/card link), and payouts don't move real money.
 - **Terms of Service versioning** — there's no published, versioned terms document yet; the terms-acceptance step records a provisional acceptance and is explicit with the user that formal terms haven't been published.
+- **A hosted `internal`/`staging` backend** — Internal Alpha's own environment file needs a real, reachable `EXPO_PUBLIC_API_BASE_URL`; today that means a LAN IP pointing at someone's Docker instance (see "Internal Alpha" above), not a stable, always-on URL. A real deployed backend for this purpose doesn't exist yet.
+- **A few Expo SDK packages are a patch version or two behind** what SDK 57's latest release expects (`npx expo-doctor` flags ~15 patch-level mismatches, e.g. `expo` 57.0.15 vs. the 57.0.19 the tooling currently recommends) — not treated as a build blocker (patch-level, and a same-day `npm install` attempt to align them hit an unrelated `npm` peer-dependency resolution conflict in this environment), but worth a dedicated `npx expo install --check` pass before a wider release.
 
 ## Everyday commands
 
 | Command | What it does |
 | --- | --- |
 | `npm start` | Start the app (development) |
+| `npm run start:internal` | Start against the Internal Alpha environment (Expo Go path — see above) |
 | `npm run start:staging` | Start against the staging environment |
 | `npm run start:production` | Start against the production environment |
 | `npm run typecheck` | Check for TypeScript errors |
 | `npm run lint` | Check code style/quality issues |
 | `npm test` | Run the automated tests |
+| `npx eas-cli login` | Sign in to your Expo/EAS account (one-time) |
+| `npx eas-cli build:configure` | Link this repo to an EAS project (one-time) |
+| `npx eas-cli build --platform android --profile internal` | Build the Internal Alpha Android APK |
+| `npx eas-cli build --platform ios --profile internal` | Build the Internal Alpha iOS app (needs an Apple Developer account — see "iOS readiness") |
+
+## App identifiers & branding
+
+- **Android `applicationId`**: `com.afilianet.mobile` (`app.json`'s `expo.android.package`).
+- **iOS `bundleIdentifier`**: `com.afilianet.mobile` (`app.json`'s `expo.ios.bundleIdentifier`).
+
+Neither existed before Internal Alpha — both were newly established this phase (there was no prior convention anywhere in this repo to preserve). Both are safe to change now, before any EAS credentials or App Store Connect / Play Console record exists for them, but **not after** — an `applicationId`/`bundleIdentifier` is effectively permanent once a store listing or set of signing credentials is created against it. If Afilianet's team wants a different identifier, change it now.
+
+- **App icon**: `assets/brand/afilianet-app-icon-1024.png` (real brand asset, not the Expo default) — used for the top-level icon (both platforms) and, combined with `assets/brand/android-adaptive-*-432.png`, the Android adaptive icon.
+- **Splash screen**: the same icon mark, centered on the brand's dark background color (`#0C0A14`) via the standard `expo-splash-screen` plugin — no separate splash image (see `src/design-system/README.md` for why: the handoff's splash assets were full-bleed, per-resolution images incompatible with Expo's managed splash, which only supports one centered image over a solid color).
+- **Display name**: "Afilianet" (`app.json`'s `expo.name`) — this is what shows under the icon on the device home screen and as the app's title.
+- `assets/images/` still has several unused files left over from the original Expo template scaffold (`expo-logo.png`, `react-logo*.png`, `icon.png`, `android-icon-*.png`, `splash-icon.png`, `tutorial-web.png`) — none of them are referenced by `app.json` or any screen, so they never render anywhere; they're just repo clutter. Left alone this phase (a cleanup, not a build-readiness fix), but worth deleting in a future pass.
+- No further branding assets are required for Internal Alpha to look correct — everything the app currently displays already uses the real brand.
 
 ## Security notes
 
@@ -258,3 +350,26 @@ Both are wired up but **disabled by default**. To enable:
 - PostHog: set `EXPO_PUBLIC_POSTHOG_API_KEY` (and `EXPO_PUBLIC_POSTHOG_HOST` if you're not using PostHog Cloud US).
 
 Leaving these blank is safe — the app runs normally, it just doesn't send any data anywhere.
+
+## Physical-device QA checklist
+
+A concise manual pass for anyone installing Afilianet on a real phone for the first time (whether via Expo Go or an EAS-built app). Check each item works and looks right; nothing here is automated.
+
+- [ ] **Install** — app installs without a manual "trust this developer" step blocking it entirely (Android's "install from unknown sources" prompt on an APK is expected and fine).
+- [ ] **Launch** — cold launch shows the splash screen (brand mark on dark background) then the login screen, no white screen, no crash.
+- [ ] **Login** — sign in with a real account; a wrong password shows a clear error, not a crash.
+- [ ] **Org switch** — if the account belongs to more than one organization, the organization picker appears and switching organizations updates Home/Compliance/etc. without stale data from the previous org.
+- [ ] **Home** — affiliate status, compliance summary, recent commissions, wallet preview, network preview, and the notification bell all render.
+- [ ] **Referral** — the referral screen loads, shows a QR code and copyable link, and Share opens the device's real share sheet.
+- [ ] **Network** — sponsor/placement/sponsored/invitations lists load; tapping into an affiliate shows their drill-down.
+- [ ] **Commissions** — list and a detail view both load.
+- [ ] **Wallet** — balances and activity ledger load.
+- [ ] **Payouts** — destinations, eligibility, and (if eligible) requesting/cancelling a payout all work.
+- [ ] **Compliance** — case status and required steps render for the signed-in account's organization.
+- [ ] **Document capture** — camera permission prompt appears with clear copy; capturing an identity-document photo (front/back or identity page, per document type) shows a local preview with Retake before uploading; upload completes and processing/result state shows correctly. **This must be tested with the real device camera, not a simulator/emulator's fake camera feed if avoidable.**
+- [ ] **Selfie capture** — camera opens front-facing by default; capture → preview → retake/use → upload → result behaves the same as document capture. **Same real-camera note as above.**
+- [ ] **Notifications** — the in-app notification list loads, unread badge reflects real state, marking read/read-all works, tapping a notification navigates to its whitelisted destination.
+- [ ] **Profile** — identity, affiliate status, compliance access, and organization switching are all reachable from Profile.
+- [ ] **Logout/login** — signing out returns to the login screen; signing back in restores the same account state cleanly (no leftover data from the previous session).
+- [ ] **Backgrounding** — send the app to the background and back; it resumes without crashing or losing the current screen.
+- [ ] **Airplane mode** — toggling airplane mode on mid-session shows a clear error/retry state somewhere (not a silent hang), and turning it back off lets the app recover without a restart.

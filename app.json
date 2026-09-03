@@ -8,11 +8,16 @@
     "scheme": "afilianetmobile",
     "userInterfaceStyle": "dark",
     "android": {
+      "package": "com.afilianet.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/android-adaptive-foreground-432.png",
         "backgroundImage": "./assets/brand/android-adaptive-background-432.png"
       },
       "predictiveBackGestureEnabled": false
+    },
+    "ios": {
+      "bundleIdentifier": "com.afilianet.mobile",
+      "supportsTablet": false
     },
     "web": {
       "output": "static",
@@ -32,7 +37,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Afilianet to access your camera to capture identity documents for verification.",
+          "cameraPermission": "Allow Afilianet to access your camera to capture identity documents and selfies for verification.",
           "microphonePermission": false,
           "photosPermission": false
         }
