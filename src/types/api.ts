@@ -336,9 +336,10 @@ export interface PayoutEligibility {
 }
 
 // app/Modules/Identity/Enums/EvidenceType.php -- mobile only ever submits
-// the identity_document capture types (Phase 9C.2); the other cases exist
-// server-side for biometric/consent evidence, not built on mobile yet.
-export type EvidenceType = "id_document_front" | "id_document_back" | "id_document_page";
+// the identity_document capture types (Phase 9C.2) and `selfie` (Phase
+// 9D.3, the face-match probe image); the other cases exist server-side for
+// liveness/consent evidence, not built on mobile yet.
+export type EvidenceType = "id_document_front" | "id_document_back" | "id_document_page" | "selfie";
 
 // app/Modules/Identity/Enums/EvidenceStatus.php (Phase 9B).
 export type EvidenceStatus = "pending_upload" | "uploaded" | "rejected" | "expired";
@@ -432,6 +433,45 @@ export interface DocumentProcessingResult {
   confirmation_status: DocumentConfirmationStatus;
   failure_reason: string | null;
   processor_version: string;
+  attempt_number: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+// app/Modules/Identity/Enums/FaceMatchStatus.php -- the lifecycle of one
+// face-match processing ATTEMPT, deliberately independent of
+// ComplianceStepStatus (same three-lifecycle discipline as
+// DocumentProcessingStatus): a `completed` attempt is a statement about the
+// ENGINE CALL running end-to-end, not about whether the faces match --
+// `completed` can still carry verdict `no_match`.
+export type FaceMatchStatus = "pending" | "processing" | "completed" | "failed";
+
+// app/Modules/Identity/Enums/FaceMatchVerdict.php -- only set when status is
+// "completed". `match`/`review` both map server-side to ComplianceStep
+// `passed` (review additionally routes the CASE to manual_review);
+// `no_match` maps to `failed`, retryable via the normal attempt mechanism.
+// Mobile never re-derives this mapping, only reads back what the step/case
+// already show. A `match` verdict says ONLY "the selfie appears
+// sufficiently similar to the document portrait" -- never liveness, never
+// government identity verification, never fraud-ruled-out -- see
+// faceMatchCopy.ts's verdict copy for the exact wording this drives.
+export type FaceMatchVerdict = "match" | "review" | "no_match";
+
+// FaceMatchProcessingResultResource -- deliberately excludes
+// similarity/distance/threshold/review_band (raw biometric comparison
+// internals, never surfaced to a normal production mobile client per this
+// phase's brief) and engine/model/reference_evidence_id/probe_evidence_id
+// (internal technical detail). `failure_reason` IS included -- technical-
+// only, never PII/biometric content, same category as
+// DocumentProcessingResult's own `failure_reason`. Distinguishes PROBE
+// (selfie) vs REFERENCE (document-portrait) failures by an exact `_probe`/
+// `_reference` suffix convention (see faceMatchCopy.ts).
+export interface FaceMatchProcessingResult {
+  id: string;
+  status: FaceMatchStatus;
+  verdict: FaceMatchVerdict | null;
+  failure_reason: string | null;
   attempt_number: number;
   started_at: string | null;
   completed_at: string | null;

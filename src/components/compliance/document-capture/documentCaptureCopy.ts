@@ -18,6 +18,7 @@ export const EVIDENCE_TYPE_LABELS: Record<EvidenceType, string> = {
   id_document_front: "Front",
   id_document_back: "Back",
   id_document_page: "Identity page",
+  selfie: "Selfie",
 };
 
 // Every field name MxIneParser/PassportMrzParser actually emit
@@ -166,29 +167,37 @@ export function friendlyFailureReason(reason: string | null): string {
  * trace. `retryable` only true for the one genuinely transient reason
  * (engine_unavailable) -- everything else is a configuration state a
  * "retry" can't fix, so no retry action is offered for those.
+ *
+ * `featureLabel` (Phase 9D.3: this copy/component is shared across every
+ * step-type provider gate, not document-capture-specific despite living in
+ * this file -- see ProviderUnavailableState.tsx) names WHAT is unavailable
+ * ("Document verification"/"Face verification"/...) so the message is
+ * accurate for whichever step is actually showing it, never a generic
+ * "document" claim bleeding into an unrelated step's UI.
  */
 export function providerUnavailableCopy(
   configuredProvider: string | null,
   reason: ProviderUnavailableReason | null,
+  featureLabel: string,
 ): { title: string; description: string; retryable: boolean } {
   if (reason === "engine_unavailable") {
     return {
       title: "Temporarily unavailable",
-      description: "Document verification is temporarily unavailable. Please try again in a few minutes.",
+      description: `${featureLabel} is temporarily unavailable. Please try again in a few minutes.`,
       retryable: true,
     };
   }
   if (reason === "not_configured") {
     return {
       title: "Not set up yet",
-      description: "Document verification isn't set up for this organization yet.",
+      description: `${featureLabel} isn't set up for this organization yet.`,
       retryable: false,
     };
   }
   if (reason === "provider_misconfigured" || reason === "provider_not_implemented") {
     return {
       title: "Not available",
-      description: "Document verification isn't available for this organization right now.",
+      description: `${featureLabel} isn't available for this organization right now.`,
       retryable: false,
     };
   }
@@ -198,7 +207,7 @@ export function providerUnavailableCopy(
   // implying anything is broken.
   return {
     title: "Different flow",
-    description: "Document verification for this organization uses a different flow.",
+    description: `${featureLabel} for this organization uses a different flow.`,
     retryable: false,
   };
 }
