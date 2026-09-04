@@ -1,0 +1,7 @@
+{
+  "name": "aws-face-liveness",
+  "version": "1.0.0",
+  "description": "Afilianet-owned thin native bridge to AWS's official Face Liveness SDKs (Amplify UI Swift/Android liveness) for Expo, using a custom (non-Cognito) temporary-credentials provider backed by afilianet-api. Not published to npm -- a local Expo module, see expo-module.config.json.",
+  "main": "index.ts",
+  "private": true
+}

@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["AwsFaceLivenessModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.awsfaceliveness.AwsFaceLivenessModule"]
+  }
+}

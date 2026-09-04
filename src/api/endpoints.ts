@@ -13,6 +13,8 @@ import type {
   FaceMatchProcessingResult,
   Invitation,
   LedgerEntry,
+  LivenessCredentials,
+  LivenessSession,
   LoginResponse,
   Notification,
   Organization,
@@ -237,6 +239,54 @@ export async function fetchFaceMatchResult(stepId: string): Promise<FaceMatchPro
   const { data } = await apiRequest<{ data: FaceMatchProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/face-match-result`,
   );
+  return data;
+}
+
+/**
+ * Phase 9E.2's AWS Rekognition Face Liveness: creates (or reuses, per the
+ * backend's own idempotency rule -- non-terminal AND not yet locally
+ * expired) a liveness session for the biometric_liveness step. No request
+ * body -- CreateLivenessSessionRequest prohibits any client-declared
+ * outcome/score field, mirroring triggerFaceMatchProcessing's "server
+ * decides everything" contract. Returns 202 with the session itself (never
+ * generated/echoed locally) -- `session_id` is AWS's own SessionId, `region`
+ * is where the AWS session lives, both required by the native capture
+ * component.
+ */
+export async function createLivenessSession(stepId: string): Promise<LivenessSession> {
+  const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-session`, {
+    method: "POST",
+    body: {},
+  });
+  return data;
+}
+
+/**
+ * Mints a FRESH set of temporary AWS STS credentials for the step's latest
+ * liveness session -- no request body (the backend always operates on its
+ * own `latestSession($step)`, never a client-supplied session id), no
+ * per-session cap (only a tight 10/min rate limit distinct from every other
+ * liveness/processing endpoint). Every successful call is a genuinely new
+ * STS AssumeRole -- never call this speculatively or cache its result
+ * beyond one capture attempt (see useLivenessCredentials.ts).
+ */
+export async function fetchLivenessCredentials(stepId: string): Promise<LivenessCredentials> {
+  const { data } = await apiRequest<{ data: LivenessCredentials }>(
+    `/api/v1/compliance/steps/${stepId}/liveness-session/credentials`,
+    { method: "POST", body: {} },
+  );
+  return data;
+}
+
+/**
+ * The latest liveness session's current state. 404 means no session has
+ * ever been created for this step (never triggered yet) -- distinct from a
+ * session existing but not yet terminal (200 with status "pending"/
+ * "processing"). Same LivenessSession shape as createLivenessSession's
+ * response (one resource, two entry points).
+ */
+export async function fetchLivenessResult(stepId: string): Promise<LivenessSession> {
+  const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-result`);
   return data;
 }
 

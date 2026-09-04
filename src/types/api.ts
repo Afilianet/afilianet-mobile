@@ -478,6 +478,69 @@ export interface FaceMatchProcessingResult {
   created_at: string;
 }
 
+// app/Modules/Identity/Enums/LivenessSessionStatus.php -- a session's own
+// lifecycle, independent of ComplianceStepStatus (same three-lifecycle
+// discipline as document/face-match). Only "completed"/"failed" are
+// terminal (isTerminal() server-side) -- "completed" is a statement about
+// the AWS pipeline running end-to-end, not about the verdict (a completed
+// session can still carry verdict "not_live").
+export type LivenessSessionStatus = "pending" | "processing" | "completed" | "failed";
+
+// app/Modules/Identity/Enums/LivenessVerdict.php -- only ever set when
+// status is "completed". "live"/"review" both map server-side to
+// ComplianceStep `passed` (review additionally routes the CASE to
+// manual_review, same mechanism document/face-match review already uses);
+// "not_live" maps to `failed`, retryable via the normal attempt mechanism,
+// with no backend-enforced max-attempts limit. A "live" verdict says ONLY
+// "a real person appears to be present" -- never identity verification,
+// never document verification, never fraud-proofing, and never combined
+// with Face Match's own separate verdict -- see livenessCopy.ts.
+export type LivenessVerdict = "live" | "review" | "not_live";
+
+// LivenessSessionResource -- deliberately excludes AWS's own SessionId
+// under any raw/internal name (this `session_id` IS AWS's SessionId, safe
+// to expose as an opaque correlation value only), confidence/threshold,
+// and any reference/audit image data (the backend requests zero AWS audit
+// images at session-creation time and never persists them -- see
+// AWS_FACE_LIVENESS.md). `failure_reason` is a closed, technical-only set
+// (see livenessCopy.ts) -- a technical failure is never presented as
+// "not_live". `expires_at` is the backend's OWN locally-enforced ~3-minute
+// session TTL (mirrors AWS's documented session lifetime but is checked
+// server-side without calling AWS again) -- mobile treats a locally
+// expired/terminal-failed session as "needs a brand new session", never
+// retries the same session_id.
+export interface LivenessSession {
+  id: string;
+  session_id: string;
+  region: string;
+  status: LivenessSessionStatus;
+  verdict: LivenessVerdict | null;
+  failure_reason: string | null;
+  attempt_number: number;
+  started_at: string | null;
+  completed_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+// LivenessCredentialsResource -- temporary AWS STS credentials, MINTED
+// FRESH on every successful call (no per-session cap, only a tight 10/min
+// rate limit) and never cached/persisted anywhere client-side -- see
+// useLivenessCredentials.ts's docblock for the full in-memory-only
+// discipline this type's values must follow. Snake_case exactly as the
+// backend returns it; mapping to the AWS native SDK's expected camelCase
+// shape happens at the native-module boundary only (see
+// modules/aws-face-liveness), never persisted in that camelCase form
+// either.
+export interface LivenessCredentials {
+  access_key_id: string;
+  secret_access_key: string;
+  session_token: string;
+  expiration: string;
+  session_id: string;
+  region: string;
+}
+
 // app/Modules/Notifications/Enums/NotificationType.php -- a deliberately
 // closed enum (a type is only ever added alongside the listener that
 // creates it). Never assume a 15th type; an unrecognized value must fail
