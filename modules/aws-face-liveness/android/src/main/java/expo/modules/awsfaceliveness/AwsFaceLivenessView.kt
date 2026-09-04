@@ -94,12 +94,23 @@ class AwsFaceLivenessView(context: Context, appContext: AppContext) : ExpoView(c
   }
 
   /**
-   * Maps every `FaceLivenessDetectionException` subtype (the OFFICIAL
-   * SDK's own closed exception hierarchy, enumerated exhaustively against
-   * amplify-ui-android's own FaceLivenessDetectionException.kt source) to
-   * this module's safe, closed AwsFaceLivenessErrorCode category set --
-   * the raw AWS exception type/message is NEVER passed across the bridge,
-   * only this category string.
+   * Maps every `FaceLivenessDetectionException` subtype that actually
+   * exists in `com.amplifyframework.ui:liveness:1.11.0` (the version this
+   * module depends on) to this module's safe, closed
+   * AwsFaceLivenessErrorCode category set -- the raw AWS exception
+   * type/message is NEVER passed across the bridge, only this category
+   * string.
+   *
+   * Confirmed exhaustively against that exact release tag's own
+   * FaceLivenessDetectionException.kt source, not the library's `main`
+   * branch: `main` has since gained a `SessionInterruptedException`
+   * ("lost connection to the service before it could complete") that is
+   * NOT present in 1.11.0 -- an earlier pass here referenced that class
+   * before this version was pinned precisely, which would have been a
+   * real compile error. There is no 1.11.0 equivalent for that specific
+   * case; it falls through to the `else` branch below instead of being
+   * matched by name. Revisit this mapping (and re-diff against the new
+   * release's exception file) whenever this dependency version is bumped.
    */
   private fun mapErrorCode(error: FaceLivenessDetectionException): String = when (error) {
     is FaceLivenessDetectionException.CameraPermissionDeniedException -> "camera_permission_denied"
@@ -107,7 +118,6 @@ class AwsFaceLivenessView(context: Context, appContext: AppContext) : ExpoView(c
     is FaceLivenessDetectionException.SessionNotFoundException,
     is FaceLivenessDetectionException.SessionTimedOutException,
     -> "session_invalid_or_expired"
-    is FaceLivenessDetectionException.SessionInterruptedException -> "network_error"
     is FaceLivenessDetectionException.AccessDeniedException -> "credentials_invalid"
     is FaceLivenessDetectionException.VideoEncodingException,
     is FaceLivenessDetectionException.VideoMuxingException,

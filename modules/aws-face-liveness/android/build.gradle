@@ -20,13 +20,24 @@ android {
     compose true
   }
   composeOptions {
-    // Kotlin 2.1.20 ships its own Compose compiler plugin (K2) -- no
-    // separate composeCompilerExtensionVersion pin needed the way older
-    // Kotlin/Compose combinations required. Verify against whatever Kotlin
-    // version Expo SDK 57's own template currently pins; adjust this
-    // module's Kotlin version to match rather than the reverse if they
-    // differ, since the app-wide Kotlin version is not owned by this
-    // module.
+    // com.amplifyframework.ui:liveness:1.11.0's own POM declares
+    // org.jetbrains.kotlin:kotlin-stdlib:2.2.0 as a compile dependency
+    // (confirmed by fetching that exact POM from Maven Central, not
+    // assumed) -- Kotlin 2.2.0+ ships its own Compose compiler plugin
+    // (K2), so no separate composeCompilerExtensionVersion pin is needed
+    // the way older Kotlin/Compose combinations required.
+    //
+    // REAL, UNRESOLVED UNCERTAINTY (flagging explicitly rather than
+    // guessing): this repo's generated android/build.gradle declares
+    // `classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')` with NO
+    // explicit version -- react-native-gradle-plugin resolves that
+    // version internally based on the installed react-native/expo
+    // version, and doing so requires actually running Gradle (a JDK),
+    // which was not available while preparing this module. If that
+    // resolved Kotlin version is below 2.2.0, this module's Kotlin
+    // source may fail to compile against the liveness AAR's stdlib
+    // requirement -- this is the first thing to check if the real EAS
+    // Android build fails at Kotlin compilation.
   }
   // com.amplifyframework.ui:liveness pulls in java.time-using code paths
   // that require desugaring on minSdkVersion < 26.
@@ -41,21 +52,34 @@ android {
 }
 
 dependencies {
-  coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.3'
+  // Latest as of this writing (confirmed via Google's Maven metadata,
+  // dl.google.com/android/maven2/.../maven-metadata.xml, not assumed) --
+  // bump freely.
+  coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 
-  // The OFFICIAL AWS Amplify UI Face Liveness Android library -- confirmed
-  // Maven coordinates and minSdkVersion directly from
-  // ui.docs.amplify.aws/android/connected-components/liveness, not
-  // assumed. Deliberately NOT depending on
-  // 'com.amplifyframework:aws-auth-cognito' here: this module never calls
-  // Amplify.configure() or touches Cognito at all (see
+  // The OFFICIAL AWS Amplify UI Face Liveness Android library -- version
+  // and Maven coordinates confirmed directly against Maven Central's own
+  // metadata (1.11.0 is the real latest release, not the 1.5.0 an earlier
+  // pass here had assumed from a secondhand source). CONFIRMED (by
+  // fetching this exact version's own POM from Maven Central) that its
+  // real compile dependency is `com.amplifyframework:aws-predictions`,
+  // pulled in transitively -- NOT `com.amplifyframework:aws-auth-cognito`.
+  // This settles what an earlier pass here left as an open question: the
+  // official liveness artifact itself has no Cognito/Auth-category
+  // dependency at all, consistent with this module never calling
+  // Amplify.configure() or touching Cognito (see
   // AwsFaceLivenessView.kt's custom AWSCredentialsProvider, backed
-  // entirely by afilianet-api's own STS broker) -- if a real build turns
-  // out to need it transitively as a compile-time dependency of the
-  // `liveness` artifact itself (unconfirmed either way from documentation
-  // alone), add it back here, but never call Amplify.configure() with a
-  // Cognito plugin as a result.
-  implementation 'com.amplifyframework.ui:liveness:1.5.0'
-  implementation 'androidx.compose.material3:material3:1.2.1'
-  implementation platform('androidx.compose:compose-bom:2024.09.00')
+  // entirely by afilianet-api's own STS broker).
+  implementation 'com.amplifyframework.ui:liveness:1.11.0'
+  // compose-bom's version here is >= the 2026.03.00 that liveness:1.11.0's
+  // own POM declares in its dependencyManagement block (confirmed from
+  // that same POM fetch) -- staying at or above that floor avoids Gradle
+  // silently resolving a compose artifact OLDER than what the official
+  // liveness library itself was built/tested against. material3 is
+  // deliberately declared with NO version (letting the BOM manage it,
+  // exactly like liveness's own POM does for the same artifact) -- an
+  // earlier pass here pinned material3 to an explicit 1.2.1 alongside this
+  // BOM, which is the inconsistent pattern the BOM exists to prevent.
+  implementation platform('androidx.compose:compose-bom:2026.08.00')
+  implementation 'androidx.compose.material3:material3'
 }
