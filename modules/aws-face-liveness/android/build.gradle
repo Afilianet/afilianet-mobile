@@ -4,6 +4,15 @@ apply plugin: 'kotlin-android'
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
 apply from: expoModulesCorePlugin
 applyKotlinExpoModulesCorePlugin()
+// Sets compileSdkVersion/targetSdkVersion from the root project's values
+// (36/36, matching every other module in this build) -- AGP requires
+// compileSdk to be declared explicitly per-library module and does not
+// default it; applyKotlinExpoModulesCorePlugin() only wires up the
+// Kotlin/KSP plugins, it does not call this on its own. Real Expo
+// packages either call this too or use the newer 'expo-module-gradle-plugin'
+// convention plugin, which does it implicitly -- this module still uses
+// the older apply-from pattern, so it must be called explicitly.
+useDefaultAndroidSdkVersions()
 
 android {
   namespace "expo.modules.awsfaceliveness"
