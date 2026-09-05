@@ -50,7 +50,8 @@
             "useFrameworks": "dynamic"
           }
         }
-      ]
+      ],
+      "./plugins/withAndroidCoreLibraryDesugaring"
     ],
     "experiments": {
       "typedRoutes": true,

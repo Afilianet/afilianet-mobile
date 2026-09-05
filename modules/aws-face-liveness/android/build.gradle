@@ -97,7 +97,16 @@ android {
     // sources against the liveness AAR.
   }
   // com.amplifyframework.ui:liveness pulls in java.time-using code paths
-  // that require desugaring on minSdkVersion < 26.
+  // that require desugaring on minSdkVersion < 26. This is required HERE,
+  // for this module's OWN compilation, separately from the equivalent
+  // compileOptions/coreLibraryDesugaring pair now also added to :app (via
+  // plugins/withAndroidCoreLibraryDesugaring.js) -- coreLibraryDesugaringEnabled
+  // is a per-module AGP setting, not something that cascades from a
+  // library to the app that consumes it. :app needs its own because
+  // :app:checkDebugAarMetadata validates the desugaring requirement of
+  // every dependency (aws-predictions/aws-core/core/common-core, not just
+  // this module itself) against the final, APK-producing module doing the
+  // actual dexing -- neither declaration is redundant with the other.
   compileOptions {
     coreLibraryDesugaringEnabled true
     sourceCompatibility JavaVersion.VERSION_17
@@ -128,15 +137,28 @@ dependencies {
   // AwsFaceLivenessView.kt's custom AWSCredentialsProvider, backed
   // entirely by afilianet-api's own STS broker).
   implementation 'com.amplifyframework.ui:liveness:1.11.0'
-  // compose-bom's version here is >= the 2026.03.00 that liveness:1.11.0's
-  // own POM declares in its dependencyManagement block (confirmed from
-  // that same POM fetch) -- staying at or above that floor avoids Gradle
-  // silently resolving a compose artifact OLDER than what the official
-  // liveness library itself was built/tested against. material3 is
-  // deliberately declared with NO version (letting the BOM manage it,
-  // exactly like liveness's own POM does for the same artifact) -- an
-  // earlier pass here pinned material3 to an explicit 1.2.1 alongside this
-  // BOM, which is the inconsistent pattern the BOM exists to prevent.
-  implementation platform('androidx.compose:compose-bom:2026.08.00')
+  // NO explicit compose-bom here -- an earlier version of this file
+  // declared `implementation platform('androidx.compose:compose-bom:2026.08.00')`
+  // on the (wrong) theory that "at or above the 2026.03.00 floor liveness's
+  // POM declares" was safe. It wasn't: liveness:1.11.0 is published with
+  // real Gradle Module Metadata (confirmed by fetching its .module file
+  // from Maven Central, not its POM, which Gradle prefers and actually
+  // uses) declaring an ACTUAL dependency on compose-bom:2026.03.00 as
+  // part of its release-runtime variant -- that is a genuine Gradle
+  // platform dependency, not just a Maven-only hint, so it already
+  // propagates the correct, AWS-tested Compose versions (ui-android
+  // 1.10.5, confirmed from that BOM's own POM) to this whole build with
+  // no explicit import needed here. Our explicit 2026.08.00 override
+  // forced a NEWER, untested BOM that pins ui-android/foundation-android/
+  // animation-android etc. to 1.12.0 -- confirmed via that exact AAR's
+  // own aar-metadata.properties to require minCompileSdk=37 and AGP
+  // 9.1.0, which is exactly what broke :app:checkDebugAarMetadata (this
+  // project is compileSdk 36 / AGP 8.x). ui-android:1.10.5's own
+  // aar-metadata.properties requires only minCompileSdk=35 / AGP 8.6.0,
+  // fully compatible with this project, and matches the ~1.10.6 Compose
+  // family node_modules/@expo/ui/android/build.gradle already uses
+  // successfully in this same build. material3 is left declared with NO
+  // version, letting liveness's own transitively-supplied BOM manage it,
+  // same as before.
   implementation 'androidx.compose.material3:material3'
 }
