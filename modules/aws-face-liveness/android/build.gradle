@@ -33,6 +33,21 @@ applyKotlinExpoModulesCorePlugin()
 // convention plugin, which does it implicitly -- this module still uses
 // the older apply-from pattern, so it must be called explicitly.
 useDefaultAndroidSdkVersions()
+// Puts expo-modules-core (the expo.modules.kotlin.* package this
+// module's own Kotlin sources import -- Module/ModuleDefinition/
+// ExpoView/AppContext/EventDispatcher/View/Prop/Events) on this
+// module's compile classpath. Autolinking (settings.gradle) only wires
+// :aws-face-liveness into the Gradle project graph as an included
+// project the :app module depends on -- it does not add expo-modules-
+// core as a compile-time dependency of THIS module's own build.gradle,
+// so compileDebugKotlin failed with "Unresolved reference 'kotlin'"
+// (the expo.modules.kotlin package segment, not the Kotlin language)
+// until this was added. useCoreDependencies() is the exact helper this
+// same installed ExpoModulesCorePlugin.gradle defines for this -- it
+// guards against a cyclic self-dependency and also adds the matching
+// kotlin-stdlib-jdk7 version, so this is the supported mechanism rather
+// than writing `implementation project(':expo-modules-core')` by hand.
+useCoreDependencies()
 
 android {
   namespace "expo.modules.awsfaceliveness"
