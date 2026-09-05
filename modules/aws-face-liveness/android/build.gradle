@@ -1,5 +1,25 @@
+// Starting in Kotlin 2.0, the Compose Compiler is a separate Gradle
+// plugin that must be applied explicitly whenever buildFeatures.compose
+// is enabled -- it is NOT bundled into the Kotlin Gradle Plugin itself,
+// contrary to an earlier, unverified assumption in this file's
+// composeOptions block below. Confirmed against a REAL Compose-enabled
+// Expo module already present and compiling successfully in this exact
+// project (node_modules/@expo/ui/android/build.gradle uses the identical
+// buildscript+classpath+apply pattern with the same bare `kotlinVersion`
+// reference, which Gradle resolves via the root project's own
+// expo-root-project plugin -- not a value this file defines itself).
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
 
 def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
 apply from: expoModulesCorePlugin
@@ -29,24 +49,37 @@ android {
     compose true
   }
   composeOptions {
+    // No composeCompilerExtensionVersion pin here -- that option targets
+    // the OLD pre-Kotlin-2.0 androidx Compose Compiler Gradle plugin. This
+    // module now applies the newer org.jetbrains.kotlin.plugin.compose
+    // plugin instead (see the buildscript{}/apply plugin: block above),
+    // which ties the Compose compiler version to the Kotlin Gradle Plugin
+    // version directly -- matching node_modules/@expo/ui/android/build.gradle,
+    // a real Compose-enabled module in this project that also has no
+    // composeOptions block at all.
+    //
+    // An earlier version of this comment incorrectly assumed the Compose
+    // compiler plugin didn't need explicit applying at all "since Kotlin
+    // 2.2.0 ships it built in" -- a real EAS build proved that assumption
+    // wrong (`A problem occurred configuring project ':aws-face-liveness'.
+    // > Starting in Kotlin 2.0, the Compose Compiler Gradle plugin is
+    // required when compose is enabled.`). It must always be applied
+    // explicitly once buildFeatures.compose is true, regardless of Kotlin
+    // version -- fixed by the buildscript{}/apply plugin: block above.
+    //
+    // STILL OPEN, not yet triggered by any build so far:
     // com.amplifyframework.ui:liveness:1.11.0's own POM declares
     // org.jetbrains.kotlin:kotlin-stdlib:2.2.0 as a compile dependency
-    // (confirmed by fetching that exact POM from Maven Central, not
-    // assumed) -- Kotlin 2.2.0+ ships its own Compose compiler plugin
-    // (K2), so no separate composeCompilerExtensionVersion pin is needed
-    // the way older Kotlin/Compose combinations required.
-    //
-    // REAL, UNRESOLVED UNCERTAINTY (flagging explicitly rather than
-    // guessing): this repo's generated android/build.gradle declares
-    // `classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')` with NO
-    // explicit version -- react-native-gradle-plugin resolves that
-    // version internally based on the installed react-native/expo
-    // version, and doing so requires actually running Gradle (a JDK),
-    // which was not available while preparing this module. If that
-    // resolved Kotlin version is below 2.2.0, this module's Kotlin
-    // source may fail to compile against the liveness AAR's stdlib
-    // requirement -- this is the first thing to check if the real EAS
-    // Android build fails at Kotlin compilation.
+    // (confirmed from that exact POM on Maven Central), while this
+    // project's root Kotlin Gradle Plugin resolves to 2.1.20 (confirmed
+    // from this exact build's own "Configure project :" log output). A
+    // resolved stdlib jar declaring a newer Kotlin metadata version than
+    // the compiler consuming it CAN fail at actual Kotlin compilation
+    // (not at this plugin-configuration stage) -- that is a genuinely
+    // different failure mode than the one just fixed here, and has not
+    // occurred in any build log yet. Do not bump Kotlin preemptively;
+    // only act on this if a future build actually fails compiling Kotlin
+    // sources against the liveness AAR.
   }
   // com.amplifyframework.ui:liveness pulls in java.time-using code paths
   // that require desugaring on minSdkVersion < 26.
