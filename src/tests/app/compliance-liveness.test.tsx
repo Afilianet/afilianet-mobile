@@ -273,6 +273,28 @@ describe("Liveness: provider awareness", () => {
     expect(queryByText("Start check")).toBeNull();
   });
 
+  it("shows the same safe 'different flow' state, never the AWS capture flow, when the org has no aws_rekognition configuration and falls back to Fake", async () => {
+    // Confirmed root cause of a real physical-device finding (Lenovo E2E,
+    // 2026-09-07): this org's biometric_liveness step had no
+    // configured_provider = aws_rekognition set at all --
+    // ComplianceProviderResolver::describe() in afilianet-api falls back to
+    // VerificationProvider::Fake by default in local/dev environments
+    // (never a mobile-side guess), which reports actionable: true (Fake is
+    // a real, itself-passing dev provider) but with no
+    // provider_unavailable_reason -- exactly the shape that reaches
+    // providerUnavailableCopy()'s final "this app has no dedicated UI for
+    // this provider" fallback. This is correct, intentional, already-tested
+    // behavior, not a mobile wiring bug -- see documentCaptureCopy.ts's
+    // providerUnavailableCopy() docblock.
+    mockedFetchComplianceSteps.mockResolvedValue([
+      livenessStep({ configured_provider: "fake", provider_actionable: true, provider_unavailable_reason: null }),
+    ]);
+    const { queryByText, findByText } = await renderCompliance();
+    expect(await findByText(/uses a different flow/i)).toBeTruthy();
+    expect(queryByText("Start check")).toBeNull();
+    expect(mockedCreateLivenessSession).not.toHaveBeenCalled();
+  });
+
   it("never shows the AWS capture flow when configured_provider is afilianet", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([
       livenessStep({ configured_provider: "afilianet", provider_actionable: false, provider_unavailable_reason: "provider_misconfigured" }),

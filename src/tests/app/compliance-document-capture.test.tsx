@@ -621,6 +621,34 @@ describe("Document capture: technical failure and manual review", () => {
     expect(await findByText(/temporarily unavailable/i)).toBeTruthy();
   });
 
+  it("maps an unrecognized technical failure_reason (e.g. unexpected_error) to a generic, still-retryable message", async () => {
+    // DocumentProcessingService::run()'s generic Throwable catch persists
+    // this exact reason for anything not already caught by
+    // DocumentQualityException/OcrEngineUnavailableException/
+    // DocumentEvidenceUnavailableException -- confirmed by reading that
+    // service directly. Never a fatal dead end: still offers Retake photo,
+    // same as every other technical failure.
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "unexpected_error" }));
+    const { findByText } = await renderCompliance();
+    expect(await findByText(/something went wrong while processing your document/i)).toBeTruthy();
+    expect(await findByText("Retake photo")).toBeTruthy();
+  });
+
+  it("Retake photo after a technical failure clears evidence/error state and returns to the capture checklist", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "poor_image_quality", document_type: "mx_ine" }));
+    const { findByText, findAllByText } = await renderCompliance();
+
+    expect(await findByText(/retake it with better lighting/i)).toBeTruthy();
+    fireEvent.press(await findByText("Retake photo"));
+
+    // document_type was recovered from the existing result -- no need to
+    // re-choose it, straight to the mx_ine checklist, both sides reset (no
+    // stale "Captured" from whatever was uploaded before this failure).
+    expect(await findByText("Front")).toBeTruthy();
+    expect(await findByText("Back")).toBeTruthy();
+    expect((await findAllByText("Not yet captured")).length).toBe(2);
+  });
+
   it("shows a manual-review waiting state, with no retry button, when verdict is review", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
