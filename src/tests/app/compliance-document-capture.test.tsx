@@ -56,6 +56,10 @@ jest.mock("expo-image-picker", () => ({
 
 const mockFileUpload = jest.fn();
 const mockFileDelete = jest.fn();
+// The REAL, current on-disk byte count `new File(uri).size` reports --
+// deliberately independent of whatever a test's mocked expo-image-picker
+// `asset.fileSize` says (see "declares the real final file size..." below).
+let mockFileSize = 500_000;
 jest.mock("expo-file-system", () => ({
   // A plain class, not a jest.fn() -- jest.resetAllMocks() (used in
   // beforeEach below, since a queued-but-unconsumed mockResolvedValueOnce
@@ -66,6 +70,9 @@ jest.mock("expo-file-system", () => ({
     uri: string;
     constructor(uri: string) {
       this.uri = uri;
+    }
+    get size() {
+      return mockFileSize;
     }
     upload(...args: unknown[]) {
       return mockFileUpload(...args);
@@ -243,6 +250,7 @@ beforeEach(() => {
   // without relaunching the camera) must never leak into the next test's
   // mock call queue.
   jest.resetAllMocks();
+  mockFileSize = 500_000;
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mockedFetchMyAffiliateProfile.mockResolvedValue(AFFILIATE);
   mockedFetchMyCompliance.mockResolvedValue(complianceCase());
@@ -414,6 +422,44 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
     expect(await findByText(/upload didn't complete/i)).toBeTruthy();
     expect(mockedCompleteEvidenceUpload).not.toHaveBeenCalled();
     expect(mockFileDelete).not.toHaveBeenCalled();
+  });
+
+  it("declares the real final on-disk file size to the backend, never expo-image-picker's own estimate", async () => {
+    // A real physical-device bug: expo-image-picker's reported asset.fileSize
+    // can diverge from the file actually written to disk at asset.uri. Set
+    // to a DIFFERENT value than the mocked camera's fileSize (500_000) here
+    // specifically to prove the declared size always comes from the real
+    // file, never the camera's own estimate.
+    mockFileSize = 612_000;
+    const { getByText, findByText } = await renderCompliance();
+    await chooseIne(getByText, findByText);
+    await captureAndUse(getByText, findByText);
+
+    await waitFor(() =>
+      expect(mockedRequestEvidenceUpload).toHaveBeenCalledWith("step-1", expect.objectContaining({ size: 612_000 })),
+    );
+  });
+
+  it("clears the stuck loading state and re-enables Retake when the backend rejects at completion (e.g. a size mismatch)", async () => {
+    // Mirrors the real EvidenceUploadService::complete() rejection ("the
+    // uploaded object size does not match what was declared"): the PUT
+    // succeeds, but complete() throws. A prior version of
+    // useEvidenceUploadFlow only reset `stage` back to "idle" on the
+    // explicit PUT-failure branch, leaving this exact rejection stuck at
+    // "completing" forever and permanently disabling Retake/Retry.
+    mockedCompleteEvidenceUpload.mockRejectedValue(
+      new ApiError("validation", "Evidence verification failed: the uploaded object size does not match what was declared."),
+    );
+    const { getByText, findByText } = await renderCompliance();
+    await chooseIne(getByText, findByText);
+    await captureAndUse(getByText, findByText);
+
+    expect(await findByText(/does not match what was declared/i)).toBeTruthy();
+
+    // A disabled Button's Pressable never fires onPress -- reaching "Open
+    // camera" again is only possible if Retake was actually enabled.
+    fireEvent.press(getByText("Retake"));
+    expect(await findByText("Open camera")).toBeTruthy();
   });
 });
 

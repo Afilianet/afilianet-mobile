@@ -62,6 +62,14 @@ jest.mock("expo-image-picker", () => ({
 
 const mockFileUpload = jest.fn();
 const mockFileDelete = jest.fn();
+// The REAL, current on-disk byte count `new File(uri).size` reports --
+// deliberately a SEPARATE value from whatever a test's mocked
+// expo-image-picker `asset.fileSize` says, since that's exactly the real
+// physical-device bug this file's "declares the real final file size"
+// test below covers: the two can legitimately differ, and only this one
+// (what the hook now measures right before upload) may ever reach the
+// backend as the declared size.
+let mockFileSize = 400_000;
 jest.mock("expo-file-system", () => ({
   // A plain class, not a jest.fn() -- jest.resetAllMocks() (used in
   // beforeEach below) would otherwise wipe a jest.fn().mockImplementation()
@@ -70,6 +78,9 @@ jest.mock("expo-file-system", () => ({
     uri: string;
     constructor(uri: string) {
       this.uri = uri;
+    }
+    get size() {
+      return mockFileSize;
     }
     upload(...args: unknown[]) {
       return mockFileUpload(...args);
@@ -278,6 +289,7 @@ async function renderCompliance(org: OrganizationContextValue = orgValue()) {
 
 beforeEach(() => {
   jest.resetAllMocks();
+  mockFileSize = 400_000;
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mockedFetchMyAffiliateProfile.mockResolvedValue(AFFILIATE);
   mockedFetchMyCompliance.mockResolvedValue(complianceCase());
@@ -498,6 +510,75 @@ describe("Face match: selfie evidence upload", () => {
 
     expect(await findByText(/upload didn't complete/i)).toBeTruthy();
     expect(mockedCompleteEvidenceUpload).not.toHaveBeenCalled();
+  });
+
+  it("declares the real final on-disk file size to the backend, never expo-image-picker's own estimate", async () => {
+    // A real physical-device bug: expo-image-picker's reported asset.fileSize
+    // can diverge from the file actually written to disk at asset.uri. Set
+    // these to two DIFFERENT values here specifically to prove the value
+    // sent to requestEvidenceUpload always comes from the real file (what
+    // the mock's `new File(uri).size` getter reports), never the camera's
+    // own estimate -- exactly what the backend's own object-size
+    // verification at complete() time requires.
+    mockFileSize = 512_345;
+    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+    mockLaunchCamera.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
+    });
+    const { getByText, findByText } = await renderCompliance();
+    await captureAndUseSelfie(getByText, findByText);
+
+    expect(mockedRequestEvidenceUpload).toHaveBeenCalledWith("biometric-step-1", expect.objectContaining({ size: 512_345 }));
+  });
+
+  it("clears the stuck loading state and re-enables Retake when the backend rejects at completion (e.g. a size mismatch)", async () => {
+    // Mirrors the real EvidenceUploadService::complete() rejection
+    // ("the uploaded object size does not match what was declared") --
+    // the PUT itself succeeds, but complete() throws. A prior version of
+    // useEvidenceUploadFlow only reset `stage` back to "idle" on the
+    // explicit PUT-failure branch, so this exact rejection left `stage`
+    // stuck at "completing" forever, permanently disabling Retake/Retry.
+    mockedCompleteEvidenceUpload.mockRejectedValue(new ApiError("validation", "Evidence verification failed: the uploaded object size does not match what was declared."));
+    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+    mockLaunchCamera.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
+    });
+    const { getByText, findByText } = await renderCompliance();
+
+    fireEvent.press((await findByText("Selfie")) as never);
+    fireEvent.press((await findByText("Open camera")) as never);
+    fireEvent.press((await findByText("Use this photo")) as never);
+
+    expect(await findByText(/does not match what was declared/i)).toBeTruthy();
+
+    // A disabled Button's Pressable never fires onPress (see this file's
+    // other tests for the same established assertion pattern) -- reaching
+    // "Take a selfie" here is only possible if Retake was actually enabled,
+    // i.e. `uploadFlow.stage` really did return to "idle" after the
+    // rejection above, not left stuck at "completing".
+    fireEvent.press(getByText("Retake"));
+    expect(await findByText("Take a selfie")).toBeTruthy();
+  });
+
+  it("never logs the file's bytes, the presigned URL, or any upload header -- only safe diagnostics", async () => {
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+    mockLaunchCamera.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
+    });
+    const { getByText, findByText } = await renderCompliance();
+    await captureAndUseSelfie(getByText, findByText);
+
+    for (const call of logSpy.mock.calls) {
+      const raw = JSON.stringify(call);
+      expect(raw).not.toContain("file:///tmp/selfie.jpg");
+      expect(raw).not.toContain(uploadAuthorization().upload.url);
+      expect(raw).not.toContain("Content-Type");
+    }
+    logSpy.mockRestore();
   });
 });
 
