@@ -369,6 +369,77 @@ describe("Face match: provider awareness", () => {
   });
 });
 
+describe("Face match: failed-step retry gating (real physical-device case 72 regression)", () => {
+  it("a failed, current, provider-actionable face_match step is fully retryable, not a dead end", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "failed", configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "no_match" }));
+    const { getByText, findByText } = await renderCompliance();
+
+    expect(await findByText("Retake selfie")).toBeTruthy();
+    fireEvent.press(getByText("Retake selfie"));
+    expect(await findByText("Selfie")).toBeTruthy();
+    expect(await findByText("Submit for verification")).toBeTruthy();
+  });
+
+  it("a pending, current face_match step is actionable too -- not only after a prior failure", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "pending", configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    const { findByText } = await renderCompliance();
+    expect(await findByText("Selfie")).toBeTruthy();
+    expect(await findByText("Submit for verification")).toBeTruthy();
+  });
+
+  it("a passed face_match step is never editable, regardless of the underlying processing result", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "passed", configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
+    const { queryByText, findByText } = await renderCompliance();
+
+    expect(await findByText("Your face was matched to your identity document.")).toBeTruthy();
+    expect(queryByText("Selfie")).toBeNull();
+    expect(queryByText("Submit for verification")).toBeNull();
+    expect(queryByText("Retake selfie")).toBeNull();
+  });
+
+  it("current_step never gates this step's own actionability -- a failed, actionable face_match step is retryable even when current_step points elsewhere", async () => {
+    // The mobile app never reads ComplianceCase.current_step to decide
+    // whether a step's own card is interactive -- ordering is entirely
+    // backend-enforced (provider_actionable/step-specific gates). This
+    // guards against a future regression adding such a client-side gate,
+    // which would reintroduce exactly the "cannot be clicked" bug this
+    // phase fixed.
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "verbal_consent" }));
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "failed", configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockRejectedValue(NOT_FOUND);
+    const { findByText } = await renderCompliance();
+
+    expect(await findByText("Selfie")).toBeTruthy();
+    expect(await findByText("Submit for verification")).toBeTruthy();
+  });
+
+  it("an unavailable provider blocks the flow even when the step itself is already failed", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "failed", configured_provider: "afilianet", provider_actionable: false, provider_unavailable_reason: "engine_unavailable" }),
+      biometricStep({ status: "passed" }),
+    ]);
+    const { queryByText, findByText } = await renderCompliance();
+
+    expect(await findByText(/face verification is temporarily unavailable/i)).toBeTruthy();
+    expect(queryByText("Selfie")).toBeNull();
+    expect(queryByText("Submit for verification")).toBeNull();
+  });
+});
+
 describe("Face match: missing biometric_liveness sibling step", () => {
   it("shows a safe unavailable state when the org has no biometric_liveness step to upload a selfie against", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep()]);
@@ -783,12 +854,38 @@ describe("Face match: result UX", () => {
     expect(await findByText(/move a little closer/i)).toBeTruthy();
   });
 
-  it("never blames the selfie for a reference-side (document) failure, and offers no selfie retake", async () => {
+  it("never blames the selfie for a reference-side (document) failure, but still offers a retry so the affiliate is never stuck with no action", async () => {
+    // Real physical-device bug (compliance case 72): identity_document and
+    // biometric_liveness both already `passed` (neither offers a recapture
+    // action once resolved), and a reference-side face_match failure used
+    // to withhold the retry button entirely -- leaving a failed, current,
+    // actionable step with literally nothing clickable anywhere in the
+    // app. The message still correctly points at the identity document,
+    // never claiming the selfie itself was the problem, but a retry is
+    // always offered now -- the backend's own trigger() gate remains the
+    // authoritative check if the reference genuinely still can't be used.
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "no_face_reference" }));
     const { findByText, queryByText } = await renderCompliance();
     expect(await findByText(/identity document/i)).toBeTruthy();
-    expect(queryByText("Retake selfie")).toBeNull();
+    expect(await findByText("Retake selfie")).toBeTruthy();
     expect(queryByText(/couldn't clearly detect your face/i)).toBeNull();
+  });
+
+  it("retrying after a reference-side failure clears the stale result and returns to a fresh, uploadable capture checklist", async () => {
+    mockedFetchFaceMatchResult.mockResolvedValueOnce(faceMatchResult({ id: "fm-result-stale", status: "failed", failure_reason: "no_face_reference" }));
+    const { getByText, findByText, queryByText } = await renderCompliance();
+    await findByText(/identity document/i);
+
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ id: "fm-result-stale", status: "failed", failure_reason: "no_face_reference" }));
+    fireEvent.press(getByText("Retake selfie"));
+
+    // Back on the checklist, no stale "Captured"/result banner left over.
+    expect(await findByText("Selfie")).toBeTruthy();
+    expect(await findByText("Not yet captured")).toBeTruthy();
+    expect(queryByText(/identity document/i)).toBeNull();
+
+    await captureAndUseSelfie(getByText, findByText);
+    expect(await findByText("Captured")).toBeTruthy();
   });
 
   it("maps an engine-unavailable technical failure to a temporarily-unavailable message", async () => {
