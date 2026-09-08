@@ -291,6 +291,26 @@ export async function fetchLivenessResult(stepId: string): Promise<LivenessSessi
 }
 
 /**
+ * Explicitly gives up on the step's current (non-terminal) liveness session
+ * -- called after the native capture reports onError or a user
+ * cancellation, so the backend's own idempotent session-reuse in
+ * createLivenessSession() won't hand back the same still-time-valid
+ * session for the rest of its ~3-minute TTL on the next retry
+ * (LivenessProcessingService::abandon() in afilianet-api marks it `failed`/
+ * `client_abandoned`, a terminal state). Idempotent: abandoning an
+ * already-terminal session is a safe no-op that returns it unchanged. No
+ * request body, same "operates on the step's own latest session" shape as
+ * fetchLivenessCredentials.
+ */
+export async function abandonLivenessSession(stepId: string): Promise<LivenessSession> {
+  const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-session/abandon`, {
+    method: "POST",
+    body: {},
+  });
+  return data;
+}
+
+/**
  * A preview of who this affiliate has directly sponsored, via the
  * /affiliates/{affiliate}/sponsored route (policy-gated to your own
  * affiliate id, or another affiliate's id if you're viewing them -- see

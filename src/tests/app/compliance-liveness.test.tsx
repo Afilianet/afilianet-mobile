@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react
 import { act, configure, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
 import {
+  abandonLivenessSession,
   attemptComplianceStep,
   createLivenessSession,
   fetchComplianceSteps,
@@ -55,6 +56,7 @@ jest.mock("../../api/endpoints", () => ({
   createLivenessSession: jest.fn(),
   fetchLivenessCredentials: jest.fn(),
   fetchLivenessResult: jest.fn(),
+  abandonLivenessSession: jest.fn(),
 }));
 
 jest.mock("../../services/analytics", () => ({
@@ -84,6 +86,7 @@ const mockedAttemptComplianceStep = attemptComplianceStep as jest.Mock;
 const mockedCreateLivenessSession = createLivenessSession as jest.Mock;
 const mockedFetchLivenessCredentials = fetchLivenessCredentials as jest.Mock;
 const mockedFetchLivenessResult = fetchLivenessResult as jest.Mock;
+const mockedAbandonLivenessSession = abandonLivenessSession as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
 
 const ORG_A: Organization = {
@@ -225,6 +228,7 @@ beforeEach(() => {
   mockedFetchLivenessResult.mockRejectedValue(NOT_FOUND);
   mockedCreateLivenessSession.mockResolvedValue(livenessSession({ status: "pending" }));
   mockedFetchLivenessCredentials.mockResolvedValue(livenessCredentials());
+  mockedAbandonLivenessSession.mockResolvedValue(livenessSession({ status: "failed", failure_reason: "client_abandoned" }));
 });
 
 async function startCapture(findByText: (text: string) => Promise<unknown>) {
@@ -353,6 +357,57 @@ describe("Liveness: session creation", () => {
     expect(mockedCreateLivenessSession).toHaveBeenCalledTimes(1);
   });
 
+  it("a 'pending' status seeded immediately after session creation does not hide the native capture view", async () => {
+    // The real physical-device bug this state machine fixes: useCreateLivenessSession's
+    // onSuccess seeds the shared liveness-result query with the brand new
+    // session (status "pending") the instant session creation resolves,
+    // before credentials are even fetched -- the beforeEach default above
+    // already reflects this exact real shape. The native view must still
+    // mount, and the "backend is reviewing your check" placeholder must
+    // never appear while native capture hasn't even started.
+    const { findByText, queryByText, queryByTestId } = await renderCompliance();
+    await startCapture(findByText);
+
+    expect(queryByTestId("mock-aws-liveness-view")).toBeTruthy();
+    expect(queryByText("Preparing your check")).toBeNull();
+    expect(queryByText("Reviewing your check")).toBeNull();
+  });
+
+  it("fetches credentials only after session creation resolves, and does not mount the native view until credentials resolve too", async () => {
+    let resolveCredentials!: (value: LivenessCredentials) => void;
+    mockedFetchLivenessCredentials.mockReturnValue(
+      new Promise((resolve) => {
+        resolveCredentials = resolve;
+      }),
+    );
+    const { findByText, queryByTestId } = await renderCompliance();
+
+    fireEvent.press(await findByText("Start check"));
+    await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
+    await waitFor(() => expect(mockedFetchLivenessCredentials).toHaveBeenCalledWith("liveness-step-1"));
+    // Session created, credentials requested, but not yet resolved -- the
+    // native view must not exist yet.
+    expect(queryByTestId("mock-aws-liveness-view")).toBeNull();
+
+    await act(async () => {
+      resolveCredentials(livenessCredentials());
+    });
+    await waitFor(() => expect(queryByTestId("mock-aws-liveness-view")).toBeTruthy());
+  });
+
+  it("duplicate capture cannot start -- a second native view is never mounted while one is already active", async () => {
+    const { findByText } = await renderCompliance();
+    await startCapture(findByText);
+    const firstProps = latestLivenessProps;
+
+    // The start screen (and its "Start check" button) isn't even rendered
+    // once the native view is mounted -- there is structurally nowhere for
+    // a second tap to land, since `stage` is one single value the render
+    // function switches on, never two independently-toggleable booleans.
+    expect(mockedCreateLivenessSession).toHaveBeenCalledTimes(1);
+    expect(latestLivenessProps).toBe(firstProps);
+  });
+
   it("a failed/expired session recovers by calling createLivenessSession again -- the exact same action, never a distinguishable resume-vs-restart choice", async () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "failed", failure_reason: "session_expired" }));
     const { findByText } = await renderCompliance();
@@ -476,6 +531,92 @@ describe("Liveness: capture lifecycle", () => {
 
     expect(await findByText(/something went wrong/i)).toBeTruthy();
     expect(latestLivenessProps).toBeNull();
+  });
+
+  it("native onComplete stops trusting local capture state and shows the backend processing/polling view", async () => {
+    const { findByText, queryByTestId } = await renderCompliance();
+    await startCapture(findByText);
+
+    mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "processing" }));
+    await simulateComplete();
+
+    expect(queryByTestId("mock-aws-liveness-view")).toBeNull();
+    expect(await findByText("Reviewing your check")).toBeTruthy();
+  });
+});
+
+// --- Abandon on native error/cancellation ---------------------------------------
+
+describe("Liveness: abandon on native error/cancellation", () => {
+  it("calls the abandon endpoint for the step on a native error", async () => {
+    const { findByText } = await renderCompliance();
+    await startCapture(findByText);
+
+    await simulateError("camera_unavailable");
+
+    await waitFor(() => expect(mockedAbandonLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
+  });
+
+  it("calls the abandon endpoint on a user cancellation too, not just a real error", async () => {
+    const { findByText } = await renderCompliance();
+    await startCapture(findByText);
+
+    await simulateError("cancelled");
+
+    await waitFor(() => expect(mockedAbandonLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
+  });
+
+  it("retrying after an abandoned session creates a genuinely fresh session, never reusing the exited one's props", async () => {
+    const { findByText } = await renderCompliance();
+    await startCapture(findByText);
+    const firstProps = { ...(latestLivenessProps as Record<string, unknown>) };
+
+    await simulateError("network_error");
+    expect(await findByText("Start check")).toBeTruthy();
+
+    mockedCreateLivenessSession.mockResolvedValue(
+      livenessSession({ id: "session-2", session_id: "aws-session-2", status: "pending" }),
+    );
+    mockedFetchLivenessCredentials.mockResolvedValue(livenessCredentials({ session_id: "aws-session-2", access_key_id: "ASIASECONDKEY" }));
+    fireEvent.press(await findByText("Start check"));
+    // Waits for the SPECIFIC new session's props, never just "non-null" --
+    // latestLivenessProps is already non-null from the first attempt above,
+    // so a bare non-null check here would pass immediately without ever
+    // observing the second mount.
+    await waitFor(() => expect(latestLivenessProps).toMatchObject({ sessionId: "aws-session-2" }));
+
+    expect(mockedCreateLivenessSession).toHaveBeenCalledTimes(2);
+    expect(latestLivenessProps).not.toEqual(firstProps);
+    expect(latestLivenessProps).toMatchObject({ sessionId: "aws-session-2", accessKeyId: "ASIASECONDKEY" });
+  });
+
+  it("a stale pending session from before an abandoned attempt is never redisplayed as the processing/result view", async () => {
+    const { findByText, queryByText } = await renderCompliance();
+    await startCapture(findByText);
+
+    await simulateError("unknown_error");
+
+    // The exited session (still "pending" from mobile's point of view,
+    // since abandon's own response is never awaited/trusted for this) must
+    // never resurface as a processing placeholder or result banner -- the
+    // affiliate lands cleanly back on the start screen.
+    expect(await findByText("Start check")).toBeTruthy();
+    expect(queryByText("Preparing your check")).toBeNull();
+    expect(queryByText("Reviewing your check")).toBeNull();
+  });
+
+  it("does not freeze the UI and still offers Retry when the abandon call itself fails", async () => {
+    mockedAbandonLivenessSession.mockRejectedValue(new ApiError("server", "Something went wrong on our end.", 503));
+    const { findByText } = await renderCompliance();
+    await startCapture(findByText);
+
+    await simulateError("camera_unavailable");
+
+    // The native error's own copy still shows (abandon failing never
+    // pretends the session was cleanly ended, but also never blocks
+    // recovery) and "Start check" is immediately usable again.
+    expect(await findByText(/doesn't have a usable camera/i)).toBeTruthy();
+    expect(await findByText("Start check")).toBeTruthy();
   });
 });
 
