@@ -19,13 +19,14 @@ import { SelfieCaptureScreen } from "./SelfieCaptureScreen";
  * simplified to a SINGLE evidence item (one selfie, never a multi-side
  * checklist like identity_document's front/back).
  *
- * `biometricStepId` is the sibling `biometric_liveness` ComplianceStep's id
- * (never `face_match`'s own) -- `selfie` evidence is only ever compatible
- * with `biometric_liveness` (see StepEvidenceCompatibility in
- * afilianet-api: `face_match` accepts no upload of its own and reads this
- * evidence case-wide via FaceMatchProcessingService::trigger()). Callers
- * (FaceMatchStep) resolve that sibling step from the case's own steps list
- * before ever rendering this component.
+ * The probe selfie is uploaded directly against `face_match`'s OWN step
+ * (Phase 9D.3.1) -- see StepEvidenceCompatibility in afilianet-api. This
+ * used to go through the sibling `biometric_liveness` step instead (the
+ * only pre-9D.3.1 upload target), which broke a Failed face_match retry
+ * once `biometric_liveness` had already passed and become immutable (a
+ * real physical-device finding, compliance case #72: the backend rejected
+ * the re-upload as "no longer actionable" even though face_match itself
+ * was still retryable) -- see SelfieCaptureScreen's docblock.
  *
  * Deliberately never locally checks "has identity_document completed" --
  * that would be exactly the kind of local inference Phase 9D.3 explicitly
@@ -37,12 +38,10 @@ import { SelfieCaptureScreen } from "./SelfieCaptureScreen";
  */
 export function FaceMatchCaptureFlow({
   faceMatchStepId,
-  biometricStepId,
   result,
   resultLoading,
 }: {
   faceMatchStepId: string;
-  biometricStepId: string;
   result: FaceMatchProcessingResult | null | undefined;
   resultLoading: boolean;
 }) {
@@ -130,7 +129,7 @@ export function FaceMatchCaptureFlow({
   }
 
   if (activeCapture) {
-    return <SelfieCaptureScreen stepId={biometricStepId} onCancel={() => setActiveCapture(false)} onUploaded={handleUploaded} />;
+    return <SelfieCaptureScreen stepId={faceMatchStepId} onCancel={() => setActiveCapture(false)} onUploaded={handleUploaded} />;
   }
 
   const captured = uploadedSelfie?.status === "uploaded";

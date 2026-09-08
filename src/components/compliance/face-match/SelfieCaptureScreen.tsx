@@ -27,13 +27,13 @@ type LocalStage =
  * preview) -- the differences are front-facing capture (useSelfieCamera) and
  * face-specific, non-liveness guidance copy.
  *
- * `stepId` here is deliberately the sibling `biometric_liveness` step's id,
- * never `face_match`'s own -- `selfie` evidence is only ever compatible
- * with `biometric_liveness` (see StepEvidenceCompatibility in
- * afilianet-api; `face_match` itself accepts no upload of its own and
- * reads this evidence case-wide) -- see FaceMatchCaptureFlow's docblock for
- * the full reasoning. Callers must resolve that step id before rendering
- * this component.
+ * `stepId` here is `face_match`'s own step id (Phase 9D.3.1) -- `selfie`
+ * evidence is compatible with both `biometric_liveness` and `face_match`
+ * (see StepEvidenceCompatibility in afilianet-api). Uploading directly
+ * against face_match's own step means a Failed face_match retry keeps
+ * working even once `biometric_liveness` has already passed (and is
+ * therefore immutable) -- see FaceMatchCaptureFlow's docblock for the full
+ * reasoning.
  */
 export function SelfieCaptureScreen({
   stepId,
