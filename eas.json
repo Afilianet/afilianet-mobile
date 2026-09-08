@@ -6,14 +6,13 @@
   "build": {
     "development": {
       "distribution": "internal",
+      "developmentClient": true,
       "android": {
         "buildType": "apk"
       },
-      "ios": {
-        "simulator": true
-      },
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "development"
+        "EXPO_PUBLIC_APP_ENV": "development",
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.68.110:8000"
       }
     },
     "internal": {
@@ -31,8 +30,7 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_API_BASE_URL": "https://api.afilianet.example"
+        "EXPO_PUBLIC_APP_ENV": "production"
       }
     }
   },

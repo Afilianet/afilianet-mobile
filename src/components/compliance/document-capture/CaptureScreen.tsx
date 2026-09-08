@@ -95,7 +95,6 @@ export function CaptureScreen({
         evidenceType,
         uri: asset.uri,
         mimeType,
-        size: asset.fileSize,
       });
       // No evidence type, step id, or any capture detail -- matches this
       // app's zero-property analytics convention for compliance events.

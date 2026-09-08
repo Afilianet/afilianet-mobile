@@ -1,0 +1,164 @@
+// Starting in Kotlin 2.0, the Compose Compiler is a separate Gradle
+// plugin that must be applied explicitly whenever buildFeatures.compose
+// is enabled -- it is NOT bundled into the Kotlin Gradle Plugin itself,
+// contrary to an earlier, unverified assumption in this file's
+// composeOptions block below. Confirmed against a REAL Compose-enabled
+// Expo module already present and compiling successfully in this exact
+// project (node_modules/@expo/ui/android/build.gradle uses the identical
+// buildscript+classpath+apply pattern with the same bare `kotlinVersion`
+// reference, which Gradle resolves via the root project's own
+// expo-root-project plugin -- not a value this file defines itself).
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath("org.jetbrains.kotlin.plugin.compose:org.jetbrains.kotlin.plugin.compose.gradle.plugin:${kotlinVersion}")
+  }
+}
+
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+// Sets compileSdkVersion/targetSdkVersion from the root project's values
+// (36/36, matching every other module in this build) -- AGP requires
+// compileSdk to be declared explicitly per-library module and does not
+// default it; applyKotlinExpoModulesCorePlugin() only wires up the
+// Kotlin/KSP plugins, it does not call this on its own. Real Expo
+// packages either call this too or use the newer 'expo-module-gradle-plugin'
+// convention plugin, which does it implicitly -- this module still uses
+// the older apply-from pattern, so it must be called explicitly.
+useDefaultAndroidSdkVersions()
+// Puts expo-modules-core (the expo.modules.kotlin.* package this
+// module's own Kotlin sources import -- Module/ModuleDefinition/
+// ExpoView/AppContext/EventDispatcher/View/Prop/Events) on this
+// module's compile classpath. Autolinking (settings.gradle) only wires
+// :aws-face-liveness into the Gradle project graph as an included
+// project the :app module depends on -- it does not add expo-modules-
+// core as a compile-time dependency of THIS module's own build.gradle,
+// so compileDebugKotlin failed with "Unresolved reference 'kotlin'"
+// (the expo.modules.kotlin package segment, not the Kotlin language)
+// until this was added. useCoreDependencies() is the exact helper this
+// same installed ExpoModulesCorePlugin.gradle defines for this -- it
+// guards against a cyclic self-dependency and also adds the matching
+// kotlin-stdlib-jdk7 version, so this is the supported mechanism rather
+// than writing `implementation project(':expo-modules-core')` by hand.
+useCoreDependencies()
+
+android {
+  namespace "expo.modules.awsfaceliveness"
+  defaultConfig {
+    // com.amplifyframework.ui:liveness's own stated minimum (Android API
+    // level 24 / Android 7.0) -- confirmed directly from
+    // ui.docs.amplify.aws/android/connected-components/liveness, not
+    // assumed. The EFFECTIVE app-wide minSdkVersion is whichever is higher
+    // between this and whatever Expo SDK 57 / React Native 0.86 already
+    // requires (not independently re-verified here).
+    minSdkVersion 24
+  }
+  buildFeatures {
+    compose true
+  }
+  composeOptions {
+    // No composeCompilerExtensionVersion pin here -- that option targets
+    // the OLD pre-Kotlin-2.0 androidx Compose Compiler Gradle plugin. This
+    // module now applies the newer org.jetbrains.kotlin.plugin.compose
+    // plugin instead (see the buildscript{}/apply plugin: block above),
+    // which ties the Compose compiler version to the Kotlin Gradle Plugin
+    // version directly -- matching node_modules/@expo/ui/android/build.gradle,
+    // a real Compose-enabled module in this project that also has no
+    // composeOptions block at all.
+    //
+    // An earlier version of this comment incorrectly assumed the Compose
+    // compiler plugin didn't need explicit applying at all "since Kotlin
+    // 2.2.0 ships it built in" -- a real EAS build proved that assumption
+    // wrong (`A problem occurred configuring project ':aws-face-liveness'.
+    // > Starting in Kotlin 2.0, the Compose Compiler Gradle plugin is
+    // required when compose is enabled.`). It must always be applied
+    // explicitly once buildFeatures.compose is true, regardless of Kotlin
+    // version -- fixed by the buildscript{}/apply plugin: block above.
+    //
+    // STILL OPEN, not yet triggered by any build so far:
+    // com.amplifyframework.ui:liveness:1.11.0's own POM declares
+    // org.jetbrains.kotlin:kotlin-stdlib:2.2.0 as a compile dependency
+    // (confirmed from that exact POM on Maven Central), while this
+    // project's root Kotlin Gradle Plugin resolves to 2.1.20 (confirmed
+    // from this exact build's own "Configure project :" log output). A
+    // resolved stdlib jar declaring a newer Kotlin metadata version than
+    // the compiler consuming it CAN fail at actual Kotlin compilation
+    // (not at this plugin-configuration stage) -- that is a genuinely
+    // different failure mode than the one just fixed here, and has not
+    // occurred in any build log yet. Do not bump Kotlin preemptively;
+    // only act on this if a future build actually fails compiling Kotlin
+    // sources against the liveness AAR.
+  }
+  // com.amplifyframework.ui:liveness pulls in java.time-using code paths
+  // that require desugaring on minSdkVersion < 26. This is required HERE,
+  // for this module's OWN compilation, separately from the equivalent
+  // compileOptions/coreLibraryDesugaring pair now also added to :app (via
+  // plugins/withAndroidCoreLibraryDesugaring.js) -- coreLibraryDesugaringEnabled
+  // is a per-module AGP setting, not something that cascades from a
+  // library to the app that consumes it. :app needs its own because
+  // :app:checkDebugAarMetadata validates the desugaring requirement of
+  // every dependency (aws-predictions/aws-core/core/common-core, not just
+  // this module itself) against the final, APK-producing module doing the
+  // actual dexing -- neither declaration is redundant with the other.
+  compileOptions {
+    coreLibraryDesugaringEnabled true
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+}
+
+dependencies {
+  // Latest as of this writing (confirmed via Google's Maven metadata,
+  // dl.google.com/android/maven2/.../maven-metadata.xml, not assumed) --
+  // bump freely.
+  coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+
+  // The OFFICIAL AWS Amplify UI Face Liveness Android library -- version
+  // and Maven coordinates confirmed directly against Maven Central's own
+  // metadata (1.11.0 is the real latest release, not the 1.5.0 an earlier
+  // pass here had assumed from a secondhand source). CONFIRMED (by
+  // fetching this exact version's own POM from Maven Central) that its
+  // real compile dependency is `com.amplifyframework:aws-predictions`,
+  // pulled in transitively -- NOT `com.amplifyframework:aws-auth-cognito`.
+  // This settles what an earlier pass here left as an open question: the
+  // official liveness artifact itself has no Cognito/Auth-category
+  // dependency at all, consistent with this module never calling
+  // Amplify.configure() or touching Cognito (see
+  // AwsFaceLivenessView.kt's custom AWSCredentialsProvider, backed
+  // entirely by afilianet-api's own STS broker).
+  implementation 'com.amplifyframework.ui:liveness:1.11.0'
+  // NO explicit compose-bom here -- an earlier version of this file
+  // declared `implementation platform('androidx.compose:compose-bom:2026.08.00')`
+  // on the (wrong) theory that "at or above the 2026.03.00 floor liveness's
+  // POM declares" was safe. It wasn't: liveness:1.11.0 is published with
+  // real Gradle Module Metadata (confirmed by fetching its .module file
+  // from Maven Central, not its POM, which Gradle prefers and actually
+  // uses) declaring an ACTUAL dependency on compose-bom:2026.03.00 as
+  // part of its release-runtime variant -- that is a genuine Gradle
+  // platform dependency, not just a Maven-only hint, so it already
+  // propagates the correct, AWS-tested Compose versions (ui-android
+  // 1.10.5, confirmed from that BOM's own POM) to this whole build with
+  // no explicit import needed here. Our explicit 2026.08.00 override
+  // forced a NEWER, untested BOM that pins ui-android/foundation-android/
+  // animation-android etc. to 1.12.0 -- confirmed via that exact AAR's
+  // own aar-metadata.properties to require minCompileSdk=37 and AGP
+  // 9.1.0, which is exactly what broke :app:checkDebugAarMetadata (this
+  // project is compileSdk 36 / AGP 8.x). ui-android:1.10.5's own
+  // aar-metadata.properties requires only minCompileSdk=35 / AGP 8.6.0,
+  // fully compatible with this project, and matches the ~1.10.6 Compose
+  // family node_modules/@expo/ui/android/build.gradle already uses
+  // successfully in this same build. material3 is left declared with NO
+  // version, letting liveness's own transitively-supplied BOM manage it,
+  // same as before.
+  implementation 'androidx.compose.material3:material3'
+}
