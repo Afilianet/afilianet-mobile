@@ -7,7 +7,7 @@ import { Badge } from "../../ui/Badge";
 import { spacing } from "../../ui/theme";
 import { ProviderUnavailableState } from "../document-capture/ProviderUnavailableState";
 import { FaceMatchCaptureFlow } from "../face-match/FaceMatchCaptureFlow";
-import { faceMatchVerdictCopy } from "../face-match/faceMatchCopy";
+import { faceMatchVerdictCopy, isReferenceInconclusive, REFERENCE_INCONCLUSIVE_COPY } from "../face-match/faceMatchCopy";
 import { DevelopmentStepSimulator } from "./DevelopmentStepSimulator";
 import { styles } from "./styles";
 import type { StepDetailProps } from "./types";
@@ -62,6 +62,20 @@ function renderBody(
         <View style={localStyles.stateGroup}>
           <Badge label={copy.label} tone={copy.tone} />
           <Text style={styles.description}>{copy.description}</Text>
+        </View>
+      );
+    }
+    // Phase 9D.4: an ambiguous document reference also resolves this step
+    // (`passed`, routing the CASE to manual_review) without ever running a
+    // biometric comparison -- `result.verdict` stays null here (never
+    // "review", never "match"), so this must be checked BEFORE falling
+    // through to the "matched" sentence below, or an inconclusive result
+    // would be misrepresented as a real match.
+    if (result?.status === "failed" && isReferenceInconclusive(result.failure_reason)) {
+      return (
+        <View style={localStyles.stateGroup}>
+          <Badge label={REFERENCE_INCONCLUSIVE_COPY.label} tone={REFERENCE_INCONCLUSIVE_COPY.tone} />
+          <Text style={styles.description}>{REFERENCE_INCONCLUSIVE_COPY.description}</Text>
         </View>
       );
     }

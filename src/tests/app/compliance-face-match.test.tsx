@@ -952,6 +952,38 @@ describe("Face match: result UX", () => {
     expect(queryByText(/couldn't clearly detect your face/i)).toBeNull();
   });
 
+  it("shows review-required copy for an ambiguous document reference (Phase 9D.4), never a retry loop", async () => {
+    // Real physical-device finding: a genuine INE with two similarly-
+    // confident candidate faces fails the document-reference selection
+    // rule. Unlike no_face_reference/multiple_faces_reference (still a
+    // retryable technical failure - see the test above), this is a genuine
+    // dead end for a selfie retry: the backend resolves it into
+    // Compliance's manual-review pathway instead, so the affiliate must
+    // never be shown a "Retake selfie" loop or told to fix their document.
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "ambiguous_document_reference" }));
+    const { findByText, queryByText } = await renderCompliance();
+
+    expect(await findByText("Needs review")).toBeTruthy();
+    expect(await findByText(/couldn't automatically verify the portrait on your id/i)).toBeTruthy();
+    expect(queryByText("Retake selfie")).toBeNull();
+    expect(queryByText(/check the identity document step/i)).toBeNull();
+    expect(queryByText(/recaptured or reprocessed/i)).toBeNull();
+  });
+
+  it("keeps showing review-required copy (never 'matched') once the step itself resolves to passed for an ambiguous document reference", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "passed", configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "ambiguous_document_reference", verdict: null }));
+    const { findByText, queryByText } = await renderCompliance();
+
+    expect(await findByText("Needs review")).toBeTruthy();
+    expect(await findByText(/couldn't automatically verify the portrait on your id/i)).toBeTruthy();
+    expect(queryByText("Your face was matched to your identity document.")).toBeNull();
+    expect(queryByText("Retake selfie")).toBeNull();
+  });
+
   it("retrying after a reference-side failure clears the stale result and returns to a fresh, uploadable capture checklist", async () => {
     mockedFetchFaceMatchResult.mockResolvedValueOnce(faceMatchResult({ id: "fm-result-stale", status: "failed", failure_reason: "no_face_reference" }));
     const { getByText, findByText, queryByText } = await renderCompliance();

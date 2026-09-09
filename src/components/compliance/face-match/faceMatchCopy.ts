@@ -52,6 +52,29 @@ export function isReferenceSideFailure(reason: string | null): boolean {
   return reason !== null && reason.endsWith("_reference");
 }
 
+/**
+ * Phase 9D.4: `ambiguous_document_reference` is a genuine DEAD END for a
+ * retry, unlike every other reference-side reason -- the identity document
+ * is already `passed`/immutable, so no amount of retaking the selfie can
+ * ever change which faces the engine detected in the ALREADY-CAPTURED
+ * document image. The backend (afilianet-api's FaceMatchProcessingService)
+ * now resolves this into Compliance's existing manual-review pathway
+ * instead of leaving it a retryable technical failure (see
+ * ComplianceStep.status ending up `passed` with the case routed to
+ * `manual_review` -- the exact same mechanism a genuine biometric
+ * `verdict: review` already uses). This app must never show a "Retake
+ * selfie" loop for it.
+ */
+export function isReferenceInconclusive(reason: string | null): boolean {
+  return reason === "ambiguous_document_reference";
+}
+
+export const REFERENCE_INCONCLUSIVE_COPY: { label: string; tone: BadgeTone; description: string } = {
+  label: "Needs review",
+  tone: "warning",
+  description: "We couldn't automatically verify the portrait on your ID. Your verification needs review. No action is needed from you right now.",
+};
+
 const PROBE_FAILURE_COPY: Record<string, string> = {
   no_face_probe: "We couldn't clearly detect your face. Take another photo with your face centered.",
   multiple_faces_probe: "Make sure only you are visible in the photo.",
