@@ -475,6 +475,28 @@ describe("Face match: selfie capture", () => {
     expect(await findByText("Use this photo")).toBeTruthy();
   });
 
+  it("launches the camera at quality: 1 -- never the document flow's recompressing quality, to preserve EXIF orientation for the identity engine's face detector", async () => {
+    // Real physical-device finding (Face Match attempts 3/4,
+    // failure_reason: no_face_probe): the identity engine's face detector
+    // zero-detects a rotated image with no EXIF orientation tag, and
+    // expo-image-picker's Android quality<1 path re-exports/recompresses
+    // the captured JPEG -- the most likely place that tag gets dropped.
+    const { findByText } = await renderCompliance();
+    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+    mockLaunchCamera.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
+    });
+
+    fireEvent.press(await findByText("Selfie"));
+    fireEvent.press(await findByText("Open camera"));
+    await waitFor(() => expect(mockLaunchCamera).toHaveBeenCalledTimes(1));
+
+    expect(mockLaunchCamera).toHaveBeenCalledWith(
+      expect.objectContaining({ quality: 1, cameraType: "front", exif: false, base64: false, allowsEditing: false }),
+    );
+  });
+
   it("shows a permission-denied state and lets the user open settings", async () => {
     const { findByText } = await renderCompliance();
     mockRequestCameraPermission.mockResolvedValue({ granted: false, canAskAgain: false, status: "denied" });
