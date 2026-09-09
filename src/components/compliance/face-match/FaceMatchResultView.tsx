@@ -3,7 +3,7 @@ import type { FaceMatchProcessingResult } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { colors, spacing, typography } from "../../ui/theme";
-import { faceMatchFailureCopy, faceMatchVerdictCopy } from "./faceMatchCopy";
+import { faceMatchFailureCopy, faceMatchVerdictCopy, isReferenceInconclusive, REFERENCE_INCONCLUSIVE_COPY } from "./faceMatchCopy";
 
 /**
  * Read-only, normalized-fields-only display of the latest face-match
@@ -30,11 +30,29 @@ import { faceMatchFailureCopy, faceMatchVerdictCopy } from "./faceMatchCopy";
  *   the affiliate just waits, exactly like a document-processing manual
  *   review -- never repeatedly resubmitting selfies to "escape" review).
  * - A TECHNICAL/capture-quality failure (`status: "failed"`, no verdict at
- *   all) never resolves the step -- retryable, EXCEPT for a REFERENCE-side
+ *   all) never resolves the step -- always retryable, a REFERENCE-side
  *   failure (the identity document photo, not the selfie, was the
- *   problem) -- see faceMatchFailureCopy's `offerSelfieRetry`: the selfie
- *   is never blamed for a reference-side problem, and no retake button is
- *   offered for it (retaking the selfie can't fix it).
+ *   problem) included: the selfie is never blamed for it (see
+ *   faceMatchFailureCopy's message), but a "failed, current, actionable"
+ *   step must never leave the affiliate with zero clickable action --
+ *   identity_document has no recapture action of its own once `passed`,
+ *   so withholding the retry here was a real dead end (a confirmed
+ *   physical-device bug -- see faceMatchFailureCopy.ts's docblock). The
+ *   backend's own trigger() gate is still the authoritative check if the
+ *   reference genuinely still can't be used.
+ * - EXCEPT `failure_reason: "ambiguous_document_reference"` (Phase 9D.4) --
+ *   this one IS resolved server-side (the backend routes it into
+ *   Compliance's manual-review pathway, same mechanism as a genuine
+ *   biometric `verdict: review`), so by the time the compliance-steps
+ *   query catches up this component won't even be reached anymore (see
+ *   FaceMatchStep.tsx's `step.status === "passed"` branch) -- but this
+ *   check still needs to run HERE too, for the brief window where
+ *   useFaceMatchResult's polling already saw the failed result before the
+ *   steps query has refetched. Never offers a retry for it (retaking the
+ *   selfie cannot change which faces exist in the already-captured,
+ *   immutable document image) and never reuses the generic
+ *   faceMatchFailureCopy() "check the Identity document step" message,
+ *   which implies an action the affiliate can't actually take.
  */
 export function FaceMatchResultView({
   result,
@@ -45,13 +63,22 @@ export function FaceMatchResultView({
   onRetry: () => void;
   retrying: boolean;
 }) {
+  if (result.status === "failed" && isReferenceInconclusive(result.failure_reason)) {
+    return (
+      <View style={styles.container}>
+        <Badge label={REFERENCE_INCONCLUSIVE_COPY.label} tone={REFERENCE_INCONCLUSIVE_COPY.tone} />
+        <Text style={styles.description}>{REFERENCE_INCONCLUSIVE_COPY.description}</Text>
+      </View>
+    );
+  }
+
   if (result.status === "failed") {
     const failure = faceMatchFailureCopy(result.failure_reason);
     return (
       <View style={styles.container}>
         <Badge label="Couldn't process" tone="danger" />
         <Text style={styles.description}>{failure.message}</Text>
-        {failure.offerSelfieRetry ? <Button label="Retake selfie" onPress={onRetry} loading={retrying} /> : null}
+        <Button label="Retake selfie" onPress={onRetry} loading={retrying} />
       </View>
     );
   }

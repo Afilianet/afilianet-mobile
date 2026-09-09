@@ -27,7 +27,14 @@ const POLL_INTERVAL_MS = 3000;
  * useDocumentResult uses. This only fires once per newly-seen completed
  * attempt (tracked by id), not on every poll tick. A technical `failed`
  * attempt never touches compliance state at all, so no invalidation
- * happens for that case.
+ * happens for that case -- EXCEPT `failure_reason: "ambiguous_document_reference"`
+ * (Phase 9D.4), which the backend ALSO resolves server-side (routing the
+ * case into manual_review, same mechanism as a genuine `verdict: review`)
+ * even though the FaceMatchProcessingResult itself stays `status: "failed"`
+ * (no biometric comparison ever ran) -- without this exception, the
+ * compliance-steps query could go stale indefinitely and the affiliate
+ * would keep seeing the technical-failure screen instead of the
+ * "needs review" state FaceMatchStep.tsx renders once the step catches up.
  */
 export function useFaceMatchResult(stepId: string | undefined) {
   const { activeOrganization } = useOrganization();
@@ -56,7 +63,9 @@ export function useFaceMatchResult(stepId: string | undefined) {
 
   useEffect(() => {
     const result = query.data;
-    if (!result || !orgId || result.status !== "completed") return;
+    if (!result || !orgId) return;
+    const touchesComplianceState = result.status === "completed" || result.failure_reason === "ambiguous_document_reference";
+    if (!touchesComplianceState) return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
     void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
