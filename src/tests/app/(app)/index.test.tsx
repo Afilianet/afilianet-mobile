@@ -147,7 +147,7 @@ afterEach(() => {
 describe("Home: header", () => {
   it("greets the user by first name and shows the active organization", async () => {
     const { findByText } = await renderHome();
-    expect(await findByText("Hi, Jordan")).toBeTruthy();
+    expect(await findByText("Hola, Jordan")).toBeTruthy();
     expect(await findByText("Acme")).toBeTruthy();
   });
 
@@ -168,31 +168,31 @@ describe("Home: header", () => {
 describe("Home: affiliate status", () => {
   it("shows an active affiliate's code, status, and activation date", async () => {
     const { findByText } = await renderHome();
-    expect(await findByText("Active")).toBeTruthy();
+    expect(await findByText("Activo")).toBeTruthy();
     expect(await findByText("AFF100")).toBeTruthy();
-    expect(await findByText(/Joined/)).toBeTruthy();
-    expect(await findByText(/Activated/)).toBeTruthy();
+    expect(await findByText(/Te uniste/)).toBeTruthy();
+    expect(await findByText(/Activado el/)).toBeTruthy();
   });
 
   it("shows a pending affiliate as not yet activated", async () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(PENDING_AFFILIATE);
     const { findByText } = await renderHome();
-    expect(await findByText("Pending")).toBeTruthy();
-    expect(await findByText("Not yet activated")).toBeTruthy();
+    expect(await findByText("Pendiente")).toBeTruthy();
+    expect(await findByText("Aún no activado")).toBeTruthy();
   });
 
   it("shows an enrollment message instead of crashing when there's no affiliate profile", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText } = await renderHome();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
   });
 });
 
 describe("Home: compliance", () => {
   it("shows a not-started state with a CTA when there's no compliance case yet", async () => {
     const { findByText } = await renderHome();
-    expect(await findByText("Not started")).toBeTruthy();
-    expect(await findByText("Start verification")).toBeTruthy();
+    expect(await findByText("No iniciado")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
   });
 
   it("shows approved with no CTA", async () => {
@@ -211,8 +211,8 @@ describe("Home: compliance", () => {
       created_at: "2026-01-01T00:00:00Z",
     } satisfies ComplianceCase);
     const { findByText, queryByText } = await renderHome();
-    expect(await findByText("Approved")).toBeTruthy();
-    expect(queryByText("Continue verification")).toBeNull();
+    expect(await findByText("Aprobado")).toBeTruthy();
+    expect(queryByText("Continuar verificación")).toBeNull();
   });
 
   it("shows rejected with a CTA to continue/retry", async () => {
@@ -231,14 +231,14 @@ describe("Home: compliance", () => {
       created_at: "2026-01-01T00:00:00Z",
     } satisfies ComplianceCase);
     const { findByText } = await renderHome();
-    expect(await findByText("Rejected")).toBeTruthy();
-    expect(await findByText("Continue verification")).toBeTruthy();
+    expect(await findByText("Rechazado")).toBeTruthy();
+    expect(await findByText("Continuar verificación")).toBeTruthy();
   });
 
   it("navigates to the Compliance screen from the not-started CTA", async () => {
     const { findByText } = await renderHome();
     await act(async () => {
-      fireEvent.press(await findByText("Start verification"));
+      fireEvent.press(await findByText("Comenzar verificación"));
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
   });
@@ -260,7 +260,7 @@ describe("Home: compliance", () => {
     } satisfies ComplianceCase);
     const { findByText } = await renderHome();
     await act(async () => {
-      fireEvent.press(await findByText("Continue verification"));
+      fireEvent.press(await findByText("Continuar verificación"));
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
   });
@@ -283,7 +283,7 @@ describe("Home: commissions", () => {
 
   it("shows an empty state when there are no commissions", async () => {
     const { findByText } = await renderHome();
-    expect(await findByText("No commissions yet")).toBeTruthy();
+    expect(await findByText("Aún no hay comisiones")).toBeTruthy();
   });
 
   it("renders distinct badges for earned/void/reversed commissions", async () => {
@@ -293,15 +293,15 @@ describe("Home: commissions", () => {
       { ...baseCommission, id: "c-3", status: "reversed" },
     ]);
     const { findByText } = await renderHome();
-    expect(await findByText("Earned")).toBeTruthy();
-    expect(await findByText("Void")).toBeTruthy();
-    expect(await findByText("Reversed")).toBeTruthy();
+    expect(await findByText("Ganada")).toBeTruthy();
+    expect(await findByText("Anulada")).toBeTruthy();
+    expect(await findByText("Revertida")).toBeTruthy();
   });
 
   it("navigates to the Commissions screen from the summary", async () => {
     mockedFetchMyCommissions.mockResolvedValue([baseCommission]);
     const { findByText } = await renderHome();
-    const link = await findByText("View all commissions");
+    const link = await findByText("Ver todas las comisiones");
     fireEvent.press(link);
     expect(mockRouter.push).toHaveBeenCalledWith("/commissions");
   });
@@ -335,7 +335,7 @@ describe("Home: wallet", () => {
       { currency: "USD", status: "active", pending_balance: "100.00", available_balance: "250.00" },
     ] satisfies WalletSummary[]);
     const { findByText } = await renderHome();
-    const link = await findByText("View wallet");
+    const link = await findByText("Ver monedero");
     fireEvent.press(link);
     expect(mockRouter.push).toHaveBeenCalledWith("/(app)/wallet");
   });
@@ -354,7 +354,7 @@ describe("Home: resilience", () => {
         { currency: "USD", status: "active", pending_balance: "0.00", available_balance: "50.00" },
       ] satisfies WalletSummary[]);
       const { findByText } = await renderHome();
-      expect(await findByText(/Something went wrong/, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/Algo salió mal/, undefined, { timeout: 8000 })).toBeTruthy();
       expect(await findByText("USD")).toBeTruthy();
       expect(await findByText(/50\.00/)).toBeTruthy();
     },
@@ -366,11 +366,11 @@ describe("Home: resilience", () => {
     async () => {
       mockedFetchMyCommissions.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
       const { findByText, getByText } = await renderHome();
-      expect(await findByText(/offline/i, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
 
       mockedFetchMyCommissions.mockResolvedValueOnce([]);
-      fireEvent.press(getByText("Try again"));
-      expect(await findByText("No commissions yet")).toBeTruthy();
+      fireEvent.press(getByText("Intenta de nuevo"));
+      expect(await findByText("Aún no hay comisiones")).toBeTruthy();
     },
     15000,
   );
@@ -412,7 +412,7 @@ describe("Home: network", () => {
       meta: { total: 1 },
     });
     const { findByText } = await renderHome();
-    const link = await findByText("View network");
+    const link = await findByText("Ver red");
     fireEvent.press(link);
     expect(mockRouter.push).toHaveBeenCalledWith("/(app)/network");
   });
@@ -439,14 +439,14 @@ describe("Home: notification bell", () => {
   it("shows no badge when there are zero unread notifications", async () => {
     mockedFetchUnreadNotificationCount.mockResolvedValue(0);
     const { findByText, queryByText } = await renderHome();
-    await findByText("Hi, Jordan");
+    await findByText("Hola, Jordan");
     expect(queryByText("0")).toBeNull();
   });
 
   it("shows the exact count for 1-99 unread notifications", async () => {
     mockedFetchUnreadNotificationCount.mockResolvedValue(7);
     const { findByLabelText } = await renderHome();
-    expect(await findByLabelText("Notifications, 7 unread")).toBeTruthy();
+    expect(await findByLabelText("Notificaciones, 7 sin leer")).toBeTruthy();
   });
 
   it("shows 99+ for 100 or more unread notifications, never the exact backend count", async () => {
@@ -459,7 +459,7 @@ describe("Home: notification bell", () => {
   it("navigates to the notifications screen when pressed", async () => {
     mockedFetchUnreadNotificationCount.mockResolvedValue(3);
     const { findByLabelText } = await renderHome();
-    const bell = await findByLabelText("Notifications, 3 unread");
+    const bell = await findByLabelText("Notificaciones, 3 sin leer");
     await act(async () => {
       fireEvent.press(bell);
     });

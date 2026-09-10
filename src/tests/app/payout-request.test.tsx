@@ -150,50 +150,50 @@ afterEach(() => {
 describe("Payout request: amount validation", () => {
   it("shows an error for excessive decimal places", async () => {
     const { findByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
-    fireEvent.changeText(getByLabelText("Amount"), "100.123");
-    expect(await findByText(/up to 2 decimal places/i)).toBeTruthy();
+    await findByText("Elegible para retirar");
+    fireEvent.changeText(getByLabelText("Monto"), "100.123");
+    expect(await findByText(/hasta 2 decimales/i)).toBeTruthy();
   });
 
   it("shows an error for zero", async () => {
     const { findByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
-    fireEvent.changeText(getByLabelText("Amount"), "0");
-    expect(await findByText(/greater than zero/i)).toBeTruthy();
+    await findByText("Elegible para retirar");
+    fireEvent.changeText(getByLabelText("Monto"), "0");
+    expect(await findByText(/mayor a cero/i)).toBeTruthy();
   });
 
   it("shows an error for malformed input", async () => {
     const { findByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
-    fireEvent.changeText(getByLabelText("Amount"), "abc");
-    expect(await findByText(/valid amount/i)).toBeTruthy();
+    await findByText("Elegible para retirar");
+    fireEvent.changeText(getByLabelText("Monto"), "abc");
+    expect(await findByText(/monto válido/i)).toBeTruthy();
   });
 
   it("rejects an amount that exceeds eligibility", async () => {
     const { findByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
-    fireEvent.changeText(getByLabelText("Amount"), "900.00");
-    expect(await findByText(/up to \$800\.00/i)).toBeTruthy();
+    await findByText("Elegible para retirar");
+    fireEvent.changeText(getByLabelText("Monto"), "900.00");
+    expect(await findByText(/hasta \$800\.00/i)).toBeTruthy();
   });
 
   it("disables submit until a valid amount and destination are chosen", async () => {
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     // Nothing entered yet -- pressing submit must not call the API at all.
     await act(async () => {
-      fireEvent.press(getByText("Request payout"));
+      fireEvent.press(getByText("Solicitar retiro"));
     });
     expect(mockedRequestPayout).not.toHaveBeenCalled();
 
     await act(async () => {
-      fireEvent.changeText(getByLabelText("Amount"), "100.00");
+      fireEvent.changeText(getByLabelText("Monto"), "100.00");
     });
     await act(async () => {
       fireEvent.press(getByText("My BBVA account"));
     });
     await act(async () => {
-      fireEvent.press(getByText("Request payout"));
+      fireEvent.press(getByText("Solicitar retiro"));
     });
 
     await waitFor(() => expect(mockedRequestPayout).toHaveBeenCalledTimes(1));
@@ -204,19 +204,19 @@ describe("Payout request: no destination", () => {
   it("shows a clean no-destination state instead of blocking on a spinner", async () => {
     mockedFetchPayoutDestinations.mockResolvedValue(destinationsPage([]));
     const { findByText } = await renderRequest();
-    expect(await findByText("No payout destination yet")).toBeTruthy();
+    expect(await findByText("Aún no hay un destino de retiro")).toBeTruthy();
   });
 });
 
 async function fillAndSubmit(getByLabelText: (label: string) => unknown, getByText: (text: string) => unknown, amount = "100.00") {
   await act(async () => {
-    fireEvent.changeText(getByLabelText("Amount") as never, amount);
+    fireEvent.changeText(getByLabelText("Monto") as never, amount);
   });
   await act(async () => {
     fireEvent.press(getByText("My BBVA account") as never);
   });
   await act(async () => {
-    fireEvent.press(getByText("Request payout") as never);
+    fireEvent.press(getByText("Solicitar retiro") as never);
   });
 }
 
@@ -224,7 +224,7 @@ describe("Payout request: submission", () => {
   it("submits with the exact amount_minor, currency, destination, and a generated idempotency key", async () => {
     mockedRequestPayout.mockResolvedValue(payout());
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     await fillAndSubmit(getByLabelText, getByText);
 
@@ -241,13 +241,13 @@ describe("Payout request: submission", () => {
   it("shows success feedback and returns after a successful request", async () => {
     mockedRequestPayout.mockResolvedValue(payout());
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     await fillAndSubmit(getByLabelText, getByText);
 
     expect(alertSpy).toHaveBeenCalledWith(
-      "Payout requested",
-      expect.stringMatching(/submitted/i),
+      "Retiro solicitado",
+      expect.stringMatching(/enviada/i),
       expect.any(Array),
     );
   });
@@ -256,13 +256,13 @@ describe("Payout request: submission", () => {
     mockedRequestPayout.mockRejectedValueOnce(new ApiError("offline", "Unable to reach the server."));
     mockedRequestPayout.mockResolvedValueOnce(payout());
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     await fillAndSubmit(getByLabelText, getByText);
-    expect(await findByText(/offline/i)).toBeTruthy();
+    expect(await findByText(/conexión/i)).toBeTruthy();
 
     await act(async () => {
-      fireEvent.press(getByText("Request payout"));
+      fireEvent.press(getByText("Solicitar retiro"));
     });
 
     expect(mockedRequestPayout).toHaveBeenCalledTimes(2);
@@ -273,7 +273,7 @@ describe("Payout request: submission", () => {
   it("shows the backend's validation error rather than a generic failure", async () => {
     mockedRequestPayout.mockRejectedValue(new ApiError("validation", "The amount exceeds your eligible balance.", 422));
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     await fillAndSubmit(getByLabelText, getByText);
 
@@ -283,7 +283,7 @@ describe("Payout request: submission", () => {
   it("fires payout_request_started and payout_request_submitted with no properties", async () => {
     mockedRequestPayout.mockResolvedValue(payout());
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
 
     const startedCall = mockedCapture.mock.calls.find(([event]) => event === "payout_request_started");
     expect(startedCall).toHaveLength(1);
@@ -298,7 +298,7 @@ describe("Payout request: privacy", () => {
   it("never sends amount, balance, or destination identifiers to analytics", async () => {
     mockedRequestPayout.mockResolvedValue(payout());
     const { findByText, getByText, getByLabelText } = await renderRequest();
-    await findByText("Eligible to withdraw");
+    await findByText("Elegible para retirar");
     await fillAndSubmit(getByLabelText, getByText);
 
     for (const call of mockedCapture.mock.calls) {

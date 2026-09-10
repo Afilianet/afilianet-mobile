@@ -48,7 +48,7 @@ const mockedFetchMyPayouts = fetchMyPayouts as jest.Mock;
 const mockedCancelPayout = cancelPayout as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
 
-/** Auto-confirms the "Cancel withdrawal?" Alert by invoking its destructive button. */
+/** Auto-confirms the "¿Cancelar retiro?" Alert by invoking its destructive button. */
 function autoConfirmCancelAlert() {
   return jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
     const destructive = buttons?.find((button) => button.style === "destructive");
@@ -241,17 +241,17 @@ describe("Payouts: history and statuses", () => {
       ]),
     );
     const { findByText } = await renderPayouts();
-    expect(await findByText("Requested")).toBeTruthy();
-    expect(await findByText("Processing")).toBeTruthy();
-    expect(await findByText("Paid")).toBeTruthy();
-    expect(await findByText("Failed")).toBeTruthy();
-    expect(await findByText("Cancelled")).toBeTruthy();
+    expect(await findByText("Solicitado")).toBeTruthy();
+    expect(await findByText("En proceso")).toBeTruthy();
+    expect(await findByText("Pagado")).toBeTruthy();
+    expect(await findByText("Fallido")).toBeTruthy();
+    expect(await findByText("Cancelado")).toBeTruthy();
   });
 
   it("shows an empty state with no payouts yet", async () => {
     mockedFetchMyPayouts.mockResolvedValue(payoutsPage([]));
     const { findByText } = await renderPayouts();
-    expect(await findByText("No payout requests yet")).toBeTruthy();
+    expect(await findByText("Aún no hay solicitudes de retiro")).toBeTruthy();
   });
 });
 
@@ -262,9 +262,9 @@ describe("Payouts: detail sheet", () => {
 
     await openRequestedPayoutDetail(findByText);
 
-    expect(await findByText("Payout details")).toBeTruthy();
-    expect(await findByText(/has been requested and that amount is reserved/i)).toBeTruthy();
-    expect(await findByText("Cancel withdrawal")).toBeTruthy();
+    expect(await findByText("Detalles del retiro")).toBeTruthy();
+    expect(await findByText(/fue solicitado y ese monto está reservado/i)).toBeTruthy();
+    expect(await findByText("Cancelar retiro")).toBeTruthy();
   });
 
   it("explains failed without implying a ledger refund", async () => {
@@ -278,7 +278,7 @@ describe("Payouts: detail sheet", () => {
       fireEvent.press(row);
     });
 
-    expect(await findByText(/reservation was released/i)).toBeTruthy();
+    expect(await findByText(/reserva fue liberada/i)).toBeTruthy();
     expect(queryByText(/refund/i)).toBeNull();
   });
 
@@ -293,8 +293,8 @@ describe("Payouts: detail sheet", () => {
         fireEvent.press(row);
       });
 
-      expect(await findByText("Payout details")).toBeTruthy();
-      expect(queryByText("Cancel withdrawal")).toBeNull();
+      expect(await findByText("Detalles del retiro")).toBeTruthy();
+      expect(queryByText("Cancelar retiro")).toBeNull();
     },
   );
 });
@@ -307,12 +307,12 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
 
     expect(alertSpy).toHaveBeenCalledWith(
-      "Cancel withdrawal?",
-      expect.stringMatching(/releases the reserved amount/i),
+      "¿Cancelar retiro?",
+      expect.stringMatching(/regresa el monto reservado/i),
       expect.any(Array),
     );
     expect(mockedCancelPayout).not.toHaveBeenCalled();
@@ -328,12 +328,12 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
 
     expect(mockedCancelPayout.mock.calls[0][0]).toBe("payout-1");
-    await waitFor(() => expect(queryByText("Payout details")).toBeNull());
-    expect(await findByText(/withdrawal cancelled/i)).toBeTruthy();
+    await waitFor(() => expect(queryByText("Detalles del retiro")).toBeNull());
+    expect(await findByText(/retiro cancelado/i)).toBeTruthy();
 
     alertSpy.mockRestore();
   });
@@ -351,7 +351,7 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
     await waitFor(() => expect(mockedFetchMyPayouts.mock.calls.length).toBeGreaterThan(payoutsCallsBefore));
 
@@ -373,11 +373,11 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
 
-    await waitFor(() => expect(queryByText("Payout details")).toBeNull());
-    expect(await findByText(/already moved on/i)).toBeTruthy();
+    await waitFor(() => expect(queryByText("Detalles del retiro")).toBeNull());
+    expect(await findByText(/ya avanzó/i)).toBeTruthy();
     await waitFor(() => expect(mockedFetchMyPayouts.mock.calls.length).toBeGreaterThan(payoutsCallsBefore));
 
     alertSpy.mockRestore();
@@ -391,11 +391,11 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
 
-    expect(await findByText(/don't have permission/i)).toBeTruthy();
-    expect(await findByText("Payout details")).toBeTruthy();
+    expect(await findByText(/no tienes permiso/i)).toBeTruthy();
+    expect(await findByText("Detalles del retiro")).toBeTruthy();
 
     alertSpy.mockRestore();
   });
@@ -408,7 +408,7 @@ describe("Payouts: cancellation", () => {
 
     await openRequestedPayoutDetail(findByText);
     await act(async () => {
-      fireEvent.press(await findByText("Cancel withdrawal"));
+      fireEvent.press(await findByText("Cancelar retiro"));
     });
     await waitFor(() => expect(mockedCancelPayout).toHaveBeenCalledTimes(1));
 
@@ -432,7 +432,7 @@ describe("Payouts: destinations", () => {
   it("shows a clean no-destination state", async () => {
     mockedFetchPayoutDestinations.mockResolvedValue(destinationsPage([]));
     const { findByText } = await renderPayouts();
-    expect(await findByText(/No payout destination yet/)).toBeTruthy();
+    expect(await findByText(/Aún no hay un destino de retiro/)).toBeTruthy();
   });
 });
 
@@ -440,8 +440,8 @@ describe("Payouts: no affiliate profile", () => {
   it("shows an enrollment message instead of payout content", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderPayouts();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("Recent payouts")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("Retiros recientes")).toBeNull();
   });
 });
 

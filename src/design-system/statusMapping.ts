@@ -1,3 +1,4 @@
+import { strings } from "../i18n";
 import type { BadgeTone } from "./theme";
 
 interface StatusCopy {
@@ -6,7 +7,7 @@ interface StatusCopy {
   description?: string;
 }
 
-const FALLBACK: StatusCopy = { label: "Unknown", tone: "neutral" };
+const FALLBACK: StatusCopy = { label: strings.status.unknown, tone: "neutral" };
 
 function lookup(map: Record<string, StatusCopy>, status: string): StatusCopy {
   return map[status] ?? FALLBACK;
@@ -29,10 +30,10 @@ function lookup(map: Record<string, StatusCopy>, status: string): StatusCopy {
 
 // app/Modules/Affiliates/Enums/AffiliateStatus.php
 const AFFILIATE_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  active: { label: "Active", tone: "success" },
-  suspended: { label: "Suspended", tone: "danger" },
-  terminated: { label: "Terminated", tone: "danger" },
+  pending: { label: strings.status.affiliate.pending, tone: "warning" },
+  active: { label: strings.status.affiliate.active, tone: "success" },
+  suspended: { label: strings.status.affiliate.suspended, tone: "danger" },
+  terminated: { label: strings.status.affiliate.terminated, tone: "danger" },
 };
 
 export function affiliateStatusCopy(status: string): StatusCopy {
@@ -43,22 +44,35 @@ export function affiliateStatusCopy(status: string): StatusCopy {
 // actually returned by GET /api/v1/compliance (a case doesn't exist until
 // POST .../start is called) -- it's synthesized client-side when that
 // endpoint 404s, but kept here so its copy lives in one place.
+//
+// Spanish-translated (see src/i18n/) -- the first area migrated in the
+// Spanish-first/light-theme phase. Tones are still decided here (the
+// official tone rule above); only label/description text comes from the
+// dictionary, mirroring every other status map in this file structurally.
 const COMPLIANCE_STATUS: Record<string, StatusCopy> = {
   not_started: {
-    label: "Not started",
+    label: strings.compliance.status.not_started.label,
     tone: "neutral",
-    description: "Complete your verification to unlock full affiliate features.",
+    description: strings.compliance.status.not_started.description,
   },
-  in_progress: { label: "In progress", tone: "warning", description: "Verification in progress." },
-  pending_review: { label: "Pending review", tone: "warning", description: "We're reviewing your submission." },
-  manual_review: { label: "Manual review", tone: "warning", description: "Your verification needs manual review." },
-  approved: { label: "Approved", tone: "success" },
+  in_progress: { label: strings.compliance.status.in_progress.label, tone: "warning", description: strings.compliance.status.in_progress.description },
+  pending_review: {
+    label: strings.compliance.status.pending_review.label,
+    tone: "warning",
+    description: strings.compliance.status.pending_review.description,
+  },
+  manual_review: {
+    label: strings.compliance.status.manual_review.label,
+    tone: "warning",
+    description: strings.compliance.status.manual_review.description,
+  },
+  approved: { label: strings.compliance.status.approved.label, tone: "success" },
   rejected: {
-    label: "Rejected",
+    label: strings.compliance.status.rejected.label,
     tone: "danger",
-    description: "Your verification was rejected and needs attention.",
+    description: strings.compliance.status.rejected.description,
   },
-  expired: { label: "Expired", tone: "danger", description: "Your verification has expired." },
+  expired: { label: strings.compliance.status.expired.label, tone: "danger", description: strings.compliance.status.expired.description },
 };
 
 export function complianceStatusCopy(status: string): StatusCopy {
@@ -70,12 +84,12 @@ export function complianceStatusCopy(status: string): StatusCopy {
 // practice (ComplianceService only ever sets pending/passed/failed) --
 // mapped here anyway for completeness, same official tone rule as above.
 const COMPLIANCE_STEP_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  in_progress: { label: "In progress", tone: "warning" },
-  passed: { label: "Passed", tone: "success" },
-  failed: { label: "Failed", tone: "danger" },
-  manual_review: { label: "Manual review", tone: "warning" },
-  skipped: { label: "Skipped", tone: "neutral" },
+  pending: { label: strings.compliance.stepStatus.pending, tone: "warning" },
+  in_progress: { label: strings.compliance.stepStatus.in_progress, tone: "warning" },
+  passed: { label: strings.compliance.stepStatus.passed, tone: "success" },
+  failed: { label: strings.compliance.stepStatus.failed, tone: "danger" },
+  manual_review: { label: strings.compliance.stepStatus.manual_review, tone: "warning" },
+  skipped: { label: strings.compliance.stepStatus.skipped, tone: "neutral" },
 };
 
 export function complianceStepStatusCopy(status: string): StatusCopy {
@@ -84,10 +98,10 @@ export function complianceStepStatusCopy(status: string): StatusCopy {
 
 // app/Modules/Commissions/Enums/CommissionStatus.php
 const COMMISSION_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  earned: { label: "Earned", tone: "success" },
-  reversed: { label: "Reversed", tone: "danger" },
-  void: { label: "Void", tone: "neutral" },
+  pending: { label: strings.status.commission.pending, tone: "warning" },
+  earned: { label: strings.status.commission.earned, tone: "success" },
+  reversed: { label: strings.status.commission.reversed, tone: "danger" },
+  void: { label: strings.status.commission.void, tone: "neutral" },
 };
 
 export function commissionStatusCopy(status: string): StatusCopy {
@@ -100,10 +114,10 @@ export function commissionStatusCopy(status: string): StatusCopy {
 // a lapsed, no-longer-actionable link, closer to the official rule's
 // "draft/archived/unavailable -> neutral" bucket than to an error state.
 const INVITATION_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  accepted: { label: "Accepted", tone: "success" },
-  expired: { label: "Expired", tone: "neutral" },
-  revoked: { label: "Revoked", tone: "danger" },
+  pending: { label: strings.status.invitation.pending, tone: "warning" },
+  accepted: { label: strings.status.invitation.accepted, tone: "success" },
+  expired: { label: strings.status.invitation.expired, tone: "neutral" },
+  revoked: { label: strings.status.invitation.revoked, tone: "danger" },
 };
 
 export function invitationStatusCopy(status: string): StatusCopy {
@@ -118,9 +132,9 @@ export function invitationStatusCopy(status: string): StatusCopy {
 // matures or gets reversed, and is toned "danger" for the same reason
 // CommissionStatus.reversed is -- it represents money taken back.
 const LEDGER_ENTRY_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  available: { label: "Available", tone: "success" },
-  reversed: { label: "Reversed", tone: "danger" },
+  pending: { label: strings.status.ledgerEntry.pending, tone: "warning" },
+  available: { label: strings.status.ledgerEntry.available, tone: "success" },
+  reversed: { label: strings.status.ledgerEntry.reversed, tone: "danger" },
 };
 
 export function ledgerEntryStatusCopy(status: string): StatusCopy {
@@ -135,29 +149,29 @@ export function ledgerEntryStatusCopy(status: string): StatusCopy {
 // affiliate's own choice and isn't a failure.
 const PAYOUT_STATUS: Record<string, StatusCopy> = {
   requested: {
-    label: "Requested",
+    label: strings.status.payout.requested.label,
     tone: "warning",
-    description: "The withdrawal has been requested and that amount is reserved.",
+    description: strings.status.payout.requested.description,
   },
   processing: {
-    label: "Processing",
+    label: strings.status.payout.processing.label,
     tone: "warning",
-    description: "The payout is being processed and remains reserved.",
+    description: strings.status.payout.processing.description,
   },
   paid: {
-    label: "Paid",
+    label: strings.status.payout.paid.label,
     tone: "success",
-    description: "The payout was confirmed and the wallet ledger was debited.",
+    description: strings.status.payout.paid.description,
   },
   failed: {
-    label: "Failed",
+    label: strings.status.payout.failed.label,
     tone: "danger",
-    description: "The payout did not complete. The reservation was released.",
+    description: strings.status.payout.failed.description,
   },
   cancelled: {
-    label: "Cancelled",
+    label: strings.status.payout.cancelled.label,
     tone: "neutral",
-    description: "The request was cancelled before payment. The reservation was released.",
+    description: strings.status.payout.cancelled.description,
   },
 };
 
@@ -168,8 +182,8 @@ export function payoutStatusCopy(status: string): StatusCopy {
 // PayoutDestination.status ("active" | "inactive") -- not a lifecycle enum
 // like the others above, just whether the destination can currently be used.
 const PAYOUT_DESTINATION_STATUS: Record<string, StatusCopy> = {
-  active: { label: "Active", tone: "success" },
-  inactive: { label: "Inactive", tone: "neutral" },
+  active: { label: strings.status.payoutDestination.active, tone: "success" },
+  inactive: { label: strings.status.payoutDestination.inactive, tone: "neutral" },
 };
 
 export function payoutDestinationStatusCopy(status: string): StatusCopy {

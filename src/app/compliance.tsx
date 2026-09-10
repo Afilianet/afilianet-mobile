@@ -14,6 +14,7 @@ import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { complianceStatusCopy } from "../design-system/statusMapping";
+import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useCompliance } from "../hooks/useCompliance";
 import { useComplianceSteps } from "../hooks/useComplianceSteps";
@@ -21,14 +22,7 @@ import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
 import { formatDate } from "../utils/date";
 
-const STEP_TYPE_LABELS: Record<string, string> = {
-  identity_information: "Identity information",
-  identity_document: "Identity document",
-  biometric_liveness: "Liveness check",
-  face_match: "Face match",
-  verbal_consent: "Verbal consent",
-  terms_acceptance: "Terms acceptance",
-};
+const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
 
 export default function ComplianceScreen() {
   const router = useRouter();
@@ -58,7 +52,7 @@ export default function ComplianceScreen() {
     try {
       await startMutation.mutateAsync();
     } catch (error) {
-      setStartError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setStartError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
     }
   }
 
@@ -74,8 +68,8 @@ export default function ComplianceScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.header}>
-          <Text style={styles.heading}>Compliance</Text>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <Text style={styles.heading}>{strings.compliance.screenTitle}</Text>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -84,8 +78,8 @@ export default function ComplianceScreen() {
           <SkeletonGroup lines={4} />
         ) : noAffiliateProfile ? (
           <EmptyState
-            title="Join the affiliate program"
-            description="You need an affiliate profile in this organization before verification applies to you."
+            title={strings.compliance.joinAffiliateProgram.title}
+            description={strings.compliance.joinAffiliateProgram.description}
           />
         ) : complianceQuery.isPending ? (
           <SkeletonGroup lines={4} />
@@ -117,7 +111,7 @@ function NotStartedCard({ onStart, loading, error }: { onStart: () => void; load
       </View>
       {status.description ? <Text style={styles.description}>{status.description}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label="Start verification" fullWidth loading={loading} onPress={onStart} />
+      <Button label={strings.compliance.startVerification} fullWidth loading={loading} onPress={onStart} />
     </Card>
   );
 }
@@ -128,7 +122,7 @@ function CaseCard({ compliance }: { compliance: NonNullable<ReturnType<typeof us
 
   return (
     <Card style={styles.card}>
-      <View style={styles.statusRow} accessible accessibilityLabel={`Verification status: ${status.label}`}>
+      <View style={styles.statusRow} accessible accessibilityLabel={strings.compliance.verificationStatusA11y(status.label)}>
         <Badge label={status.label} tone={status.tone} />
       </View>
       {status.description ? <Text style={styles.description}>{status.description}</Text> : null}
@@ -138,14 +132,14 @@ function CaseCard({ compliance }: { compliance: NonNullable<ReturnType<typeof us
       ) : null}
 
       {nextStepLabel && !["approved", "rejected", "expired"].includes(compliance.status) ? (
-        <Text style={styles.meta}>Next: {nextStepLabel}</Text>
+        <Text style={styles.meta}>{strings.compliance.nextStep(nextStepLabel)}</Text>
       ) : null}
 
       {compliance.status === "expired" && compliance.expires_at ? (
-        <Text style={styles.meta}>Expired {formatDate(compliance.expires_at)}</Text>
+        <Text style={styles.meta}>{strings.compliance.expiredOn(formatDate(compliance.expires_at))}</Text>
       ) : null}
 
-      {compliance.approved_at ? <Text style={styles.meta}>Approved {formatDate(compliance.approved_at)}</Text> : null}
+      {compliance.approved_at ? <Text style={styles.meta}>{strings.compliance.approvedOn(formatDate(compliance.approved_at))}</Text> : null}
     </Card>
   );
 }
@@ -157,7 +151,7 @@ function StepsCard({ query }: { query: ReturnType<typeof useComplianceSteps> }) 
   } else if (query.isError) {
     body = (
       <View style={styles.stateGroup}>
-        <Text style={styles.error}>Couldn&apos;t load your required steps.</Text>
+        <Text style={styles.error}>{strings.compliance.couldNotLoadSteps}</Text>
         <RetryButton onPress={() => void query.refetch()} loading={query.isFetching} />
       </View>
     );
@@ -173,15 +167,15 @@ function StepsCard({ query }: { query: ReturnType<typeof useComplianceSteps> }) 
     body = (
       <EmptyState
         compact
-        title="No required steps"
-        description="This organization hasn't configured any required verification steps."
+        title={strings.compliance.noRequiredSteps.title}
+        description={strings.compliance.noRequiredSteps.description}
       />
     );
   }
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.label}>Required steps</Text>
+      <Text style={styles.label}>{strings.compliance.requiredSteps}</Text>
       {body}
     </Card>
   );

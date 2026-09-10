@@ -123,7 +123,7 @@ describe("Affiliate detail: 403", () => {
 
     expect(await findByText("Error 403")).toBeTruthy();
     // No generic/technical error copy leaking through for what is an expected, policy-driven outcome.
-    expect(queryByText(/didn't load/i)).toBeNull();
+    expect(queryByText(/no se pudo cargar/i)).toBeNull();
   });
 
   it("does not fetch this affiliate's sponsored/placement-children lists when the detail fetch is forbidden", async () => {
@@ -139,7 +139,7 @@ describe("Affiliate detail: not found", () => {
   it("shows a not-found message for an unknown affiliate id", async () => {
     mockedFetchAffiliateDetails.mockRejectedValue(new ApiError("not_found", "Not Found.", 404));
     const { findByText } = await renderDetail();
-    expect(await findByText("Not found")).toBeTruthy();
+    expect(await findByText("No encontrado")).toBeTruthy();
   });
 });
 
@@ -166,11 +166,11 @@ describe("Affiliate detail: loading and error", () => {
     async () => {
       mockedFetchAffiliateDetails.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
       const { findByText, getByText } = await renderDetail();
-      expect(await findByText(/offline/i, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
 
       mockedFetchAffiliateDetails.mockResolvedValueOnce(TARGET);
       await act(async () => {
-        fireEvent.press(getByText("Try again"));
+        fireEvent.press(getByText("Intenta de nuevo"));
       });
       expect(await findByText("TARG7000")).toBeTruthy();
     },

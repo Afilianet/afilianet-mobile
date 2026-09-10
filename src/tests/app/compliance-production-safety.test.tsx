@@ -149,10 +149,10 @@ describe("Compliance in a production build", () => {
     const { findByText, queryByText } = await renderCompliance();
 
     // Production-safe status copy for each step type still renders...
-    expect(await findByText("Identity document")).toBeTruthy();
-    expect(await findByText("Liveness check")).toBeTruthy();
-    expect(await findByText("Face match")).toBeTruthy();
-    expect(await findByText("Verbal consent")).toBeTruthy();
+    expect(await findByText("Documento de identidad")).toBeTruthy();
+    expect(await findByText("Prueba de vida")).toBeTruthy();
+    expect(await findByText("Coincidencia facial")).toBeTruthy();
+    expect(await findByText("Consentimiento verbal")).toBeTruthy();
 
     // ...but no simulator, no Pass/Fail controls, anywhere on the screen.
     expect(queryByText("Development simulator")).toBeNull();
@@ -164,6 +164,6 @@ describe("Compliance in a production build", () => {
   it("still allows the real terms acceptance action -- it is not a Fake-provider step", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Accept terms")).toBeTruthy();
+    expect(await findByText("Aceptar términos")).toBeTruthy();
   });
 });

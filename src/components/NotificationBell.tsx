@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Icon } from "../design-system/icons/Icon";
 import { fontSize, fontWeight } from "../design-system/tokens";
+import { strings } from "../i18n";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
 import { routes } from "../navigation/routes";
 import { IconButton } from "./ui/IconButton";
@@ -22,7 +23,7 @@ export function NotificationBell() {
   return (
     <View style={styles.wrapper}>
       <IconButton
-        label={label ? `Notifications, ${unreadCount} unread` : "Notifications"}
+        label={label ? strings.notifications.bellUnreadA11y(unreadCount ?? 0) : strings.notifications.title}
         onPress={() => router.push(routes.notifications as never)}
       >
         <Icon name="campana" size={20} color={colors.textPrimary} />

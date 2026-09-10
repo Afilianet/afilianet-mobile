@@ -19,12 +19,12 @@ describe("kindForStatus", () => {
 describe("friendlyMessage", () => {
   it("gives a generic session-expired message for unauthorized (not the raw backend text)", () => {
     const error = new ApiError("unauthorized", "Unauthenticated.", 401);
-    expect(friendlyMessage(error)).toBe("Your session has expired. Please sign in again.");
+    expect(friendlyMessage(error)).toBe("Tu sesión expiró. Inicia sesión de nuevo.");
   });
 
   it("gives a rate-limit message for 429", () => {
     const error = new ApiError("rate_limited", "Too Many Attempts.", 429);
-    expect(friendlyMessage(error)).toMatch(/too many attempts/i);
+    expect(friendlyMessage(error)).toMatch(/demasiados intentos/i);
   });
 });
 
@@ -41,12 +41,12 @@ describe("loginErrorMessage", () => {
 
   it("shows a rate-limit message for 429", () => {
     const error = new ApiError("rate_limited", "Too Many Attempts.", 429);
-    expect(loginErrorMessage(error)).toMatch(/too many attempts/i);
+    expect(loginErrorMessage(error)).toMatch(/demasiados intentos/i);
   });
 
   it("shows an offline message without exposing backend details", () => {
     const error = new ApiError("offline", "Unable to reach the server.");
-    expect(loginErrorMessage(error)).toMatch(/offline/i);
+    expect(loginErrorMessage(error)).toMatch(/conexión/i);
   });
 
   it("never surfaces raw backend text for server errors", () => {

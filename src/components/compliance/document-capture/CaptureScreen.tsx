@@ -6,18 +6,13 @@ import { useEvidenceUploadFlow } from "../../../hooks/useEvidenceUploadFlow";
 import type { Evidence, EvidenceType } from "../../../types/api";
 import { resolveMimeType, validateCapturedAsset } from "../../../utils/documentCapture";
 import { isApiError, friendlyMessage } from "../../../api/errors";
+import { strings } from "../../../i18n";
 import { analytics } from "../../../services/analytics";
 import { Button } from "../../ui/Button";
 import { colors, radius, spacing, typography } from "../../ui/theme";
 import { EVIDENCE_TYPE_LABELS } from "./documentCaptureCopy";
 
-const GUIDANCE = [
-  "Keep the whole document inside the frame",
-  "Avoid glare -- angle away from direct light",
-  "Use good, even lighting",
-  "Hold steady so the text stays sharp",
-  "Don't cover any of the document's edges",
-];
+const GUIDANCE = strings.documentCapture.guidance;
 
 type CapturedAsset = { uri: string; width: number; height: number; fileSize: number | null; mimeType: string | null };
 type LocalStage =
@@ -80,11 +75,11 @@ export function CaptureScreen({
   async function handleUsePhoto(asset: CapturedAsset) {
     const mimeType = resolveMimeType(asset.mimeType);
     if (!mimeType) {
-      setUploadError("That photo's format isn't supported. Please retake it.");
+      setUploadError(strings.documentCapture.unsupportedFormat);
       return;
     }
     if (asset.fileSize === null) {
-      setUploadError("That photo looks empty or corrupted. Please retake it.");
+      setUploadError(strings.documentCapture.corruptedPhoto);
       return;
     }
 
@@ -101,7 +96,7 @@ export function CaptureScreen({
       analytics.capture("document_evidence_captured");
       onUploaded(evidenceType, evidence);
     } catch (error) {
-      setUploadError(isApiError(error) ? friendlyMessage(error) : "The upload didn't complete. Please try again.");
+      setUploadError(isApiError(error) ? friendlyMessage(error) : strings.documentCapture.uploadIncomplete);
     }
   }
 
@@ -112,12 +107,22 @@ export function CaptureScreen({
     return (
       <View style={styles.container}>
         <Text style={styles.title}>{label}</Text>
-        <Image source={{ uri: stage.asset.uri }} style={styles.preview} contentFit="contain" accessibilityLabel={`Preview of captured ${label.toLowerCase()}`} />
+        <Image
+          source={{ uri: stage.asset.uri }}
+          style={styles.preview}
+          contentFit="contain"
+          accessibilityLabel={strings.documentCapture.previewA11y(label.toLowerCase())}
+        />
         {uploadError ? <Text style={styles.error}>{uploadError}</Text> : null}
         {uploading ? <Text style={styles.meta}>{uploadStageLabel(uploadFlow.stage)}</Text> : null}
         <View style={styles.actions}>
-          <Button label="Retake" variant="secondary" disabled={uploading} onPress={() => setStage({ kind: "guidance" })} />
-          <Button label="Use this photo" loading={uploading} onPress={() => void handleUsePhoto(stage.asset)} />
+          <Button
+            label={strings.documentCapture.retake}
+            variant="secondary"
+            disabled={uploading}
+            onPress={() => setStage({ kind: "guidance" })}
+          />
+          <Button label={strings.documentCapture.useThisPhoto} loading={uploading} onPress={() => void handleUsePhoto(stage.asset)} />
         </View>
       </View>
     );
@@ -126,13 +131,11 @@ export function CaptureScreen({
   if (stage.kind === "permission_denied") {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Camera access needed</Text>
-        <Text style={styles.description}>
-          Afilianet needs camera access to capture your {label.toLowerCase()}. Please enable it in your device settings.
-        </Text>
+        <Text style={styles.title}>{strings.documentCapture.cameraAccessNeededTitle}</Text>
+        <Text style={styles.description}>{strings.documentCapture.cameraAccessNeeded(label.toLowerCase())}</Text>
         <View style={styles.actions}>
-          <Button label="Cancel" variant="secondary" onPress={onCancel} />
-          <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+          <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
+          <Button label={strings.documentCapture.openSettings} onPress={() => void Linking.openSettings()} />
         </View>
       </View>
     );
@@ -141,9 +144,9 @@ export function CaptureScreen({
   if (stage.kind === "unavailable") {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Camera unavailable</Text>
-        <Text style={styles.description}>This device doesn&apos;t have a usable camera right now.</Text>
-        <Button label="Cancel" variant="secondary" onPress={onCancel} />
+        <Text style={styles.title}>{strings.documentCapture.cameraUnavailableTitle}</Text>
+        <Text style={styles.description}>{strings.documentCapture.cameraUnavailable}</Text>
+        <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
       </View>
     );
   }
@@ -151,7 +154,7 @@ export function CaptureScreen({
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{label}</Text>
-      <View style={styles.guidanceList} accessible accessibilityLabel={`Capture tips: ${GUIDANCE.join(". ")}`}>
+      <View style={styles.guidanceList} accessible accessibilityLabel={strings.documentCapture.captureTipsA11y(GUIDANCE.join(". "))}>
         {GUIDANCE.map((tip) => (
           <Text key={tip} style={styles.guidanceItem}>
             {"•"} {tip}
@@ -160,8 +163,8 @@ export function CaptureScreen({
       </View>
       {stage.kind === "invalid" ? <Text style={styles.error}>{stage.error}</Text> : null}
       <View style={styles.actions}>
-        <Button label="Cancel" variant="secondary" onPress={onCancel} />
-        <Button label="Open camera" onPress={() => void handleOpenCamera()} />
+        <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
+        <Button label={strings.documentCapture.openCamera} onPress={() => void handleOpenCamera()} />
       </View>
     </View>
   );
@@ -170,11 +173,11 @@ export function CaptureScreen({
 function uploadStageLabel(stage: "idle" | "authorizing" | "uploading" | "completing"): string {
   switch (stage) {
     case "authorizing":
-      return "Preparing upload...";
+      return strings.documentCapture.uploadStage.preparing;
     case "uploading":
-      return "Uploading...";
+      return strings.documentCapture.uploadStage.uploading;
     case "completing":
-      return "Confirming upload...";
+      return strings.documentCapture.uploadStage.confirming;
     default:
       return "";
   }

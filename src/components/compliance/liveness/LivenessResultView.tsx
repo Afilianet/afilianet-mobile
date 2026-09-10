@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { LivenessSession } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -48,9 +49,9 @@ export function LivenessResultView({
     const failure = livenessFailureCopy(result.failure_reason);
     return (
       <View style={styles.container}>
-        <Badge label="Couldn't complete" tone="danger" />
+        <Badge label={strings.liveness.couldNotComplete} tone="danger" />
         <Text style={styles.description}>{failure.message}</Text>
-        {failure.retryable ? <Button label="Try again" onPress={onRetry} loading={retrying} /> : null}
+        {failure.retryable ? <Button label={strings.liveness.tryAgain} onPress={onRetry} loading={retrying} /> : null}
       </View>
     );
   }
@@ -61,7 +62,7 @@ export function LivenessResultView({
     <View style={styles.container}>
       <Badge label={copy.label} tone={copy.tone} />
       {copy.description ? <Text style={styles.description}>{copy.description}</Text> : null}
-      {result.verdict === "not_live" ? <Button label="Try again" onPress={onRetry} loading={retrying} /> : null}
+      {result.verdict === "not_live" ? <Button label={strings.liveness.tryAgain} onPress={onRetry} loading={retrying} /> : null}
     </View>
   );
 }

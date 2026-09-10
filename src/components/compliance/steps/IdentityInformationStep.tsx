@@ -1,4 +1,5 @@
 import { Text } from "react-native";
+import { strings } from "../../../i18n";
 import type { ComplianceStep } from "../../../types/api";
 import { styles } from "./styles";
 import type { StepDetailProps } from "./types";
@@ -19,7 +20,7 @@ export function IdentityInformationStep({ step }: StepDetailProps) {
 }
 
 function describe(step: ComplianceStep): string {
-  if (step.status === "passed") return "Your basic identity details are on file.";
-  if (step.status === "failed") return "Your submitted identity details couldn't be verified.";
-  return "Submitting identity details from the app isn't available yet.";
+  if (step.status === "passed") return strings.compliance.identityInformation.onFileText;
+  if (step.status === "failed") return strings.compliance.identityInformation.failedText;
+  return strings.compliance.identityInformation.unavailableText;
 }

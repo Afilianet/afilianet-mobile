@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { useCreatePayoutDestination } from "../hooks/useCreatePayoutDestination";
 import { Button } from "./ui/Button";
 import { IconButton } from "./ui/IconButton";
@@ -43,11 +44,11 @@ export function AddDestinationSheet({
   async function handleSubmit() {
     setError(null);
     if (!label.trim()) {
-      setError("Enter a label for this destination.");
+      setError(strings.payouts.addDestination.labelRequired);
       return;
     }
     if (country.trim().length !== 2) {
-      setError("Enter a 2-letter country code.");
+      setError(strings.payouts.addDestination.countryRequired);
       return;
     }
     try {
@@ -60,7 +61,7 @@ export function AddDestinationSheet({
       setLabel("");
       onCreated(destination.id);
     } catch (error) {
-      setError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
     }
   }
 
@@ -69,36 +70,38 @@ export function AddDestinationSheet({
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Add payout destination</Text>
-            <IconButton label="Close" onPress={onClose}>
+            <Text style={styles.title}>{strings.payouts.addDestination.title}</Text>
+            <IconButton label={strings.common.close} onPress={onClose}>
               <Icon name="cerrar" size={18} color={colors.textPrimary} />
             </IconButton>
           </View>
 
           <ScrollView contentContainerStyle={styles.content}>
-            <Text style={styles.notice}>
-              No payment provider is connected yet -- this label just identifies the destination in
-              the app. It never stores a real account, card, or CLABE number.
-            </Text>
+            <Text style={styles.notice}>{strings.payouts.addDestination.notice}</Text>
 
             <View style={styles.typeRow}>
               <Button
-                label="Bank account"
+                label={strings.payouts.addDestination.bankAccount}
                 variant={type === "bank_account" ? "primary" : "secondary"}
                 size="sm"
                 onPress={() => setType("bank_account")}
               />
               <Button
-                label="Provider account"
+                label={strings.payouts.addDestination.providerAccount}
                 variant={type === "provider_account" ? "primary" : "secondary"}
                 size="sm"
                 onPress={() => setType("provider_account")}
               />
             </View>
 
-            <TextInput label="Label" placeholder="e.g. My BBVA account" value={label} onChangeText={setLabel} />
             <TextInput
-              label="Country"
+              label={strings.payouts.addDestination.labelField}
+              placeholder={strings.payouts.addDestination.labelPlaceholder}
+              value={label}
+              onChangeText={setLabel}
+            />
+            <TextInput
+              label={strings.payouts.addDestination.countryField}
               placeholder="MX"
               value={country}
               onChangeText={(text) => setCountry(text.toUpperCase().slice(0, 2))}
@@ -109,7 +112,7 @@ export function AddDestinationSheet({
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <Button
-              label="Add destination"
+              label={strings.payouts.addDestination.submit}
               fullWidth
               loading={mutation.isPending}
               onPress={() => void handleSubmit()}

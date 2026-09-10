@@ -5,6 +5,7 @@ import { friendlyMessage, isApiError } from "../../../api/errors";
 import type { CameraCaptureResult } from "../../../hooks/useDocumentCamera";
 import { useEvidenceUploadFlow } from "../../../hooks/useEvidenceUploadFlow";
 import { useSelfieCamera } from "../../../hooks/useSelfieCamera";
+import { strings } from "../../../i18n";
 import { analytics } from "../../../services/analytics";
 import type { Evidence } from "../../../types/api";
 import { resolveMimeType, validateCapturedAsset } from "../../../utils/documentCapture";
@@ -86,11 +87,11 @@ export function SelfieCaptureScreen({
   async function handleUsePhoto(asset: CapturedAsset) {
     const mimeType = resolveMimeType(asset.mimeType);
     if (!mimeType) {
-      setUploadError("That photo's format isn't supported. Please retake it.");
+      setUploadError(strings.faceMatch.unsupportedFormat);
       return;
     }
     if (asset.fileSize === null) {
-      setUploadError("That photo looks empty or corrupted. Please retake it.");
+      setUploadError(strings.faceMatch.corruptedPhoto);
       return;
     }
 
@@ -107,7 +108,7 @@ export function SelfieCaptureScreen({
       analytics.capture("face_match_selfie_captured");
       onUploaded(evidence);
     } catch (error) {
-      setUploadError(isApiError(error) ? friendlyMessage(error) : "The upload didn't complete. Please try again.");
+      setUploadError(isApiError(error) ? friendlyMessage(error) : strings.faceMatch.uploadIncomplete);
     }
   }
 
@@ -115,18 +116,23 @@ export function SelfieCaptureScreen({
     const uploading = uploadFlow.stage !== "idle";
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Your selfie</Text>
+        <Text style={styles.title}>{strings.faceMatch.yourSelfie}</Text>
         <Image
           source={{ uri: stage.asset.uri }}
           style={styles.preview}
           contentFit="cover"
-          accessibilityLabel="Preview of your captured selfie"
+          accessibilityLabel={strings.faceMatch.selfiePreviewA11y}
         />
         {uploadError ? <Text style={styles.error}>{uploadError}</Text> : null}
         {uploading ? <Text style={styles.meta}>{uploadStageLabel(uploadFlow.stage)}</Text> : null}
         <View style={styles.actions}>
-          <Button label="Retake" variant="secondary" disabled={uploading} onPress={() => setStage({ kind: "guidance" })} />
-          <Button label="Use this photo" loading={uploading} onPress={() => void handleUsePhoto(stage.asset)} />
+          <Button
+            label={strings.faceMatch.retake}
+            variant="secondary"
+            disabled={uploading}
+            onPress={() => setStage({ kind: "guidance" })}
+          />
+          <Button label={strings.faceMatch.useThisPhoto} loading={uploading} onPress={() => void handleUsePhoto(stage.asset)} />
         </View>
       </View>
     );
@@ -135,11 +141,11 @@ export function SelfieCaptureScreen({
   if (stage.kind === "permission_denied") {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Camera access needed</Text>
-        <Text style={styles.description}>Afilianet needs camera access to take your selfie. Please enable it in your device settings.</Text>
+        <Text style={styles.title}>{strings.faceMatch.cameraAccessNeededTitle}</Text>
+        <Text style={styles.description}>{strings.faceMatch.cameraAccessNeeded}</Text>
         <View style={styles.actions}>
-          <Button label="Cancel" variant="secondary" onPress={onCancel} />
-          <Button label="Open settings" onPress={() => void Linking.openSettings()} />
+          <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
+          <Button label={strings.faceMatch.openSettings} onPress={() => void Linking.openSettings()} />
         </View>
       </View>
     );
@@ -148,17 +154,17 @@ export function SelfieCaptureScreen({
   if (stage.kind === "unavailable") {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Camera unavailable</Text>
-        <Text style={styles.description}>This device doesn&apos;t have a usable camera right now.</Text>
-        <Button label="Cancel" variant="secondary" onPress={onCancel} />
+        <Text style={styles.title}>{strings.faceMatch.cameraUnavailableTitle}</Text>
+        <Text style={styles.description}>{strings.faceMatch.cameraUnavailable}</Text>
+        <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Take a selfie</Text>
-      <View style={styles.guidanceList} accessible accessibilityLabel={`Selfie tips: ${SELFIE_GUIDANCE.join(". ")}`}>
+      <Text style={styles.title}>{strings.faceMatch.takeASelfie}</Text>
+      <View style={styles.guidanceList} accessible accessibilityLabel={strings.faceMatch.selfieTipsA11y(SELFIE_GUIDANCE.join(". "))}>
         {SELFIE_GUIDANCE.map((tip) => (
           <Text key={tip} style={styles.guidanceItem}>
             {"•"} {tip}
@@ -167,8 +173,8 @@ export function SelfieCaptureScreen({
       </View>
       {stage.kind === "invalid" ? <Text style={styles.error}>{stage.error}</Text> : null}
       <View style={styles.actions}>
-        <Button label="Cancel" variant="secondary" onPress={onCancel} />
-        <Button label="Open camera" onPress={() => void handleOpenCamera()} />
+        <Button label={strings.common.cancel} variant="secondary" onPress={onCancel} />
+        <Button label={strings.faceMatch.openCamera} onPress={() => void handleOpenCamera()} />
       </View>
     </View>
   );
@@ -177,11 +183,11 @@ export function SelfieCaptureScreen({
 function uploadStageLabel(stage: "idle" | "authorizing" | "uploading" | "completing"): string {
   switch (stage) {
     case "authorizing":
-      return "Preparing upload...";
+      return strings.faceMatch.uploadStage.preparing;
     case "uploading":
-      return "Uploading...";
+      return strings.faceMatch.uploadStage.uploading;
     case "completing":
-      return "Confirming upload...";
+      return strings.faceMatch.uploadStage.confirming;
     default:
       return "";
   }

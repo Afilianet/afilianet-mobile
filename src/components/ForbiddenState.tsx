@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StyleSheet, Text, View } from "react-native";
+import { strings } from "../i18n";
 import { Button } from "./ui/Button";
 import { colors, radius, spacing, typography } from "./ui/theme";
 
@@ -29,20 +30,16 @@ export function ForbiddenState({
         <Ionicons name="lock-closed-outline" size={compact ? 20 : 26} color={colors.textSecondary} />
       </View>
       <View style={[styles.copy, compact ? styles.copyCompact : null]}>
-        <Text style={[styles.eyebrow, compact ? styles.textLeft : null]}>Error 403</Text>
-        <Text style={[styles.title, compact ? styles.textLeft : null]}>
-          {role ? `${role} can't access ${area}` : `You can't access ${area}`}
-        </Text>
-        {compact ? null : (
-          <Text style={styles.message}>
-            Ask an organization admin for access. This request is recorded in the audit log.
-          </Text>
-        )}
+        <Text style={[styles.eyebrow, compact ? styles.textLeft : null]}>{strings.shared.forbidden.eyebrow}</Text>
+        <Text style={[styles.title, compact ? styles.textLeft : null]}>{strings.shared.forbidden.message(area, role)}</Text>
+        {compact ? null : <Text style={styles.message}>{strings.shared.forbidden.auditNote}</Text>}
       </View>
       {onRequestAccess || onGoBack ? (
         <View style={styles.actions}>
-          {onRequestAccess ? <Button label="Request access" variant="secondary" onPress={onRequestAccess} /> : null}
-          {onGoBack ? <Button label="Go back" variant="ghost" onPress={onGoBack} /> : null}
+          {onRequestAccess ? (
+            <Button label={strings.shared.forbidden.requestAccess} variant="secondary" onPress={onRequestAccess} />
+          ) : null}
+          {onGoBack ? <Button label={strings.shared.forbidden.goBack} variant="ghost" onPress={onGoBack} /> : null}
         </View>
       ) : null}
     </View>

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { RetryButton } from "./RetryButton";
 import { colors, radius, spacing, typography } from "./ui/theme";
 
@@ -11,7 +12,7 @@ import { colors, radius, spacing, typography } from "./ui/theme";
  * spec's "marca en error sobre error.sobreOscuro."
  */
 export function ErrorState({ error, onRetry, retrying }: { error: unknown; onRetry?: () => void; retrying?: boolean }) {
-  const message = isApiError(error) ? friendlyMessage(error) : "Something went wrong.";
+  const message = isApiError(error) ? friendlyMessage(error) : strings.shared.errorState.fallbackMessage;
   const status = isApiError(error) && error.status ? error.status : "UNKNOWN";
   const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date());
 
@@ -21,8 +22,8 @@ export function ErrorState({ error, onRetry, retrying }: { error: unknown; onRet
         <Icon name="alerta" size={28} color={colors.danger} />
       </View>
       <View style={styles.copy}>
-        <Text style={styles.title}>This didn&apos;t load</Text>
-        <Text style={styles.message}>{message} Your data is safe -- nothing was lost.</Text>
+        <Text style={styles.title}>{strings.shared.errorState.title}</Text>
+        <Text style={styles.message}>{message}{strings.shared.errorState.dataSafeSuffix}</Text>
         <Text style={styles.technical}>ERR-{status} · {time}</Text>
       </View>
       {onRetry ? <RetryButton onPress={onRetry} loading={retrying} /> : null}

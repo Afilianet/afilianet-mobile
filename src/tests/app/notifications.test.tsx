@@ -121,7 +121,7 @@ describe("Notifications: inbox", () => {
   it("shows an empty state with no notifications", async () => {
     mockedFetchNotifications.mockResolvedValue(page([]));
     const { findByText } = await renderNotifications();
-    expect(await findByText("No notifications yet")).toBeTruthy();
+    expect(await findByText("Aún no hay notificaciones")).toBeTruthy();
   });
 
   it("distinguishes unread from read visually and via accessibility label, not color alone", async () => {
@@ -129,8 +129,8 @@ describe("Notifications: inbox", () => {
       page([notification({ id: "n-unread", read_at: null }), notification({ id: "n-read", read_at: "2026-01-01T09:00:00Z" })]),
     );
     const { findByLabelText } = await renderNotifications();
-    expect(await findByLabelText(/^Unread: Commission earned/)).toBeTruthy();
-    expect(await findByLabelText(/^Read: Commission earned/)).toBeTruthy();
+    expect(await findByLabelText(/^No leída: Commission earned/)).toBeTruthy();
+    expect(await findByLabelText(/^Leída: Commission earned/)).toBeTruthy();
   });
 
   it("does not crash on an unrecognized notification type -- falls back safely", async () => {
@@ -258,7 +258,7 @@ describe("Notifications: mark all as read", () => {
     mockedFetchUnreadNotificationCount.mockResolvedValue(0);
     const { findByText, queryByText } = await renderNotifications();
     await findByText("Commission earned");
-    expect(queryByText("Mark all as read")).toBeNull();
+    expect(queryByText("Marcar todo como leído")).toBeNull();
   });
 
   it("marks all as read and refreshes the inbox and unread count", async () => {
@@ -268,7 +268,7 @@ describe("Notifications: mark all as read", () => {
     const countCallsBefore = mockedFetchUnreadNotificationCount.mock.calls.length;
 
     await act(async () => {
-      fireEvent.press(await findByText("Mark all as read"));
+      fireEvent.press(await findByText("Marcar todo como leído"));
     });
 
     expect(mockedMarkAllNotificationsRead).toHaveBeenCalledTimes(1);
@@ -282,10 +282,10 @@ describe("Notifications: mark all as read", () => {
     await findByText("Commission earned");
 
     await act(async () => {
-      fireEvent.press(await findByText("Mark all as read"));
+      fireEvent.press(await findByText("Marcar todo como leído"));
     });
 
-    expect(await findByText(/couldn't mark all as read/i)).toBeTruthy();
+    expect(await findByText(/no pudimos marcar todo como leído/i)).toBeTruthy();
     expect(await findByText("Commission earned")).toBeTruthy();
   });
 });
@@ -302,7 +302,7 @@ describe("Notifications: pagination", () => {
     const { findByLabelText, findByText } = await renderNotifications();
     await findByText("Page one");
 
-    const loadMore = await findByLabelText("Load more recent notifications");
+    const loadMore = await findByLabelText("Cargar más notificaciones recientes");
     await act(async () => {
       fireEvent.press(loadMore);
     });
@@ -319,7 +319,7 @@ describe("Notifications: errors", () => {
     mockedFetchNotifications.mockRejectedValue(new ApiError("forbidden", "Forbidden.", 403));
     const { findByText } = await renderNotifications();
     expect(await findByText("Error 403")).toBeTruthy();
-    expect(await findByText(/can't access recent notifications/i)).toBeTruthy();
+    expect(await findByText(/no puedes acceder a notificaciones recientes/i)).toBeTruthy();
   });
 
   // "offline" is a retryable kind (unlike forbidden/not_found/etc.), so the
@@ -330,7 +330,7 @@ describe("Notifications: errors", () => {
     async () => {
       mockedFetchNotifications.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
       const { findByText } = await renderNotifications();
-      expect(await findByText(/you're offline/i, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/no tienes conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
     },
     15000,
   );
@@ -382,7 +382,7 @@ describe("Notifications: analytics", () => {
     const { findByText } = await renderNotifications();
     await findByText("Commission earned");
     await act(async () => {
-      fireEvent.press(await findByText("Mark all as read"));
+      fireEvent.press(await findByText("Marcar todo como leído"));
     });
     const call = mockedCapture.mock.calls.find(([event]) => event === "notifications_mark_all_read");
     expect(call).toHaveLength(1);

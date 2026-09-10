@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { FaceMatchStatus } from "../../../types/api";
 import { colors, spacing, typography } from "../../ui/theme";
 
@@ -9,12 +10,12 @@ import { colors, spacing, typography } from "../../ui/theme";
  * ComplianceStepStatus (three independent lifecycles).
  */
 export function FaceMatchProcessingState({ status }: { status: Extract<FaceMatchStatus, "pending" | "processing"> }) {
-  const label = status === "pending" ? "Waiting for selfie" : "Comparing your selfie";
+  const label = status === "pending" ? strings.faceMatch.waitingForSelfie : strings.faceMatch.comparingSelfie;
   return (
     <View style={styles.container} accessible accessibilityLabel={label}>
       <ActivityIndicator color={colors.primary} />
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.meta}>This usually takes a few seconds. You don&apos;t need to keep this screen open.</Text>
+      <Text style={styles.meta}>{strings.faceMatch.processingHint}</Text>
     </View>
   );
 }

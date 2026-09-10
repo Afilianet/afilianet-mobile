@@ -1,3 +1,5 @@
+import { strings } from "../i18n";
+
 // EvidenceUploadConstraints' whitelist for id_document_front/back/page
 // (config/evidence.php) -- mirrored here only for a fast client-side
 // preflight; the backend independently enforces the same whitelist and
@@ -40,16 +42,16 @@ export interface CapturedAssetCheck {
  */
 export function validateCapturedAsset(asset: CapturedAssetCheck): { valid: true } | { valid: false; error: string } {
   if (!asset.uri) {
-    return { valid: false, error: "No photo was captured. Please try again." };
+    return { valid: false, error: strings.documentCapture.noPhotoCaptured };
   }
   if (!asset.width || !asset.height || asset.width <= 0 || asset.height <= 0) {
-    return { valid: false, error: "That photo looks empty or corrupted. Please retake it." };
+    return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
   if (asset.fileSize === null || asset.fileSize === undefined || asset.fileSize <= 0) {
-    return { valid: false, error: "That photo looks empty or corrupted. Please retake it." };
+    return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
   if (asset.fileSize > MAX_IMAGE_BYTES) {
-    return { valid: false, error: "That photo is too large. Please retake it." };
+    return { valid: false, error: strings.documentCapture.photoTooLarge };
   }
   return { valid: true };
 }

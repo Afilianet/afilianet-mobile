@@ -4,8 +4,10 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { queryClient } from "../api/queryClient";
+import { strings } from "../i18n";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth } from "../auth/AuthContext";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
@@ -46,6 +48,11 @@ export default function RootLayout() {
 
   return (
     <AppErrorBoundary>
+      {/* Light-first baseline: dark status bar icons/text so they stay
+          visible against the app's light background (see
+          design-system/theme.ts). Flip to "light" alongside that file if
+          the app ever switches back to a dark default. */}
+      <StatusBar style="dark" />
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <OrganizationProvider>
@@ -86,7 +93,7 @@ function RootNavigation() {
   }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
 
   if (authStatus === "loading") {
-    return <LoadingState message="Starting up..." />;
+    return <LoadingState message={strings.app.startingUp} />;
   }
 
   // Without this, a failed organization load leaves every tenant-scoped

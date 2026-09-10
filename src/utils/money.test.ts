@@ -125,7 +125,7 @@ describe("parseAmountInput", () => {
 
   it("rejects zero", () => {
     const result = parseAmountInput("0", "MXN");
-    expect(result).toEqual({ valid: false, error: "Enter an amount greater than zero." });
+    expect(result).toEqual({ valid: false, error: "Escribe un monto mayor a cero." });
   });
 
   it("rejects zero with trailing decimals", () => {
@@ -135,7 +135,7 @@ describe("parseAmountInput", () => {
 
   it("rejects more decimal places than the currency allows", () => {
     const result = parseAmountInput("100.123", "MXN");
-    expect(result).toEqual({ valid: false, error: "Enter up to 2 decimal places." });
+    expect(result).toEqual({ valid: false, error: "Escribe hasta 2 decimales." });
   });
 
   it("rejects any decimal places for a 0-decimal currency", () => {

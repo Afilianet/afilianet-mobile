@@ -108,9 +108,9 @@ describe("Referral: active affiliate", () => {
 
     expect(await findByText("AFF100")).toBeTruthy();
     expect(await findByText("https://app.afilianet.mx/join/AFF100")).toBeTruthy();
-    expect(getByLabelText(/QR code for your referral link/)).toBeTruthy();
-    expect(await findByText("Share")).toBeTruthy();
-    expect(await findByText("Copy link")).toBeTruthy();
+    expect(getByLabelText(/Código QR para tu liga de referido/)).toBeTruthy();
+    expect(await findByText("Compartir")).toBeTruthy();
+    expect(await findByText("Copiar liga")).toBeTruthy();
   });
 
   it("fires referral_screen_viewed and referral_qr_viewed with no properties", async () => {
@@ -131,10 +131,10 @@ describe("Referral: pending affiliate", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate({ status: "pending" }));
     const { findByText } = await renderReferral();
 
-    expect(await findByText("Pending")).toBeTruthy();
-    expect(await findByText(/your referral link already works/i)).toBeTruthy();
+    expect(await findByText("Pendiente")).toBeTruthy();
+    expect(await findByText(/tu liga de referido ya funciona/i)).toBeTruthy();
     expect(await findByText("https://app.afilianet.mx/join/AFF100")).toBeTruthy();
-    expect(await findByText("Share")).toBeTruthy();
+    expect(await findByText("Compartir")).toBeTruthy();
   });
 });
 
@@ -143,11 +143,11 @@ describe("Referral: suspended affiliate", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate({ status: "suspended" }));
     const { findByText, queryByText, queryByLabelText } = await renderReferral();
 
-    expect(await findByText("Suspended")).toBeTruthy();
-    expect(await findByText(/sharing is unavailable/i)).toBeTruthy();
+    expect(await findByText("Suspendido")).toBeTruthy();
+    expect(await findByText(/compartir no está disponible/i)).toBeTruthy();
     expect(queryByText("https://app.afilianet.mx/join/AFF100")).toBeNull();
-    expect(queryByText("Share")).toBeNull();
-    expect(queryByText("Copy link")).toBeNull();
+    expect(queryByText("Compartir")).toBeNull();
+    expect(queryByText("Copiar liga")).toBeNull();
     expect(queryByLabelText(/QR code/)).toBeNull();
   });
 });
@@ -157,9 +157,9 @@ describe("Referral: terminated affiliate", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate({ status: "terminated" }));
     const { findByText, queryByText } = await renderReferral();
 
-    expect(await findByText("Terminated")).toBeTruthy();
-    expect(queryByText("Share")).toBeNull();
-    expect(queryByText("Copy link")).toBeNull();
+    expect(await findByText("Terminado")).toBeTruthy();
+    expect(queryByText("Compartir")).toBeNull();
+    expect(queryByText("Copiar liga")).toBeNull();
   });
 });
 
@@ -168,7 +168,7 @@ describe("Referral: copy link", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
     const { findByText } = await renderReferral();
 
-    const copyButton = await findByText("Copy link");
+    const copyButton = await findByText("Copiar liga");
     await act(async () => {
       fireEvent.press(copyButton);
     });
@@ -178,7 +178,7 @@ describe("Referral: copy link", () => {
     const copyCall = mockedCapture.mock.calls.find(([event]) => event === "referral_link_copied");
     expect(copyCall).toHaveLength(1);
 
-    expect(await findByText("Link copied")).toBeTruthy();
+    expect(await findByText("Liga copiada")).toBeTruthy();
   });
 });
 
@@ -188,7 +188,7 @@ describe("Referral: share", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
     const { findByText } = await renderReferral();
 
-    const shareButton = await findByText("Share");
+    const shareButton = await findByText("Compartir");
     await act(async () => {
       fireEvent.press(shareButton);
     });
@@ -210,8 +210,8 @@ describe("Referral: no affiliate profile", () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderReferral();
 
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("Share")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("Compartir")).toBeNull();
   });
 });
 
@@ -239,10 +239,10 @@ describe("Referral: loading and error", () => {
     async () => {
       mockedFetchMyAffiliateProfile.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
       const { findByText, getByText } = await renderReferral();
-      expect(await findByText(/offline/i, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
 
       mockedFetchMyAffiliateProfile.mockResolvedValueOnce(affiliate());
-      fireEvent.press(getByText("Try again"));
+      fireEvent.press(getByText("Intenta de nuevo"));
       expect(await findByText("AFF100")).toBeTruthy();
     },
     15000,
@@ -254,10 +254,10 @@ describe("Referral: invitations section", () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
     const { findByText, getByText } = await renderReferral();
 
-    expect(await findByText("My invitations")).toBeTruthy();
-    expect(await findByText(/see who you've invited/i)).toBeTruthy();
+    expect(await findByText("Mis invitaciones")).toBeTruthy();
+    expect(await findByText(/a quién has invitado/i)).toBeTruthy();
 
-    fireEvent.press(getByText("View invitations"));
+    fireEvent.press(getByText("Ver invitaciones"));
     expect(mockPush).toHaveBeenCalledWith("/(app)/network");
   });
 });

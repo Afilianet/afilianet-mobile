@@ -1,4 +1,5 @@
 import { Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { ComplianceStep } from "../../../types/api";
 import { DevelopmentStepSimulator } from "./DevelopmentStepSimulator";
 import { styles } from "./styles";
@@ -23,7 +24,7 @@ export function VerbalConsentStep({ step, attempt, isPending }: StepDetailProps)
 }
 
 function describe(step: ComplianceStep): string {
-  if (step.status === "passed") return "Your verbal consent was recorded.";
-  if (step.status === "failed") return "Your verbal consent couldn't be recorded.";
-  return "Verbal consent capture isn't available in this app version yet.";
+  if (step.status === "passed") return strings.compliance.verbalConsent.recordedText;
+  if (step.status === "failed") return strings.compliance.verbalConsent.failedText;
+  return strings.compliance.verbalConsent.unavailableText;
 }

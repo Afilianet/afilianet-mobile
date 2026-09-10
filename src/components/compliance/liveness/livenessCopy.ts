@@ -1,5 +1,6 @@
 import type { AwsFaceLivenessErrorCode } from "aws-face-liveness";
 import type { BadgeTone } from "../../../design-system/theme";
+import { strings } from "../../../i18n";
 import type { LivenessVerdict } from "../../../types/api";
 
 // Non-liveness-challenge guidance (the AWS-owned FaceLivenessDetector view
@@ -7,8 +8,7 @@ import type { LivenessVerdict } from "../../../types/api";
 // never re-implements or duplicates that instruction set, see this file's
 // module docblock in the capture flow). This is shown only on the
 // explanation screen BEFORE the native component ever opens.
-export const LIVENESS_EXPLANATION =
-  "We need a short camera check to confirm that a real person is present. This only checks liveness -- it does not verify your identity or your documents.";
+export const LIVENESS_EXPLANATION = strings.liveness.explanation;
 
 /**
  * `verdict: "live"` means ONLY "a real person appears to be present in
@@ -23,24 +23,24 @@ export function livenessVerdictCopy(verdict: LivenessVerdict | null): { label: s
   switch (verdict) {
     case "live":
       return {
-        label: "Liveness check completed",
+        label: strings.liveness.completedTitle,
         tone: "success",
-        description: "We confirmed a real person was present for this check.",
+        description: strings.liveness.completedDescription,
       };
     case "review":
       return {
-        label: "Needs review",
+        label: strings.liveness.needsReviewTitle,
         tone: "warning",
-        description: "Your submission is under manual review. No action is needed from you right now.",
+        description: strings.compliance.manualReviewNotice,
       };
     case "not_live":
       return {
-        label: "Couldn't confirm liveness",
+        label: strings.liveness.couldNotConfirmTitle,
         tone: "danger",
-        description: "We couldn't confirm a real person was present. You can try again.",
+        description: strings.liveness.couldNotConfirmDescription,
       };
     default:
-      return { label: "Pending", tone: "neutral", description: "" };
+      return { label: strings.liveness.pendingLabel, tone: "neutral", description: "" };
   }
 }
 
@@ -57,14 +57,14 @@ export function livenessVerdictCopy(verdict: LivenessVerdict | null): { label: s
 // "reuse vs. recreate" itself -- there is deliberately only one recovery
 // action in this app, never a separate "resume" vs "start new" choice.
 const FAILURE_COPY: Record<string, string> = {
-  session_expired: "That check took too long and expired. Let's try again.",
-  invalid_session: "That check session is no longer valid. Let's try again.",
-  provider_failed: "The liveness check couldn't be completed. Please try again.",
-  malformed_provider_response: "Something went wrong while processing your check. Please try again.",
-  configuration_error: "Liveness verification is temporarily unavailable. Please try again in a few minutes.",
-  unauthorized_provider: "Liveness verification is temporarily unavailable. Please try again in a few minutes.",
-  provider_timeout: "Liveness verification is temporarily unavailable. Please try again in a few minutes.",
-  provider_unavailable: "Liveness verification is temporarily unavailable. Please try again in a few minutes.",
+  session_expired: strings.liveness.failureReasons.sessionExpired,
+  invalid_session: strings.liveness.failureReasons.invalidSession,
+  provider_failed: strings.liveness.failureReasons.providerFailed,
+  malformed_provider_response: strings.liveness.failureReasons.malformedResponse,
+  configuration_error: strings.liveness.failureReasons.serviceUnavailable,
+  unauthorized_provider: strings.liveness.failureReasons.serviceUnavailable,
+  provider_timeout: strings.liveness.failureReasons.serviceUnavailable,
+  provider_unavailable: strings.liveness.failureReasons.serviceUnavailable,
 };
 
 /**
@@ -78,7 +78,7 @@ export function livenessFailureCopy(reason: string | null): { message: string; r
   if (reason !== null && reason in FAILURE_COPY) {
     return { message: FAILURE_COPY[reason], retryable: true };
   }
-  return { message: "Something went wrong while processing your check. Please try again.", retryable: true };
+  return { message: strings.liveness.failureReasons.default, retryable: true };
 }
 
 // The native capture module's own closed error-category set (see
@@ -89,12 +89,12 @@ export function livenessFailureCopy(reason: string | null): { message: string; r
 // message at all (Compliance state stays exactly as it was, see this
 // phase's brief item 16), it's handled directly in LivenessCaptureFlow.
 const NATIVE_ERROR_COPY: Record<Exclude<AwsFaceLivenessErrorCode, "cancelled">, string> = {
-  camera_permission_denied: "Afilianet needs camera access to run this check. Please enable it in your device settings.",
-  camera_unavailable: "This device doesn't have a usable camera right now.",
-  session_invalid_or_expired: "That check took too long and expired. Let's try again.",
-  network_error: "Your connection was interrupted. Please try again.",
-  credentials_invalid: "Liveness verification is temporarily unavailable. Please try again in a few minutes.",
-  unknown_error: "Something went wrong during your check. Please try again.",
+  camera_permission_denied: strings.liveness.nativeErrors.cameraPermissionDenied,
+  camera_unavailable: strings.liveness.nativeErrors.cameraUnavailable,
+  session_invalid_or_expired: strings.liveness.nativeErrors.sessionExpired,
+  network_error: strings.liveness.nativeErrors.networkError,
+  credentials_invalid: strings.liveness.nativeErrors.credentialsInvalid,
+  unknown_error: strings.liveness.nativeErrors.unknownError,
 };
 
 export function livenessNativeErrorCopy(code: Exclude<AwsFaceLivenessErrorCode, "cancelled">): string {

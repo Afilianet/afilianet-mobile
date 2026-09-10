@@ -2,6 +2,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { strings } from "../i18n";
 import { ForbiddenState } from "./ForbiddenState";
 import { RetryButton } from "./RetryButton";
 import { SkeletonGroup } from "./Skeleton";
@@ -55,14 +56,14 @@ export function SectionCard<T>({
   } else if (query.isError && !notFound) {
     body = (
       <View style={styles.stateGroup}>
-        <Text style={styles.error}>{apiError ? friendlyMessage(apiError) : "Couldn't load this."}</Text>
+        <Text style={styles.error}>{apiError ? friendlyMessage(apiError) : strings.shared.couldNotLoadThis}</Text>
         <RetryButton onPress={() => void query.refetch()} loading={query.isFetching} />
       </View>
     );
   } else if (showEmpty) {
     body = emptyContent ?? (
       <View style={styles.stateGroup}>
-        <Text style={styles.empty}>{emptyTitle ?? "Nothing here yet."}</Text>
+        <Text style={styles.empty}>{emptyTitle ?? strings.shared.nothingHereYet}</Text>
         {emptyDescription ? <Text style={styles.emptyDescription}>{emptyDescription}</Text> : null}
       </View>
     );

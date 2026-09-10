@@ -143,7 +143,7 @@ describe("Profile: real affiliate data", () => {
     expect(await findByText("Jordan Lee")).toBeTruthy();
     expect(await findByText("jordan@example.com")).toBeTruthy();
     expect(await findByText("AFF100")).toBeTruthy();
-    expect(await findByText("Active")).toBeTruthy();
+    expect(await findByText("Activo")).toBeTruthy();
     expect(await findByText("SPON001")).toBeTruthy();
     expect(await findByText("PLAC001")).toBeTruthy();
   });
@@ -179,7 +179,7 @@ describe("Profile: loading and error states", () => {
   it("shows an enrollment message with no affiliate profile", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderProfile();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
     expect(queryByText("AFF100")).toBeNull();
   });
 
@@ -190,7 +190,7 @@ describe("Profile: loading and error states", () => {
     // ErrorState branch rather than the dedicated ForbiddenState one.
     mockedFetchMyAffiliateProfile.mockRejectedValue(new ApiError("unauthorized", "Unauthorized.", 401));
     const { findByText } = await renderProfile();
-    expect(await findByText(/session has expired/i)).toBeTruthy();
+    expect(await findByText(/sesión expiró/i)).toBeTruthy();
   });
 });
 
@@ -198,10 +198,10 @@ describe("Profile: compliance summary", () => {
   it("shows the current compliance status and links to the full screen", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress", approved_at: null }));
     const { findByText } = await renderProfile();
-    expect(await findByText("In progress")).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy();
 
     await act(async () => {
-      fireEvent.press(await findByText("View compliance"));
+      fireEvent.press(await findByText("Ver verificación"));
     });
     expect(mockPush).toHaveBeenCalledWith("/compliance");
   });
@@ -209,7 +209,7 @@ describe("Profile: compliance summary", () => {
   it("shows not_started when no case exists yet", async () => {
     mockedFetchMyCompliance.mockRejectedValue(NOT_FOUND);
     const { findByText } = await renderProfile();
-    expect(await findByText("Not started")).toBeTruthy();
+    expect(await findByText("No iniciado")).toBeTruthy();
   });
 });
 
@@ -225,13 +225,13 @@ describe("Profile: organizations and sign out", () => {
   it("hides the organizations card with only one organization", async () => {
     const { queryByText, findByText } = await renderProfile();
     await findByText("AFF100");
-    expect(queryByText("Organizations")).toBeNull();
+    expect(queryByText("Organizaciones")).toBeNull();
   });
 
   it("signs out on press", async () => {
     const { findByText } = await renderProfile();
     await act(async () => {
-      fireEvent.press(await findByText("Sign out"));
+      fireEvent.press(await findByText("Cerrar sesión"));
     });
     expect(mockSignOut).toHaveBeenCalledTimes(1);
   });

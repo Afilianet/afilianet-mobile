@@ -7,6 +7,7 @@ import { Button } from "../components/ui/Button";
 import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { useMarkAllNotificationsRead } from "../hooks/useMarkAllNotificationsRead";
 import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
@@ -70,8 +71,8 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.header}>
-          <Text style={styles.heading}>Notifications</Text>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <Text style={styles.heading}>{strings.notifications.title}</Text>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -79,21 +80,21 @@ export default function NotificationsScreen() {
         {hasUnread ? (
           <View style={styles.markAllRow}>
             <Button
-              label="Mark all as read"
+              label={strings.notifications.markAllRead}
               variant="ghost"
               size="sm"
               loading={markAllReadMutation.isPending}
-              accessibilityLabel="Mark all notifications as read"
+              accessibilityLabel={strings.notifications.markAllReadA11y}
               onPress={() => void handleMarkAllRead()}
             />
-            {markAllReadMutation.isError ? <Text style={styles.error}>Couldn&apos;t mark all as read. Try again.</Text> : null}
+            {markAllReadMutation.isError ? <Text style={styles.error}>{strings.notifications.couldNotMarkAllRead}</Text> : null}
           </View>
         ) : null}
 
         <PaginatedSectionCard
-          title="Recent notifications"
+          title={strings.notifications.recentTitle}
           query={notificationsQuery}
-          emptyTitle="No notifications yet"
+          emptyTitle={strings.notifications.noneYet}
           renderItem={(notification) => (
             <NotificationRow notification={notification} onPress={() => void handleOpen(notification)} />
           )}

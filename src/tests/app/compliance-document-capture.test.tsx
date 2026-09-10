@@ -269,33 +269,33 @@ afterEach(() => {
 });
 
 async function chooseIne(getByText: (text: string) => unknown, findByText: (text: RegExp | string) => Promise<unknown>) {
-  fireEvent.press((await findByText("Mexican INE")) as never);
-  await findByText("Front");
+  fireEvent.press((await findByText("INE mexicana")) as never);
+  await findByText("Frente");
 }
 
 describe("Document capture: document type selection", () => {
   it("offers only mx_ine and passport, with their real requirements", async () => {
     const { findByText } = await renderCompliance();
-    expect(await findByText("Which document will you provide?")).toBeTruthy();
-    expect(await findByText("Mexican INE")).toBeTruthy();
-    expect(await findByText("Passport")).toBeTruthy();
-    expect(await findByText("Requires: Front + Back")).toBeTruthy();
-    expect(await findByText("Requires: Identity page")).toBeTruthy();
+    expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
+    expect(await findByText("INE mexicana")).toBeTruthy();
+    expect(await findByText("Pasaporte")).toBeTruthy();
+    expect(await findByText("Requiere: Frente + Reverso")).toBeTruthy();
+    expect(await findByText("Requiere: Página de identidad")).toBeTruthy();
   });
 
   it("shows a front/back checklist for mx_ine", async () => {
     const { getByText, findByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    expect(await findByText("Front")).toBeTruthy();
-    expect(await findByText("Back")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Frente")).toBeTruthy();
+    expect(await findByText("Reverso")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
   it("shows a single identity-page checklist for passport", async () => {
     const { getByText, findByText } = await renderCompliance();
-    fireEvent.press(await findByText("Passport"));
-    expect(await findByText("Identity page")).toBeTruthy();
-    expect(getByText("Submit for verification")).toBeTruthy();
+    fireEvent.press(await findByText("Pasaporte"));
+    expect(await findByText("Página de identidad")).toBeTruthy();
+    expect(getByText("Enviar para verificación")).toBeTruthy();
   });
 });
 
@@ -306,11 +306,11 @@ describe("Document capture: camera permission and capture", () => {
 
     const { getByText, findByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    fireEvent.press(getByText("Front"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(getByText("Frente"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Camera access needed")).toBeTruthy();
-    fireEvent.press(getByText("Open settings"));
+    expect(await findByText("Se necesita acceso a la cámara")).toBeTruthy();
+    fireEvent.press(getByText("Abrir configuración"));
     expect(settingsSpy).toHaveBeenCalledTimes(1);
     settingsSpy.mockRestore();
   });
@@ -321,10 +321,10 @@ describe("Document capture: camera permission and capture", () => {
 
     const { getByText, findByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    fireEvent.press(getByText("Front"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(getByText("Frente"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Camera unavailable")).toBeTruthy();
+    expect(await findByText("Cámara no disponible")).toBeTruthy();
   });
 
   it("returns to guidance without an error when the user cancels the native camera", async () => {
@@ -333,12 +333,12 @@ describe("Document capture: camera permission and capture", () => {
 
     const { getByText, findByText, queryByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    fireEvent.press(getByText("Front"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(getByText("Frente"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
     await waitFor(() => expect(mockLaunchCamera).toHaveBeenCalledTimes(1));
-    expect(queryByText(/couldn't be captured|error/i)).toBeNull();
-    expect(await findByText("Open camera")).toBeTruthy();
+    expect(queryByText(/no se pudo capturar|error/i)).toBeNull();
+    expect(await findByText("Abrir cámara")).toBeTruthy();
   });
 
   it("previews a captured photo and supports retake before uploading", async () => {
@@ -350,20 +350,20 @@ describe("Document capture: camera permission and capture", () => {
 
     const { getByText, findByText, queryByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    fireEvent.press(getByText("Front"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(getByText("Frente"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Retake")).toBeTruthy();
-    expect(await findByText("Use this photo")).toBeTruthy();
+    expect(await findByText("Volver a tomar")).toBeTruthy();
+    expect(await findByText("Usar esta foto")).toBeTruthy();
     expect(mockedRequestEvidenceUpload).not.toHaveBeenCalled();
 
     mockLaunchCamera.mockResolvedValueOnce({
       canceled: false,
       assets: [{ uri: "file:///tmp/front-2.jpg", width: 1200, height: 800, fileSize: 400_000, mimeType: "image/jpeg" }],
     });
-    fireEvent.press(getByText("Retake"));
-    expect(await findByText("Open camera")).toBeTruthy();
-    expect(queryByText("Use this photo")).toBeNull();
+    fireEvent.press(getByText("Volver a tomar"));
+    expect(await findByText("Abrir cámara")).toBeTruthy();
+    expect(queryByText("Usar esta foto")).toBeNull();
   });
 });
 
@@ -374,9 +374,9 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
       canceled: false,
       assets: [{ uri: "file:///tmp/front.jpg", width: 1200, height: 800, fileSize: 500_000, mimeType: "image/jpeg" }],
     });
-    fireEvent.press(getByText("Front") as never);
-    fireEvent.press((await findByText("Open camera")) as never);
-    fireEvent.press((await findByText("Use this photo")) as never);
+    fireEvent.press(getByText("Frente") as never);
+    fireEvent.press((await findByText("Abrir cámara")) as never);
+    fireEvent.press((await findByText("Usar esta foto")) as never);
   }
 
   it("requests upload authorization, PUTs the binary, and completes it -- exactly the real Phase 9B contract", async () => {
@@ -398,18 +398,18 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
     );
     await waitFor(() => expect(mockedCompleteEvidenceUpload).toHaveBeenCalledWith("ev-1"));
     await waitFor(() => expect(mockFileDelete).toHaveBeenCalledTimes(1));
-    expect(await findByText("Captured")).toBeTruthy();
+    expect(await findByText("Capturado")).toBeTruthy();
   });
 
   it("does not enable Submit until every required side is uploaded", async () => {
     const { getByText, findByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
     await captureAndUse(getByText, findByText); // front only -- back still missing
-    await findByText("Captured");
+    await findByText("Capturado");
 
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
     // A disabled Button's Pressable never fires onPress -- triggering stays
-    // uncalled until the still-missing "Back" side is captured too.
+    // uncalled until the still-missing "Reverso" side is captured too.
     expect(mockedTriggerDocumentProcessing).not.toHaveBeenCalled();
   });
 
@@ -419,7 +419,7 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
     await chooseIne(getByText, findByText);
     await captureAndUse(getByText, findByText);
 
-    expect(await findByText(/upload didn't complete/i)).toBeTruthy();
+    expect(await findByText(/la carga no se completó/i)).toBeTruthy();
     expect(mockedCompleteEvidenceUpload).not.toHaveBeenCalled();
     expect(mockFileDelete).not.toHaveBeenCalled();
   });
@@ -458,8 +458,8 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
 
     // A disabled Button's Pressable never fires onPress -- reaching "Open
     // camera" again is only possible if Retake was actually enabled.
-    fireEvent.press(getByText("Retake"));
-    expect(await findByText("Open camera")).toBeTruthy();
+    fireEvent.press(getByText("Volver a tomar"));
+    expect(await findByText("Abrir cámara")).toBeTruthy();
   });
 });
 
@@ -477,19 +477,19 @@ describe("Document capture: processing and polling", () => {
       // An in-flight attempt already exists for this step from mount --
       // IdentityDocumentStep always polls the result regardless of the
       // capture checklist's own local state.
-      expect(await findByText("Waiting for document")).toBeTruthy();
+      expect(await findByText("Esperando el documento")).toBeTruthy();
       const firstCallCount = mockedFetchDocumentResult.mock.calls.length;
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      expect(await findByText("Processing your document")).toBeTruthy();
+      expect(await findByText("Procesando tu documento")).toBeTruthy();
       expect(mockedFetchDocumentResult.mock.calls.length).toBeGreaterThan(firstCallCount);
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      await findByText("Confirmed from document");
+      await findByText("Confirmado desde el documento");
       const callsAfterCompleted = mockedFetchDocumentResult.mock.calls.length;
 
       await act(async () => {
@@ -513,8 +513,8 @@ describe("Document capture: operational unavailability (Phase 9C.2a, 503 on trig
 
     mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
     const sides: [string, string][] = [
-      ["Front", "file:///tmp/front.jpg"],
-      ["Back", "file:///tmp/back.jpg"],
+      ["Frente", "file:///tmp/front.jpg"],
+      ["Reverso", "file:///tmp/back.jpg"],
     ];
     for (let i = 0; i < sides.length; i++) {
       const [label, uri] = sides[i];
@@ -523,21 +523,21 @@ describe("Document capture: operational unavailability (Phase 9C.2a, 503 on trig
         assets: [{ uri, width: 1200, height: 800, fileSize: 500_000, mimeType: "image/jpeg" }],
       });
       fireEvent.press(getByText(label) as never);
-      fireEvent.press((await findByText("Open camera")) as never);
-      fireEvent.press((await findByText("Use this photo")) as never);
-      // "Captured" alone is ambiguous once both sides are done -- wait for
+      fireEvent.press((await findByText("Abrir cámara")) as never);
+      fireEvent.press((await findByText("Usar esta foto")) as never);
+      // "Capturado" alone is ambiguous once both sides are done -- wait for
       // the expected COUNT of captured rows instead.
-      await waitFor(async () => expect((await findAllByText("Captured")).length).toBe(i + 1));
+      await waitFor(async () => expect((await findAllByText("Capturado")).length).toBe(i + 1));
     }
 
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
 
     // The Badge's own title text ("Temporarily unavailable") also matches
     // this regex -- assert on the fuller description sentence specifically,
     // not just any node containing "temporarily unavailable".
-    expect(await findByText(/document verification is temporarily unavailable/i)).toBeTruthy();
+    expect(await findByText(/la verificación de documentos no está disponible temporalmente/i)).toBeTruthy();
     // Never framed as a document rejection/invalid-document/identity result.
-    expect(queryByText(/rejected|invalid document|couldn't be verified/i)).toBeNull();
+    expect(queryByText(/rechazado|documento inválido|no pudo ser verificado/i)).toBeNull();
 
     // A manual retry (pressing Submit again) is always available -- this is
     // never an automatic loop; the mutation only ever fires once per press.
@@ -561,12 +561,12 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
 
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("First name")).toBeTruthy();
+    expect(await findByText("Nombre(s)")).toBeTruthy();
     expect(await findByText("JUAN CARLOS")).toBeTruthy();
     expect(await findByText("CURP")).toBeTruthy();
     expect(await findByText("PEGJ900515HDFRZN08")).toBeTruthy();
-    expect(await findByText("Date of birth")).toBeTruthy();
-    expect(await findByText("May 15, 1990")).toBeTruthy();
+    expect(await findByText("Fecha de nacimiento")).toBeTruthy();
+    expect(await findByText("15 de mayo de 1990")).toBeTruthy();
 
     // Never a raw backend check/field name or processor internal.
     expect(queryByText(/curp_format|front_present|required_fields_present/i)).toBeNull();
@@ -587,10 +587,10 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
 
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Please review")).toBeTruthy();
-    expect(queryByText(/^Save$/i)).toBeNull();
-    expect(queryByText(/^Confirm$/i)).toBeNull();
-    expect(queryByText(/save changes/i)).toBeNull();
+    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(queryByText(/^Guardar$/i)).toBeNull();
+    expect(queryByText(/^Confirmar$/i)).toBeNull();
+    expect(queryByText(/guardar cambios/i)).toBeNull();
   });
 
   it("verdict: fail offers Try again, which returns to the capture checklist for the same document type", async () => {
@@ -598,13 +598,13 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
 
     const { findByText, findAllByText } = await renderCompliance();
 
-    expect(await findByText("Needs correction")).toBeTruthy();
-    fireEvent.press(await findByText("Try again"));
+    expect(await findByText("Necesita corrección")).toBeTruthy();
+    fireEvent.press(await findByText("Intenta de nuevo"));
     // document_type was recovered from the existing result -- no need to
     // re-choose it, straight to the mx_ine checklist, both sides reset.
-    expect(await findByText("Front")).toBeTruthy();
-    expect(await findByText("Back")).toBeTruthy();
-    expect((await findAllByText("Not yet captured")).length).toBe(2);
+    expect(await findByText("Frente")).toBeTruthy();
+    expect(await findByText("Reverso")).toBeTruthy();
+    expect((await findAllByText("Aún no capturado")).length).toBe(2);
   });
 });
 
@@ -612,13 +612,13 @@ describe("Document capture: technical failure and manual review", () => {
   it("maps poor_image_quality to a retake-oriented message", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "poor_image_quality" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/retake it with better lighting/i)).toBeTruthy();
+    expect(await findByText(/vuelve a tomarla con mejor iluminación/i)).toBeTruthy();
   });
 
   it("maps an unavailable OCR engine to a distinct, non-blaming message", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "ocr_unavailable" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/temporarily unavailable/i)).toBeTruthy();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
   });
 
   it("maps an unrecognized technical failure_reason (e.g. unexpected_error) to a generic, still-retryable message", async () => {
@@ -630,31 +630,31 @@ describe("Document capture: technical failure and manual review", () => {
     // same as every other technical failure.
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "unexpected_error" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/something went wrong while processing your document/i)).toBeTruthy();
-    expect(await findByText("Retake photo")).toBeTruthy();
+    expect(await findByText(/algo salió mal al procesar tu documento/i)).toBeTruthy();
+    expect(await findByText("Volver a tomar foto")).toBeTruthy();
   });
 
   it("Retake photo after a technical failure clears evidence/error state and returns to the capture checklist", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "poor_image_quality", document_type: "mx_ine" }));
     const { findByText, findAllByText } = await renderCompliance();
 
-    expect(await findByText(/retake it with better lighting/i)).toBeTruthy();
-    fireEvent.press(await findByText("Retake photo"));
+    expect(await findByText(/vuelve a tomarla con mejor iluminación/i)).toBeTruthy();
+    fireEvent.press(await findByText("Volver a tomar foto"));
 
     // document_type was recovered from the existing result -- no need to
     // re-choose it, straight to the mx_ine checklist, both sides reset (no
-    // stale "Captured" from whatever was uploaded before this failure).
-    expect(await findByText("Front")).toBeTruthy();
-    expect(await findByText("Back")).toBeTruthy();
-    expect((await findAllByText("Not yet captured")).length).toBe(2);
+    // stale "Capturado" from whatever was uploaded before this failure).
+    expect(await findByText("Frente")).toBeTruthy();
+    expect(await findByText("Reverso")).toBeTruthy();
+    expect((await findAllByText("Aún no capturado")).length).toBe(2);
   });
 
   it("shows a manual-review waiting state, with no retry button, when verdict is review", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Please review")).toBeTruthy();
-    expect(await findByText(/manual review/i)).toBeTruthy();
-    expect(queryByText("Try again")).toBeNull();
+    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(await findByText(/revisión manual/i)).toBeTruthy();
+    expect(queryByText("Intenta de nuevo")).toBeNull();
   });
 });
 
@@ -666,8 +666,8 @@ describe("Document capture: provider awareness (Phase 9C.2a authoritative gate)"
     const { queryByText, findByText } = await renderCompliance();
     // The Badge title itself is also "Different flow" -- assert on the
     // fuller description sentence specifically, not just any matching node.
-    expect(await findByText(/uses a different flow/i)).toBeTruthy();
-    expect(queryByText("Which document will you provide?")).toBeNull();
+    expect(await findByText(/usa un flujo diferente/i)).toBeTruthy();
+    expect(queryByText("¿Qué documento vas a proporcionar?")).toBeNull();
     expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
   });
 
@@ -679,7 +679,7 @@ describe("Document capture: provider awareness (Phase 9C.2a authoritative gate)"
       step({ provider: "fake-identity", configured_provider: "afilianet", provider_actionable: true }),
     ]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Which document will you provide?")).toBeTruthy();
+    expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
   });
 
   it("shows a safe unavailable state, never the capture flow, when afilianet is configured but not actionable", async () => {
@@ -689,8 +689,8 @@ describe("Document capture: provider awareness (Phase 9C.2a authoritative gate)"
     const { queryByText, findByText } = await renderCompliance();
     // The Badge title itself is also "Temporarily unavailable" -- assert on
     // the fuller description sentence specifically.
-    expect(await findByText(/document verification is temporarily unavailable/i)).toBeTruthy();
-    expect(queryByText("Which document will you provide?")).toBeNull();
+    expect(await findByText(/verificación de documentos no está disponible temporalmente/i)).toBeTruthy();
+    expect(queryByText("¿Qué documento vas a proporcionar?")).toBeNull();
     expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
   });
 
@@ -699,8 +699,8 @@ describe("Document capture: provider awareness (Phase 9C.2a authoritative gate)"
       step({ configured_provider: null, provider_actionable: false, provider_unavailable_reason: "not_configured" }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/isn't set up for this organization yet/i)).toBeTruthy();
-    expect(queryByText("Which document will you provide?")).toBeNull();
+    expect(await findByText(/aún no está configurado para esta organización/i)).toBeTruthy();
+    expect(queryByText("¿Qué documento vas a proporcionar?")).toBeNull();
     expect(mockedFetchDocumentResult).not.toHaveBeenCalled();
   });
 });
@@ -710,7 +710,7 @@ describe("Document capture: tenant isolation", () => {
     mockedFetchDocumentResult.mockRejectedValue(NOT_FOUND);
     const { getByText, findByText, rerender } = await renderCompliance();
     await chooseIne(getByText, findByText);
-    expect(await findByText("Front")).toBeTruthy();
+    expect(await findByText("Frente")).toBeTruthy();
 
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "step-org-b" })]);
     await act(async () => {
@@ -723,9 +723,9 @@ describe("Document capture: tenant isolation", () => {
       );
     });
 
-    // Back to the type selector for the new organization -- no stale "Front"
+    // Back to the type selector for the new organization -- no stale "Frente"
     // checklist or captured-evidence state survives the switch.
-    expect(await findByText("Which document will you provide?")).toBeTruthy();
+    expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
     expect(mockedFetchDocumentResult).toHaveBeenCalledWith("step-org-b");
   });
 });
@@ -739,10 +739,10 @@ describe("Document capture: privacy", () => {
       canceled: false,
       assets: [{ uri: "file:///tmp/front.jpg", width: 1200, height: 800, fileSize: 500_000, mimeType: "image/jpeg" }],
     });
-    fireEvent.press(getByText("Front"));
-    fireEvent.press(await findByText("Open camera"));
-    fireEvent.press(await findByText("Use this photo"));
-    await findByText("Captured");
+    fireEvent.press(getByText("Frente"));
+    fireEvent.press(await findByText("Abrir cámara"));
+    fireEvent.press(await findByText("Usar esta foto"));
+    await findByText("Capturado");
 
     for (const call of mockedCapture.mock.calls) {
       expect(call).toHaveLength(1); // event name only, no properties object

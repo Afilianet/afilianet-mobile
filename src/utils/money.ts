@@ -1,3 +1,5 @@
+import { strings } from "../i18n";
+
 // Mirrors afilianet-api's app/Support/Money/Currency.php EXPONENTS table.
 // The backend isn't exposing this over the API, so we keep our own copy --
 // it's small and changes rarely (adding a currency there requires a
@@ -84,7 +86,7 @@ export type ParsedAmount =
 export function parseAmountInput(raw: string, currency: string): ParsedAmount {
   const trimmed = raw.trim();
   if (!PLAIN_DECIMAL_PATTERN.test(trimmed)) {
-    return { valid: false, error: "Enter a valid amount." };
+    return { valid: false, error: strings.money.invalidAmount };
   }
 
   const exponent = currencyExponent(currency);
@@ -92,19 +94,16 @@ export function parseAmountInput(raw: string, currency: string): ParsedAmount {
   if (fractionPart.length > exponent) {
     return {
       valid: false,
-      error:
-        exponent === 0
-          ? `${currency} doesn't use decimal places.`
-          : `Enter up to ${exponent} decimal place${exponent === 1 ? "" : "s"}.`,
+      error: exponent === 0 ? strings.money.noDecimalPlaces(currency) : strings.money.upToDecimalPlaces(exponent),
     };
   }
 
   const minorUnits = toMinorUnits(trimmed, currency);
   if (minorUnits <= 0n) {
-    return { valid: false, error: "Enter an amount greater than zero." };
+    return { valid: false, error: strings.money.greaterThanZero };
   }
   if (minorUnits > BigInt(Number.MAX_SAFE_INTEGER)) {
-    return { valid: false, error: "That amount is too large." };
+    return { valid: false, error: strings.money.tooLarge };
   }
 
   return { valid: true, minorUnits: Number(minorUnits), decimal: trimmed };

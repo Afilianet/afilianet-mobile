@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../../api/errors";
+import { strings } from "../../../i18n";
 import { useTriggerFaceMatchProcessing } from "../../../hooks/useTriggerFaceMatchProcessing";
 import { analytics } from "../../../services/analytics";
 import type { Evidence, FaceMatchProcessingResult } from "../../../types/api";
@@ -85,7 +86,7 @@ export function FaceMatchCaptureFlow({
       analytics.capture("face_match_processing_triggered");
     } catch (error) {
       if (!isApiError(error)) {
-        setSubmitError("Something went wrong. Please try again.");
+        setSubmitError(strings.faceMatch.genericError);
         return;
       }
       // A 409 (already in progress) is recovered from automatically by the
@@ -96,7 +97,7 @@ export function FaceMatchCaptureFlow({
       // absorbed.
       if (error.status === 409) {
         if (error.message.includes("already in progress")) return;
-        setSubmitError("Complete your identity document verification first, then come back to take your selfie.");
+        setSubmitError(strings.faceMatch.documentStepNotCompleted);
         return;
       }
       // 503 (FaceMatchProcessingException::faceMatchEngineUnavailable() --
@@ -107,7 +108,7 @@ export function FaceMatchCaptureFlow({
       // manual retry via the same "Submit for verification" button --
       // never an automatic loop).
       if (error.status === 503) {
-        setSubmitError("Face verification is temporarily unavailable. Please try again in a few minutes.");
+        setSubmitError(strings.faceMatch.serviceUnavailable);
         return;
       }
       setSubmitError(friendlyMessage(error));
@@ -140,19 +141,27 @@ export function FaceMatchCaptureFlow({
         onPress={() => setActiveCapture(true)}
         style={styles.row}
         accessibilityRole="button"
-        accessibilityLabel={`Selfie, ${captured ? "captured" : "not yet captured"}`}
-        accessibilityHint={captured ? "Retake this photo" : "Capture this photo"}
+        accessibilityLabel={`${strings.faceMatch.selfie}, ${captured ? strings.faceMatch.captured : strings.faceMatch.notYetCaptured}`}
+        accessibilityHint={captured ? strings.faceMatch.retakeHint : strings.faceMatch.captureHint}
       >
         <View style={styles.rowText}>
-          <Text style={styles.rowLabel}>Selfie</Text>
-          <Text style={[styles.rowStatus, captured ? styles.rowStatusDone : null]}>{captured ? "Captured" : "Not yet captured"}</Text>
+          <Text style={styles.rowLabel}>{strings.faceMatch.selfie}</Text>
+          <Text style={[styles.rowStatus, captured ? styles.rowStatusDone : null]}>
+            {captured ? strings.faceMatch.captured : strings.faceMatch.notYetCaptured}
+          </Text>
         </View>
         <Icon name={captured ? "check" : "reloj"} size={18} color={captured ? colors.success : colors.textTertiary} />
       </Pressable>
 
       {submitError ? <Text style={styles.error}>{submitError}</Text> : null}
 
-      <Button label="Submit for verification" fullWidth disabled={!captured} loading={triggerMutation.isPending} onPress={() => void handleSubmit()} />
+      <Button
+        label={strings.faceMatch.submitForVerification}
+        fullWidth
+        disabled={!captured}
+        loading={triggerMutation.isPending}
+        onPress={() => void handleSubmit()}
+      />
     </View>
   );
 }

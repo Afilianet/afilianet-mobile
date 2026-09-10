@@ -1,45 +1,23 @@
 import type { BadgeTone } from "../../../design-system/theme";
+import { strings } from "../../../i18n";
 import type { DocumentType, DocumentVerdict, EvidenceType, ProviderUnavailableReason } from "../../../types/api";
 
 // DocumentRequirements.php's REQUIRED map, mirrored client-side purely to
 // drive the capture checklist UI -- the backend independently enforces the
 // same requirement at trigger time, this is never the source of truth.
-export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
-  mx_ine: "Mexican INE",
-  passport: "Passport",
-};
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = strings.documentCapture.documentTypeLabels;
 
 export const REQUIRED_EVIDENCE: Record<DocumentType, EvidenceType[]> = {
   mx_ine: ["id_document_front", "id_document_back"],
   passport: ["id_document_page"],
 };
 
-export const EVIDENCE_TYPE_LABELS: Record<EvidenceType, string> = {
-  id_document_front: "Front",
-  id_document_back: "Back",
-  id_document_page: "Identity page",
-  selfie: "Selfie",
-};
+export const EVIDENCE_TYPE_LABELS: Record<EvidenceType, string> = strings.documentCapture.evidenceTypeLabels;
 
 // Every field name MxIneParser/PassportMrzParser actually emit
 // (DOCUMENT_ENGINE.md sections F/G) -- an unrecognized field still renders
 // (humanized fallback below), this only improves the label for known ones.
-const FIELD_LABELS: Record<string, string> = {
-  first_name: "First name",
-  paternal_last_name: "Paternal last name",
-  maternal_last_name: "Maternal last name",
-  date_of_birth: "Date of birth",
-  curp: "CURP",
-  elector_key: "Elector key",
-  expiration_year: "Expiration year",
-  surname: "Surname",
-  given_names: "Given names",
-  nationality: "Nationality",
-  sex: "Sex",
-  passport_number: "Passport number",
-  expiration_date: "Expiration date",
-  issuing_country: "Issuing country",
-};
+const FIELD_LABELS: Record<string, string> = strings.documentCapture.fieldLabels;
 
 const DATE_FIELDS = new Set(["date_of_birth", "expiration_date"]);
 
@@ -52,16 +30,7 @@ export function fieldLabel(name: string): string {
 // afilianet-api (never invented independently), so a correction typed here
 // is likely to pass server-side validation on the first try. An unlisted
 // field renders with no helper text.
-const FIELD_HELPER_TEXT: Record<string, string> = {
-  date_of_birth: "Format: YYYY-MM-DD",
-  expiration_date: "Format: YYYY-MM-DD",
-  expiration_year: "4-digit year",
-  curp: "18 characters",
-  elector_key: "18 characters",
-  sex: "M, F, or X",
-  issuing_country: "3-letter code, e.g. MEX",
-  nationality: "3-letter code, e.g. MEX",
-};
+const FIELD_HELPER_TEXT: Record<string, string> = strings.documentCapture.fieldHelperText;
 
 export function confirmationFieldHelperText(name: string): string | undefined {
   return FIELD_HELPER_TEXT[name];
@@ -82,9 +51,7 @@ export const MONO_CONFIRMATION_FIELDS = new Set([
   "sex",
 ]);
 
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-] as const;
+const MONTH_NAMES = strings.documentCapture.monthNames;
 
 /**
  * A plain YYYY-MM-DD string (both date_of_birth and expiration_date are
@@ -99,7 +66,7 @@ function formatIsoDateLiteral(value: string): string {
   if (!match) return value;
   const [, year, month, day] = match;
   const monthName = MONTH_NAMES[Number(month) - 1];
-  return monthName ? `${monthName} ${Number(day)}, ${year}` : value;
+  return monthName ? strings.documentCapture.formatDateLiteral(Number(day), monthName, Number(year)) : value;
 }
 
 /** ISO date fields render human-readable; everything else (CURP, names, MRZ codes) renders as-is. */
@@ -112,21 +79,21 @@ export function fieldDisplayValue(name: string, value: string | null): string {
 export function verdictCopy(verdict: DocumentVerdict | null): { label: string; tone: BadgeTone; description: string } {
   switch (verdict) {
     case "pass":
-      return { label: "Confirmed from document", tone: "success", description: "Your document checks passed." };
+      return { label: strings.documentCapture.confirmedTitle, tone: "success", description: strings.documentCapture.confirmedDescription };
     case "review":
       return {
-        label: "Please review",
+        label: strings.documentCapture.pleaseReviewTitle,
         tone: "warning",
-        description: "Your submission is under manual review. No action is needed from you right now.",
+        description: strings.compliance.manualReviewNotice,
       };
     case "fail":
       return {
-        label: "Needs correction",
+        label: strings.documentCapture.needsCorrectionTitle,
         tone: "danger",
-        description: "Your document couldn't be verified. You can retake the photo and try again.",
+        description: strings.documentCapture.needsCorrectionDescription,
       };
     default:
-      return { label: "Pending", tone: "neutral", description: "" };
+      return { label: strings.documentCapture.pendingLabel, tone: "neutral", description: "" };
   }
 }
 
@@ -148,15 +115,15 @@ export function isUnavailableFailureReason(reason: string | null): boolean {
 
 export function friendlyFailureReason(reason: string | null): string {
   if (reason === "poor_image_quality") {
-    return "This photo isn't clear enough to read. Retake it with better lighting, and make sure the whole document is visible and in focus.";
+    return strings.documentCapture.failureReasons.poorImageQuality;
   }
   if (reason === "evidence_unavailable") {
-    return "Something went wrong with your upload. Please retake the photo.";
+    return strings.documentCapture.failureReasons.evidenceUnavailable;
   }
   if (isUnavailableFailureReason(reason)) {
-    return "Document verification is temporarily unavailable. Please try again in a few minutes.";
+    return strings.documentCapture.failureReasons.unavailable;
   }
-  return "Something went wrong while processing your document. Please try again.";
+  return strings.documentCapture.failureReasons.default;
 }
 
 /**
@@ -182,22 +149,22 @@ export function providerUnavailableCopy(
 ): { title: string; description: string; retryable: boolean } {
   if (reason === "engine_unavailable") {
     return {
-      title: "Temporarily unavailable",
-      description: `${featureLabel} is temporarily unavailable. Please try again in a few minutes.`,
+      title: strings.documentCapture.providerUnavailable.temporarilyUnavailableTitle,
+      description: strings.documentCapture.providerUnavailable.temporarilyUnavailable(featureLabel),
       retryable: true,
     };
   }
   if (reason === "not_configured") {
     return {
-      title: "Not set up yet",
-      description: `${featureLabel} isn't set up for this organization yet.`,
+      title: strings.documentCapture.providerUnavailable.notSetUpTitle,
+      description: strings.documentCapture.providerUnavailable.notSetUp(featureLabel),
       retryable: false,
     };
   }
   if (reason === "provider_misconfigured" || reason === "provider_not_implemented") {
     return {
-      title: "Not available",
-      description: `${featureLabel} isn't available for this organization right now.`,
+      title: strings.documentCapture.providerUnavailable.notAvailableTitle,
+      description: strings.documentCapture.providerUnavailable.notAvailable(featureLabel),
       retryable: false,
     };
   }
@@ -206,8 +173,8 @@ export function providerUnavailableCopy(
   // honest, non-alarming framing as the existing Incode message, never
   // implying anything is broken.
   return {
-    title: "Different flow",
-    description: `${featureLabel} for this organization uses a different flow.`,
+    title: strings.documentCapture.providerUnavailable.differentFlowTitle,
+    description: strings.documentCapture.providerUnavailable.differentFlow(featureLabel),
     retryable: false,
   };
 }

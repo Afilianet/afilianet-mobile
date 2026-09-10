@@ -11,6 +11,7 @@ import { SkeletonGroup } from "../../components/Skeleton";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
+import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useWallet } from "../../hooks/useWallet";
 import { useWalletActivity } from "../../hooks/useWalletActivity";
@@ -52,19 +53,21 @@ export default function WalletScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <View style={styles.headerRow}>
-        <Text style={styles.heading}>Wallet</Text>
-        <Button label="Payouts" variant="ghost" size="sm" onPress={() => router.push(routes.payouts as never)} />
+        <Text style={styles.heading}>{strings.wallet.title}</Text>
+        <Button
+          label={strings.wallet.payoutsButton}
+          variant="ghost"
+          size="sm"
+          onPress={() => router.push(routes.payouts as never)}
+        />
       </View>
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />
       ) : noAffiliateProfile ? (
-        <EmptyState
-          title="Join the affiliate program"
-          description="You need an affiliate profile in this organization to have a wallet."
-        />
+        <EmptyState title={strings.joinAffiliateProgram.title} description={strings.wallet.joinAffiliateDescription} />
       ) : profileForbidden ? (
-        <ForbiddenState area="your wallet" />
+        <ForbiddenState area={strings.wallet.forbiddenArea} />
       ) : profileLoadFailed ? (
         <ErrorState
           error={affiliateQuery.error}
@@ -75,7 +78,7 @@ export default function WalletScreen() {
         walletQuery.isPending ? (
           <SkeletonGroup lines={4} />
         ) : walletForbidden ? (
-          <ForbiddenState area="your wallet" />
+          <ForbiddenState area={strings.wallet.forbiddenArea} />
         ) : walletApiError ? (
           <ErrorState error={walletApiError} onRetry={() => void walletQuery.refetch()} retrying={walletQuery.isFetching} />
         ) : walletQuery.data && walletQuery.data.length > 0 ? (
@@ -85,10 +88,7 @@ export default function WalletScreen() {
             ))}
           </View>
         ) : (
-          <EmptyState
-            title="No wallet balance yet"
-            description="Your balances will appear here once you start earning commissions."
-          />
+          <EmptyState title={strings.wallet.noBalanceTitle} description={strings.wallet.noBalanceDescription} />
         )
       ) : null}
     </ScrollView>
@@ -109,12 +109,12 @@ function WalletCurrencyCard({ wallet }: { wallet: WalletSummary }) {
     <View style={styles.currencyBlock}>
       <Card style={styles.balanceCard}>
         <Text style={styles.currencyHeading}>{wallet.currency}</Text>
-        <BalanceRow label="Pending" value={formatMoney(wallet.pending_balance, wallet.currency)} />
-        <BalanceRow label="Available" value={formatMoney(wallet.available_balance, wallet.currency)} />
-        <BalanceRow label="Total" value={formatMoney(total, wallet.currency)} strong />
+        <BalanceRow label={strings.wallet.pending} value={formatMoney(wallet.pending_balance, wallet.currency)} />
+        <BalanceRow label={strings.wallet.available} value={formatMoney(wallet.available_balance, wallet.currency)} />
+        <BalanceRow label={strings.wallet.total} value={formatMoney(total, wallet.currency)} strong />
         {canWithdraw ? (
           <Button
-            label="Withdraw"
+            label={strings.wallet.withdraw}
             variant="secondary"
             size="sm"
             onPress={() => router.push(payoutRequest(wallet.currency) as never)}
@@ -123,9 +123,9 @@ function WalletCurrencyCard({ wallet }: { wallet: WalletSummary }) {
       </Card>
 
       <PaginatedSectionCard
-        title={`${wallet.currency} activity`}
+        title={strings.wallet.activityTitle(wallet.currency)}
         query={activityQuery}
-        emptyTitle="No activity yet"
+        emptyTitle={strings.wallet.noActivityYet}
         renderItem={(entry) => <LedgerEntryRow entry={entry} />}
       />
     </View>
@@ -138,7 +138,7 @@ function BalanceRow({ label, value, strong }: { label: string; value: string; st
     <View
       style={styles.balanceRow}
       accessible
-      accessibilityLabel={`${label}: ${isNegative ? "negative " : ""}${value}`}
+      accessibilityLabel={`${label}: ${isNegative ? strings.wallet.negativePrefix : ""}${value}`}
     >
       <Text style={strong ? styles.balanceLabelStrong : styles.balanceLabel}>{label}</Text>
       <Text style={[strong ? styles.balanceValueStrong : styles.balanceValue, isNegative ? styles.negative : null]}>

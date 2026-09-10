@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { StyleSheet, Text, View } from "react-native";
 import { useFaceMatchResult } from "../../../hooks/useFaceMatchResult";
+import { strings } from "../../../i18n";
 import { useOrganization } from "../../../state/OrganizationContext";
 import type { ComplianceStep } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
@@ -82,18 +83,18 @@ function renderBody(
     // Never "Identity verified" -- a face-match pass alone never means
     // that (Phase 9D.3's explicit product-semantics requirement; see
     // faceMatchCopy.ts's docblock for the full reasoning).
-    return <Text style={styles.description}>Your face was matched to your identity document.</Text>;
+    return <Text style={styles.description}>{strings.compliance.faceMatchStep.matchedText}</Text>;
   }
 
   if (!isAfilianetActionable) {
     if (step.configured_provider === "incode" && step.status === "failed") {
-      return <Text style={styles.description}>Your face verification couldn&apos;t be completed.</Text>;
+      return <Text style={styles.description}>{strings.compliance.faceMatchStep.failedText}</Text>;
     }
     return (
       <ProviderUnavailableState
         configuredProvider={step.configured_provider}
         reason={step.provider_unavailable_reason}
-        featureLabel="Face verification"
+        featureLabel={strings.compliance.faceMatchStep.featureLabel}
         onCheckAgain={onCheckAgain}
         checking={false}
       />

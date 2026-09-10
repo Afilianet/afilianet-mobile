@@ -16,6 +16,7 @@ import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
 import { affiliateStatusCopy } from "../../design-system/statusMapping";
+import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useMyInvitations } from "../../hooks/useMyInvitations";
 import { useMyPlacementChildren } from "../../hooks/useMyPlacementChildren";
@@ -77,17 +78,14 @@ export default function NetworkScreen() {
       testID="network-scroll"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
-      <Text style={styles.heading}>Network</Text>
+      <Text style={styles.heading}>{strings.network.title}</Text>
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />
       ) : noAffiliateProfile ? (
-        <EmptyState
-          title="Join the affiliate program"
-          description="You need an affiliate profile in this organization to see your network."
-        />
+        <EmptyState title={strings.joinAffiliateProgram.title} description={strings.network.joinAffiliateDescription} />
       ) : forbidden ? (
-        <ForbiddenState area="your network" />
+        <ForbiddenState area={strings.network.forbiddenArea} />
       ) : loadFailed ? (
         <ErrorState
           error={affiliateQuery.error}
@@ -104,56 +102,56 @@ export default function NetworkScreen() {
           />
 
           <Button
-            label="Invite someone"
+            label={strings.network.inviteSomeone}
             iconLeft={<Icon name="compartir" size={16} color={colors.textOnBrand} />}
             onPress={pressInvite}
           />
 
           <SectionCard
-            title="Sponsor"
-            helpText="The person who recruited you -- not necessarily where you sit in the network."
+            title={strings.network.sponsor.title}
+            helpText={strings.network.sponsor.helpText}
             query={sponsorQuery}
             isEmpty={(sponsor) => sponsor === null}
-            emptyTitle="You're at the root of this network"
-            emptyDescription="You don't have a sponsor -- no one recruited you into this organization."
+            emptyTitle={strings.network.sponsor.emptyTitle}
+            emptyDescription={strings.network.sponsor.emptyDescription}
           >
             {(sponsor) => (sponsor ? <AffiliateRow affiliate={sponsor} /> : null)}
           </SectionCard>
 
           <SectionCard
-            title="Placement parent"
-            helpText="Where you're positioned in the network structure -- can differ from your sponsor above."
+            title={strings.network.placementParent.title}
+            helpText={strings.network.placementParent.helpText}
             query={placementParentQuery}
             isEmpty={(parent) => parent === null}
-            emptyTitle="You're at the top of the placement structure"
+            emptyTitle={strings.network.placementParent.emptyTitle}
           >
             {(parent) => (parent ? <AffiliateRow affiliate={parent} /> : null)}
           </SectionCard>
 
           <PaginatedSectionCard
-            title="Direct sponsored"
-            helpText="Affiliates you personally recruited."
+            title={strings.network.directSponsored.title}
+            helpText={strings.network.directSponsored.helpText}
             query={sponsoredQuery}
-            emptyTitle="You haven't sponsored anyone yet"
+            emptyTitle={strings.network.directSponsored.emptyTitle}
             onLoadMorePress={() => analytics.capture("network_load_more", { section: "sponsored" })}
             renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} onPress={() => openAffiliate(affiliate)} />}
           />
 
           <PaginatedSectionCard
-            title="Placement children"
-            helpText="Affiliates positioned under you in the network structure -- not necessarily people you recruited."
+            title={strings.network.placementChildren.title}
+            helpText={strings.network.placementChildren.helpText}
             query={placementChildrenQuery}
-            emptyTitle="No one is placed under you yet"
+            emptyTitle={strings.network.placementChildren.emptyTitle}
             onLoadMorePress={() => analytics.capture("network_load_more", { section: "placement_children" })}
             renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} onPress={() => openAffiliate(affiliate)} />}
           />
 
           <SectionCard
-            title="My invitations"
+            title={strings.network.myInvitations.title}
             query={invitationsQuery}
             isEmpty={(page) => page.data.length === 0}
-            emptyTitle="No invitations sent yet"
-            emptyDescription="Invite someone to start growing your network."
+            emptyTitle={strings.network.myInvitations.emptyTitle}
+            emptyDescription={strings.network.myInvitations.emptyDescription}
           >
             {(page) => (
               <View style={styles.invitationsList}>
@@ -184,15 +182,15 @@ function SummaryCard({
   return (
     <Card style={styles.summaryCard}>
       <View style={styles.summaryHeader}>
-        <Text style={styles.code} accessibilityLabel={`Affiliate code ${affiliate.affiliate_code}`}>
+        <Text style={styles.code} accessibilityLabel={strings.referral.affiliateCodeA11y(affiliate.affiliate_code)}>
           {affiliate.affiliate_code}
         </Text>
         <Badge label={status.label} tone={status.tone} />
       </View>
       <View style={styles.summaryGrid}>
-        <SummaryStat label="Sponsored" value={sponsoredTotal} />
-        <SummaryStat label="Placement" value={placementChildrenTotal} />
-        <SummaryStat label="Invitations" value={invitationsTotal} />
+        <SummaryStat label={strings.network.summary.sponsored} value={sponsoredTotal} />
+        <SummaryStat label={strings.network.summary.placement} value={placementChildrenTotal} />
+        <SummaryStat label={strings.network.summary.invitations} value={invitationsTotal} />
       </View>
     </Card>
   );
@@ -200,7 +198,11 @@ function SummaryCard({
 
 function SummaryStat({ label, value }: { label: string; value?: number }) {
   return (
-    <View style={styles.summaryStat} accessible accessibilityLabel={`${label}: ${value ?? "unavailable"}`}>
+    <View
+      style={styles.summaryStat}
+      accessible
+      accessibilityLabel={`${label}: ${value ?? strings.network.summary.unavailable}`}
+    >
       <Text style={styles.summaryValue}>{value ?? "—"}</Text>
       <Text style={styles.summaryLabel}>{label}</Text>
     </View>

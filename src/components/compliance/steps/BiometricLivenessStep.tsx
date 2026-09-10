@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { StyleSheet, Text, View } from "react-native";
 import { useLivenessResult } from "../../../hooks/useLivenessResult";
+import { strings } from "../../../i18n";
 import { useOrganization } from "../../../state/OrganizationContext";
 import type { ComplianceStep } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
@@ -71,18 +72,18 @@ function renderBody(
     // livenessCopy.ts's docblock for the full reasoning). Liveness only
     // confirms presence; biometric assurance requires a backend
     // combination with Face Match.
-    return <Text style={styles.description}>Your liveness check was completed.</Text>;
+    return <Text style={styles.description}>{strings.compliance.biometricLiveness.completedText}</Text>;
   }
 
   if (!isAwsActionable) {
     if (step.configured_provider === "incode" && step.status === "failed") {
-      return <Text style={styles.description}>Your liveness check couldn&apos;t be completed.</Text>;
+      return <Text style={styles.description}>{strings.compliance.biometricLiveness.failedText}</Text>;
     }
     return (
       <ProviderUnavailableState
         configuredProvider={step.configured_provider}
         reason={step.provider_unavailable_reason}
-        featureLabel="Liveness verification"
+        featureLabel={strings.compliance.biometricLiveness.featureLabel}
         onCheckAgain={onCheckAgain}
         checking={false}
       />

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { affiliateStatusCopy } from "../design-system/statusMapping";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import type { AffiliateProfile } from "../types/api";
 import { formatDate } from "../utils/date";
 import { Avatar } from "./ui/Avatar";
@@ -32,14 +33,14 @@ export function AffiliateRow({ affiliate, onPress }: AffiliateRowProps) {
         <View style={styles.metaRow}>
           {/* Only repeat the code here when the bold line above is showing a real name -- otherwise it's already the label and repeating it is just noise. */}
           {name ? <Text style={styles.code}>{affiliate.affiliate_code}</Text> : null}
-          {affiliate.joined_at ? <Text style={styles.meta}>Joined {formatDate(affiliate.joined_at)}</Text> : null}
+          {affiliate.joined_at ? <Text style={styles.meta}>{strings.network.joinedOn(formatDate(affiliate.joined_at))}</Text> : null}
         </View>
       </View>
       {onPress ? <Icon name="flechaDerecha" size={16} color={colors.textTertiary} /> : null}
     </View>
   );
 
-  const accessibilityLabel = `${label}, ${status.label}${affiliate.joined_at ? `, joined ${formatDate(affiliate.joined_at)}` : ""}`;
+  const accessibilityLabel = `${label}, ${status.label}${affiliate.joined_at ? strings.network.joinedA11y(formatDate(affiliate.joined_at)) : ""}`;
 
   if (!onPress) {
     return (
@@ -55,7 +56,7 @@ export function AffiliateRow({ affiliate, onPress }: AffiliateRowProps) {
       style={({ pressed }) => [styles.pressable, pressed ? styles.pressed : null]}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      accessibilityHint="Opens this affiliate's network details"
+      accessibilityHint={strings.network.opensAffiliateDetailsHint}
     >
       {content}
     </Pressable>

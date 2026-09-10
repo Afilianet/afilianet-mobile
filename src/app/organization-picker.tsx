@@ -4,6 +4,7 @@ import { Card } from "../components/ui/Card";
 import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
@@ -38,19 +39,23 @@ export default function OrganizationPickerScreen() {
     <View style={styles.screen}>
       {router.canGoBack() ? (
         <View style={styles.close}>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
       ) : null}
-      <Text style={styles.title}>Choose an organization</Text>
+      <Text style={styles.title}>{strings.organizationPicker.title}</Text>
       <View style={styles.list}>
         {organizations.map((org) => (
           <Pressable
             key={org.id}
             onPress={() => handleSelect(org.id)}
             accessibilityRole="button"
-            accessibilityLabel={org.my_role ? `Switch to ${org.name}, role ${humanizeRole(org.my_role)}` : `Switch to ${org.name}`}
+            accessibilityLabel={
+              org.my_role
+                ? strings.organizationPicker.switchToWithRole(org.name, humanizeRole(org.my_role))
+                : strings.organizationPicker.switchTo(org.name)
+            }
           >
             <Card style={styles.card}>
               <Text style={styles.orgName}>{org.name}</Text>

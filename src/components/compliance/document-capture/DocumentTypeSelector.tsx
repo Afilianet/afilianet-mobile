@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import { colors, radius, spacing, typography } from "../../ui/theme";
 import { DOCUMENT_TYPE_LABELS, EVIDENCE_TYPE_LABELS, REQUIRED_EVIDENCE } from "./documentCaptureCopy";
 import type { DocumentType } from "../../../types/api";
@@ -14,7 +15,7 @@ const OPTIONS: DocumentType[] = ["mx_ine", "passport"];
 export function DocumentTypeSelector({ onSelect }: { onSelect: (type: DocumentType) => void }) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Which document will you provide?</Text>
+      <Text style={styles.title}>{strings.documentCapture.whichDocument}</Text>
       {OPTIONS.map((type) => {
         const required = REQUIRED_EVIDENCE[type].map((evidenceType) => EVIDENCE_TYPE_LABELS[evidenceType]).join(" + ");
         return (
@@ -23,10 +24,10 @@ export function DocumentTypeSelector({ onSelect }: { onSelect: (type: DocumentTy
             onPress={() => onSelect(type)}
             style={styles.option}
             accessibilityRole="button"
-            accessibilityLabel={`${DOCUMENT_TYPE_LABELS[type]}, requires ${required}`}
+            accessibilityLabel={`${DOCUMENT_TYPE_LABELS[type]}, ${strings.documentCapture.requiresA11ySuffix(required)}`}
           >
             <Text style={styles.optionLabel}>{DOCUMENT_TYPE_LABELS[type]}</Text>
-            <Text style={styles.optionMeta}>Requires: {required}</Text>
+            <Text style={styles.optionMeta}>{strings.documentCapture.requiresPrefix(required)}</Text>
           </Pressable>
         );
       })}

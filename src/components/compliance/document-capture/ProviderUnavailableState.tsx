@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { ProviderUnavailableReason } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -44,7 +45,7 @@ export function ProviderUnavailableState({
       <Badge label={copy.title} tone="neutral" />
       <Text style={styles.description}>{copy.description}</Text>
       {copy.retryable ? (
-        <Button label="Check again" variant="secondary" size="sm" onPress={onCheckAgain} loading={checking} />
+        <Button label={strings.documentCapture.providerUnavailable.checkAgain} variant="secondary" size="sm" onPress={onCheckAgain} loading={checking} />
       ) : null}
     </View>
   );

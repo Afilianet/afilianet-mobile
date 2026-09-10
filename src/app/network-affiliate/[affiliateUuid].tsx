@@ -14,6 +14,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
 import { affiliateStatusCopy } from "../../design-system/statusMapping";
+import { strings } from "../../i18n";
 import { useAffiliateDetails } from "../../hooks/useAffiliateDetails";
 import { useAffiliatePlacementChildren } from "../../hooks/useAffiliatePlacementChildren";
 import { useAffiliateSponsored } from "../../hooks/useAffiliateSponsored";
@@ -36,7 +37,7 @@ export default function AffiliateDetailScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} testID="affiliate-detail-scroll">
         <View style={styles.close}>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -44,9 +45,9 @@ export default function AffiliateDetailScreen() {
         {detailQuery.isPending ? (
           <SkeletonGroup lines={5} />
         ) : forbidden ? (
-          <ForbiddenState area="this affiliate's network details" onGoBack={() => router.back()} />
+          <ForbiddenState area={strings.networkAffiliate.forbiddenArea} onGoBack={() => router.back()} />
         ) : notFound ? (
-          <EmptyState title="Not found" description="This affiliate couldn't be found in this organization." />
+          <EmptyState title={strings.networkAffiliate.notFoundTitle} description={strings.networkAffiliate.notFoundDescription} />
         ) : otherError ? (
           <ErrorState
             error={detailQuery.error}
@@ -58,19 +59,19 @@ export default function AffiliateDetailScreen() {
             <IdentityCard affiliate={detailQuery.data} />
 
             <PaginatedSectionCard
-              title="Direct sponsored"
-              helpText="Affiliates this person personally recruited."
+              title={strings.networkAffiliate.directSponsored.title}
+              helpText={strings.networkAffiliate.directSponsored.helpText}
               query={sponsoredQuery}
-              emptyTitle="Hasn't sponsored anyone yet"
+              emptyTitle={strings.networkAffiliate.directSponsored.emptyTitle}
               onLoadMorePress={() => analytics.capture("network_load_more", { section: "sponsored" })}
               renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} />}
             />
 
             <PaginatedSectionCard
-              title="Placement children"
-              helpText="Affiliates positioned under this person in the network structure."
+              title={strings.networkAffiliate.placementChildren.title}
+              helpText={strings.networkAffiliate.placementChildren.helpText}
               query={placementChildrenQuery}
-              emptyTitle="No one placed under them yet"
+              emptyTitle={strings.networkAffiliate.placementChildren.emptyTitle}
               onLoadMorePress={() => analytics.capture("network_load_more", { section: "placement_children" })}
               renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} />}
             />
@@ -102,11 +103,14 @@ function IdentityCard({
 
       <View style={styles.relationships}>
         <Text style={styles.relationship}>
-          Sponsor: <Text style={styles.relationshipValue}>{affiliate.sponsor?.affiliate_code ?? "None"}</Text>
+          {strings.networkAffiliate.sponsorLabel}
+          <Text style={styles.relationshipValue}>{affiliate.sponsor?.affiliate_code ?? strings.networkAffiliate.none}</Text>
         </Text>
         <Text style={styles.relationship}>
-          Placement parent:{" "}
-          <Text style={styles.relationshipValue}>{affiliate.placement_parent?.affiliate_code ?? "None"}</Text>
+          {strings.networkAffiliate.placementParentLabel}
+          <Text style={styles.relationshipValue}>
+            {affiliate.placement_parent?.affiliate_code ?? strings.networkAffiliate.none}
+          </Text>
         </Text>
       </View>
     </Card>

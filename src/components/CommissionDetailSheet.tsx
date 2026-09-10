@@ -1,6 +1,7 @@
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { commissionStatusCopy } from "../design-system/statusMapping";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import type { Commission } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
@@ -12,10 +13,7 @@ import { colors, measures, radius, spacing, typography } from "./ui/theme";
 
 // Plain-language explanations for the two non-obvious statuses -- per the
 // domain rules, not something a raw status word communicates on its own.
-const STATUS_EXPLANATION: Record<string, string> = {
-  void: "This commission was calculated for audit purposes, but wasn't earned because your account wasn't eligible at the time.",
-  reversed: "This commission was later offset by a reversal entry -- for example, after a refund.",
-};
+const STATUS_EXPLANATION: Record<string, string> = strings.commissions.statusExplanation;
 
 /**
  * A sheet, not a route: afilianet-api's CommissionPolicy::view is
@@ -41,8 +39,8 @@ export function CommissionDetailSheet({ commission, onClose }: { commission: Com
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Commission details</Text>
-            <IconButton label="Close" onPress={onClose}>
+            <Text style={styles.title}>{strings.commissions.detailsTitle}</Text>
+            <IconButton label={strings.common.close} onPress={onClose}>
               <Icon name="cerrar" size={18} color={colors.textPrimary} />
             </IconButton>
           </View>
@@ -51,7 +49,7 @@ export function CommissionDetailSheet({ commission, onClose }: { commission: Com
             <View
               style={styles.amountBlock}
               accessible
-              accessibilityLabel={`${isNegative ? "Negative amount " : ""}${formatMoney(commission.amount, commission.currency)}, ${status.label}`}
+              accessibilityLabel={`${isNegative ? strings.commissions.negativeAmountA11y : ""}${formatMoney(commission.amount, commission.currency)}, ${status.label}`}
             >
               <Text style={[styles.amount, isNegative ? styles.amountNegative : null]}>
                 {formatMoney(commission.amount, commission.currency)}
@@ -62,19 +60,23 @@ export function CommissionDetailSheet({ commission, onClose }: { commission: Com
             {explanation ? <Text style={styles.explanation}>{explanation}</Text> : null}
 
             <View style={styles.fields}>
-              <Field label="Type" value={commissionTypeLabel(commission.type)} />
+              <Field label={strings.commissions.fields.type} value={commissionTypeLabel(commission.type)} />
               {commission.network_level !== null ? (
-                <Field label="Level" value={String(commission.network_level)} />
+                <Field label={strings.commissions.fields.level} value={String(commission.network_level)} />
               ) : null}
-              <Field label="Reference" value={commission.id} mono />
-              {commission.sale?.id ? <Field label="Sale" value={commission.sale.id} mono /> : null}
-              {commission.reversal_of ? <Field label="Reverses" value={commission.reversal_of} mono /> : null}
+              <Field label={strings.commissions.fields.reference} value={commission.id} mono />
+              {commission.sale?.id ? <Field label={strings.commissions.fields.sale} value={commission.sale.id} mono /> : null}
+              {commission.reversal_of ? (
+                <Field label={strings.commissions.fields.reverses} value={commission.reversal_of} mono />
+              ) : null}
               <Field
-                label="Calculated"
-                value={commission.calculated_at ? formatDate(commission.calculated_at) : "—"}
+                label={strings.commissions.fields.calculated}
+                value={commission.calculated_at ? formatDate(commission.calculated_at) : strings.commissions.notAvailable}
               />
-              {commission.reversed_at ? <Field label="Reversed" value={formatDate(commission.reversed_at)} /> : null}
-              <Field label="Created" value={formatDate(commission.created_at)} />
+              {commission.reversed_at ? (
+                <Field label={strings.commissions.fields.reversed} value={formatDate(commission.reversed_at)} />
+              ) : null}
+              <Field label={strings.commissions.fields.created} value={formatDate(commission.created_at)} />
             </View>
           </ScrollView>
         </View>

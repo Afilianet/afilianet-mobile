@@ -172,7 +172,7 @@ describe("Network: active affiliate", () => {
     expect(await findByText("Paula Parent")).toBeTruthy();
     expect(await findByText("SPOD0001")).toBeTruthy();
     expect(await findByText("PLAC0001")).toBeTruthy();
-    expect(await findByText("My invitations")).toBeTruthy();
+    expect(await findByText("Mis invitaciones")).toBeTruthy();
   });
 
   it("fires network_viewed with no properties", async () => {
@@ -187,8 +187,8 @@ describe("Network: sponsor vs placement distinction", () => {
   it("renders sponsor and placement parent as distinct, differently-labeled affiliates when they differ", async () => {
     const { findByText } = await renderNetwork();
 
-    expect(await findByText(/who recruited you/i)).toBeTruthy();
-    expect(await findByText(/can differ from your sponsor/i)).toBeTruthy();
+    expect(await findByText(/te reclutó/i)).toBeTruthy();
+    expect(await findByText(/diferir de tu patrocinador/i)).toBeTruthy();
     // Different people entirely -- proves the UI never conflates the two.
     expect(await findByText("SPON5000")).toBeTruthy();
     expect(await findByText("PLAC6000")).toBeTruthy();
@@ -198,7 +198,7 @@ describe("Network: sponsor vs placement distinction", () => {
     mockedFetchMySponsor.mockResolvedValue(null);
     const { findByText } = await renderNetwork();
 
-    expect(await findByText("You're at the root of this network")).toBeTruthy();
+    expect(await findByText("Estás en la raíz de esta red")).toBeTruthy();
     // Placement parent is unaffected by sponsor being null.
     expect(await findByText("Paula Parent")).toBeTruthy();
   });
@@ -207,7 +207,7 @@ describe("Network: sponsor vs placement distinction", () => {
     mockedFetchMyPlacementParent.mockResolvedValue(null);
     const { findByText } = await renderNetwork();
 
-    expect(await findByText("You're at the top of the placement structure")).toBeTruthy();
+    expect(await findByText("Estás en la cima de la estructura de colocación")).toBeTruthy();
   });
 });
 
@@ -239,8 +239,8 @@ describe("Network: invitations", () => {
 
     expect(await findByText("j***@example.com")).toBeTruthy();
     expect(await findByText("***78")).toBeTruthy();
-    expect(await findByText("Pending")).toBeTruthy();
-    expect(await findByText("Accepted")).toBeTruthy();
+    expect(await findByText("Pendiente")).toBeTruthy();
+    expect(await findByText("Aceptada")).toBeTruthy();
     expect(queryByText("jane@example.com")).toBeNull();
     expect(queryByText("+525512345678")).toBeNull();
   });
@@ -270,13 +270,13 @@ describe("Network: invitations", () => {
     );
     const { findByText } = await renderNetwork();
 
-    expect(await findByText("Expired")).toBeTruthy();
-    expect(await findByText("Revoked")).toBeTruthy();
+    expect(await findByText("Vencida")).toBeTruthy();
+    expect(await findByText("Revocada")).toBeTruthy();
   });
 
   it("shows an empty state with no invitations", async () => {
     const { findByText } = await renderNetwork();
-    expect(await findByText("No invitations sent yet")).toBeTruthy();
+    expect(await findByText("Aún no has enviado invitaciones")).toBeTruthy();
   });
 });
 
@@ -305,7 +305,7 @@ describe("Network: pagination", () => {
     expect(await findByText("SPOD0001")).toBeTruthy();
     expect(await findByText("SPOD0002")).toBeTruthy();
 
-    const loadMore = await findByLabelText("Load more direct sponsored");
+    const loadMore = await findByLabelText("Cargar más referidos directos");
     await act(async () => {
       fireEvent.press(loadMore);
     });
@@ -324,7 +324,7 @@ describe("Network: pagination", () => {
       ),
     );
     const { findByLabelText } = await renderNetwork();
-    const loadMore = await findByLabelText("Load more direct sponsored");
+    const loadMore = await findByLabelText("Cargar más referidos directos");
     await act(async () => {
       fireEvent.press(loadMore);
     });
@@ -337,7 +337,7 @@ describe("Network: pagination", () => {
     mockedFetchMySponsored.mockResolvedValue(page([affiliate({ id: "aff-s1", affiliate_code: "SPOD0001" })], 1, 1, 1));
     const { findByText, queryByLabelText } = await renderNetwork();
     await findByText("SPOD0001");
-    expect(queryByLabelText("Load more direct sponsored")).toBeNull();
+    expect(queryByLabelText("Cargar más referidos directos")).toBeNull();
   });
 });
 
@@ -346,7 +346,7 @@ describe("Network: partial failure", () => {
     mockedFetchMySponsored.mockRejectedValue(new ApiError("server", "Something broke.", 500));
     const { findByText } = await renderNetwork();
 
-    expect(await findByText(/Something went wrong/, undefined, { timeout: 8000 })).toBeTruthy();
+    expect(await findByText(/Algo salió mal/, undefined, { timeout: 8000 })).toBeTruthy();
     // Everything else still renders.
     expect(await findByText("PLAC0001")).toBeTruthy();
     expect(await findByText("Sonia Sponsor")).toBeTruthy();
@@ -358,8 +358,8 @@ describe("Network: no affiliate profile", () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderNetwork();
 
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("My invitations")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("Mis invitaciones")).toBeNull();
   });
 });
 
@@ -394,7 +394,7 @@ describe("Network: organization switching", () => {
 describe("Network: referral CTA", () => {
   it("navigates to the referral screen and fires network_invite_pressed", async () => {
     const { findByText } = await renderNetwork();
-    const button = await findByText("Invite someone");
+    const button = await findByText("Invitar a alguien");
 
     await act(async () => {
       fireEvent.press(button);

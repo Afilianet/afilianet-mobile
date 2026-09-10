@@ -5,6 +5,7 @@ import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useAbandonLivenessSession } from "../../../hooks/useAbandonLivenessSession";
 import { useCreateLivenessSession } from "../../../hooks/useCreateLivenessSession";
 import { useLivenessCredentials } from "../../../hooks/useLivenessCredentials";
+import { strings } from "../../../i18n";
 import { analytics } from "../../../services/analytics";
 import type { LivenessCredentials, LivenessSession } from "../../../types/api";
 import { SkeletonGroup } from "../../Skeleton";
@@ -136,7 +137,7 @@ export function LivenessCaptureFlow({
       setStage({ kind: "native_capture", session, credentials });
     } catch (error) {
       setStage({ kind: "idle" });
-      setStartError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setStartError(isApiError(error) ? friendlyMessage(error) : strings.liveness.genericError);
     } finally {
       startingRef.current = false;
     }
@@ -227,7 +228,7 @@ export function LivenessCaptureFlow({
     <View style={styles.container}>
       <Text style={styles.description}>{LIVENESS_EXPLANATION}</Text>
       {startError ? <Text style={styles.error}>{startError}</Text> : null}
-      <Button label="Start check" onPress={() => void handleStart()} loading={isStarting} />
+      <Button label={strings.liveness.startCheck} onPress={() => void handleStart()} loading={isStarting} />
     </View>
   );
 }

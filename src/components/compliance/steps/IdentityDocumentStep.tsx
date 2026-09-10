@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { StyleSheet, Text, View } from "react-native";
 import { useDocumentResult } from "../../../hooks/useDocumentResult";
+import { strings } from "../../../i18n";
 import { useOrganization } from "../../../state/OrganizationContext";
 import type { ComplianceStep } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
@@ -69,18 +70,18 @@ function renderBody(
         </View>
       );
     }
-    return <Text style={styles.description}>Your identity document was verified.</Text>;
+    return <Text style={styles.description}>{strings.compliance.identityDocumentStep.verifiedText}</Text>;
   }
 
   if (!isAfilianetActionable) {
     if (step.configured_provider === "incode" && step.status === "failed") {
-      return <Text style={styles.description}>Your identity document couldn&apos;t be verified.</Text>;
+      return <Text style={styles.description}>{strings.compliance.identityDocumentStep.failedText}</Text>;
     }
     return (
       <ProviderUnavailableState
         configuredProvider={step.configured_provider}
         reason={step.provider_unavailable_reason}
-        featureLabel="Document verification"
+        featureLabel={strings.compliance.identityDocumentStep.featureLabel}
         onCheckAgain={onCheckAgain}
         checking={false}
       />

@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { invitationStatusCopy } from "../design-system/statusMapping";
+import { strings } from "../i18n";
 import type { Invitation } from "../types/api";
 import { formatDate } from "../utils/date";
 import { Badge } from "./ui/Badge";
@@ -12,19 +13,19 @@ import { colors, spacing, typography } from "./ui/theme";
  */
 export function InvitationRow({ invitation }: { invitation: Invitation }) {
   const status = invitationStatusCopy(invitation.status);
-  const recipient = invitation.masked_email ?? invitation.masked_phone ?? "Unaddressed link";
+  const recipient = invitation.masked_email ?? invitation.masked_phone ?? strings.network.invitation.unaddressedLink;
   const detail =
     invitation.status === "accepted" && invitation.accepted_at
-      ? `Accepted ${formatDate(invitation.accepted_at)}`
+      ? strings.network.invitation.acceptedOn(formatDate(invitation.accepted_at))
       : invitation.status === "pending"
-        ? `Expires ${formatDate(invitation.expires_at)}`
-        : `Sent ${formatDate(invitation.created_at)}`;
+        ? strings.network.invitation.expiresOn(formatDate(invitation.expires_at))
+        : strings.network.invitation.sentOn(formatDate(invitation.created_at));
 
   return (
     <View
       style={styles.row}
       accessible
-      accessibilityLabel={`Invitation to ${recipient}, ${status.label}, ${detail}`}
+      accessibilityLabel={strings.network.invitation.invitationToA11y(recipient, status.label, detail)}
     >
       <View style={styles.info}>
         <Text style={styles.recipient} numberOfLines={1}>

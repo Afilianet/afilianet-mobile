@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../../api/errors";
+import { strings } from "../../../i18n";
 import { useTriggerDocumentProcessing } from "../../../hooks/useTriggerDocumentProcessing";
 import { analytics } from "../../../services/analytics";
 import type { DocumentProcessingResult, DocumentType, Evidence, EvidenceType } from "../../../types/api";
@@ -86,10 +87,10 @@ export function DocumentCaptureFlow({
       // can simply try submitting again later (a manual retry via the same
       // "Submit for verification" button -- never an automatic loop).
       if (isApiError(error) && error.status === 503) {
-        setSubmitError("Document verification is temporarily unavailable. Please try again in a few minutes.");
+        setSubmitError(strings.documentCapture.failureReasons.unavailable);
         return;
       }
-      setSubmitError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setSubmitError(isApiError(error) ? friendlyMessage(error) : strings.documentCapture.genericError);
     }
   }
 

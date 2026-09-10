@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { payoutStatusCopy } from "../design-system/statusMapping";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { useCancelPayout } from "../hooks/useCancelPayout";
 import { analytics } from "../services/analytics";
 import type { Payout } from "../types/api";
@@ -52,28 +53,24 @@ export function PayoutDetailSheet({
       await cancelMutation.mutateAsync({ payoutId: target.id, currency: target.currency });
       analytics.capture("payout_cancelled");
       onClose();
-      onCancelled("Withdrawal cancelled.", "success");
+      onCancelled(strings.payouts.withdrawalCancelledToast, "success");
     } catch (error) {
       if (isApiError(error) && error.kind === "validation") {
         onClose();
-        onCancelled("This payout already moved on, so it could no longer be cancelled. Your payout list has been refreshed.", "neutral");
+        onCancelled(strings.payouts.alreadyMovedOnToast, "neutral");
         return;
       }
-      setCancelError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setCancelError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
     }
   }
 
   function confirmCancel() {
     if (!payout) return;
     const target = payout;
-    Alert.alert(
-      "Cancel withdrawal?",
-      "This cancels your payout request and releases the reserved amount back to your eligible balance.",
-      [
-        { text: "Keep withdrawal", style: "cancel" },
-        { text: "Cancel withdrawal", style: "destructive", onPress: () => void submitCancel(target) },
-      ],
-    );
+    Alert.alert(strings.payouts.cancelWithdrawalConfirmTitle, strings.payouts.cancelWithdrawalConfirmMessage, [
+      { text: strings.payouts.keepWithdrawal, style: "cancel" },
+      { text: strings.payouts.cancelWithdrawal, style: "destructive", onPress: () => void submitCancel(target) },
+    ]);
   }
 
   return (
@@ -81,8 +78,8 @@ export function PayoutDetailSheet({
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Payout details</Text>
-            <IconButton label="Close" onPress={onClose}>
+            <Text style={styles.title}>{strings.payouts.detailTitle}</Text>
+            <IconButton label={strings.common.close} onPress={onClose}>
               <Icon name="cerrar" size={18} color={colors.textPrimary} />
             </IconButton>
           </View>
@@ -100,22 +97,26 @@ export function PayoutDetailSheet({
             {status.description ? <Text style={styles.explanation}>{status.description}</Text> : null}
 
             <View style={styles.fields}>
-              <Field label="Destination" value={payout.destination?.display_label ?? "—"} />
-              <Field label="Reference" value={payout.id} mono />
-              {payout.requested_at ? <Field label="Requested" value={formatDate(payout.requested_at)} /> : null}
-              {payout.processing_at ? <Field label="Processing since" value={formatDate(payout.processing_at)} /> : null}
-              {payout.paid_at ? <Field label="Paid" value={formatDate(payout.paid_at)} /> : null}
-              {payout.failed_at ? <Field label="Failed" value={formatDate(payout.failed_at)} /> : null}
-              {payout.cancelled_at ? <Field label="Cancelled" value={formatDate(payout.cancelled_at)} /> : null}
-              {payout.failure_reason ? <Field label="Reason" value={payout.failure_reason} /> : null}
-              <Field label="Created" value={formatDate(payout.created_at)} />
+              <Field label={strings.payouts.fields.destination} value={payout.destination?.display_label ?? strings.payouts.notAvailable} />
+              <Field label={strings.payouts.fields.reference} value={payout.id} mono />
+              {payout.requested_at ? <Field label={strings.payouts.fields.requested} value={formatDate(payout.requested_at)} /> : null}
+              {payout.processing_at ? (
+                <Field label={strings.payouts.fields.processingSince} value={formatDate(payout.processing_at)} />
+              ) : null}
+              {payout.paid_at ? <Field label={strings.payouts.fields.paid} value={formatDate(payout.paid_at)} /> : null}
+              {payout.failed_at ? <Field label={strings.payouts.fields.failed} value={formatDate(payout.failed_at)} /> : null}
+              {payout.cancelled_at ? (
+                <Field label={strings.payouts.fields.cancelled} value={formatDate(payout.cancelled_at)} />
+              ) : null}
+              {payout.failure_reason ? <Field label={strings.payouts.fields.reason} value={payout.failure_reason} /> : null}
+              <Field label={strings.payouts.fields.created} value={formatDate(payout.created_at)} />
             </View>
 
             {canCancel ? (
               <View style={styles.cancelBlock}>
                 {cancelError ? <Text style={styles.cancelError}>{cancelError}</Text> : null}
                 <Button
-                  label="Cancel withdrawal"
+                  label={strings.payouts.cancelWithdrawal}
                   variant="danger"
                   fullWidth
                   loading={cancelMutation.isPending}

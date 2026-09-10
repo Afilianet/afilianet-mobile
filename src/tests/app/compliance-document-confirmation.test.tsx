@@ -196,7 +196,7 @@ describe("Document confirmation: form rendering", () => {
   it("renders an editable form, pre-filled with the extracted values, when confirmation is required", async () => {
     const { findByText, findByDisplayValue } = await renderCompliance();
 
-    expect(await findByText("Confirm your details")).toBeTruthy();
+    expect(await findByText("Confirma tus datos")).toBeTruthy();
     expect(await findByDisplayValue("JUAN CARLOS")).toBeTruthy();
     expect(await findByDisplayValue("PEGJ900515HDFRZN08")).toBeTruthy();
   });
@@ -207,8 +207,8 @@ describe("Document confirmation: form rendering", () => {
     );
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Confirmed from document")).toBeTruthy();
-    expect(queryByText("Confirm your details")).toBeNull();
+    expect(await findByText("Confirmado desde el documento")).toBeTruthy();
+    expect(queryByText("Confirma tus datos")).toBeNull();
   });
 
   it("never offers a confirmation form for a fail verdict, even if confirmation_required is true", async () => {
@@ -223,8 +223,8 @@ describe("Document confirmation: form rendering", () => {
     );
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Needs correction")).toBeTruthy();
-    expect(queryByText("Confirm your details")).toBeNull();
+    expect(await findByText("Necesita corrección")).toBeTruthy();
+    expect(queryByText("Confirma tus datos")).toBeNull();
     // Extracted fields are still shown read-only, just never editable here.
     expect(await findByText("JUAN CARLOS")).toBeTruthy();
   });
@@ -240,8 +240,8 @@ describe("Document confirmation: form rendering", () => {
     );
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("Please review")).toBeTruthy();
-    expect(await findByText("Confirm your details")).toBeTruthy();
+    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(await findByText("Confirma tus datos")).toBeTruthy();
   });
 });
 
@@ -260,7 +260,7 @@ describe("Document confirmation: submission", () => {
     const { findByText, findByDisplayValue } = await renderCompliance();
     const input = await findByDisplayValue("JUAN CARLOS");
     fireEvent.changeText(input, "JUAN C. CORRECTED");
-    fireEvent.press(await findByText("Confirm details"));
+    fireEvent.press(await findByText("Confirmar datos"));
 
     await waitFor(() => {
       expect(mockedConfirmDocumentResult).toHaveBeenCalledWith("step-1", {
@@ -269,7 +269,7 @@ describe("Document confirmation: submission", () => {
       });
     });
 
-    expect(await findByText("Your confirmed details")).toBeTruthy();
+    expect(await findByText("Tus datos confirmados")).toBeTruthy();
     expect(await findByText("JUAN C. CORRECTED")).toBeTruthy();
     expect(mockedCapture).toHaveBeenCalledWith("document_fields_confirmed");
     // Never anything resembling a client-side "mark this step approved" call.
@@ -284,7 +284,7 @@ describe("Document confirmation: submission", () => {
     const { findByText, findByDisplayValue } = await renderCompliance();
     const curpInput = await findByDisplayValue("PEGJ900515HDFRZN08");
     fireEvent.changeText(curpInput, "NOT-A-CURP");
-    fireEvent.press(await findByText("Confirm details"));
+    fireEvent.press(await findByText("Confirmar datos"));
 
     expect(await findByText("The curp format is invalid.")).toBeTruthy();
     // The edit is still there -- the form was never cleared/reset.
@@ -309,11 +309,11 @@ describe("Document confirmation: submission", () => {
     // The subsequent GET (triggered by the hook's onError refetch) returns
     // the already-confirmed authoritative result.
     mockedFetchDocumentResult.mockResolvedValue(alreadyConfirmed);
-    fireEvent.press(await findByText("Confirm details"));
+    fireEvent.press(await findByText("Confirmar datos"));
 
     // A hard stop: the UI settles on the AUTHORITATIVE confirmed values,
     // never the user's rejected edit -- no silent overwrite.
-    expect(await findByText("Your confirmed details")).toBeTruthy();
+    expect(await findByText("Tus datos confirmados")).toBeTruthy();
     expect(queryByText("SOMETHING ELSE")).toBeNull();
     expect(await findByText("JUAN CARLOS")).toBeTruthy();
     // The mutation was attempted exactly once -- no automatic retry loop.
@@ -331,7 +331,7 @@ describe("Document confirmation: security and tenant isolation", () => {
       }),
     );
     const { findByText } = await renderCompliance();
-    fireEvent.press(await findByText("Confirm details"));
+    fireEvent.press(await findByText("Confirmar datos"));
 
     await waitFor(() => expect(mockedCapture).toHaveBeenCalled());
     for (const call of mockedCapture.mock.calls) {

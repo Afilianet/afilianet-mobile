@@ -86,16 +86,16 @@ describe("payoutStatusCopy", () => {
   });
 
   it("provides plain-language explanations for every status", () => {
-    expect(payoutStatusCopy("requested").description).toMatch(/reserved/i);
-    expect(payoutStatusCopy("processing").description).toMatch(/reserved/i);
-    expect(payoutStatusCopy("paid").description).toMatch(/ledger was debited/i);
-    expect(payoutStatusCopy("failed").description).toMatch(/reservation was released/i);
-    expect(payoutStatusCopy("cancelled").description).toMatch(/reservation was released/i);
+    expect(payoutStatusCopy("requested").description).toMatch(/reservad/i);
+    expect(payoutStatusCopy("processing").description).toMatch(/reservad/i);
+    expect(payoutStatusCopy("paid").description).toMatch(/se debitó/i);
+    expect(payoutStatusCopy("failed").description).toMatch(/reserva fue liberada/i);
+    expect(payoutStatusCopy("cancelled").description).toMatch(/reserva fue liberada/i);
   });
 
   it("never implies a ledger refund for failed/cancelled", () => {
-    expect(payoutStatusCopy("failed").description).not.toMatch(/refund/i);
-    expect(payoutStatusCopy("cancelled").description).not.toMatch(/refund/i);
+    expect(payoutStatusCopy("failed").description).not.toMatch(/reembolso/i);
+    expect(payoutStatusCopy("cancelled").description).not.toMatch(/reembolso/i);
   });
 
   it("falls back safely for an unknown status", () => {
