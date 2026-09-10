@@ -165,26 +165,26 @@ describe("Compliance: case statuses", () => {
   it("shows not_started with a Start verification CTA when no case exists yet", async () => {
     mockedFetchMyCompliance.mockRejectedValue(NOT_FOUND);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Not started")).toBeTruthy();
-    expect(await findByText("Start verification")).toBeTruthy();
+    expect(await findByText("No iniciado")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
   });
 
   it("shows in_progress", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText("In progress")).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy();
   });
 
   it("shows pending_review", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "pending_review", current_step: null }));
     const { findByText } = await renderCompliance();
-    expect(await findByText("Pending review")).toBeTruthy();
+    expect(await findByText("Revisión pendiente")).toBeTruthy();
   });
 
   it("shows manual_review", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "manual_review", current_step: null }));
     const { findByText } = await renderCompliance();
-    expect(await findByText("Manual review")).toBeTruthy();
+    expect(await findByText("Revisión manual")).toBeTruthy();
   });
 
   it("shows approved with the approval date and no next-step line", async () => {
@@ -192,9 +192,9 @@ describe("Compliance: case statuses", () => {
       complianceCase({ status: "approved", current_step: null, approved_at: "2026-01-05T00:00:00Z" }),
     );
     const { findAllByText, queryByText } = await renderCompliance();
-    // Appears twice by design: the status badge, and the "Approved <date>" line below it.
-    expect((await findAllByText(/Approved/)).length).toBe(2);
-    expect(queryByText(/^Next:/)).toBeNull();
+    // Appears twice by design: the status badge, and the "Aprobado el <date>" line below it.
+    expect((await findAllByText(/Aprobado/)).length).toBe(2);
+    expect(queryByText(/^Siguiente:/)).toBeNull();
   });
 
   it("shows rejected with the rejection reason", async () => {
@@ -202,7 +202,7 @@ describe("Compliance: case statuses", () => {
       complianceCase({ status: "rejected", current_step: null, rejection_reason: "Document was blurry" }),
     );
     const { findByText } = await renderCompliance();
-    expect(await findByText("Rejected")).toBeTruthy();
+    expect(await findByText("Rechazado")).toBeTruthy();
     expect(await findByText("Document was blurry")).toBeTruthy();
   });
 
@@ -211,14 +211,18 @@ describe("Compliance: case statuses", () => {
       complianceCase({ status: "expired", current_step: null, expires_at: "2026-01-10T00:00:00Z" }),
     );
     const { findAllByText } = await renderCompliance();
-    // Appears twice by design: the status badge, and the "Expired <date>" line below it.
-    expect((await findAllByText(/Expired/)).length).toBe(2);
+    // Appears twice by design: the status badge ("Vencido") and the
+    // "Venció el <date>" line below it -- both start with a capital V. The
+    // status description ("Tu verificación venció.") also contains the stem
+    // but lowercase mid-sentence, so this stays case-sensitive (no /i) to
+    // exclude it, matching the original English test's intent.
+    expect((await findAllByText(/Venc/)).length).toBe(2);
   });
 
   it("shows the next required step for a non-terminal case", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress", current_step: "terms_acceptance" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText("Next: Terms acceptance")).toBeTruthy();
+    expect(await findByText("Siguiente: Aceptación de términos")).toBeTruthy();
   });
 });
 
@@ -229,19 +233,19 @@ describe("Compliance: required steps", () => {
       step({ id: "s2", step_type: "terms_acceptance" }),
     ]);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Identity document")).toBeTruthy();
-    expect(await findByText("Terms acceptance")).toBeTruthy();
-    expect(queryByText("Liveness check")).toBeNull();
-    expect(queryByText("Face match")).toBeNull();
-    expect(queryByText("Verbal consent")).toBeNull();
-    expect(queryByText("Identity information")).toBeNull();
+    expect(await findByText("Documento de identidad")).toBeTruthy();
+    expect(await findByText("Aceptación de términos")).toBeTruthy();
+    expect(queryByText("Prueba de vida")).toBeNull();
+    expect(queryByText("Coincidencia facial")).toBeNull();
+    expect(queryByText("Consentimiento verbal")).toBeNull();
+    expect(queryByText("Información de identidad")).toBeNull();
   });
 
   it("renders a single-step org configuration just as accurately as a multi-step one", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "s1", step_type: "identity_document" })]);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Identity document")).toBeTruthy();
-    expect(queryByText("Terms acceptance")).toBeNull();
+    expect(await findByText("Documento de identidad")).toBeTruthy();
+    expect(queryByText("Aceptación de términos")).toBeNull();
   });
 
   it("shows the real Afilianet document-capture flow for a pending identity_document step", async () => {
@@ -253,15 +257,15 @@ describe("Compliance: required steps", () => {
   it("shows a passed step as completed, with its completion date", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "passed", completed_at: "2026-01-03T00:00:00Z" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Passed")).toBeTruthy();
+    expect(await findByText("Aprobado")).toBeTruthy();
     expect(await findByText(/verified/i)).toBeTruthy();
-    expect(await findByText(/Completed/)).toBeTruthy();
+    expect(await findByText(/Completado/)).toBeTruthy();
   });
 
   it("shows a failed identity_document step with a real way to try again, not a non-functional retry action", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "failed", attempt_count: 1 })]);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Failed")).toBeTruthy();
+    expect(await findByText("Rechazado")).toBeTruthy();
     // No prior document-processing result exists in this file's default mocks,
     // so document_type can't be recovered -- the real capture flow asks again.
     expect(await findByText("Which document will you provide?")).toBeTruthy();
@@ -283,8 +287,8 @@ describe("Compliance: required steps", () => {
     // instead of the test having to wait through real retry backoff delays.
     mockedFetchComplianceSteps.mockRejectedValue(new ApiError("forbidden", "Forbidden.", 403));
     const { findByText } = await renderCompliance();
-    expect(await findByText("In progress")).toBeTruthy(); // case card still rendered
-    expect(await findByText(/Couldn't load your required steps/i)).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy(); // case card still rendered
+    expect(await findByText(/No pudimos cargar tus pasos requeridos/i)).toBeTruthy();
   });
 });
 
@@ -294,14 +298,14 @@ describe("Compliance: starting a case", () => {
     mockedStartCompliance.mockResolvedValue(complianceCase({ status: "in_progress" }));
     const { findByText } = await renderCompliance();
 
-    const startButton = await findByText("Start verification");
+    const startButton = await findByText("Comenzar verificación");
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress" }));
     await act(async () => {
       fireEvent.press(startButton);
     });
 
     expect(mockedStartCompliance).toHaveBeenCalledTimes(1);
-    expect(await findByText("In progress")).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy();
   });
 
   it("shows a clear error and lets the affiliate try again if starting fails", async () => {
@@ -309,7 +313,7 @@ describe("Compliance: starting a case", () => {
     mockedStartCompliance.mockRejectedValue(new ApiError("server", "Server error.", 500));
     const { findByText } = await renderCompliance();
 
-    const startButton = await findByText("Start verification");
+    const startButton = await findByText("Comenzar verificación");
     await act(async () => {
       fireEvent.press(startButton);
     });
@@ -322,7 +326,7 @@ describe("Compliance: starting a case", () => {
     mockedStartCompliance.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
     const { findByText } = await renderCompliance();
 
-    const startButton = await findByText("Start verification");
+    const startButton = await findByText("Comenzar verificación");
     await act(async () => {
       fireEvent.press(startButton);
     });
@@ -335,8 +339,8 @@ describe("Compliance: errors and empty states", () => {
   it("shows an enrollment message instead of compliance content with no affiliate profile", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("In progress")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("En progreso")).toBeNull();
   });
 
   it("shows a retryable error state on a 403", async () => {
@@ -349,7 +353,7 @@ describe("Compliance: errors and empty states", () => {
 describe("Compliance: pull-to-refresh", () => {
   it("refetches affiliate profile, case, and steps together -- how an approval becomes visible", async () => {
     const { findByText, getByTestId } = await renderCompliance();
-    await findByText("In progress");
+    await findByText("En progreso");
     expect(mockedFetchMyAffiliateProfile).toHaveBeenCalledTimes(1);
     expect(mockedFetchMyCompliance).toHaveBeenCalledTimes(1);
     expect(mockedFetchComplianceSteps).toHaveBeenCalledTimes(1);
@@ -365,7 +369,7 @@ describe("Compliance: pull-to-refresh", () => {
     expect(mockedFetchMyAffiliateProfile).toHaveBeenCalledTimes(2);
     expect(mockedFetchMyCompliance).toHaveBeenCalledTimes(2);
     expect(mockedFetchComplianceSteps).toHaveBeenCalledTimes(2);
-    expect(await findByText("Approved")).toBeTruthy();
+    expect(await findByText("Aprobado")).toBeTruthy();
   });
 });
 
@@ -375,7 +379,7 @@ describe("Compliance: organization switching", () => {
       Promise.resolve(complianceCase({ status: "in_progress", rejection_reason: null })),
     );
     const { findByText, queryByText, rerender } = await renderCompliance(orgValue({ activeOrganization: ORG_A }));
-    expect(await findByText("In progress")).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy();
 
     mockedFetchMyCompliance.mockImplementation(() => Promise.resolve(complianceCase({ status: "approved", current_step: null })));
     await act(async () => {
@@ -388,8 +392,8 @@ describe("Compliance: organization switching", () => {
       );
     });
 
-    expect(await findByText("Approved")).toBeTruthy();
-    expect(queryByText("In progress")).toBeNull();
+    expect(await findByText("Aprobado")).toBeTruthy();
+    expect(queryByText("En progreso")).toBeNull();
   });
 });
 
@@ -459,7 +463,7 @@ describe("Compliance: identity information stays read-only", () => {
   it("shows no accept/pass/fail action for identity_information", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "info-1", step_type: "identity_information" })]);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Identity information")).toBeTruthy();
+    expect(await findByText("Información de identidad")).toBeTruthy();
     expect(queryByText("Accept terms")).toBeNull();
     expect(queryByText("Pass")).toBeNull();
     expect(queryByText("Fail")).toBeNull();
@@ -499,7 +503,7 @@ describe("Compliance: development simulator (Fake provider steps only)", () => {
       step({ id: "doc-1", step_type: "identity_document", status: "passed", completed_at: "2026-01-03T00:00:00Z" }),
     ]);
     const { findByText, queryByText } = await renderCompliance();
-    await findByText("Passed");
+    await findByText("Aprobado");
     expect(queryByText("Pass")).toBeNull();
     expect(queryByText("Fail")).toBeNull();
   });
@@ -520,7 +524,7 @@ describe("Compliance: retry to manual_review", () => {
     mockedFetchMyCompliance.mockResolvedValueOnce(complianceCase({ status: "in_progress" }));
     mockedAttemptComplianceStep.mockResolvedValue(complianceCase({ status: "manual_review", current_step: null }));
     const { findByText, queryByText } = await renderCompliance();
-    await findByText("In progress");
+    await findByText("En progreso");
 
     // The screen's displayed status comes from the next GET /compliance
     // call (triggered by the mutation's invalidation), not from the
@@ -532,8 +536,8 @@ describe("Compliance: retry to manual_review", () => {
       fireEvent.press(await findByText("Pass"));
     });
 
-    expect(await findByText("Manual review")).toBeTruthy();
-    expect(queryByText("Approved")).toBeNull();
+    expect(await findByText("Revisión manual")).toBeTruthy();
+    expect(queryByText("Aprobado")).toBeNull();
   });
 });
 
@@ -560,7 +564,7 @@ describe("Compliance: approval refreshes affiliate profile", () => {
     });
 
     await waitFor(() => expect(mockedFetchMyAffiliateProfile.mock.calls.length).toBeGreaterThan(profileCallsBefore));
-    expect(await findByText("Approved")).toBeTruthy();
+    expect(await findByText("Aprobado")).toBeTruthy();
 
     alertSpy.mockRestore();
   });

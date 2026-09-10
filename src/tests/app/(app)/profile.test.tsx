@@ -198,7 +198,7 @@ describe("Profile: compliance summary", () => {
   it("shows the current compliance status and links to the full screen", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress", approved_at: null }));
     const { findByText } = await renderProfile();
-    expect(await findByText("In progress")).toBeTruthy();
+    expect(await findByText("En progreso")).toBeTruthy();
 
     await act(async () => {
       fireEvent.press(await findByText("View compliance"));
@@ -209,7 +209,7 @@ describe("Profile: compliance summary", () => {
   it("shows not_started when no case exists yet", async () => {
     mockedFetchMyCompliance.mockRejectedValue(NOT_FOUND);
     const { findByText } = await renderProfile();
-    expect(await findByText("Not started")).toBeTruthy();
+    expect(await findByText("No iniciado")).toBeTruthy();
   });
 });
 

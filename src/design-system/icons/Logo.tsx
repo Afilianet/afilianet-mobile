@@ -52,7 +52,7 @@ export function Isotipo({ variant = "violeta", size = 40 }: { variant?: LogoVari
  * no equivalent in React Native -- the font must be one already loaded via
  * useFonts() in the root layout.
  */
-export function Logo({ variant = "blanco", height = 28 }: { variant?: LogoVariant; height?: number }) {
+export function Logo({ variant = "violeta", height = 28 }: { variant?: LogoVariant; height?: number }) {
   const width = (height / 64) * 300;
   return (
     <Svg width={width} height={height} viewBox="0 0 300 64" accessible accessibilityLabel="Afilianet">

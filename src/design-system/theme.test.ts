@@ -1,19 +1,25 @@
 import { colors, radius, spacing, typography } from "./theme";
 import { fontSize, fontWeight, night, semantic, spacingScale, violet } from "./tokens";
 
-describe("theme (dark, the official default)", () => {
-  it("resolves tema.oscuro aliases to the exact tokens.json values", () => {
-    expect(colors.background).toBe(night[950]);
-    expect(colors.surface).toBe(night[900]);
-    expect(colors.surfaceRaised).toBe(night[800]);
-    expect(colors.border).toBe(night[700]);
-    expect(colors.borderStrong).toBe(night[600]);
-    expect(colors.textPrimary).toBe("#ECEAF4");
-    expect(colors.textSecondary).toBe(night[300]);
-    expect(colors.textTertiary).toBe(night[400]);
+// Light-first baseline (see git history/theme.ts's own docblock): the app
+// previously hardcoded tema.oscuro with no way to opt out, rendering fully
+// dark regardless of device settings. This asserts against tema.claro's
+// exact tokens.json values instead -- flip back to `night[950]`/etc. (see
+// the old version of this test) if `theme.ts`'s `active` is ever switched
+// back to `themes.dark`.
+describe("theme (light, the current in-app default)", () => {
+  it("resolves tema.claro aliases to the exact tokens.json values", () => {
+    expect(colors.background).toBe(night[0]);
+    expect(colors.surface).toBe(night[50]);
+    expect(colors.surfaceRaised).toBe(violet[50]);
+    expect(colors.border).toBe(night[100]);
+    expect(colors.borderStrong).toBe(night[200]);
+    expect(colors.textPrimary).toBe(night[950]);
+    expect(colors.textSecondary).toBe(night[500]);
+    expect(colors.textTertiary).toBe(night[500]);
     expect(colors.primary).toBe(violet[500]);
-    expect(colors.primaryHover).toBe(violet[400]);
-    expect(colors.primaryActive).toBe(violet[600]);
+    expect(colors.primaryHover).toBe(violet[600]);
+    expect(colors.primaryActive).toBe(violet[700]);
     expect(colors.focusRing).toBe(violet[300]);
   });
 

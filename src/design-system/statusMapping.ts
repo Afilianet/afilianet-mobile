@@ -1,3 +1,4 @@
+import { strings } from "../i18n";
 import type { BadgeTone } from "./theme";
 
 interface StatusCopy {
@@ -43,22 +44,35 @@ export function affiliateStatusCopy(status: string): StatusCopy {
 // actually returned by GET /api/v1/compliance (a case doesn't exist until
 // POST .../start is called) -- it's synthesized client-side when that
 // endpoint 404s, but kept here so its copy lives in one place.
+//
+// Spanish-translated (see src/i18n/) -- the first area migrated in the
+// Spanish-first/light-theme phase. Tones are still decided here (the
+// official tone rule above); only label/description text comes from the
+// dictionary, mirroring every other status map in this file structurally.
 const COMPLIANCE_STATUS: Record<string, StatusCopy> = {
   not_started: {
-    label: "Not started",
+    label: strings.compliance.status.not_started.label,
     tone: "neutral",
-    description: "Complete your verification to unlock full affiliate features.",
+    description: strings.compliance.status.not_started.description,
   },
-  in_progress: { label: "In progress", tone: "warning", description: "Verification in progress." },
-  pending_review: { label: "Pending review", tone: "warning", description: "We're reviewing your submission." },
-  manual_review: { label: "Manual review", tone: "warning", description: "Your verification needs manual review." },
-  approved: { label: "Approved", tone: "success" },
+  in_progress: { label: strings.compliance.status.in_progress.label, tone: "warning", description: strings.compliance.status.in_progress.description },
+  pending_review: {
+    label: strings.compliance.status.pending_review.label,
+    tone: "warning",
+    description: strings.compliance.status.pending_review.description,
+  },
+  manual_review: {
+    label: strings.compliance.status.manual_review.label,
+    tone: "warning",
+    description: strings.compliance.status.manual_review.description,
+  },
+  approved: { label: strings.compliance.status.approved.label, tone: "success" },
   rejected: {
-    label: "Rejected",
+    label: strings.compliance.status.rejected.label,
     tone: "danger",
-    description: "Your verification was rejected and needs attention.",
+    description: strings.compliance.status.rejected.description,
   },
-  expired: { label: "Expired", tone: "danger", description: "Your verification has expired." },
+  expired: { label: strings.compliance.status.expired.label, tone: "danger", description: strings.compliance.status.expired.description },
 };
 
 export function complianceStatusCopy(status: string): StatusCopy {
@@ -70,12 +84,12 @@ export function complianceStatusCopy(status: string): StatusCopy {
 // practice (ComplianceService only ever sets pending/passed/failed) --
 // mapped here anyway for completeness, same official tone rule as above.
 const COMPLIANCE_STEP_STATUS: Record<string, StatusCopy> = {
-  pending: { label: "Pending", tone: "warning" },
-  in_progress: { label: "In progress", tone: "warning" },
-  passed: { label: "Passed", tone: "success" },
-  failed: { label: "Failed", tone: "danger" },
-  manual_review: { label: "Manual review", tone: "warning" },
-  skipped: { label: "Skipped", tone: "neutral" },
+  pending: { label: strings.compliance.stepStatus.pending, tone: "warning" },
+  in_progress: { label: strings.compliance.stepStatus.in_progress, tone: "warning" },
+  passed: { label: strings.compliance.stepStatus.passed, tone: "success" },
+  failed: { label: strings.compliance.stepStatus.failed, tone: "danger" },
+  manual_review: { label: strings.compliance.stepStatus.manual_review, tone: "warning" },
+  skipped: { label: strings.compliance.stepStatus.skipped, tone: "neutral" },
 };
 
 export function complianceStepStatusCopy(status: string): StatusCopy {

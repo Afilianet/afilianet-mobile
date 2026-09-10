@@ -191,7 +191,7 @@ describe("Home: affiliate status", () => {
 describe("Home: compliance", () => {
   it("shows a not-started state with a CTA when there's no compliance case yet", async () => {
     const { findByText } = await renderHome();
-    expect(await findByText("Not started")).toBeTruthy();
+    expect(await findByText("No iniciado")).toBeTruthy();
     expect(await findByText("Start verification")).toBeTruthy();
   });
 
@@ -211,7 +211,7 @@ describe("Home: compliance", () => {
       created_at: "2026-01-01T00:00:00Z",
     } satisfies ComplianceCase);
     const { findByText, queryByText } = await renderHome();
-    expect(await findByText("Approved")).toBeTruthy();
+    expect(await findByText("Aprobado")).toBeTruthy();
     expect(queryByText("Continue verification")).toBeNull();
   });
 
@@ -231,7 +231,7 @@ describe("Home: compliance", () => {
       created_at: "2026-01-01T00:00:00Z",
     } satisfies ComplianceCase);
     const { findByText } = await renderHome();
-    expect(await findByText("Rejected")).toBeTruthy();
+    expect(await findByText("Rechazado")).toBeTruthy();
     expect(await findByText("Continue verification")).toBeTruthy();
   });
 

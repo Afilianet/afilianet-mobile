@@ -17,13 +17,19 @@ import {
 } from "./tokens";
 
 /**
- * Resolves tema.oscuro (the official default -- see tokens.json meta.tema_por_defecto)
- * into the flat shape components consume. Dark is hardcoded here; adding a
- * switcher later means resolving `themes.light` instead/conditionally --
- * everything downstream already reads from this one object, not from
- * `tokens.ts` directly, so that's a one-file change.
+ * Resolves one theme (tema.claro or tema.oscuro -- see tokens.json
+ * meta.tema_por_defecto for the JSON's own "oscuro" default) into the flat
+ * shape components consume. LIGHT is hardcoded here as a deliberate,
+ * temporary product decision (light-first baseline, see git history) --
+ * the JSON's own stated default is actually "oscuro", but the app was
+ * unexpectedly rendering fully dark with no way to opt out, which this
+ * change corrects until a real light/dark switcher (reading
+ * useColorScheme()/Appearance, or an in-app setting) is built. Everything
+ * downstream already reads from this one object, not from `tokens.ts`
+ * directly, so swapping this back to `themes.dark` (or making it
+ * conditional) is a one-file change.
  */
-const active = themes.dark;
+const active = themes.light;
 
 export const colors = {
   background: active.background,

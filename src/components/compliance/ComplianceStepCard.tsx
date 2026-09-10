@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../api/errors";
 import { complianceStepStatusCopy } from "../../design-system/statusMapping";
 import { useAttemptComplianceStep } from "../../hooks/useAttemptComplianceStep";
+import { strings } from "../../i18n";
 import type { AttemptStepPayload, ComplianceStep, ComplianceStepType } from "../../types/api";
 import { formatDate } from "../../utils/date";
 import { Badge } from "../ui/Badge";
@@ -16,14 +17,7 @@ import { TermsAcceptanceStep } from "./steps/TermsAcceptanceStep";
 import type { StepDetailProps } from "./steps/types";
 import { VerbalConsentStep } from "./steps/VerbalConsentStep";
 
-const STEP_LABELS: Record<ComplianceStepType, string> = {
-  identity_information: "Identity information",
-  identity_document: "Identity document",
-  biometric_liveness: "Liveness check",
-  face_match: "Face match",
-  verbal_consent: "Verbal consent",
-  terms_acceptance: "Terms acceptance",
-};
+const STEP_LABELS: Record<ComplianceStepType, string> = strings.compliance.stepTypeLabels;
 
 // The only place the step_type -> vendor-specific UI mapping happens. The
 // overview screen and this card only ever know "here is a step and its
@@ -47,27 +41,24 @@ export function ComplianceStepCard({ step }: { step: ComplianceStep }) {
     try {
       await mutation.mutateAsync({ stepId: step.id, payload });
     } catch (submitError) {
-      setError(isApiError(submitError) ? friendlyMessage(submitError) : "Something went wrong. Please try again.");
+      setError(isApiError(submitError) ? friendlyMessage(submitError) : strings.compliance.genericError);
     }
   }
 
   const status = complianceStepStatusCopy(step.status);
   const label = STEP_LABELS[step.step_type] ?? step.step_type.replace(/_/g, " ");
   const StepDetail = STEP_COMPONENTS[step.step_type];
+  const completedOn = step.completed_at ? formatDate(step.completed_at) : null;
 
   return (
-    <View
-      style={styles.row}
-      accessible
-      accessibilityLabel={`${label}, ${status.label}${step.completed_at ? `, completed ${formatDate(step.completed_at)}` : ""}`}
-    >
+    <View style={styles.row} accessible accessibilityLabel={strings.compliance.stepA11y(label, status.label, completedOn)}>
       <View style={styles.header}>
         <Text style={styles.label}>{label}</Text>
         <Badge label={status.label} tone={status.tone} />
       </View>
       {StepDetail ? <StepDetail step={step} attempt={(payload) => void attempt(payload)} isPending={mutation.isPending} /> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      {step.completed_at ? <Text style={styles.meta}>Completed {formatDate(step.completed_at)}</Text> : null}
+      {completedOn ? <Text style={styles.meta}>{strings.compliance.completedOn(completedOn)}</Text> : null}
     </View>
   );
 }

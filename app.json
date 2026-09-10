@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/brand/afilianet-app-icon-1024.png",
     "scheme": "afilianetmobile",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "android": {
       "package": "com.afilianet.mobile",
       "adaptiveIcon": {
@@ -28,7 +28,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0C0A14",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/brand/afilianet-app-icon-1024.png",
           "imageWidth": 160
         }

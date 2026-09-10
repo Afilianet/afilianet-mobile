@@ -6,6 +6,7 @@ import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Logo } from "../../design-system/icons/Logo";
+import { strings } from "../../i18n";
 
 export default function LoginScreen() {
   const { signIn, error } = useAuth();
@@ -31,13 +32,13 @@ export default function LoginScreen() {
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
-          <Logo variant="blanco" height={32} />
+          <Logo variant="violeta" height={32} />
         </View>
-        <Text style={styles.subtitle}>Sign in to your account</Text>
+        <Text style={styles.subtitle}>{strings.auth.login.subtitle}</Text>
 
         <View style={styles.form}>
           <TextInput
-            label="Email"
+            label={strings.auth.login.emailLabel}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -45,7 +46,7 @@ export default function LoginScreen() {
             placeholder="you@example.com"
           />
           <TextInput
-            label="Password"
+            label={strings.auth.login.passwordLabel}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -54,7 +55,7 @@ export default function LoginScreen() {
           />
           {error ? <Text style={styles.error}>{loginErrorMessage(error)}</Text> : null}
           <Button
-            label="Sign in"
+            label={strings.auth.login.submit}
             size="lg"
             fullWidth
             onPress={handleSignIn}
