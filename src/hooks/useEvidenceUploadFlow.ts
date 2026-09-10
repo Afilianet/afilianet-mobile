@@ -2,6 +2,7 @@ import { File, UploadType } from "expo-file-system";
 import { useState } from "react";
 import { config } from "../config/env";
 import { ApiError } from "../api/errors";
+import { strings } from "../i18n";
 import type { Evidence, EvidenceType } from "../types/api";
 import { useCompleteEvidenceUpload } from "./useCompleteEvidenceUpload";
 import { useRequestEvidenceUpload } from "./useRequestEvidenceUpload";
@@ -46,7 +47,7 @@ export function useEvidenceUploadFlow() {
     try {
       const size = file.size;
       if (!size) {
-        throw new ApiError("unknown", "That photo looks empty or corrupted. Please retake it.");
+        throw new ApiError("unknown", strings.documentCapture.corruptedPhoto);
       }
 
       const authorization = await requestUpload.mutateAsync({
@@ -77,7 +78,7 @@ export function useEvidenceUploadFlow() {
       }
 
       if (putResult.status < 200 || putResult.status >= 300) {
-        throw new ApiError("unknown", "The upload didn't complete. Please try again.");
+        throw new ApiError("unknown", strings.documentCapture.uploadIncomplete);
       }
 
       setStage("completing");

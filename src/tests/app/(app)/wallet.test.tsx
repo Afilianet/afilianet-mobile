@@ -169,8 +169,8 @@ describe("Wallet: activity", () => {
     });
 
     const { findByText, queryByText } = await renderWallet();
-    expect(await findByText("Commission")).toBeTruthy();
-    expect(await findByText(/Pending until/)).toBeTruthy();
+    expect(await findByText("Comisión")).toBeTruthy();
+    expect(await findByText(/Pendiente hasta/)).toBeTruthy();
     expect(queryByText(/KYC/i)).toBeNull();
   });
 
@@ -199,7 +199,7 @@ describe("Wallet: activity", () => {
     });
 
     const { findByText } = await renderWallet();
-    expect(await findByText("Commission reversal")).toBeTruthy();
+    expect(await findByText("Reversión de comisión")).toBeTruthy();
     expect(await findByText(/-.*10\.00/)).toBeTruthy();
   });
 });
@@ -208,8 +208,8 @@ describe("Wallet: no affiliate profile", () => {
   it("shows an enrollment message instead of wallet content", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderWallet();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("Pending")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("Pendiente")).toBeNull();
   });
 });
 

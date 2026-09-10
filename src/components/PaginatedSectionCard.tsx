@@ -2,6 +2,7 @@ import type { InfiniteData, UseInfiniteQueryResult } from "@tanstack/react-query
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { strings } from "../i18n";
 import type { PaginatedResponse } from "../types/api";
 import { ForbiddenState } from "./ForbiddenState";
 import { RetryButton } from "./RetryButton";
@@ -65,12 +66,12 @@ export function PaginatedSectionCard<T extends { id: string }>({
   } else if (query.isError) {
     body = (
       <View style={styles.stateGroup}>
-        <Text style={styles.error}>{apiError ? friendlyMessage(apiError) : "Couldn't load this."}</Text>
+        <Text style={styles.error}>{apiError ? friendlyMessage(apiError) : strings.shared.couldNotLoadThis}</Text>
         <RetryButton onPress={() => void query.refetch()} loading={query.isFetching} />
       </View>
     );
   } else if (items.length === 0) {
-    body = <Text style={styles.empty}>{emptyTitle ?? "Nothing here yet."}</Text>;
+    body = <Text style={styles.empty}>{emptyTitle ?? strings.shared.nothingHereYet}</Text>;
   } else {
     body = (
       <View style={styles.list}>
@@ -79,11 +80,11 @@ export function PaginatedSectionCard<T extends { id: string }>({
         ))}
         {hasNextPage ? (
           <Button
-            label={isFetchingNextPage ? "Loading..." : "Load more"}
+            label={isFetchingNextPage ? strings.shared.loading : strings.shared.loadMore}
             variant="ghost"
             size="sm"
             loading={isFetchingNextPage}
-            accessibilityLabel={`Load more ${title.toLowerCase()}`}
+            accessibilityLabel={strings.shared.loadMoreA11y(title.toLowerCase())}
             onPress={() => {
               onLoadMorePress?.();
               void fetchNextPage();
@@ -92,7 +93,7 @@ export function PaginatedSectionCard<T extends { id: string }>({
         ) : null}
         {isFetchNextPageError ? (
           <View style={styles.stateGroup}>
-            <Text style={styles.error}>Couldn&apos;t load more.</Text>
+            <Text style={styles.error}>{strings.shared.couldNotLoadMore}</Text>
             <RetryButton onPress={() => void fetchNextPage()} loading={isFetchingNextPage} />
           </View>
         ) : null}

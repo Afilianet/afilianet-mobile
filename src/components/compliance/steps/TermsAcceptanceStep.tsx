@@ -1,4 +1,5 @@
 import { Alert, StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import { analytics } from "../../../services/analytics";
 import { Button } from "../../ui/Button";
 import { spacing } from "../../ui/theme";
@@ -20,37 +21,30 @@ import type { StepDetailProps } from "./types";
  */
 export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProps) {
   if (step.status === "passed") {
-    return <Text style={sharedStyles.description}>You&apos;ve accepted the required terms.</Text>;
+    return <Text style={sharedStyles.description}>{strings.compliance.terms.acceptedText}</Text>;
   }
   if (step.status === "failed") {
-    return <Text style={sharedStyles.description}>Your terms acceptance couldn&apos;t be recorded.</Text>;
+    return <Text style={sharedStyles.description}>{strings.compliance.terms.failedText}</Text>;
   }
 
   function confirm() {
     analytics.capture("compliance_step_opened");
-    Alert.alert(
-      "Accept terms?",
-      "This organization hasn't published a reviewable terms document yet. Accepting now records your acceptance -- you'll be asked to review the full terms once they're published.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Accept",
-          onPress: () => {
-            analytics.capture("compliance_step_submitted");
-            attempt({ accepted: true });
-          },
+    Alert.alert(strings.compliance.terms.alertTitle, strings.compliance.terms.alertMessage, [
+      { text: strings.common.cancel, style: "cancel" },
+      {
+        text: strings.compliance.terms.alertAccept,
+        onPress: () => {
+          analytics.capture("compliance_step_submitted");
+          attempt({ accepted: true });
         },
-      ],
-    );
+      },
+    ]);
   }
 
   return (
     <View style={styles.container}>
-      <Text style={sharedStyles.description}>
-        A terms document hasn&apos;t been published for this organization yet. Accepting now records your
-        acceptance; you&apos;ll be asked to review the full terms once they&apos;re available.
-      </Text>
-      <Button label="Accept terms" variant="secondary" size="sm" loading={isPending} onPress={confirm} />
+      <Text style={sharedStyles.description}>{strings.compliance.terms.bodyText}</Text>
+      <Button label={strings.compliance.terms.acceptButton} variant="secondary" size="sm" loading={isPending} onPress={confirm} />
     </View>
   );
 }

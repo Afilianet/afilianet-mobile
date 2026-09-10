@@ -11,6 +11,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { colors, measures, radius, spacing, typography } from "../../components/ui/theme";
 import { affiliateStatusCopy, complianceStatusCopy } from "../../design-system/statusMapping";
+import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useCompliance } from "../../hooks/useCompliance";
 import { routes } from "../../navigation/routes";
@@ -43,23 +44,23 @@ export default function ProfileScreen() {
       </Card>
 
       <SectionCard
-        title="Affiliate"
+        title={strings.profile.affiliateTitle}
         query={affiliateQuery}
         isEmpty={() => false}
-        emptyTitle="Join the affiliate program"
-        emptyDescription="You need an affiliate profile in this organization."
+        emptyTitle={strings.joinAffiliateProgram.title}
+        emptyDescription={strings.profile.needsAffiliateProfile}
       >
         {(affiliate) => <AffiliateSection affiliate={affiliate} organizationName={activeOrganization?.name} />}
       </SectionCard>
 
       <Card style={styles.card}>
-        <Text style={styles.sectionTitle}>Compliance</Text>
+        <Text style={styles.sectionTitle}>{strings.profile.complianceTitle}</Text>
         <ComplianceSummary query={complianceQuery} onPress={() => router.push(routes.compliance as never)} />
       </Card>
 
       {organizations.length > 1 ? (
         <Card style={styles.card}>
-          <Text style={styles.sectionTitle}>Organizations</Text>
+          <Text style={styles.sectionTitle}>{strings.profile.organizationsTitle}</Text>
           {organizations.map((org) => {
             const isActive = org.id === activeOrganization?.id;
             return (
@@ -68,18 +69,18 @@ export default function ProfileScreen() {
                 onPress={() => selectOrganization(org.id)}
                 style={[styles.orgRow, isActive && styles.orgRowActive]}
                 accessibilityRole="button"
-                accessibilityLabel={`Switch to ${org.name}`}
-                accessibilityHint={isActive ? "Currently active organization" : undefined}
+                accessibilityLabel={strings.profile.switchTo(org.name)}
+                accessibilityHint={isActive ? strings.profile.currentlyActiveOrg : undefined}
               >
                 <Text style={styles.orgName}>{org.name}</Text>
-                {isActive ? <Badge label="Active" tone="success" /> : null}
+                {isActive ? <Badge label={strings.profile.activeOrgBadge} tone="success" /> : null}
               </Pressable>
             );
           })}
         </Card>
       ) : null}
 
-      <Button label="Sign out" variant="secondary" onPress={() => signOut()} />
+      <Button label={strings.profile.signOut} variant="secondary" onPress={() => signOut()} />
     </ScrollView>
   );
 }
@@ -99,12 +100,15 @@ function AffiliateSection({
         <Badge label={status.label} tone={status.tone} />
         <Text style={styles.code}>{affiliate.affiliate_code}</Text>
       </View>
-      {organizationName ? <Field label="Organization" value={organizationName} /> : null}
-      {affiliate.joined_at ? <Field label="Joined" value={formatDate(affiliate.joined_at)} /> : null}
-      <Field label="Activated" value={affiliate.activated_at ? formatDate(affiliate.activated_at) : "Not yet activated"} />
-      {affiliate.sponsor ? <Field label="Sponsor" value={affiliate.sponsor.affiliate_code} /> : null}
+      {organizationName ? <Field label={strings.profile.fields.organization} value={organizationName} /> : null}
+      {affiliate.joined_at ? <Field label={strings.profile.fields.joined} value={formatDate(affiliate.joined_at)} /> : null}
+      <Field
+        label={strings.profile.fields.activated}
+        value={affiliate.activated_at ? formatDate(affiliate.activated_at) : strings.profile.fields.notYetActivated}
+      />
+      {affiliate.sponsor ? <Field label={strings.profile.fields.sponsor} value={affiliate.sponsor.affiliate_code} /> : null}
       {affiliate.placement_parent ? (
-        <Field label="Placement parent" value={affiliate.placement_parent.affiliate_code} />
+        <Field label={strings.profile.fields.placementParent} value={affiliate.placement_parent.affiliate_code} />
       ) : null}
     </View>
   );
@@ -122,7 +126,7 @@ function ComplianceSummary({ query, onPress }: { query: ReturnType<typeof useCom
       <View style={styles.stateGroup}>
         <Text style={styles.fieldValue}>{friendlyMessage(query.error)}</Text>
         <Button
-          label="Try again"
+          label={strings.shared.tryAgain}
           variant="secondary"
           size="sm"
           loading={query.isFetching}
@@ -138,7 +142,7 @@ function ComplianceSummary({ query, onPress }: { query: ReturnType<typeof useCom
   return (
     <View style={styles.stateGroup}>
       {badge}
-      <Button label="View compliance" variant="secondary" size="sm" onPress={onPress} />
+      <Button label={strings.profile.viewCompliance} variant="secondary" size="sm" onPress={onPress} />
     </View>
   );
 }

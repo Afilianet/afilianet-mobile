@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { payoutStatusCopy } from "../design-system/statusMapping";
 import { fontSize } from "../design-system/tokens";
+import { strings } from "../i18n";
 import type { Payout } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
@@ -10,15 +11,15 @@ import { colors, spacing, typography } from "./ui/theme";
 export function PayoutRow({ payout, onPress }: { payout: Payout; onPress: () => void }) {
   const status = payoutStatusCopy(payout.status);
   const amountLabel = formatMoney(payout.amount, payout.currency);
-  const destinationLabel = payout.destination?.display_label ?? "—";
+  const destinationLabel = payout.destination?.display_label ?? strings.payouts.notAvailable;
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       accessibilityRole="button"
-      accessibilityLabel={`${amountLabel} ${payout.currency} payout, ${status.label}, to ${destinationLabel}, requested ${payout.requested_at ? formatDate(payout.requested_at) : "unknown date"}`}
-      accessibilityHint="Opens payout details"
+      accessibilityLabel={`${amountLabel} ${payout.currency} ${strings.payouts.payoutA11y}, ${status.label}, ${destinationLabel}, ${payout.requested_at ? strings.payouts.fields.requested.toLowerCase() + " " + formatDate(payout.requested_at) : ""}`}
+      accessibilityHint={strings.payouts.opensDetailsHint}
     >
       <View style={styles.info}>
         <View style={styles.topLine}>
@@ -27,7 +28,7 @@ export function PayoutRow({ payout, onPress }: { payout: Payout; onPress: () => 
         </View>
         <Text style={styles.meta}>{destinationLabel}</Text>
         <Text style={styles.meta}>
-          {payout.requested_at ? `Requested ${formatDate(payout.requested_at)}` : "—"}
+          {payout.requested_at ? `${strings.payouts.fields.requested} ${formatDate(payout.requested_at)}` : strings.payouts.notAvailable}
         </Text>
       </View>
     </Pressable>

@@ -13,6 +13,7 @@ import { Card } from "../components/ui/Card";
 import { IconButton } from "../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useMyCommissions } from "../hooks/useMyCommissions";
 import { useWallet } from "../hooks/useWallet";
@@ -58,8 +59,8 @@ export default function CommissionsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.header}>
-          <Text style={styles.heading}>Commissions</Text>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <Text style={styles.heading}>{strings.commissions.title}</Text>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -67,12 +68,9 @@ export default function CommissionsScreen() {
         {affiliateQuery.isPending ? (
           <SkeletonGroup lines={4} />
         ) : noAffiliateProfile ? (
-          <EmptyState
-            title="Join the affiliate program"
-            description="You need an affiliate profile in this organization to earn commissions."
-          />
+          <EmptyState title={strings.joinAffiliateProgram.title} description={strings.commissions.joinAffiliateDescription} />
         ) : forbidden ? (
-          <ForbiddenState area="commissions" />
+          <ForbiddenState area={strings.commissions.forbiddenArea} />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}
@@ -83,7 +81,7 @@ export default function CommissionsScreen() {
           <>
             {walletQuery.data && walletQuery.data.length > 0 ? (
               <Card style={styles.balanceCard}>
-                <Text style={styles.label}>Balance by currency</Text>
+                <Text style={styles.label}>{strings.commissions.balanceByCurrency}</Text>
                 {walletQuery.data.map((wallet) => (
                   <View key={wallet.currency} style={styles.balanceRow}>
                     <Text style={styles.balanceCurrency}>{wallet.currency}</Text>
@@ -96,9 +94,9 @@ export default function CommissionsScreen() {
             ) : null}
 
             <PaginatedSectionCard
-              title="Recent commissions"
+              title={strings.commissions.recentTitle}
               query={commissionsQuery}
-              emptyTitle="No commissions yet"
+              emptyTitle={strings.commissions.noCommissionsYet}
               onLoadMorePress={() => analytics.capture("commissions_load_more")}
               renderItem={(commission) => (
                 <CommissionRow commission={commission} onPress={() => openDetail(commission)} />

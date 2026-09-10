@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
+import { strings } from "../../i18n";
 import { NotificationBell } from "../../components/NotificationBell";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -82,7 +83,7 @@ export default function HomeScreen() {
       {noAffiliateProfile ? (
         <EnrollmentBanner />
       ) : (
-        <SectionCard title="Affiliate status" query={affiliateQuery} isEmpty={() => false}>
+        <SectionCard title={strings.home.affiliateStatusTitle} query={affiliateQuery} isEmpty={() => false}>
           {(affiliate) => <AffiliateStatusContent affiliate={affiliate} />}
         </SectionCard>
       )}
@@ -90,15 +91,20 @@ export default function HomeScreen() {
       <ComplianceCard query={complianceQuery} />
 
       <SectionCard
-        title="Commissions"
+        title={strings.home.commissionsTitle}
         query={commissionsQuery}
         isEmpty={(list) => list.length === 0}
-        emptyTitle="No commissions yet"
+        emptyTitle={strings.home.noCommissionsYet}
       >
         {(list) => <CommissionsContent commissions={list} />}
       </SectionCard>
 
-      <SectionCard title="Wallet" query={walletQuery} isEmpty={(list) => list.length === 0} emptyTitle="No wallet balance yet">
+      <SectionCard
+        title={strings.home.walletTitle}
+        query={walletQuery}
+        isEmpty={(list) => list.length === 0}
+        emptyTitle={strings.home.noWalletBalanceYet}
+      >
         {(list) => <WalletContent wallets={list} />}
       </SectionCard>
 
@@ -114,12 +120,12 @@ function Header() {
   const { activeOrganization, organizations } = useOrganization();
   const router = useRouter();
 
-  const orgLabel = activeOrganization?.name ?? "No organization selected";
+  const orgLabel = activeOrganization?.name ?? strings.home.noOrganizationSelected;
 
   return (
     <View style={styles.header}>
       <View style={styles.headerTopRow}>
-        <Text style={styles.greeting}>{user ? `Hi, ${user.first_name}` : "Welcome"}</Text>
+        <Text style={styles.greeting}>{user ? strings.home.greeting(user.first_name) : strings.home.welcome}</Text>
         <NotificationBell />
       </View>
       {organizations.length > 1 ? (
@@ -137,10 +143,8 @@ function Header() {
 function EnrollmentBanner() {
   return (
     <Card style={styles.enrollmentCard}>
-      <Text style={styles.enrollmentTitle}>Join the affiliate program</Text>
-      <Text style={styles.meta}>
-        You don&apos;t have an affiliate profile in this organization yet. Contact your organization admin to get enrolled.
-      </Text>
+      <Text style={styles.enrollmentTitle}>{strings.joinAffiliateProgram.title}</Text>
+      <Text style={styles.meta}>{strings.home.enrollment.description}</Text>
     </Card>
   );
 }
@@ -154,13 +158,13 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
         <Badge label={status.label} tone={status.tone} />
         <Text style={styles.code}>{affiliate.affiliate_code}</Text>
       </View>
-      {affiliate.joined_at ? <Text style={styles.meta}>Joined {formatDate(affiliate.joined_at)}</Text> : null}
+      {affiliate.joined_at ? <Text style={styles.meta}>{strings.home.joinedOn(formatDate(affiliate.joined_at))}</Text> : null}
       <Text style={styles.meta}>
-        {affiliate.activated_at ? `Activated ${formatDate(affiliate.activated_at)}` : "Not yet activated"}
+        {affiliate.activated_at ? strings.home.activatedOn(formatDate(affiliate.activated_at)) : strings.home.notYetActivated}
       </Text>
       {canShareReferral(affiliate.status) ? (
         <Button
-          label="Share referral link"
+          label={strings.home.shareReferralLink}
           variant="secondary"
           size="sm"
           iconLeft={<Icon name="compartir" size={14} color={colors.textPrimary} />}
@@ -182,13 +186,13 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
 
   return (
     <SectionCard
-      title="Compliance"
+      title={strings.compliance.screenTitle}
       query={query}
       emptyContent={
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
           {notStarted.description ? <Text style={styles.meta}>{notStarted.description}</Text> : null}
-          <Button label="Start verification" variant="secondary" onPress={goToCompliance} />
+          <Button label={strings.compliance.startVerification} variant="secondary" onPress={goToCompliance} />
         </View>
       }
     >
@@ -199,7 +203,7 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
             {compliance.status !== "approved" ? (
-              <Button label="Continue verification" variant="secondary" onPress={goToCompliance} />
+              <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
             ) : null}
           </View>
         );
@@ -228,7 +232,12 @@ function CommissionsContent({ commissions }: { commissions: Commission[] }) {
           </View>
         );
       })}
-      <Button label="View all commissions" variant="ghost" size="sm" onPress={() => router.push(routes.commissions as never)} />
+      <Button
+        label={strings.home.viewAllCommissions}
+        variant="ghost"
+        size="sm"
+        onPress={() => router.push(routes.commissions as never)}
+      />
     </View>
   );
 }
@@ -240,11 +249,11 @@ function WalletContent({ wallets }: { wallets: WalletSummary[] }) {
       {wallets.map((wallet) => (
         <View key={wallet.currency} style={styles.walletBlock}>
           <Text style={styles.walletCurrency}>{wallet.currency}</Text>
-          <Text style={styles.meta}>Pending: {formatMoney(wallet.pending_balance, wallet.currency)}</Text>
-          <Text style={styles.amount}>Available: {formatMoney(wallet.available_balance, wallet.currency)}</Text>
+          <Text style={styles.meta}>{strings.home.pendingAmount(formatMoney(wallet.pending_balance, wallet.currency))}</Text>
+          <Text style={styles.amount}>{strings.home.availableAmount(formatMoney(wallet.available_balance, wallet.currency))}</Text>
         </View>
       ))}
-      <Button label="View wallet" variant="ghost" size="sm" onPress={() => router.push(routes.wallet as never)} />
+      <Button label={strings.home.viewWallet} variant="ghost" size="sm" onPress={() => router.push(routes.wallet as never)} />
     </View>
   );
 }
@@ -259,22 +268,19 @@ function NetworkPreviewCard({
   const router = useRouter();
   return (
     <SectionCard
-      title="Network"
+      title={strings.home.networkTitle}
       query={query}
       isEmpty={(page) => page.data.length === 0 && !sponsor}
-      emptyTitle="No network activity yet"
+      emptyTitle={strings.home.noNetworkActivityYet}
     >
       {(page) => {
         const total = page.meta?.total ?? page.data.length;
         const isExact = page.meta?.total !== undefined || page.data.length < 5;
         return (
           <View style={styles.stateGroupLocal}>
-            <Text style={styles.meta}>{sponsor ? `Sponsored by ${sponsor.affiliate_code}` : "No sponsor"}</Text>
-            <Text style={styles.meta}>
-              {total} direct referral{total === 1 ? "" : "s"}
-              {isExact ? "" : "+"}
-            </Text>
-            <Button label="View network" variant="ghost" size="sm" onPress={() => router.push(routes.network as never)} />
+            <Text style={styles.meta}>{sponsor ? strings.home.sponsoredBy(sponsor.affiliate_code) : strings.home.noSponsor}</Text>
+            <Text style={styles.meta}>{strings.home.directReferrals(total, isExact)}</Text>
+            <Button label={strings.home.viewNetwork} variant="ghost" size="sm" onPress={() => router.push(routes.network as never)} />
           </View>
         );
       }}

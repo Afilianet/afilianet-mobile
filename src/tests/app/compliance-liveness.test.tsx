@@ -232,7 +232,7 @@ beforeEach(() => {
 });
 
 async function startCapture(findByText: (text: string) => Promise<unknown>) {
-  fireEvent.press((await findByText("Start check")) as never);
+  fireEvent.press((await findByText("Comenzar verificación")) as never);
   await waitFor(() => expect(latestLivenessProps).not.toBeNull());
 }
 
@@ -253,7 +253,7 @@ async function simulateError(code: string) {
 describe("Liveness: provider awareness", () => {
   it("shows the real capture flow when configured_provider is aws_rekognition and actionable", async () => {
     const { findByText } = await renderCompliance();
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
     expect(mockedFetchLivenessResult).toHaveBeenCalled();
   });
 
@@ -262,8 +262,8 @@ describe("Liveness: provider awareness", () => {
       livenessStep({ configured_provider: "aws_rekognition", provider_actionable: false, provider_unavailable_reason: "engine_unavailable" }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/liveness verification is temporarily unavailable/i)).toBeTruthy();
-    expect(queryByText("Start check")).toBeNull();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
+    expect(queryByText("Comenzar verificación")).toBeNull();
     expect(mockedCreateLivenessSession).not.toHaveBeenCalled();
     expect(mockedFetchLivenessResult).not.toHaveBeenCalled();
   });
@@ -273,8 +273,8 @@ describe("Liveness: provider awareness", () => {
       livenessStep({ configured_provider: "incode", provider_actionable: false, provider_unavailable_reason: null }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/uses a different flow/i)).toBeTruthy();
-    expect(queryByText("Start check")).toBeNull();
+    expect(await findByText(/usa un flujo diferente/i)).toBeTruthy();
+    expect(queryByText("Comenzar verificación")).toBeNull();
   });
 
   it("shows the same safe 'different flow' state, never the AWS capture flow, when the org has no aws_rekognition configuration and falls back to Fake", async () => {
@@ -294,8 +294,8 @@ describe("Liveness: provider awareness", () => {
       livenessStep({ configured_provider: "fake", provider_actionable: true, provider_unavailable_reason: null }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/uses a different flow/i)).toBeTruthy();
-    expect(queryByText("Start check")).toBeNull();
+    expect(await findByText(/usa un flujo diferente/i)).toBeTruthy();
+    expect(queryByText("Comenzar verificación")).toBeNull();
     expect(mockedCreateLivenessSession).not.toHaveBeenCalled();
   });
 
@@ -304,8 +304,8 @@ describe("Liveness: provider awareness", () => {
       livenessStep({ configured_provider: "afilianet", provider_actionable: false, provider_unavailable_reason: "provider_misconfigured" }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/isn't available for this organization right now/i)).toBeTruthy();
-    expect(queryByText("Start check")).toBeNull();
+    expect(await findByText(/no está disponible para esta organización en este momento/i)).toBeTruthy();
+    expect(queryByText("Comenzar verificación")).toBeNull();
   });
 
   it("never assumes AWS or Fake for an unconfigured/null provider", async () => {
@@ -313,8 +313,8 @@ describe("Liveness: provider awareness", () => {
       livenessStep({ configured_provider: null, provider_actionable: false, provider_unavailable_reason: "not_configured" }),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/isn't set up for this organization yet/i)).toBeTruthy();
-    expect(queryByText("Start check")).toBeNull();
+    expect(await findByText(/aún no está configurado para esta organización/i)).toBeTruthy();
+    expect(queryByText("Comenzar verificación")).toBeNull();
   });
 });
 
@@ -346,8 +346,8 @@ describe("Liveness: session creation", () => {
     );
     const { findByText, queryByText } = await renderCompliance();
 
-    fireEvent.press(await findByText("Start check"));
-    await waitFor(() => expect(queryByText("Start check")).toBeNull());
+    fireEvent.press(await findByText("Comenzar verificación"));
+    await waitFor(() => expect(queryByText("Comenzar verificación")).toBeNull());
 
     await act(async () => {
       resolveSession(livenessSession({ status: "pending" }));
@@ -369,8 +369,8 @@ describe("Liveness: session creation", () => {
     await startCapture(findByText);
 
     expect(queryByTestId("mock-aws-liveness-view")).toBeTruthy();
-    expect(queryByText("Preparing your check")).toBeNull();
-    expect(queryByText("Reviewing your check")).toBeNull();
+    expect(queryByText("Preparando tu verificación")).toBeNull();
+    expect(queryByText("Revisando tu verificación")).toBeNull();
   });
 
   it("fetches credentials only after session creation resolves, and does not mount the native view until credentials resolve too", async () => {
@@ -382,7 +382,7 @@ describe("Liveness: session creation", () => {
     );
     const { findByText, queryByTestId } = await renderCompliance();
 
-    fireEvent.press(await findByText("Start check"));
+    fireEvent.press(await findByText("Comenzar verificación"));
     await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
     await waitFor(() => expect(mockedFetchLivenessCredentials).toHaveBeenCalledWith("liveness-step-1"));
     // Session created, credentials requested, but not yet resolved -- the
@@ -412,8 +412,8 @@ describe("Liveness: session creation", () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "failed", failure_reason: "session_expired" }));
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("That check took too long and expired. Let's try again.")).toBeTruthy();
-    // "Try again" only dismisses the stale failed result locally (same
+    expect(await findByText("Esa verificación tardó demasiado y venció. Vamos a intentarlo de nuevo.")).toBeTruthy();
+    // "Intenta de nuevo" only dismisses the stale failed result locally (same
     // discipline as Face Match's own "Retake selfie") -- it never
     // auto-resubmits on its own. The affiliate lands back on the
     // explanation/start screen and presses "Start check" again, which is
@@ -421,8 +421,8 @@ describe("Liveness: session creation", () => {
     // idempotency rule (create fresh since the old session is locally
     // expired) is what satisfies "request a new session", not any
     // client-side resume/restart branching.
-    fireEvent.press(await findByText("Try again"));
-    fireEvent.press(await findByText("Start check"));
+    fireEvent.press(await findByText("Intenta de nuevo"));
+    fireEvent.press(await findByText("Comenzar verificación"));
 
     await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
   });
@@ -484,7 +484,7 @@ describe("Liveness: credential secrecy", () => {
     });
 
     expect(queryByTestId("mock-aws-liveness-view")).toBeNull();
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
   });
 });
 
@@ -493,7 +493,7 @@ describe("Liveness: credential secrecy", () => {
 describe("Liveness: capture lifecycle", () => {
   it("shows the explanation copy before capture starts, never a liveness challenge instruction", async () => {
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText(/confirm that a real person is present/i)).toBeTruthy();
+    expect(await findByText(/confirmar que hay una persona real presente/i)).toBeTruthy();
     expect(queryByText(/blink|smile|turn your head/i)).toBeNull();
   });
 
@@ -503,8 +503,8 @@ describe("Liveness: capture lifecycle", () => {
 
     await simulateError("cancelled");
 
-    expect(await findByText("Start check")).toBeTruthy();
-    expect(queryByText(/went wrong|unavailable|expired/i)).toBeNull();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
+    expect(queryByText(/salió mal|no disponible|venció|expiró/i)).toBeNull();
   });
 
   it("maps a native camera-permission-denied error to safe copy and allows restarting", async () => {
@@ -513,23 +513,23 @@ describe("Liveness: capture lifecycle", () => {
 
     await simulateError("camera_permission_denied");
 
-    expect(await findByText(/needs camera access/i)).toBeTruthy();
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText(/necesita acceso a la cámara/i)).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
   });
 
   it("maps a native camera-unavailable error to safe copy", async () => {
     const { findByText } = await renderCompliance();
     await startCapture(findByText);
     await simulateError("camera_unavailable");
-    expect(await findByText(/doesn't have a usable camera/i)).toBeTruthy();
+    expect(await findByText(/no tiene una cámara utilizable/i)).toBeTruthy();
   });
 
   it("surfaces a clean error when the credentials endpoint fails after a session was created", async () => {
     mockedFetchLivenessCredentials.mockRejectedValue(new ApiError("server", "Something went wrong on our end.", 503));
     const { findByText } = await renderCompliance();
-    fireEvent.press(await findByText("Start check"));
+    fireEvent.press(await findByText("Comenzar verificación"));
 
-    expect(await findByText(/something went wrong/i)).toBeTruthy();
+    expect(await findByText(/algo salió mal/i)).toBeTruthy();
     expect(latestLivenessProps).toBeNull();
   });
 
@@ -541,7 +541,7 @@ describe("Liveness: capture lifecycle", () => {
     await simulateComplete();
 
     expect(queryByTestId("mock-aws-liveness-view")).toBeNull();
-    expect(await findByText("Reviewing your check")).toBeTruthy();
+    expect(await findByText("Revisando tu verificación")).toBeTruthy();
   });
 });
 
@@ -572,13 +572,13 @@ describe("Liveness: abandon on native error/cancellation", () => {
     const firstProps = { ...(latestLivenessProps as Record<string, unknown>) };
 
     await simulateError("network_error");
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
 
     mockedCreateLivenessSession.mockResolvedValue(
       livenessSession({ id: "session-2", session_id: "aws-session-2", status: "pending" }),
     );
     mockedFetchLivenessCredentials.mockResolvedValue(livenessCredentials({ session_id: "aws-session-2", access_key_id: "ASIASECONDKEY" }));
-    fireEvent.press(await findByText("Start check"));
+    fireEvent.press(await findByText("Comenzar verificación"));
     // Waits for the SPECIFIC new session's props, never just "non-null" --
     // latestLivenessProps is already non-null from the first attempt above,
     // so a bare non-null check here would pass immediately without ever
@@ -600,9 +600,9 @@ describe("Liveness: abandon on native error/cancellation", () => {
     // since abandon's own response is never awaited/trusted for this) must
     // never resurface as a processing placeholder or result banner -- the
     // affiliate lands cleanly back on the start screen.
-    expect(await findByText("Start check")).toBeTruthy();
-    expect(queryByText("Preparing your check")).toBeNull();
-    expect(queryByText("Reviewing your check")).toBeNull();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
+    expect(queryByText("Preparando tu verificación")).toBeNull();
+    expect(queryByText("Revisando tu verificación")).toBeNull();
   });
 
   it("does not freeze the UI and still offers Retry when the abandon call itself fails", async () => {
@@ -615,8 +615,8 @@ describe("Liveness: abandon on native error/cancellation", () => {
     // The native error's own copy still shows (abandon failing never
     // pretends the session was cleanly ended, but also never blocks
     // recovery) and "Start check" is immediately usable again.
-    expect(await findByText(/doesn't have a usable camera/i)).toBeTruthy();
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText(/no tiene una cámara utilizable/i)).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
   });
 });
 
@@ -627,36 +627,36 @@ describe("Liveness: result UX", () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "live" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Liveness check completed")).toBeTruthy();
+    expect(await findByText("Prueba de vida completada")).toBeTruthy();
     expect(queryByText(/identity verified/i)).toBeNull();
-    expect(queryByText("Try again")).toBeNull();
+    expect(queryByText("Intenta de nuevo")).toBeNull();
   });
 
   it("shows a not_live message and offers a retry", async () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "not_live" }));
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("Couldn't confirm liveness")).toBeTruthy();
-    expect(await findByText("Try again")).toBeTruthy();
+    expect(await findByText("No se pudo confirmar la prueba de vida")).toBeTruthy();
+    expect(await findByText("Intenta de nuevo")).toBeTruthy();
   });
 
   it("shows a review message, no retry action, and never converts review to pass or fail", async () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Needs review")).toBeTruthy();
-    expect(queryByText("Try again")).toBeNull();
-    expect(queryByText("Liveness check completed")).toBeNull();
-    expect(queryByText("Couldn't confirm liveness")).toBeNull();
+    expect(await findByText("Necesita revisión")).toBeTruthy();
+    expect(queryByText("Intenta de nuevo")).toBeNull();
+    expect(queryByText("Prueba de vida completada")).toBeNull();
+    expect(queryByText("No se pudo confirmar la prueba de vida")).toBeNull();
   });
 
   it("maps a technical failure_reason to safe retry copy, never labeling it 'not_live'", async () => {
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "failed", failure_reason: "provider_failed" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText(/couldn't be completed/i)).toBeTruthy();
-    expect(queryByText(/confirm liveness/i)).toBeNull();
-    expect(await findByText("Try again")).toBeTruthy();
+    expect(await findByText(/no pudo completarse/i)).toBeTruthy();
+    expect(queryByText(/confirmar la prueba de vida/i)).toBeNull();
+    expect(await findByText("Intenta de nuevo")).toBeTruthy();
   });
 
   it("never renders a raw failure_reason string or a confidence-looking number", async () => {
@@ -675,19 +675,19 @@ describe("Liveness: result UX", () => {
         .mockResolvedValue(livenessSession({ status: "completed", verdict: "live" }));
 
       const { findByText } = await renderCompliance();
-      expect(await findByText("Preparing your check")).toBeTruthy();
+      expect(await findByText("Preparando tu verificación")).toBeTruthy();
       const firstCallCount = mockedFetchLivenessResult.mock.calls.length;
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      expect(await findByText("Reviewing your check")).toBeTruthy();
+      expect(await findByText("Revisando tu verificación")).toBeTruthy();
       expect(mockedFetchLivenessResult.mock.calls.length).toBeGreaterThan(firstCallCount);
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      await findByText("Liveness check completed");
+      await findByText("Prueba de vida completada");
       const callsAfterCompleted = mockedFetchLivenessResult.mock.calls.length;
 
       await act(async () => {
@@ -716,7 +716,7 @@ describe("Liveness: Compliance semantics", () => {
 describe("Liveness: privacy and Fake separation", () => {
   it("never mixes the Fake development simulator into the real capture flow", async () => {
     const { findByText, findAllByText } = await renderCompliance();
-    expect(await findByText("Start check")).toBeTruthy();
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
     expect((await findAllByText("Development simulator")).length).toBeGreaterThanOrEqual(1);
   });
 });

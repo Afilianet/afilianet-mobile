@@ -164,6 +164,6 @@ describe("Compliance in a production build", () => {
   it("still allows the real terms acceptance action -- it is not a Fake-provider step", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Accept terms")).toBeTruthy();
+    expect(await findByText("Aceptar términos")).toBeTruthy();
   });
 });

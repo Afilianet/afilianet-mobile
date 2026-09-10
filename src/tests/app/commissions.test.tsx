@@ -126,20 +126,20 @@ describe("Commissions: list and statuses", () => {
   it("shows an earned commission", async () => {
     mockedFetchMyCommissionsPage.mockResolvedValue(page([commission({ status: "earned", amount: "25.00" })], 1, 1));
     const { findByText } = await renderCommissions();
-    expect(await findByText("Earned")).toBeTruthy();
+    expect(await findByText("Ganada")).toBeTruthy();
     expect(await findByText(/25\.00/)).toBeTruthy();
   });
 
   it("shows a pending commission", async () => {
     mockedFetchMyCommissionsPage.mockResolvedValue(page([commission({ status: "pending" })], 1, 1));
     const { findByText } = await renderCommissions();
-    expect(await findByText("Pending")).toBeTruthy();
+    expect(await findByText("Pendiente")).toBeTruthy();
   });
 
   it("shows a void commission", async () => {
     mockedFetchMyCommissionsPage.mockResolvedValue(page([commission({ status: "void" })], 1, 1));
     const { findByText } = await renderCommissions();
-    expect(await findByText("Void")).toBeTruthy();
+    expect(await findByText("Anulada")).toBeTruthy();
   });
 
   it("shows a reversed commission with a negative amount", async () => {
@@ -147,14 +147,14 @@ describe("Commissions: list and statuses", () => {
       page([commission({ id: "c-rev", status: "reversed", amount: "-10.00", reversal_of: "c-1" })], 1, 1),
     );
     const { findByText } = await renderCommissions();
-    expect(await findByText("Reversed")).toBeTruthy();
+    expect(await findByText("Revertida")).toBeTruthy();
     expect(await findByText(/-.*10\.00/)).toBeTruthy();
   });
 
   it("shows an empty state with no commissions", async () => {
     mockedFetchMyCommissionsPage.mockResolvedValue(page([], 1, 1, 0));
     const { findByText } = await renderCommissions();
-    expect(await findByText("No commissions yet")).toBeTruthy();
+    expect(await findByText("Aún no hay comisiones")).toBeTruthy();
   });
 });
 
@@ -165,31 +165,31 @@ describe("Commissions: detail sheet", () => {
     );
     const { findByText } = await renderCommissions();
 
-    const row = await findByText("Sponsor level");
+    const row = await findByText("Nivel de patrocinio");
     await act(async () => {
       fireEvent.press(row);
     });
 
-    expect(await findByText("Commission details")).toBeTruthy();
-    expect(await findByText(/wasn't earned because your account wasn't eligible/i)).toBeTruthy();
-    expect(await findByText("Level")).toBeTruthy();
+    expect(await findByText("Detalles de la comisión")).toBeTruthy();
+    expect(await findByText(/no se ganó porque tu cuenta no era elegible/i)).toBeTruthy();
+    expect(await findByText("Nivel")).toBeTruthy();
   });
 
   it("explains reversed in plain language", async () => {
     mockedFetchMyCommissionsPage.mockResolvedValue(page([commission({ status: "reversed", amount: "-5.00" })], 1, 1));
     const { findByText } = await renderCommissions();
 
-    const row = await findByText("Direct sale");
+    const row = await findByText("Venta directa");
     await act(async () => {
       fireEvent.press(row);
     });
 
-    expect(await findByText(/offset by a reversal entry/i)).toBeTruthy();
+    expect(await findByText(/compensada por un movimiento de reversión/i)).toBeTruthy();
   });
 
   it("fires commission_detail_opened with no properties", async () => {
     const { findByText } = await renderCommissions();
-    const row = await findByText("Direct sale");
+    const row = await findByText("Venta directa");
     await act(async () => {
       fireEvent.press(row);
     });
@@ -201,8 +201,8 @@ describe("Commissions: detail sheet", () => {
 describe("Commissions: pagination", () => {
   it("loads the next page and appends without duplicates", async () => {
     // c-3 gets a distinct amount so it has text unique to page 2 -- every
-    // commission here otherwise renders the identical "Direct sale" label,
-    // so findAllByText("Direct sale") can't tell "page 1 only" apart from
+    // commission here otherwise renders the identical "Venta directa" label,
+    // so findAllByText("Venta directa") can't tell "page 1 only" apart from
     // "page 1 + page 2" by itself. findAllByText/findByText resolve as soon
     // as a query stops throwing (i.e. finds at least one match), NOT once a
     // specific count is reached -- so asserting a count straight off
@@ -220,15 +220,15 @@ describe("Commissions: pagination", () => {
       ),
     );
     const { findByLabelText, findByText, findAllByText, getAllByText } = await renderCommissions();
-    expect((await findAllByText("Direct sale")).length).toBe(2);
+    expect((await findAllByText("Venta directa")).length).toBe(2);
 
-    const loadMore = await findByLabelText("Load more recent commissions");
+    const loadMore = await findByLabelText("Cargar más comisiones recientes");
     await act(async () => {
       fireEvent.press(loadMore);
     });
 
     expect(await findByText(/30\.00/)).toBeTruthy(); // page 2's new commission has actually rendered
-    expect(getAllByText("Direct sale")).toHaveLength(3); // 3 unique rows, not 4 -- safe now that page 2 is confirmed in
+    expect(getAllByText("Venta directa")).toHaveLength(3); // 3 unique rows, not 4 -- safe now that page 2 is confirmed in
     expect(mockedFetchMyCommissionsPage).toHaveBeenCalledWith(2);
   });
 
@@ -239,7 +239,7 @@ describe("Commissions: pagination", () => {
       ),
     );
     const { findByLabelText } = await renderCommissions();
-    const loadMore = await findByLabelText("Load more recent commissions");
+    const loadMore = await findByLabelText("Cargar más comisiones recientes");
     await act(async () => {
       fireEvent.press(loadMore);
     });
@@ -252,8 +252,8 @@ describe("Commissions: no affiliate profile", () => {
   it("shows an enrollment message instead of commission content", async () => {
     mockedFetchMyAffiliateProfile.mockRejectedValue(NOT_FOUND);
     const { findByText, queryByText } = await renderCommissions();
-    expect(await findByText("Join the affiliate program")).toBeTruthy();
-    expect(queryByText("Recent commissions")).toBeNull();
+    expect(await findByText("Únete al programa de afiliados")).toBeTruthy();
+    expect(queryByText("Comisiones recientes")).toBeNull();
   });
 });
 

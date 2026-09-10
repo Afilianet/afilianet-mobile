@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { commissionStatusCopy } from "../design-system/statusMapping";
+import { strings } from "../i18n";
 import type { Commission } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
@@ -7,10 +8,7 @@ import { Badge } from "./ui/Badge";
 import { colors, spacing, typography } from "./ui/theme";
 
 // Commission.type enum values (app/Modules/Commissions/Enums/CommissionType.php) -- presentation labels only, not a status/tone concern.
-const TYPE_LABELS: Record<string, string> = {
-  direct_sale: "Direct sale",
-  sponsor_level: "Sponsor level",
-};
+const TYPE_LABELS: Record<string, string> = strings.commissions.typeLabels;
 
 export function commissionTypeLabel(type: string): string {
   return TYPE_LABELS[type] ?? type.replace(/_/g, " ");
@@ -27,8 +25,8 @@ export function CommissionRow({ commission, onPress }: { commission: Commission;
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       accessibilityRole="button"
-      accessibilityLabel={`${typeLabel} commission, ${status.label}, ${isNegative ? "negative " : ""}${amountLabel}, ${formatDate(commission.created_at)}`}
-      accessibilityHint="Opens commission details"
+      accessibilityLabel={`${typeLabel} ${strings.commissions.commissionA11y}, ${status.label}, ${isNegative ? strings.commissions.negativeAmountA11y : ""}${amountLabel}, ${formatDate(commission.created_at)}`}
+      accessibilityHint={strings.commissions.opensDetailsHint}
     >
       <View style={styles.info}>
         <View style={styles.topLine}>
@@ -37,7 +35,9 @@ export function CommissionRow({ commission, onPress }: { commission: Commission;
         </View>
         <Text style={styles.meta}>
           {formatDate(commission.created_at)}
-          {commission.network_level !== null && commission.network_level > 0 ? ` · Level ${commission.network_level}` : ""}
+          {commission.network_level !== null && commission.network_level > 0
+            ? strings.commissions.levelSuffix(commission.network_level)
+            : ""}
         </Text>
       </View>
       <Text style={[styles.amount, isNegative ? styles.amountNegative : null]}>{amountLabel}</Text>

@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { LivenessSessionStatus } from "../../../types/api";
 import { colors, spacing, typography } from "../../ui/theme";
 
@@ -12,12 +13,12 @@ import { colors, spacing, typography } from "../../ui/theme";
  * this is backend processing time, not "still recording".
  */
 export function LivenessProcessingState({ status }: { status: Extract<LivenessSessionStatus, "pending" | "processing"> }) {
-  const label = status === "pending" ? "Preparing your check" : "Reviewing your check";
+  const label = status === "pending" ? strings.liveness.preparingCheck : strings.liveness.reviewingCheck;
   return (
     <View style={styles.container} accessible accessibilityLabel={label}>
       <ActivityIndicator color={colors.primary} />
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.meta}>This usually takes a few seconds. You don&apos;t need to keep this screen open.</Text>
+      <Text style={styles.meta}>{strings.liveness.processingHint}</Text>
     </View>
   );
 }

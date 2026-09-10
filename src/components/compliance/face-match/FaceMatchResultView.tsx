@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { FaceMatchProcessingResult } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -76,9 +77,9 @@ export function FaceMatchResultView({
     const failure = faceMatchFailureCopy(result.failure_reason);
     return (
       <View style={styles.container}>
-        <Badge label="Couldn't process" tone="danger" />
+        <Badge label={strings.faceMatch.couldNotProcess} tone="danger" />
         <Text style={styles.description}>{failure.message}</Text>
-        <Button label="Retake selfie" onPress={onRetry} loading={retrying} />
+        <Button label={strings.faceMatch.retakeSelfie} onPress={onRetry} loading={retrying} />
       </View>
     );
   }
@@ -89,7 +90,7 @@ export function FaceMatchResultView({
     <View style={styles.container}>
       <Badge label={copy.label} tone={copy.tone} />
       {copy.description ? <Text style={styles.description}>{copy.description}</Text> : null}
-      {result.verdict === "no_match" ? <Button label="Retake selfie" onPress={onRetry} loading={retrying} /> : null}
+      {result.verdict === "no_match" ? <Button label={strings.faceMatch.retakeSelfie} onPress={onRetry} loading={retrying} /> : null}
     </View>
   );
 }

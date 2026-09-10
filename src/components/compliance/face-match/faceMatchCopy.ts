@@ -1,16 +1,11 @@
 import type { BadgeTone } from "../../../design-system/theme";
+import { strings } from "../../../i18n";
 import type { FaceMatchVerdict } from "../../../types/api";
 
 // Concise, non-liveness guidance (Phase 9D.3's explicit "face match only,
 // no liveness challenge" scope) -- never "blink"/"turn your head"/"smile",
 // those instructions belong to a future liveness step, not this one.
-export const SELFIE_GUIDANCE = [
-  "Look directly at the camera",
-  "Make sure only you are in the frame",
-  "Remove sunglasses, hats, or anything covering your face",
-  "Use good, even lighting",
-  "Keep your face clear and reasonably close to the camera",
-];
+export const SELFIE_GUIDANCE = strings.faceMatch.guidance;
 
 /**
  * `verdict: "match"` means ONLY "the selfie appears sufficiently similar to
@@ -23,24 +18,24 @@ export function faceMatchVerdictCopy(verdict: FaceMatchVerdict | null): { label:
   switch (verdict) {
     case "match":
       return {
-        label: "Face matched",
+        label: strings.faceMatch.matchedTitle,
         tone: "success",
-        description: "Your selfie matched your identity document photo.",
+        description: strings.faceMatch.matchedDescription,
       };
     case "review":
       return {
-        label: "Needs review",
+        label: strings.faceMatch.needsReviewTitle,
         tone: "warning",
-        description: "Your submission is under manual review. No action is needed from you right now.",
+        description: strings.compliance.manualReviewNotice,
       };
     case "no_match":
       return {
-        label: "Couldn't confirm the match",
+        label: strings.faceMatch.couldNotConfirmTitle,
         tone: "danger",
-        description: "We couldn't confirm your selfie matches your identity document photo.",
+        description: strings.faceMatch.couldNotConfirmDescription,
       };
     default:
-      return { label: "Pending", tone: "neutral", description: "" };
+      return { label: strings.faceMatch.pendingLabel, tone: "neutral", description: "" };
   }
 }
 
@@ -70,16 +65,16 @@ export function isReferenceInconclusive(reason: string | null): boolean {
 }
 
 export const REFERENCE_INCONCLUSIVE_COPY: { label: string; tone: BadgeTone; description: string } = {
-  label: "Needs review",
+  label: strings.faceMatch.referenceInconclusive.title,
   tone: "warning",
-  description: "We couldn't automatically verify the portrait on your ID. Your verification needs review. No action is needed from you right now.",
+  description: strings.faceMatch.referenceInconclusive.description,
 };
 
 const PROBE_FAILURE_COPY: Record<string, string> = {
-  no_face_probe: "We couldn't clearly detect your face. Take another photo with your face centered.",
-  multiple_faces_probe: "Make sure only you are visible in the photo.",
-  face_too_small_probe: "Move a little closer to the camera.",
-  image_decode_failed_probe: "That photo couldn't be read. Please retake it.",
+  no_face_probe: strings.faceMatch.probeFailures.noFace,
+  multiple_faces_probe: strings.faceMatch.probeFailures.multipleFaces,
+  face_too_small_probe: strings.faceMatch.probeFailures.faceTooSmall,
+  image_decode_failed_probe: strings.faceMatch.probeFailures.imageDecodeFailed,
 };
 
 const ENGINE_UNAVAILABLE_REASONS = new Set([
@@ -116,16 +111,13 @@ const ENGINE_UNAVAILABLE_REASONS = new Set([
  */
 export function faceMatchFailureCopy(reason: string | null): { message: string } {
   if (reason !== null && isReferenceSideFailure(reason)) {
-    return {
-      message:
-        "We couldn't use your identity document photo for this comparison. Please check the Identity document step -- it may need to be recaptured or reprocessed.",
-    };
+    return { message: strings.faceMatch.referenceSideFailure };
   }
   if (reason !== null && reason in PROBE_FAILURE_COPY) {
     return { message: PROBE_FAILURE_COPY[reason] };
   }
   if (reason !== null && ENGINE_UNAVAILABLE_REASONS.has(reason)) {
-    return { message: "Face verification is temporarily unavailable. Please try again later." };
+    return { message: strings.faceMatch.serviceUnavailable };
   }
-  return { message: "Something went wrong while processing your selfie. Please try again." };
+  return { message: strings.faceMatch.genericError };
 }

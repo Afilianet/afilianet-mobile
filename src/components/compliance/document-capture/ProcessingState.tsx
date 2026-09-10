@@ -1,4 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { DocumentProcessingStatus } from "../../../types/api";
 import { colors, spacing, typography } from "../../ui/theme";
 
@@ -8,12 +9,12 @@ import { colors, spacing, typography } from "../../ui/theme";
  * independent lifecycles, see DOCUMENT_ENGINE.md section I).
  */
 export function ProcessingState({ status }: { status: Extract<DocumentProcessingStatus, "pending" | "processing"> }) {
-  const label = status === "pending" ? "Waiting for document" : "Processing your document";
+  const label = status === "pending" ? strings.documentCapture.waitingForDocument : strings.documentCapture.processingDocument;
   return (
     <View style={styles.container} accessible accessibilityLabel={label}>
       <ActivityIndicator color={colors.primary} />
       <Text style={styles.label}>{label}</Text>
-      <Text style={styles.meta}>This usually takes a few seconds. You don&apos;t need to keep this screen open.</Text>
+      <Text style={styles.meta}>{strings.documentCapture.processingHint}</Text>
     </View>
   );
 }

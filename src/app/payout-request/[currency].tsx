@@ -14,6 +14,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
+import { strings } from "../../i18n";
 import { usePayoutDestinations } from "../../hooks/usePayoutDestinations";
 import { usePayoutEligibility } from "../../hooks/usePayoutEligibility";
 import { useRequestPayout } from "../../hooks/useRequestPayout";
@@ -53,7 +54,7 @@ export default function PayoutRequestScreen() {
   } else if (hasEnteredAmount && amountResult?.valid && eligibility) {
     const eligibleMinor = toMinorUnits(eligibility.eligible_balance, currency);
     if (BigInt(amountResult.minorUnits) > eligibleMinor) {
-      amountError = `You can withdraw up to ${formatMoney(eligibility.eligible_balance, currency)}.`;
+      amountError = strings.payoutRequest.canWithdrawUpTo(formatMoney(eligibility.eligible_balance, currency));
     }
   }
 
@@ -76,11 +77,11 @@ export default function PayoutRequestScreen() {
         amount_minor: amountResult.minorUnits,
         idempotency_key: idempotencyKey,
       });
-      Alert.alert("Payout requested", "Your withdrawal request has been submitted.", [
-        { text: "OK", onPress: () => router.back() },
+      Alert.alert(strings.payoutRequest.confirmTitle, strings.payoutRequest.confirmMessage, [
+        { text: strings.payoutRequest.ok, onPress: () => router.back() },
       ]);
     } catch (error) {
-      setSubmitError(isApiError(error) ? friendlyMessage(error) : "Something went wrong. Please try again.");
+      setSubmitError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
     }
   }
 
@@ -90,8 +91,8 @@ export default function PayoutRequestScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} testID="payout-request-scroll">
         <View style={styles.header}>
-          <Text style={styles.heading}>Withdraw {currency}</Text>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <Text style={styles.heading}>{strings.payoutRequest.withdrawCurrency(currency)}</Text>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -99,7 +100,7 @@ export default function PayoutRequestScreen() {
         {eligibilityQuery.isPending ? (
           <SkeletonGroup lines={4} />
         ) : eligibilityError?.kind === "forbidden" ? (
-          <ForbiddenState area="payout eligibility" />
+          <ForbiddenState area={strings.payoutRequest.forbiddenArea} />
         ) : eligibilityError ? (
           <ErrorState
             error={eligibilityError}
@@ -111,20 +112,20 @@ export default function PayoutRequestScreen() {
             <Card style={styles.eligibilityCard}>
               <Text
                 style={styles.eligibleAmount}
-                accessibilityLabel={`Eligible to withdraw: ${formatMoney(eligibility.eligible_balance, currency)}`}
+                accessibilityLabel={strings.payouts.eligibleToWithdrawA11y(formatMoney(eligibility.eligible_balance, currency))}
               >
                 {formatMoney(eligibility.eligible_balance, currency)}
               </Text>
-              <Text style={styles.meta}>Eligible to withdraw</Text>
+              <Text style={styles.meta}>{strings.payouts.eligibleToWithdraw}</Text>
               {Number(eligibility.minimum_payout) > 0 ? (
-                <Text style={styles.meta}>Minimum: {formatMoney(eligibility.minimum_payout, currency)}</Text>
+                <Text style={styles.meta}>{strings.payoutRequest.minimum(formatMoney(eligibility.minimum_payout, currency))}</Text>
               ) : null}
             </Card>
 
             <TextInput
-              label="Amount"
-              accessibilityLabel="Amount"
-              placeholder="0.00"
+              label={strings.payoutRequest.amountLabel}
+              accessibilityLabel={strings.payoutRequest.amountLabel}
+              placeholder={strings.payoutRequest.amountPlaceholder}
               keyboardType="decimal-pad"
               mono
               value={amountText}
@@ -134,15 +135,15 @@ export default function PayoutRequestScreen() {
 
             <Card style={styles.destinationsCard}>
               <View style={styles.destinationsHeader}>
-                <Text style={styles.label}>Payout destination</Text>
-                <Button label="Add new" variant="ghost" size="sm" onPress={() => setAddingDestination(true)} />
+                <Text style={styles.label}>{strings.payoutRequest.destinationLabel}</Text>
+                <Button label={strings.payoutRequest.addNew} variant="ghost" size="sm" onPress={() => setAddingDestination(true)} />
               </View>
               {destinationsQuery.isPending ? (
                 <SkeletonGroup lines={2} />
               ) : destinations.length === 0 ? (
                 <EmptyState
-                  title="No payout destination yet"
-                  description="Add one to continue with this withdrawal."
+                  title={strings.payoutRequest.noDestinationYetTitle}
+                  description={strings.payoutRequest.noDestinationYetDescription}
                 />
               ) : (
                 destinations.map((destination) => (
@@ -169,7 +170,7 @@ export default function PayoutRequestScreen() {
             {submitError ? <Text style={styles.submitError}>{submitError}</Text> : null}
 
             <Button
-              label="Request payout"
+              label={strings.payoutRequest.requestPayout}
               fullWidth
               disabled={!canSubmit}
               loading={requestMutation.isPending}

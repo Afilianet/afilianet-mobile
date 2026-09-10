@@ -1,16 +1,17 @@
 import { Link, Stack } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { EmptyState } from "../components/EmptyState";
+import { strings } from "../i18n";
 import { colors } from "../components/ui/theme";
 
 export default function NotFoundScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: "Not found" }} />
+      <Stack.Screen options={{ title: strings.notFoundScreen.stackTitle }} />
       <View style={styles.container}>
-        <EmptyState title="This screen doesn't exist" description="Let's get you back on track." />
+        <EmptyState title={strings.notFoundScreen.title} description={strings.notFoundScreen.description} />
         <Link href="/(app)" style={styles.link}>
-          Go to home
+          {strings.notFoundScreen.goHome}
         </Link>
       </View>
     </>

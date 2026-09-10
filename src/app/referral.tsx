@@ -18,6 +18,7 @@ import { Icon } from "../design-system/icons/Icon";
 import { Isotipo } from "../design-system/icons/Logo";
 import { affiliateStatusCopy } from "../design-system/statusMapping";
 import { fontSize } from "../design-system/tokens";
+import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
@@ -69,7 +70,7 @@ export default function ReferralScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.close}>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -77,12 +78,9 @@ export default function ReferralScreen() {
         {affiliateQuery.isPending ? (
           <SkeletonGroup lines={4} />
         ) : noAffiliateProfile ? (
-          <EmptyState
-            title="Join the affiliate program"
-            description="You need an affiliate profile in this organization to get a referral link."
-          />
+          <EmptyState title={strings.joinAffiliateProgram.title} description={strings.referral.joinAffiliateDescription} />
         ) : forbidden ? (
-          <ForbiddenState area="your referral link" />
+          <ForbiddenState area={strings.referral.forbiddenArea} />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}
@@ -92,7 +90,7 @@ export default function ReferralScreen() {
         ) : affiliateQuery.data ? (
           <ReferralBody
             affiliate={affiliateQuery.data}
-            onCopied={() => showToast("Link copied")}
+            onCopied={() => showToast(strings.referral.linkCopied)}
             onViewInvitations={() => router.push(routes.network as never)}
           />
         ) : null}
@@ -127,7 +125,7 @@ function ReferralBody({
   async function handleShare() {
     analytics.capture("referral_share_opened");
     try {
-      const message = `Join me on Afilianet: ${url}`;
+      const message = strings.referral.shareMessage(url);
       await Share.share(Platform.OS === "ios" ? { message, url } : { message });
     } catch {
       // The user dismissed the share sheet, or the OS share call failed --
@@ -151,42 +149,36 @@ function ReferralBody({
         <Card style={styles.statusCard}>
           <Badge label={status.label} tone={status.tone} />
           <Text style={styles.statusMessage}>
-            {shareable
-              ? "Your account is still being reviewed, but your referral link already works."
-              : "Referral sharing is unavailable while your account is in this status."}
+            {shareable ? strings.referral.pendingReviewNotice : strings.referral.sharingUnavailableNotice}
           </Text>
         </Card>
       ) : null}
 
       <Card style={styles.card}>
-        <Text style={styles.label}>Your affiliate code</Text>
-        <Text style={styles.code} selectable accessibilityLabel={`Affiliate code ${affiliate.affiliate_code}`}>
+        <Text style={styles.label}>{strings.referral.yourAffiliateCode}</Text>
+        <Text style={styles.code} selectable accessibilityLabel={strings.referral.affiliateCodeA11y(affiliate.affiliate_code)}>
           {affiliate.affiliate_code}
         </Text>
       </Card>
 
       {shareable ? (
         <>
-          <View
-            style={styles.qrFrame}
-            accessible
-            accessibilityLabel={`QR code for your referral link: ${url}`}
-          >
+          <View style={styles.qrFrame} accessible accessibilityLabel={strings.referral.qrCodeA11y(url)}>
             <View style={styles.qrQuietZone}>
               <QRCode value={url} size={188} color="#0C0A14" backgroundColor="#FFFFFF" ecl="Q" />
             </View>
           </View>
 
           <Card style={styles.card}>
-            <Text style={styles.label}>Referral link</Text>
-            <Text style={styles.url} selectable numberOfLines={1} accessibilityLabel={`Referral link ${url}`}>
+            <Text style={styles.label}>{strings.referral.referralLink}</Text>
+            <Text style={styles.url} selectable numberOfLines={1} accessibilityLabel={strings.referral.referralLinkA11y(url)}>
               {url}
             </Text>
           </Card>
 
           <View style={styles.actions}>
             <Button
-              label="Share"
+              label={strings.referral.share}
               variant="primary"
               size="lg"
               fullWidth
@@ -194,7 +186,7 @@ function ReferralBody({
               onPress={() => void handleShare()}
             />
             <Button
-              label="Copy link"
+              label={strings.referral.copyLink}
               variant="secondary"
               size="md"
               fullWidth
@@ -219,11 +211,9 @@ function ReferralBody({
 function InvitationsSection({ onViewInvitations }: { onViewInvitations: () => void }) {
   return (
     <Card style={styles.card}>
-      <Text style={styles.label}>My invitations</Text>
-      <Text style={styles.invitationsMessage}>
-        See who you&apos;ve invited and their status under Network.
-      </Text>
-      <Button label="View invitations" variant="secondary" size="sm" onPress={onViewInvitations} />
+      <Text style={styles.label}>{strings.referral.myInvitations}</Text>
+      <Text style={styles.invitationsMessage}>{strings.referral.seeInvitations}</Text>
+      <Button label={strings.referral.viewInvitations} variant="secondary" size="sm" onPress={onViewInvitations} />
     </Card>
   );
 }

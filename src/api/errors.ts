@@ -1,3 +1,5 @@
+import { strings } from "../i18n";
+
 export type ApiErrorKind =
   | "offline"
   | "timeout"
@@ -46,25 +48,25 @@ export function kindForStatus(status: number): ApiErrorKind {
 export function friendlyMessage(error: ApiError): string {
   switch (error.kind) {
     case "offline":
-      return "You're offline. Check your connection and try again.";
+      return strings.shared.apiErrors.offline;
     case "timeout":
-      return "That took too long to respond. Please try again.";
+      return strings.shared.apiErrors.timeout;
     case "unauthorized":
-      return "Your session has expired. Please sign in again.";
+      return strings.shared.apiErrors.sessionExpired;
     case "forbidden":
-      return "You don't have permission to do that.";
+      return strings.shared.apiErrors.noPermission;
     case "validation":
-      return error.message || "Some information isn't valid.";
+      return error.message || strings.shared.apiErrors.notValid;
     case "not_found":
-      return "We couldn't find that.";
+      return strings.shared.apiErrors.notFound;
     case "conflict":
-      return error.message || "This can't be completed right now.";
+      return error.message || strings.shared.apiErrors.conflict;
     case "rate_limited":
-      return "Too many attempts. Please wait a moment and try again.";
+      return strings.shared.apiErrors.rateLimited;
     case "server":
-      return "Something went wrong on our end. Please try again shortly.";
+      return strings.shared.apiErrors.server;
     default:
-      return error.message || "Something went wrong.";
+      return error.message || strings.shared.errorState.fallbackMessage;
   }
 }
 
@@ -80,16 +82,16 @@ export function loginErrorMessage(error: ApiError): string {
   switch (error.kind) {
     case "unauthorized":
     case "forbidden":
-      return error.message || "You can't sign in right now.";
+      return error.message || strings.shared.apiErrors.loginFailed;
     case "rate_limited":
-      return "Too many attempts. Please wait a moment and try again.";
+      return strings.shared.apiErrors.rateLimited;
     case "offline":
-      return "You're offline. Check your connection and try again.";
+      return strings.shared.apiErrors.offline;
     case "timeout":
-      return "That took too long. Please try again.";
+      return strings.shared.apiErrors.loginTimeout;
     case "server":
-      return "Something went wrong on our end. Please try again shortly.";
+      return strings.shared.apiErrors.server;
     default:
-      return "Something went wrong. Please try again.";
+      return strings.compliance.genericError;
   }
 }

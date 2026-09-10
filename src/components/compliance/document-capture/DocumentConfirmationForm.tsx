@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../../api/errors";
+import { strings } from "../../../i18n";
 import { useConfirmDocumentResult } from "../../../hooks/useConfirmDocumentResult";
 import { analytics } from "../../../services/analytics";
 import type { DocumentProcessingResult } from "../../../types/api";
@@ -64,7 +65,7 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
       analytics.capture("document_fields_confirmed");
     } catch (error) {
       if (!isApiError(error)) {
-        setFormError("Something went wrong. Please try again.");
+        setFormError(strings.documentCapture.genericError);
         return;
       }
       // A changed re-confirmation after this result was already confirmed
@@ -72,7 +73,7 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
       // hook itself already triggered a refetch, which will replace this
       // form with the CONFIRMED (authoritative) values once it lands.
       if (error.status === 409) {
-        setFormError("This document's information was already confirmed. Showing the confirmed details.");
+        setFormError(strings.documentCapture.confirmDetails.alreadyConfirmed);
         return;
       }
       if (error.kind === "validation" && error.details) {
@@ -94,11 +95,8 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Confirm your details</Text>
-      <Text style={styles.note}>
-        Review what we read from your document and correct anything that isn&apos;t right, then confirm. This confirms
-        these are your identity details -- it doesn&apos;t change your verification result.
-      </Text>
+      <Text style={styles.title}>{strings.documentCapture.confirmDetails.title}</Text>
+      <Text style={styles.note}>{strings.documentCapture.confirmDetails.description}</Text>
       {confirmableFields.map((field) => (
         <TextInput
           key={field.name}
@@ -116,7 +114,12 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
           {formError}
         </Text>
       ) : null}
-      <Button label="Confirm details" fullWidth loading={confirmMutation.isPending} onPress={() => void handleConfirm()} />
+      <Button
+        label={strings.documentCapture.confirmDetails.submit}
+        fullWidth
+        loading={confirmMutation.isPending}
+        onPress={() => void handleConfirm()}
+      />
     </View>
   );
 }

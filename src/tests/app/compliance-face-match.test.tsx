@@ -314,9 +314,9 @@ async function captureAndUseSelfie(getByText: (text: string) => unknown, findByT
     assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
   });
   fireEvent.press((await findByText("Selfie")) as never);
-  fireEvent.press((await findByText("Open camera")) as never);
-  fireEvent.press((await findByText("Use this photo")) as never);
-  await findByText("Captured");
+  fireEvent.press((await findByText("Abrir cámara")) as never);
+  fireEvent.press((await findByText("Usar esta foto")) as never);
+  await findByText("Capturado");
 }
 
 // --- Provider awareness -------------------------------------------------------
@@ -325,7 +325,7 @@ describe("Face match: provider awareness", () => {
   it("shows the real selfie-capture flow when configured_provider is afilianet and actionable", async () => {
     const { findByText } = await renderCompliance();
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
   it("never shows the Afilianet selfie flow when configured_provider is incode", async () => {
@@ -334,7 +334,7 @@ describe("Face match: provider awareness", () => {
       biometricStep(),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/uses a different flow/i)).toBeTruthy();
+    expect(await findByText(/usa un flujo diferente/i)).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
     expect(mockedFetchFaceMatchResult).not.toHaveBeenCalled();
   });
@@ -345,7 +345,7 @@ describe("Face match: provider awareness", () => {
       biometricStep(),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/face verification is temporarily unavailable/i)).toBeTruthy();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
     expect(mockedFetchFaceMatchResult).not.toHaveBeenCalled();
   });
@@ -356,14 +356,14 @@ describe("Face match: provider awareness", () => {
       biometricStep(),
     ]);
     const { queryByText, findByText } = await renderCompliance();
-    expect(await findByText(/isn't set up for this organization yet/i)).toBeTruthy();
+    expect(await findByText(/aún no está configurado para esta organización/i)).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
   });
 
   it("never lets the client select a provider -- trigger sends no provider field", async () => {
     const { getByText, findByText } = await renderCompliance();
     await captureAndUseSelfie(getByText, findByText);
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
 
     await waitFor(() => expect(mockedTriggerFaceMatchProcessing).toHaveBeenCalledWith("face-match-step-1"));
   });
@@ -378,10 +378,10 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "no_match" }));
     const { getByText, findByText } = await renderCompliance();
 
-    expect(await findByText("Retake selfie")).toBeTruthy();
-    fireEvent.press(getByText("Retake selfie"));
+    expect(await findByText("Volver a tomar selfie")).toBeTruthy();
+    fireEvent.press(getByText("Volver a tomar selfie"));
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
   it("a pending, current face_match step is actionable too -- not only after a prior failure", async () => {
@@ -391,7 +391,7 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     ]);
     const { findByText } = await renderCompliance();
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
   it("a passed face_match step is never editable, regardless of the underlying processing result", async () => {
@@ -402,10 +402,10 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
     const { queryByText, findByText } = await renderCompliance();
 
-    expect(await findByText("Your face was matched to your identity document.")).toBeTruthy();
+    expect(await findByText("Tu rostro coincidió con tu documento de identidad.")).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
-    expect(queryByText("Submit for verification")).toBeNull();
-    expect(queryByText("Retake selfie")).toBeNull();
+    expect(queryByText("Enviar para verificación")).toBeNull();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
   });
 
   it("current_step never gates this step's own actionability -- a failed, actionable face_match step is retryable even when current_step points elsewhere", async () => {
@@ -424,7 +424,7 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     const { findByText } = await renderCompliance();
 
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
   it("an unavailable provider blocks the flow even when the step itself is already failed", async () => {
@@ -434,9 +434,9 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     ]);
     const { queryByText, findByText } = await renderCompliance();
 
-    expect(await findByText(/face verification is temporarily unavailable/i)).toBeTruthy();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
-    expect(queryByText("Submit for verification")).toBeNull();
+    expect(queryByText("Enviar para verificación")).toBeNull();
   });
 });
 
@@ -451,7 +451,7 @@ describe("Face match: no biometric_liveness sibling step required", () => {
     mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep()]);
     const { findByText } = await renderCompliance();
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Submit for verification")).toBeTruthy();
+    expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 });
 
@@ -467,12 +467,12 @@ describe("Face match: selfie capture", () => {
     });
 
     fireEvent.press(await findByText("Selfie"));
-    expect(await findByText("Take a selfie")).toBeTruthy();
-    expect(await findByText(/look directly at the camera/i)).toBeTruthy();
+    expect(await findByText("Toma una selfie")).toBeTruthy();
+    expect(await findByText(/mira directamente a la cámara/i)).toBeTruthy();
 
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(await findByText("Abrir cámara"));
     expect(mockRequestCameraPermission).toHaveBeenCalled();
-    expect(await findByText("Use this photo")).toBeTruthy();
+    expect(await findByText("Usar esta foto")).toBeTruthy();
   });
 
   it("launches the camera at quality: 1 -- never the document flow's recompressing quality, to preserve EXIF orientation for the identity engine's face detector", async () => {
@@ -489,7 +489,7 @@ describe("Face match: selfie capture", () => {
     });
 
     fireEvent.press(await findByText("Selfie"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(await findByText("Abrir cámara"));
     await waitFor(() => expect(mockLaunchCamera).toHaveBeenCalledTimes(1));
 
     expect(mockLaunchCamera).toHaveBeenCalledWith(
@@ -502,10 +502,10 @@ describe("Face match: selfie capture", () => {
     mockRequestCameraPermission.mockResolvedValue({ granted: false, canAskAgain: false, status: "denied" });
 
     fireEvent.press(await findByText("Selfie"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Camera access needed")).toBeTruthy();
-    expect(await findByText("Open settings")).toBeTruthy();
+    expect(await findByText("Se necesita acceso a la cámara")).toBeTruthy();
+    expect(await findByText("Abrir configuración")).toBeTruthy();
   });
 
   it("shows an unavailable state when the camera itself fails to launch", async () => {
@@ -514,9 +514,9 @@ describe("Face match: selfie capture", () => {
     mockLaunchCamera.mockRejectedValue(new Error("no camera"));
 
     fireEvent.press(await findByText("Selfie"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Camera unavailable")).toBeTruthy();
+    expect(await findByText("Cámara no disponible")).toBeTruthy();
   });
 
   it("returns to guidance without an error when the user cancels the native camera", async () => {
@@ -525,10 +525,10 @@ describe("Face match: selfie capture", () => {
     mockLaunchCamera.mockResolvedValue({ canceled: true, assets: null });
 
     fireEvent.press(await findByText("Selfie"));
-    fireEvent.press(await findByText("Open camera"));
+    fireEvent.press(await findByText("Abrir cámara"));
 
-    expect(await findByText("Open camera")).toBeTruthy();
-    expect(queryByText(/couldn't be read|corrupted/i)).toBeNull();
+    expect(await findByText("Abrir cámara")).toBeTruthy();
+    expect(queryByText(/dañada|no se pudo leer/i)).toBeNull();
   });
 
   it("supports retake before uploading", async () => {
@@ -540,26 +540,26 @@ describe("Face match: selfie capture", () => {
     });
 
     fireEvent.press(await findByText("Selfie"));
-    fireEvent.press(await findByText("Open camera"));
-    expect(await findByText("Use this photo")).toBeTruthy();
+    fireEvent.press(await findByText("Abrir cámara"));
+    expect(await findByText("Usar esta foto")).toBeTruthy();
     expect(mockedRequestEvidenceUpload).not.toHaveBeenCalled();
 
     mockLaunchCamera.mockResolvedValueOnce({
       canceled: false,
       assets: [{ uri: "file:///tmp/selfie-2.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
     });
-    fireEvent.press(getByText("Retake"));
-    expect(await findByText("Open camera")).toBeTruthy();
+    fireEvent.press(getByText("Volver a tomar"));
+    expect(await findByText("Abrir cámara")).toBeTruthy();
   });
 
   it("cancels out of the capture screen back to the checklist", async () => {
     const { getByText, findByText, queryByText } = await renderCompliance();
     fireEvent.press(await findByText("Selfie"));
-    expect(await findByText("Take a selfie")).toBeTruthy();
+    expect(await findByText("Toma una selfie")).toBeTruthy();
 
-    fireEvent.press(getByText("Cancel"));
+    fireEvent.press(getByText("Cancelar"));
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(queryByText("Take a selfie")).toBeNull();
+    expect(queryByText("Toma una selfie")).toBeNull();
   });
 });
 
@@ -577,7 +577,7 @@ describe("Face match: selfie evidence upload", () => {
       ),
     );
     await waitFor(() => expect(mockedCompleteEvidenceUpload).toHaveBeenCalledWith("ev-1"));
-    expect(await findByText("Captured")).toBeTruthy();
+    expect(await findByText("Capturado")).toBeTruthy();
   });
 
   it("retries a failed face_match step by uploading the fresh selfie against face_match's own step, even once biometric_liveness has already passed (real physical-device case 72 regression)", async () => {
@@ -594,7 +594,7 @@ describe("Face match: selfie evidence upload", () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "no_match" }));
     const { getByText, findByText } = await renderCompliance();
 
-    fireEvent.press(await findByText("Retake selfie"));
+    fireEvent.press(await findByText("Volver a tomar selfie"));
     await captureAndUseSelfie(getByText, findByText);
 
     expect(mockedRequestEvidenceUpload).toHaveBeenCalledWith("face-match-step-1", expect.objectContaining({ evidence_type: "selfie" }));
@@ -604,11 +604,11 @@ describe("Face match: selfie evidence upload", () => {
   it("never triggers face-match processing before the selfie evidence completes", async () => {
     const { getByText, findByText } = await renderCompliance();
     fireEvent.press(await findByText("Selfie"));
-    await findByText("Take a selfie");
-    fireEvent.press(getByText("Cancel"));
+    await findByText("Toma una selfie");
+    fireEvent.press(getByText("Cancelar"));
 
-    expect(await findByText("Not yet captured")).toBeTruthy();
-    fireEvent.press(getByText("Submit for verification"));
+    expect(await findByText("Aún no capturado")).toBeTruthy();
+    fireEvent.press(getByText("Enviar para verificación"));
     expect(mockedTriggerFaceMatchProcessing).not.toHaveBeenCalled();
   });
 
@@ -628,20 +628,20 @@ describe("Face match: selfie evidence upload", () => {
     const { getByText, findByText, queryByText } = await renderCompliance();
 
     fireEvent.press((await findByText("Selfie")) as never);
-    fireEvent.press((await findByText("Open camera")) as never);
-    fireEvent.press((await findByText("Use this photo")) as never);
+    fireEvent.press((await findByText("Abrir cámara")) as never);
+    fireEvent.press((await findByText("Usar esta foto")) as never);
 
     expect(await findByText(/still actionable/i)).toBeTruthy();
     expect(mockedCompleteEvidenceUpload).not.toHaveBeenCalled();
 
     // Never a client-side fake state change: back on the checklist, the
-    // selfie is never shown as "Captured" off the back of a rejected
+    // selfie is never shown as "Capturado" off the back of a rejected
     // authorize call, and Retake still works normally.
-    fireEvent.press(getByText("Retake"));
-    await findByText("Take a selfie");
-    fireEvent.press(getByText("Cancel"));
-    expect(await findByText("Not yet captured")).toBeTruthy();
-    expect(queryByText("Captured")).toBeNull();
+    fireEvent.press(getByText("Volver a tomar"));
+    await findByText("Toma una selfie");
+    fireEvent.press(getByText("Cancelar"));
+    expect(await findByText("Aún no capturado")).toBeTruthy();
+    expect(queryByText("Capturado")).toBeNull();
   });
 
   it("surfaces a clean error and keeps the local photo when the direct PUT fails", async () => {
@@ -657,10 +657,10 @@ describe("Face match: selfie evidence upload", () => {
     // for "Captured" to appear, which never happens on a failed upload; this
     // test is specifically about the local photo staying on-screen instead.
     fireEvent.press((await findByText("Selfie")) as never);
-    fireEvent.press((await findByText("Open camera")) as never);
-    fireEvent.press((await findByText("Use this photo")) as never);
+    fireEvent.press((await findByText("Abrir cámara")) as never);
+    fireEvent.press((await findByText("Usar esta foto")) as never);
 
-    expect(await findByText(/upload didn't complete/i)).toBeTruthy();
+    expect(await findByText(/la carga no se completó/i)).toBeTruthy();
     expect(mockedCompleteEvidenceUpload).not.toHaveBeenCalled();
   });
 
@@ -700,18 +700,18 @@ describe("Face match: selfie evidence upload", () => {
     const { getByText, findByText } = await renderCompliance();
 
     fireEvent.press((await findByText("Selfie")) as never);
-    fireEvent.press((await findByText("Open camera")) as never);
-    fireEvent.press((await findByText("Use this photo")) as never);
+    fireEvent.press((await findByText("Abrir cámara")) as never);
+    fireEvent.press((await findByText("Usar esta foto")) as never);
 
     expect(await findByText(/does not match what was declared/i)).toBeTruthy();
 
     // A disabled Button's Pressable never fires onPress (see this file's
     // other tests for the same established assertion pattern) -- reaching
-    // "Take a selfie" here is only possible if Retake was actually enabled,
-    // i.e. `uploadFlow.stage` really did return to "idle" after the
-    // rejection above, not left stuck at "completing".
-    fireEvent.press(getByText("Retake"));
-    expect(await findByText("Take a selfie")).toBeTruthy();
+    // "Toma una selfie" here is only possible if Retake was actually
+    // enabled, i.e. `uploadFlow.stage` really did return to "idle" after
+    // the rejection above, not left stuck at "completing".
+    fireEvent.press(getByText("Volver a tomar"));
+    expect(await findByText("Toma una selfie")).toBeTruthy();
   });
 
   it("never logs the file's bytes, the presigned URL, or any upload header -- only safe diagnostics", async () => {
@@ -747,19 +747,19 @@ describe("Face match: processing and polling", () => {
 
       const { findByText } = await renderCompliance();
 
-      expect(await findByText("Waiting for selfie")).toBeTruthy();
+      expect(await findByText("Esperando la selfie")).toBeTruthy();
       const firstCallCount = mockedFetchFaceMatchResult.mock.calls.length;
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      expect(await findByText("Comparing your selfie")).toBeTruthy();
+      expect(await findByText("Comparando tu selfie")).toBeTruthy();
       expect(mockedFetchFaceMatchResult.mock.calls.length).toBeGreaterThan(firstCallCount);
 
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
-      await findByText("Face matched");
+      await findByText("Rostro coincidente");
       const callsAfterCompleted = mockedFetchFaceMatchResult.mock.calls.length;
 
       await act(async () => {
@@ -791,8 +791,8 @@ describe("Face match: processing and polling", () => {
     // swaps its label for a spinner and sets accessibilityState.disabled
     // while `loading`) demonstrates the same guarantee -- a second real
     // tap has nothing to hit -- without needing to actually fire one.
-    fireEvent.press(getByText("Submit for verification"));
-    await waitFor(() => expect(queryByText("Submit for verification")).toBeNull());
+    fireEvent.press(getByText("Enviar para verificación"));
+    await waitFor(() => expect(queryByText("Enviar para verificación")).toBeNull());
 
     await act(async () => {
       resolveTrigger(faceMatchResult({ status: "pending" }));
@@ -804,7 +804,7 @@ describe("Face match: processing and polling", () => {
   it("recovers an existing in-flight result after a remount (app reopen)", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "processing" }));
     const { findByText, rerender } = await renderCompliance();
-    expect(await findByText("Comparing your selfie")).toBeTruthy();
+    expect(await findByText("Comparando tu selfie")).toBeTruthy();
 
     // Simulate "app reopen" by remounting the screen -- a changed `key`
     // forces React to unmount the old tree and mount a fresh one (no local
@@ -826,7 +826,7 @@ describe("Face match: processing and polling", () => {
       );
     });
 
-    expect(await findByText("Comparing your selfie")).toBeTruthy();
+    expect(await findByText("Comparando tu selfie")).toBeTruthy();
   });
 });
 
@@ -840,10 +840,10 @@ describe("Face match: 503 operational unavailability at trigger", () => {
     const { getByText, findByText, queryByText } = await renderCompliance();
     await captureAndUseSelfie(getByText, findByText);
 
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
 
-    expect(await findByText(/face verification is temporarily unavailable/i)).toBeTruthy();
-    expect(queryByText(/no_match|couldn't confirm|fraud/i)).toBeNull();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
+    expect(queryByText(/no_match|no se pudo confirmar|fraude/i)).toBeNull();
     expect(mockedTriggerFaceMatchProcessing).toHaveBeenCalledTimes(1);
   });
 });
@@ -860,9 +860,9 @@ describe("Face match: missing document prerequisite (409)", () => {
     const { getByText, findByText } = await renderCompliance();
     await captureAndUseSelfie(getByText, findByText);
 
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
 
-    expect(await findByText(/complete your identity document verification first/i)).toBeTruthy();
+    expect(await findByText(/completa primero la verificación de tu documento de identidad/i)).toBeTruthy();
   });
 
   it("silently recovers (no error shown) for a duplicate-in-progress 409", async () => {
@@ -879,10 +879,10 @@ describe("Face match: missing document prerequisite (409)", () => {
     // from the very first render, so captureAndUseSelfie's checklist
     // ("Selfie") never appeared at all.
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "processing" }));
-    fireEvent.press(getByText("Submit for verification"));
+    fireEvent.press(getByText("Enviar para verificación"));
 
-    expect(await findByText("Comparing your selfie")).toBeTruthy();
-    expect(queryByText(/complete your identity document/i)).toBeNull();
+    expect(await findByText("Comparando tu selfie")).toBeTruthy();
+    expect(queryByText(/completa primero la verificación de tu documento/i)).toBeNull();
   });
 });
 
@@ -893,46 +893,46 @@ describe("Face match: result UX", () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Face matched")).toBeTruthy();
-    expect(queryByText(/identity verified/i)).toBeNull();
-    expect(queryByText("Retake selfie")).toBeNull();
+    expect(await findByText("Rostro coincidente")).toBeTruthy();
+    expect(queryByText(/identidad verificada/i)).toBeNull();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
   });
 
   it("shows a no_match message and offers a retake", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "no_match" }));
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("Couldn't confirm the match")).toBeTruthy();
-    expect(await findByText("Retake selfie")).toBeTruthy();
+    expect(await findByText("No se pudo confirmar la coincidencia")).toBeTruthy();
+    expect(await findByText("Volver a tomar selfie")).toBeTruthy();
   });
 
   it("shows a review message, no retry action, and never converts review to pass or fail", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Needs review")).toBeTruthy();
-    expect(queryByText("Retake selfie")).toBeNull();
-    expect(queryByText("Face matched")).toBeNull();
-    expect(queryByText("Couldn't confirm the match")).toBeNull();
+    expect(await findByText("Necesita revisión")).toBeTruthy();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
+    expect(queryByText("Rostro coincidente")).toBeNull();
+    expect(queryByText("No se pudo confirmar la coincidencia")).toBeNull();
   });
 
   it("maps no_face_probe to selfie-centering guidance with a retake action", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "no_face_probe" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/couldn't clearly detect your face/i)).toBeTruthy();
-    expect(await findByText("Retake selfie")).toBeTruthy();
+    expect(await findByText(/no pudimos detectar tu rostro claramente/i)).toBeTruthy();
+    expect(await findByText("Volver a tomar selfie")).toBeTruthy();
   });
 
   it("maps multiple_faces_probe to a 'only you' message", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "multiple_faces_probe" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/only you are visible/i)).toBeTruthy();
+    expect(await findByText(/solo tú aparezcas en la foto/i)).toBeTruthy();
   });
 
   it("maps face_too_small_probe to a 'move closer' message", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "face_too_small_probe" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/move a little closer/i)).toBeTruthy();
+    expect(await findByText(/acércate un poco más/i)).toBeTruthy();
   });
 
   it("never blames the selfie for a reference-side (document) failure, but still offers a retry so the affiliate is never stuck with no action", async () => {
@@ -947,9 +947,9 @@ describe("Face match: result UX", () => {
     // authoritative check if the reference genuinely still can't be used.
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "no_face_reference" }));
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText(/identity document/i)).toBeTruthy();
-    expect(await findByText("Retake selfie")).toBeTruthy();
-    expect(queryByText(/couldn't clearly detect your face/i)).toBeNull();
+    expect(await findByText(/documento de identidad/i)).toBeTruthy();
+    expect(await findByText("Volver a tomar selfie")).toBeTruthy();
+    expect(queryByText(/no pudimos detectar tu rostro claramente/i)).toBeNull();
   });
 
   it("shows review-required copy for an ambiguous document reference (Phase 9D.4), never a retry loop", async () => {
@@ -963,11 +963,11 @@ describe("Face match: result UX", () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "ambiguous_document_reference" }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Needs review")).toBeTruthy();
-    expect(await findByText(/couldn't automatically verify the portrait on your id/i)).toBeTruthy();
-    expect(queryByText("Retake selfie")).toBeNull();
-    expect(queryByText(/check the identity document step/i)).toBeNull();
-    expect(queryByText(/recaptured or reprocessed/i)).toBeNull();
+    expect(await findByText("Necesita revisión")).toBeTruthy();
+    expect(await findByText(/no pudimos verificar automáticamente el retrato de tu identificación/i)).toBeTruthy();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
+    expect(queryByText(/revisa el paso de documento de identidad/i)).toBeNull();
+    expect(queryByText(/volver a capturarse o procesarse/i)).toBeNull();
   });
 
   it("keeps showing review-required copy (never 'matched') once the step itself resolves to passed for an ambiguous document reference", async () => {
@@ -978,33 +978,33 @@ describe("Face match: result UX", () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "ambiguous_document_reference", verdict: null }));
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Needs review")).toBeTruthy();
-    expect(await findByText(/couldn't automatically verify the portrait on your id/i)).toBeTruthy();
-    expect(queryByText("Your face was matched to your identity document.")).toBeNull();
-    expect(queryByText("Retake selfie")).toBeNull();
+    expect(await findByText("Necesita revisión")).toBeTruthy();
+    expect(await findByText(/no pudimos verificar automáticamente el retrato de tu identificación/i)).toBeTruthy();
+    expect(queryByText("Tu rostro coincidió con tu documento de identidad.")).toBeNull();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
   });
 
   it("retrying after a reference-side failure clears the stale result and returns to a fresh, uploadable capture checklist", async () => {
     mockedFetchFaceMatchResult.mockResolvedValueOnce(faceMatchResult({ id: "fm-result-stale", status: "failed", failure_reason: "no_face_reference" }));
     const { getByText, findByText, queryByText } = await renderCompliance();
-    await findByText(/identity document/i);
+    await findByText(/documento de identidad/i);
 
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ id: "fm-result-stale", status: "failed", failure_reason: "no_face_reference" }));
-    fireEvent.press(getByText("Retake selfie"));
+    fireEvent.press(getByText("Volver a tomar selfie"));
 
-    // Back on the checklist, no stale "Captured"/result banner left over.
+    // Back on the checklist, no stale "Capturado"/result banner left over.
     expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Not yet captured")).toBeTruthy();
-    expect(queryByText(/identity document/i)).toBeNull();
+    expect(await findByText("Aún no capturado")).toBeTruthy();
+    expect(queryByText(/documento de identidad/i)).toBeNull();
 
     await captureAndUseSelfie(getByText, findByText);
-    expect(await findByText("Captured")).toBeTruthy();
+    expect(await findByText("Capturado")).toBeTruthy();
   });
 
   it("maps an engine-unavailable technical failure to a temporarily-unavailable message", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "unreachable" }));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/temporarily unavailable/i)).toBeTruthy();
+    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
   });
 
   it("never renders a raw similarity score or internal failure_reason string", async () => {
@@ -1033,7 +1033,7 @@ describe("Face match: tenant isolation", () => {
     mockedFetchFaceMatchResult.mockRejectedValue(NOT_FOUND);
     const { getByText, findByText, rerender } = await renderCompliance();
     await captureAndUseSelfie(getByText, findByText);
-    expect(await findByText("Captured")).toBeTruthy();
+    expect(await findByText("Capturado")).toBeTruthy();
 
     mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep({ id: "step-org-b" }), biometricStep({ id: "biometric-org-b" })]);
     await act(async () => {
@@ -1046,7 +1046,7 @@ describe("Face match: tenant isolation", () => {
       );
     });
 
-    expect(await findByText("Not yet captured")).toBeTruthy();
+    expect(await findByText("Aún no capturado")).toBeTruthy();
   });
 });
 

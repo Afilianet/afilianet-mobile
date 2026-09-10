@@ -18,6 +18,7 @@ import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Toast, type ToastTone } from "../components/ui/Toast";
 import { Icon } from "../design-system/icons/Icon";
 import { payoutDestinationStatusCopy } from "../design-system/statusMapping";
+import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useMyPayouts } from "../hooks/useMyPayouts";
 import { usePayoutDestinations } from "../hooks/usePayoutDestinations";
@@ -87,8 +88,8 @@ export default function PayoutsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.header}>
-          <Text style={styles.heading}>Payouts</Text>
-          <IconButton label="Close" onPress={() => router.back()}>
+          <Text style={styles.heading}>{strings.payouts.title}</Text>
+          <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -96,12 +97,9 @@ export default function PayoutsScreen() {
         {affiliateQuery.isPending ? (
           <SkeletonGroup lines={4} />
         ) : noAffiliateProfile ? (
-          <EmptyState
-            title="Join the affiliate program"
-            description="You need an affiliate profile in this organization to request payouts."
-          />
+          <EmptyState title={strings.joinAffiliateProgram.title} description={strings.payouts.joinAffiliateDescription} />
         ) : forbidden ? (
-          <ForbiddenState area="payouts" />
+          <ForbiddenState area={strings.payouts.forbiddenArea} />
         ) : loadFailed ? (
           <ErrorState
             error={affiliateQuery.error}
@@ -121,32 +119,27 @@ export default function PayoutsScreen() {
                 ))}
               </View>
             ) : (
-              <EmptyState
-                title="No wallet balance yet"
-                description="Once you start earning commissions, you'll be able to request a payout here."
-              />
+              <EmptyState title={strings.payouts.noBalanceTitle} description={strings.payouts.noBalanceDescription} />
             )}
 
             <Card style={styles.destinationsCard}>
               <View style={styles.destinationsHeader}>
-                <Text style={styles.label}>Payout destinations</Text>
-                <Button label="Add" variant="ghost" size="sm" onPress={() => setAddingDestination(true)} />
+                <Text style={styles.label}>{strings.payouts.destinationsLabel}</Text>
+                <Button label={strings.payouts.add} variant="ghost" size="sm" onPress={() => setAddingDestination(true)} />
               </View>
               {destinationsQuery.isPending ? (
                 <SkeletonGroup lines={2} />
               ) : destinations.length === 0 ? (
-                <Text style={styles.meta}>
-                  No payout destination yet. Add one before requesting a withdrawal.
-                </Text>
+                <Text style={styles.meta}>{strings.payouts.noDestinationYet}</Text>
               ) : (
                 destinations.map((destination) => <DestinationRow key={destination.id} destination={destination} />)
               )}
             </Card>
 
             <PaginatedSectionCard
-              title="Recent payouts"
+              title={strings.payouts.recentTitle}
               query={payoutsQuery}
-              emptyTitle="No payout requests yet"
+              emptyTitle={strings.payouts.noRequestsYet}
               onLoadMorePress={() => analytics.capture("payouts_load_more")}
               renderItem={(payout) => <PayoutRow payout={payout} onPress={() => openDetail(payout)} />}
             />
@@ -182,17 +175,17 @@ function EligibilityCard({ wallet, onWithdraw }: { wallet: WalletSummary; onWith
       {eligibilityQuery.isPending ? (
         <SkeletonGroup lines={2} />
       ) : isApiError(eligibilityQuery.error) ? (
-        <Text style={styles.meta}>Couldn&apos;t load eligibility for {wallet.currency}.</Text>
+        <Text style={styles.meta}>{strings.payouts.couldNotLoadEligibility(wallet.currency)}</Text>
       ) : eligibility ? (
         <>
-          <BalanceRow label="Available wallet" value={formatMoney(eligibility.available_balance, wallet.currency)} />
-          <BalanceRow label="Reserved" value={formatMoney(eligibility.outstanding_reservations, wallet.currency)} />
+          <BalanceRow label={strings.payouts.availableWallet} value={formatMoney(eligibility.available_balance, wallet.currency)} />
+          <BalanceRow label={strings.payouts.reserved} value={formatMoney(eligibility.outstanding_reservations, wallet.currency)} />
           <BalanceRow
-            label="Eligible to withdraw"
+            label={strings.payouts.eligibleToWithdraw}
             value={formatMoney(eligibility.eligible_balance, wallet.currency)}
             strong
           />
-          <Button label="Withdraw" fullWidth disabled={!canWithdraw} onPress={onWithdraw} />
+          <Button label={strings.payouts.withdraw} fullWidth disabled={!canWithdraw} onPress={onWithdraw} />
         </>
       ) : null}
     </Card>
@@ -211,7 +204,11 @@ function BalanceRow({ label, value, strong }: { label: string; value: string; st
 function DestinationRow({ destination }: { destination: PayoutDestination }) {
   const status = payoutDestinationStatusCopy(destination.status);
   return (
-    <View style={styles.destinationRow} accessible accessibilityLabel={`${destination.display_label}, ${status.label}`}>
+    <View
+      style={styles.destinationRow}
+      accessible
+      accessibilityLabel={strings.payouts.destinationStatusA11y(destination.display_label, status.label)}
+    >
       <Text style={styles.destinationLabel}>{destination.display_label}</Text>
       <Badge label={status.label} tone={status.tone} />
     </View>

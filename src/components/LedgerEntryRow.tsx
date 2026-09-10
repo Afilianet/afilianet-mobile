@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import { ledgerEntryStatusCopy } from "../design-system/statusMapping";
+import { strings } from "../i18n";
 import type { LedgerEntry } from "../types/api";
 import { formatDate } from "../utils/date";
 import { formatMoney } from "../utils/money";
@@ -7,14 +8,7 @@ import { Badge } from "./ui/Badge";
 import { colors, spacing, typography } from "./ui/theme";
 
 // LedgerEntry.type enum values -- presentation labels only.
-const TYPE_LABELS: Record<string, string> = {
-  commission: "Commission",
-  commission_reversal: "Commission reversal",
-  adjustment_credit: "Adjustment (credit)",
-  adjustment_debit: "Adjustment (debit)",
-  payout: "Payout",
-  payout_reversal: "Payout reversal",
-};
+const TYPE_LABELS: Record<string, string> = strings.wallet.ledgerTypeLabels;
 
 function typeLabel(type: string): string {
   return TYPE_LABELS[type] ?? type.replace(/_/g, " ");
@@ -33,15 +27,15 @@ export function LedgerEntryRow({ entry }: { entry: LedgerEntry }) {
   const amountLabel = formatMoney(entry.amount, entry.currency);
   const label = typeLabel(entry.type);
   const maturity =
-    status.label === "Pending" && entry.available_at
-      ? `Pending until ${formatDate(entry.available_at)}`
+    entry.status === "pending" && entry.available_at
+      ? strings.wallet.pendingUntil(formatDate(entry.available_at))
       : formatDate(entry.created_at);
 
   return (
     <View
       style={styles.row}
       accessible
-      accessibilityLabel={`${label}, ${status.label}, ${isNegative ? "negative " : ""}${amountLabel}, ${maturity}`}
+      accessibilityLabel={`${label}, ${status.label}, ${isNegative ? strings.wallet.negativePrefix : ""}${amountLabel}, ${maturity}`}
     >
       <View style={styles.info}>
         <View style={styles.topLine}>

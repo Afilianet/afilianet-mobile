@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { strings } from "../../../i18n";
 import type { DocumentProcessingResult } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
@@ -39,9 +40,9 @@ export function DocumentResultView({
   if (result.status === "failed") {
     return (
       <View style={styles.container}>
-        <Badge label="Couldn't process" tone="danger" />
+        <Badge label={strings.documentCapture.couldNotProcess} tone="danger" />
         <Text style={styles.description}>{friendlyFailureReason(result.failure_reason)}</Text>
-        <Button label="Retake photo" onPress={onRetry} loading={retrying} />
+        <Button label={strings.documentCapture.retakePhoto} onPress={onRetry} loading={retrying} />
       </View>
     );
   }
@@ -58,7 +59,7 @@ export function DocumentResultView({
 
       {isConfirmed ? (
         <View style={styles.fields}>
-          <Text style={styles.fieldsTitle}>Your confirmed details</Text>
+          <Text style={styles.fieldsTitle}>{strings.documentCapture.yourConfirmedDetails}</Text>
           {Object.entries(result.confirmed_fields as Record<string, string>).map(([name, value]) => (
             <View
               key={name}
@@ -75,7 +76,7 @@ export function DocumentResultView({
         </View>
       ) : extractedFields.length > 0 && !showConfirmationForm ? (
         <View style={styles.fields}>
-          <Text style={styles.fieldsTitle}>What we read from your document</Text>
+          <Text style={styles.fieldsTitle}>{strings.documentCapture.whatWeRead}</Text>
           {extractedFields.map((field) => (
             <View
               key={field.name}
@@ -94,7 +95,7 @@ export function DocumentResultView({
 
       {showConfirmationForm ? <DocumentConfirmationForm stepId={stepId} result={result} /> : null}
 
-      {result.verdict === "fail" ? <Button label="Try again" onPress={onRetry} loading={retrying} /> : null}
+      {result.verdict === "fail" ? <Button label={strings.documentCapture.tryAgain} onPress={onRetry} loading={retrying} /> : null}
     </View>
   );
 }

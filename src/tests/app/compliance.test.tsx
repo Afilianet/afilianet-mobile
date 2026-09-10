@@ -45,10 +45,10 @@ const mockedAttemptComplianceStep = attemptComplianceStep as jest.Mock;
 const mockedFetchDocumentResult = fetchDocumentResult as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
 
-/** Auto-confirms the "Accept terms?" Alert by invoking its "Accept" button. */
+/** Auto-confirms the "¿Aceptar términos?" Alert by invoking its "Aceptar" button. */
 function autoConfirmTermsAlert() {
   return jest.spyOn(Alert, "alert").mockImplementation((_title, _message, buttons) => {
-    const acceptButton = buttons?.find((button) => button.text === "Accept");
+    const acceptButton = buttons?.find((button) => button.text === "Aceptar");
     acceptButton?.onPress?.();
   });
 }
@@ -251,14 +251,14 @@ describe("Compliance: required steps", () => {
   it("shows the real Afilianet document-capture flow for a pending identity_document step", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "pending" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Which document will you provide?")).toBeTruthy();
+    expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
   });
 
   it("shows a passed step as completed, with its completion date", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "passed", completed_at: "2026-01-03T00:00:00Z" })]);
     const { findByText } = await renderCompliance();
     expect(await findByText("Aprobado")).toBeTruthy();
-    expect(await findByText(/verified/i)).toBeTruthy();
+    expect(await findByText(/verificado/i)).toBeTruthy();
     expect(await findByText(/Completado/)).toBeTruthy();
   });
 
@@ -268,8 +268,8 @@ describe("Compliance: required steps", () => {
     expect(await findByText("Rechazado")).toBeTruthy();
     // No prior document-processing result exists in this file's default mocks,
     // so document_type can't be recovered -- the real capture flow asks again.
-    expect(await findByText("Which document will you provide?")).toBeTruthy();
-    expect(queryByText("Retry")).toBeNull();
+    expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
+    expect(queryByText("Intenta de nuevo")).toBeNull();
   });
 
   it("never renders raw provider or score values", async () => {
@@ -318,7 +318,7 @@ describe("Compliance: starting a case", () => {
       fireEvent.press(startButton);
     });
 
-    expect(await findByText(/something went wrong on our end/i)).toBeTruthy();
+    expect(await findByText(/algo salió mal de nuestro lado/i)).toBeTruthy();
   });
 
   it("distinguishes an offline start failure from a generic server failure", async () => {
@@ -331,7 +331,7 @@ describe("Compliance: starting a case", () => {
       fireEvent.press(startButton);
     });
 
-    expect(await findByText(/you're offline/i)).toBeTruthy();
+    expect(await findByText(/no tienes conexión/i)).toBeTruthy();
   });
 });
 
@@ -346,7 +346,7 @@ describe("Compliance: errors and empty states", () => {
   it("shows a retryable error state on a 403", async () => {
     mockedFetchMyCompliance.mockRejectedValue(new ApiError("forbidden", "Forbidden.", 403));
     const { findByText } = await renderCompliance();
-    expect(await findByText(/don't have permission/i)).toBeTruthy();
+    expect(await findByText(/no tienes permiso/i)).toBeTruthy();
   });
 });
 
@@ -413,12 +413,12 @@ describe("Compliance: terms acceptance", () => {
     const { findByText } = await renderCompliance();
 
     await act(async () => {
-      fireEvent.press(await findByText("Accept terms"));
+      fireEvent.press(await findByText("Aceptar términos"));
     });
 
     expect(alertSpy).toHaveBeenCalledWith(
-      "Accept terms?",
-      expect.stringMatching(/review the full terms/i),
+      "¿Aceptar términos?",
+      expect.stringMatching(/revisar los términos completos/i),
       expect.any(Array),
     );
     expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
@@ -429,7 +429,7 @@ describe("Compliance: terms acceptance", () => {
   it("discloses that no real terms document exists, without inventing legal text", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText(/terms document hasn't been published/i)).toBeTruthy();
+    expect(await findByText(/no se ha publicado un documento de términos/i)).toBeTruthy();
   });
 
   it("submits accepted:true and refreshes compliance, steps, and affiliate profile", async () => {
@@ -439,14 +439,14 @@ describe("Compliance: terms acceptance", () => {
     );
     const alertSpy = autoConfirmTermsAlert();
     const { findByText } = await renderCompliance();
-    await findByText("Accept terms");
+    await findByText("Aceptar términos");
 
     const profileCallsBefore = mockedFetchMyAffiliateProfile.mock.calls.length;
     const caseCallsBefore = mockedFetchMyCompliance.mock.calls.length;
     const stepsCallsBefore = mockedFetchComplianceSteps.mock.calls.length;
 
     await act(async () => {
-      fireEvent.press(await findByText("Accept terms"));
+      fireEvent.press(await findByText("Aceptar términos"));
     });
 
     expect(mockedAttemptComplianceStep.mock.calls[0][0]).toBe("terms-1");
@@ -464,7 +464,7 @@ describe("Compliance: identity information stays read-only", () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "info-1", step_type: "identity_information" })]);
     const { findByText, queryByText } = await renderCompliance();
     expect(await findByText("Información de identidad")).toBeTruthy();
-    expect(queryByText("Accept terms")).toBeNull();
+    expect(queryByText("Aceptar términos")).toBeNull();
     expect(queryByText("Pass")).toBeNull();
     expect(queryByText("Fail")).toBeNull();
     expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
@@ -549,7 +549,7 @@ describe("Compliance: approval refreshes affiliate profile", () => {
     );
     const alertSpy = autoConfirmTermsAlert();
     const { findByText } = await renderCompliance();
-    await findByText("Accept terms");
+    await findByText("Aceptar términos");
     const profileCallsBefore = mockedFetchMyAffiliateProfile.mock.calls.length;
 
     // The screen's displayed status comes from the next GET /compliance
@@ -560,7 +560,7 @@ describe("Compliance: approval refreshes affiliate profile", () => {
     );
 
     await act(async () => {
-      fireEvent.press(await findByText("Accept terms"));
+      fireEvent.press(await findByText("Aceptar términos"));
     });
 
     await waitFor(() => expect(mockedFetchMyAffiliateProfile.mock.calls.length).toBeGreaterThan(profileCallsBefore));
@@ -581,7 +581,7 @@ describe("Compliance: step attempt error handling", () => {
       fireEvent.press(await findByText("Pass"));
     });
 
-    expect(await findByText(/couldn't find that/i)).toBeTruthy();
+    expect(await findByText(/no pudimos encontrar eso/i)).toBeTruthy();
     await waitFor(() => expect(mockedFetchMyCompliance.mock.calls.length).toBeGreaterThan(caseCallsBefore));
   });
 
@@ -608,7 +608,7 @@ describe("Compliance: step attempt error handling", () => {
       fireEvent.press(await findByText("Pass"));
     });
 
-    expect(await findByText(/too many attempts/i)).toBeTruthy();
+    expect(await findByText(/demasiados intentos/i)).toBeTruthy();
   });
 
   it("shows a clear message when offline", async () => {
@@ -620,7 +620,7 @@ describe("Compliance: step attempt error handling", () => {
       fireEvent.press(await findByText("Pass"));
     });
 
-    expect(await findByText(/you're offline/i)).toBeTruthy();
+    expect(await findByText(/no tienes conexión/i)).toBeTruthy();
   });
 });
 
@@ -632,7 +632,7 @@ describe("Compliance: step attempt analytics and privacy", () => {
     const { findByText } = await renderCompliance();
 
     await act(async () => {
-      fireEvent.press(await findByText("Accept terms"));
+      fireEvent.press(await findByText("Aceptar términos"));
     });
 
     const openedCall = mockedCapture.mock.calls.find(([event]) => event === "compliance_step_opened");

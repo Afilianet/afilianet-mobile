@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { notificationTypeMeta } from "../design-system/notificationMapping";
 import { Icon } from "../design-system/icons/Icon";
+import { strings } from "../i18n";
 import type { Notification } from "../types/api";
 import { formatDateTime } from "../utils/date";
 import { colors, radius, spacing, typography } from "./ui/theme";
@@ -21,8 +22,8 @@ export function NotificationRow({ notification, onPress }: { notification: Notif
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       accessibilityRole="button"
-      accessibilityLabel={`${isUnread ? "Unread" : "Read"}: ${notification.title}. ${notification.body}. ${formatDateTime(notification.created_at)}`}
-      accessibilityHint="Opens this notification"
+      accessibilityLabel={`${isUnread ? strings.notifications.unreadPrefix : strings.notifications.readPrefix}: ${notification.title}. ${notification.body}. ${formatDateTime(notification.created_at)}`}
+      accessibilityHint={strings.notifications.opensNotificationHint}
     >
       <View style={styles.iconMark}>
         <Icon name={meta.icon} size={18} color={colors.textSecondary} />
