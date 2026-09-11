@@ -46,7 +46,9 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "Afilianet puede usar tu ubicación, de forma opcional, para ayudar a proteger tu cuenta durante la verificación de identidad.",
-          "locationAlwaysAndWhenInUsePermission": "Afilianet puede usar tu ubicación, de forma opcional, para ayudar a proteger tu cuenta durante la verificación de identidad.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false,
           "isAndroidBackgroundLocationEnabled": false,
           "isIosBackgroundLocationEnabled": false
         }

@@ -17,9 +17,17 @@ import { colors, spacing, typography } from "../../ui/theme";
  * (via a fresh `key`) once per new capture attempt/retry -- see
  * DocumentCaptureFlow.tsx -- which is what allows a retry to submit a new
  * observation while a same-attempt double-tap can't submit two.
+ *
+ * "Continuar sin ubicación" makes NO geolocation API call and NO submission
+ * at all -- it never touches the OS permission system (see
+ * useDocumentGeolocation's own docblock for why), so there is nothing to
+ * request or capture. An optional backend observation simply doesn't exist
+ * for this capture attempt; that absence is itself the meaningful signal,
+ * not a fabricated `permission_status: "denied"` (no OS-level denial ever
+ * occurred).
  */
 export function DocumentGeolocationConsent({ stepId, onDone }: { stepId: string; onDone: () => void }) {
-  const { allow, continueWithoutLocation } = useDocumentGeolocation(stepId);
+  const { allow } = useDocumentGeolocation(stepId);
   const [answered, setAnswered] = useState(false);
 
   function handleAllow() {
@@ -32,7 +40,6 @@ export function DocumentGeolocationConsent({ stepId, onDone }: { stepId: string;
   function handleContinueWithoutLocation() {
     if (answered) return;
     setAnswered(true);
-    continueWithoutLocation();
     onDone();
   }
 

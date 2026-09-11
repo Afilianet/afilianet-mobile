@@ -6,15 +6,24 @@ import { buildGeolocationSubmission, captureDeviceGeolocation } from "../utils/g
  * Phase 9F.2: the one entry point for the optional, consented geolocation
  * observation attached to an identity_document capture attempt.
  *
- * NEVER GATES the document flow: both `allow()` and `continueWithoutLocation()`
- * are fire-and-forget from the caller's perspective -- neither one returns a
- * promise the caller needs to await before proceeding, and every failure
- * mode (permission denied, services off, position timeout, or the submit
- * request itself failing/offline/4xx/5xx) is swallowed here, never
- * rethrown. Nothing this hook touches is ever logged (no console, no
- * analytics, no Sentry) -- see captureDeviceGeolocation/
- * buildGeolocationSubmission in utils/geolocation.ts for where the raw
- * coordinates live and stop.
+ * NEVER GATES the document flow: `allow()` is fire-and-forget from the
+ * caller's perspective -- it doesn't return a promise the caller needs to
+ * await before proceeding, and every failure mode (permission denied,
+ * services off, position timeout, or the submit request itself failing/
+ * offline/4xx/5xx) is swallowed here, never rethrown. Nothing this hook
+ * touches is ever logged (no console, no analytics, no Sentry) -- see
+ * captureDeviceGeolocation/buildGeolocationSubmission in
+ * utils/geolocation.ts for where the raw coordinates live and stop.
+ *
+ * "Continue without location" is deliberately NOT exposed here at all: the
+ * affiliate declining at this app's OWN pre-permission screen never
+ * touches the OS permission system and submits NOTHING -- there is no
+ * "user pre-declined" value in the backend contract, and fabricating
+ * permission_status="denied" would misrepresent an OS-level denial that
+ * never happened. Absence of a geolocation observation for that capture
+ * attempt IS the signal that the affiliate chose not to participate; the
+ * caller (DocumentGeolocationConsent) handles that path by simply calling
+ * `onDone()` without invoking anything on this hook.
  *
  * DEDUPLICATION: `hasSubmittedRef` guards against a double-tap firing two
  * submissions for the same attempt (belt-and-suspenders on top of the
@@ -28,36 +37,19 @@ import { buildGeolocationSubmission, captureDeviceGeolocation } from "../utils/g
 export function useDocumentGeolocation(stepId: string) {
   const hasSubmittedRef = useRef(false);
 
-  async function submitOnce(run: () => Promise<void>) {
+  function allow() {
     if (hasSubmittedRef.current) return;
     hasSubmittedRef.current = true;
-    try {
-      await run();
-    } catch {
-      // Never surfaced -- this observation is a courtesy, not a requirement.
-    }
+    void (async () => {
+      try {
+        const outcome = await captureDeviceGeolocation();
+        const payload = buildGeolocationSubmission(outcome);
+        await submitComplianceGeolocation(stepId, payload);
+      } catch {
+        // Never surfaced -- this observation is a courtesy, not a requirement.
+      }
+    })();
   }
 
-  function allow() {
-    void submitOnce(async () => {
-      const outcome = await captureDeviceGeolocation();
-      const payload = buildGeolocationSubmission(outcome);
-      await submitComplianceGeolocation(stepId, payload);
-    });
-  }
-
-  function continueWithoutLocation() {
-    // The affiliate declined at THIS app's own pre-permission screen --
-    // the OS permission dialog is never even shown. The backend contract
-    // only defines "denied"/"unavailable" for a skipped capture, with no
-    // separate "user pre-declined" value, so this reports "denied": the
-    // real-world outcome is identical to an OS-level denial (no location
-    // was granted or captured), and reusing the closest existing contract
-    // value is preferable to inventing a new one.
-    void submitOnce(async () => {
-      await submitComplianceGeolocation(stepId, { permission_status: "denied", capture_status: "skipped" });
-    });
-  }
-
-  return { allow, continueWithoutLocation };
+  return { allow };
 }

@@ -305,17 +305,25 @@ describe("Document geolocation: pre-permission consent", () => {
     expect(mockRequestForegroundPermissions).not.toHaveBeenCalled();
   });
 
-  it("never invokes the OS permission APIs when the affiliate chooses to continue without location", async () => {
+  it("continuing without location makes zero geolocation API calls (no OS permission, no submission, no fabricated denied)", async () => {
     const { findByText } = await renderCompliance();
     await chooseDocumentType(findByText);
 
     fireEvent.press(await findByText("Continuar sin ubicación"));
     // The flow continues immediately regardless.
     expect(await findByText("Frente")).toBeTruthy();
+    expect(await findByText("Reverso")).toBeTruthy();
 
+    // Give any accidental async work a chance to run, then assert nothing
+    // at all was called -- not the OS permission system, not the submit
+    // endpoint. There is no geolocation observation for this attempt at
+    // all; that absence is the signal, never a fabricated
+    // permission_status: "denied".
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockHasServicesEnabled).not.toHaveBeenCalled();
     expect(mockRequestForegroundPermissions).not.toHaveBeenCalled();
     expect(mockGetCurrentPosition).not.toHaveBeenCalled();
+    expect(mockedSubmitComplianceGeolocation).not.toHaveBeenCalled();
   });
 });
 
@@ -427,7 +435,7 @@ describe("Document geolocation: deduplication", () => {
   it("does not submit again on an unrelated rerender after a choice was already made", async () => {
     const { findByText, rerender } = await renderCompliance();
     await chooseDocumentType(findByText);
-    fireEvent.press(await findByText("Continuar sin ubicación"));
+    fireEvent.press(await findByText("Permitir ubicación"));
     await findByText("Frente");
 
     await waitFor(() => expect(mockedSubmitComplianceGeolocation).toHaveBeenCalledTimes(1));
@@ -456,15 +464,29 @@ describe("Document geolocation: deduplication", () => {
     expect(await findByText("Necesita corrección")).toBeTruthy();
     fireEvent.press(await findByText("Intenta de nuevo"));
 
-    // A retry is a new attempt -- the consent screen shows again.
-    fireEvent.press(await findByText("Continuar sin ubicación"));
+    // A retry is a new attempt -- the consent screen shows again, and this
+    // attempt allows, producing a real submission.
+    fireEvent.press(await findByText("Permitir ubicación"));
     await findByText("Frente");
 
     await waitFor(() => expect(mockedSubmitComplianceGeolocation).toHaveBeenCalledTimes(1));
-    expect(mockedSubmitComplianceGeolocation.mock.calls[0][1]).toEqual({
-      permission_status: "denied",
-      capture_status: "skipped",
-    });
+    expect(mockedSubmitComplianceGeolocation.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ permission_status: "granted", capture_status: "captured" }),
+    );
+  });
+
+  it("continuing without location also submits nothing on a retried attempt", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "fail", document_type: "mx_ine" }));
+    const { findByText } = await renderCompliance();
+
+    expect(await findByText("Necesita corrección")).toBeTruthy();
+    fireEvent.press(await findByText("Intenta de nuevo"));
+
+    // This attempt continues without location -- no submission at all.
+    fireEvent.press(await findByText("Continuar sin ubicación"));
+    await findByText("Frente");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockedSubmitComplianceGeolocation).not.toHaveBeenCalled();
   });
 });
 
