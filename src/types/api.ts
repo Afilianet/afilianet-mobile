@@ -439,6 +439,55 @@ export interface DocumentProcessingResult {
   created_at: string;
 }
 
+// Phase 9F.2: optional, consented device geolocation captured alongside one
+// identity_document capture attempt. `permission_status`/`capture_status`
+// are the backend's own enums (POST .../geolocation) -- exactly these three
+// permission values and three capture values, nothing invented. Never a
+// `source` field (the backend contract explicitly excludes it).
+export type ComplianceGeolocationPermissionStatus = "granted" | "denied" | "unavailable";
+export type ComplianceGeolocationCaptureStatus = "captured" | "skipped" | "failed";
+export type ComplianceGeolocationPlatform = "android" | "ios";
+// expo-location's public API doesn't expose which underlying provider
+// (gps/network/fused/passive) produced a fix on either platform -- this
+// type exists only so a future, reliable source is typed correctly if one
+// ever appears; the client never sends this field today (see
+// utils/geolocation.ts).
+export type ComplianceGeolocationLocationProvider = "gps" | "network" | "fused" | "passive";
+
+// Discriminated by capture_status, matching the endpoint's three documented
+// request shapes exactly. Coordinates are only ever present (and only ever
+// required) on the "captured" shape -- never sent for "skipped"/"failed".
+export type ComplianceGeolocationSubmission =
+  | {
+      permission_status: "granted";
+      capture_status: "captured";
+      latitude: number;
+      longitude: number;
+      accuracy_meters: number;
+      platform?: ComplianceGeolocationPlatform;
+      app_version?: string;
+      location_provider?: ComplianceGeolocationLocationProvider;
+      captured_at?: string;
+    }
+  | {
+      permission_status: "denied" | "unavailable";
+      capture_status: "skipped";
+    }
+  | {
+      permission_status: "granted";
+      capture_status: "failed";
+      failure_reason: string;
+    };
+
+// ComplianceGeolocationResource -- the response to POST .../geolocation.
+export interface ComplianceGeolocationObservation {
+  id: string;
+  permission_status: ComplianceGeolocationPermissionStatus;
+  capture_status: ComplianceGeolocationCaptureStatus;
+  attempt_number: number;
+  created_at: string;
+}
+
 // app/Modules/Identity/Enums/FaceMatchStatus.php -- the lifecycle of one
 // face-match processing ATTEMPT, deliberately independent of
 // ComplianceStepStatus (same three-lifecycle discipline as

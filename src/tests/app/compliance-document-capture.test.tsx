@@ -268,8 +268,18 @@ afterEach(() => {
   queryClient.clear();
 });
 
+// Phase 9F.2: every document-type selection now lands on the one-time
+// geolocation consent screen before the evidence checklist -- "Continuar sin
+// ubicación" is the neutral default for tests that aren't specifically
+// exercising the geolocation feature itself (see
+// compliance-document-geolocation.test.tsx for those).
+async function dismissGeolocationConsent(findByText: (text: RegExp | string) => Promise<unknown>) {
+  fireEvent.press((await findByText("Continuar sin ubicación")) as never);
+}
+
 async function chooseIne(getByText: (text: string) => unknown, findByText: (text: RegExp | string) => Promise<unknown>) {
   fireEvent.press((await findByText("INE mexicana")) as never);
+  await dismissGeolocationConsent(findByText);
   await findByText("Frente");
 }
 
@@ -294,6 +304,7 @@ describe("Document capture: document type selection", () => {
   it("shows a single identity-page checklist for passport", async () => {
     const { getByText, findByText } = await renderCompliance();
     fireEvent.press(await findByText("Pasaporte"));
+    await dismissGeolocationConsent(findByText);
     expect(await findByText("Página de identidad")).toBeTruthy();
     expect(getByText("Enviar para verificación")).toBeTruthy();
   });
@@ -601,7 +612,9 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
     expect(await findByText("Necesita corrección")).toBeTruthy();
     fireEvent.press(await findByText("Intenta de nuevo"));
     // document_type was recovered from the existing result -- no need to
-    // re-choose it, straight to the mx_ine checklist, both sides reset.
+    // re-choose it, but a retry is a new attempt, so the one-time
+    // geolocation consent screen shows again before the checklist.
+    await dismissGeolocationConsent(findByText);
     expect(await findByText("Frente")).toBeTruthy();
     expect(await findByText("Reverso")).toBeTruthy();
     expect((await findAllByText("Aún no capturado")).length).toBe(2);
@@ -642,8 +655,11 @@ describe("Document capture: technical failure and manual review", () => {
     fireEvent.press(await findByText("Volver a tomar foto"));
 
     // document_type was recovered from the existing result -- no need to
-    // re-choose it, straight to the mx_ine checklist, both sides reset (no
-    // stale "Capturado" from whatever was uploaded before this failure).
+    // re-choose it, but a retry is a new attempt, so the one-time
+    // geolocation consent screen shows again before the checklist (both
+    // sides reset -- no stale "Capturado" from whatever was uploaded before
+    // this failure).
+    await dismissGeolocationConsent(findByText);
     expect(await findByText("Frente")).toBeTruthy();
     expect(await findByText("Reverso")).toBeTruthy();
     expect((await findAllByText("Aún no capturado")).length).toBe(2);

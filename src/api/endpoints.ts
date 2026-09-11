@@ -4,6 +4,8 @@ import type {
   AttemptStepPayload,
   Commission,
   ComplianceCase,
+  ComplianceGeolocationObservation,
+  ComplianceGeolocationSubmission,
   ComplianceStep,
   DocumentProcessingResult,
   DocumentType,
@@ -184,6 +186,28 @@ export async function triggerDocumentProcessing(
 export async function fetchDocumentResult(stepId: string): Promise<DocumentProcessingResult> {
   const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/document-result`,
+  );
+  return data;
+}
+
+/**
+ * Phase 9F.2: submits one optional, consented device-geolocation observation
+ * for one identity_document capture attempt. Fire-and-forget from the
+ * caller's perspective -- this must never gate/block document capture,
+ * upload, or processing (see useDocumentGeolocation.ts, the only intended
+ * caller). One call per attempt; a retry submits a NEW observation, it never
+ * updates a prior one (there is no PATCH/PUT for this resource). The request
+ * body is exactly one of the three backend-documented shapes (captured /
+ * skipped / failed) -- never a `source` field, never coordinates on a
+ * skipped/failed submission.
+ */
+export async function submitComplianceGeolocation(
+  stepId: string,
+  payload: ComplianceGeolocationSubmission,
+): Promise<ComplianceGeolocationObservation> {
+  const { data } = await apiRequest<{ data: ComplianceGeolocationObservation }>(
+    `/api/v1/compliance/steps/${stepId}/geolocation`,
+    { method: "POST", body: payload },
   );
   return data;
 }

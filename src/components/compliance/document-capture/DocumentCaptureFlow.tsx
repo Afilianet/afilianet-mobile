@@ -8,6 +8,7 @@ import type { DocumentProcessingResult, DocumentType, Evidence, EvidenceType } f
 import { spacing } from "../../ui/theme";
 import { SkeletonGroup } from "../../Skeleton";
 import { CaptureScreen } from "./CaptureScreen";
+import { DocumentGeolocationConsent } from "./DocumentGeolocationConsent";
 import { DocumentResultView } from "./DocumentResultView";
 import { DocumentTypeSelector } from "./DocumentTypeSelector";
 import { EvidenceChecklist } from "./EvidenceChecklist";
@@ -48,6 +49,13 @@ export function DocumentCaptureFlow({
   const [activeCapture, setActiveCapture] = useState<EvidenceType | null>(null);
   const [dismissedResultId, setDismissedResultId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Phase 9F.2: gates showing the one-time-per-attempt geolocation consent
+  // screen before evidence capture starts. `geolocationAttemptKey` changes
+  // on every retry so DocumentGeolocationConsent fully remounts (fresh
+  // internal state, a new possible observation) rather than reusing an
+  // instance that already submitted for the PRIOR attempt.
+  const [geolocationHandled, setGeolocationHandled] = useState(false);
+  const [geolocationAttemptKey, setGeolocationAttemptKey] = useState(0);
 
   const triggerMutation = useTriggerDocumentProcessing(stepId);
 
@@ -60,6 +68,8 @@ export function DocumentCaptureFlow({
     }
     setUploadedEvidence({});
     setSubmitError(null);
+    setGeolocationHandled(false);
+    setGeolocationAttemptKey((key) => key + 1);
   }
 
   function handleUploaded(evidenceType: EvidenceType, evidence: Evidence) {
@@ -119,6 +129,22 @@ export function DocumentCaptureFlow({
 
   if (!documentType) {
     return <DocumentTypeSelector onSelect={setDocumentType} />;
+  }
+
+  // Shown exactly once per attempt, after a document type is chosen and
+  // before evidence capture starts -- never gates the flow itself (see
+  // DocumentGeolocationConsent's own docblock): the instant either button is
+  // pressed, `onDone` flips this straight to EvidenceChecklist below,
+  // independent of whether the (fire-and-forget) location permission/
+  // capture/submit work has resolved yet.
+  if (!geolocationHandled) {
+    return (
+      <DocumentGeolocationConsent
+        key={geolocationAttemptKey}
+        stepId={stepId}
+        onDone={() => setGeolocationHandled(true)}
+      />
+    );
   }
 
   return (
