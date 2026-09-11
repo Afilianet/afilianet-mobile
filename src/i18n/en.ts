@@ -620,6 +620,12 @@ export const en = {
     tryAgain: "Try again",
     yourConfirmedDetails: "Your confirmed details",
     whatWeRead: "What we read from your document",
+    geolocation: {
+      title: "Help us protect your account",
+      message: "We can record your location while verifying your identity. It's optional and helps us protect your account.",
+      allow: "Allow location",
+      continueWithout: "Continue without location",
+    },
   },
   faceMatch: {
     guidance: [

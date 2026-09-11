@@ -642,6 +642,12 @@ export const es = {
     tryAgain: "Intenta de nuevo",
     yourConfirmedDetails: "Tus datos confirmados",
     whatWeRead: "Lo que leímos de tu documento",
+    geolocation: {
+      title: "Ayúdanos a proteger tu cuenta",
+      message: "Podemos registrar tu ubicación al verificar tu identidad. Es opcional y nos ayuda a proteger tu cuenta.",
+      allow: "Permitir ubicación",
+      continueWithout: "Continuar sin ubicación",
+    },
   },
   faceMatch: {
     guidance: [
