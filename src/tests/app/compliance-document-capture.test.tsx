@@ -26,8 +26,10 @@ import type {
 } from "../../types/api";
 import ComplianceScreen from "../../app/compliance";
 
+const mockRouterBack = jest.fn();
+const mockRouterPush = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
+  useRouter: () => ({ back: mockRouterBack, push: mockRouterPush }),
 }));
 
 jest.mock("../../api/endpoints", () => ({
@@ -511,6 +513,64 @@ describe("Document capture: processing and polling", () => {
       jest.useRealTimers();
     }
   });
+
+  // Physical QA finding: uploads/trigger have already completed (202) and
+  // Horizon keeps processing server-side regardless of this screen -- the
+  // old UI read as "you must wait here." The primary heading and the
+  // "you can leave" reassurance must both show, at equal prominence, with
+  // the spinner/stage text as secondary detail only.
+  it("clearly communicates that processing is asynchronous and the affiliate may leave", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "processing" }));
+    const { findByText } = await renderCompliance();
+
+    expect(await findByText("Estamos procesando tu identificación")).toBeTruthy();
+    expect(await findByText("Puedes continuar y consultar el estado después.")).toBeTruthy();
+    expect(await findByText("Continuar")).toBeTruthy();
+  });
+
+  it("never claims a push notification will arrive -- no such mechanism exists in this app", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "processing" }));
+    const { queryByText } = await renderCompliance();
+    await waitFor(() => expect(mockedFetchDocumentResult).toHaveBeenCalled());
+    expect(queryByText(/te avisaremos|notificaci[oó]n/i)).toBeNull();
+  });
+
+  it("'Continuar' only navigates back -- it never cancels processing or stops polling", async () => {
+    jest.useFakeTimers();
+    try {
+      // Ends on a TERMINAL status (matching the "Waiting/Processing" test
+      // above) so refetchInterval stops scheduling before this test exits --
+      // otherwise a still-pending fake-timer poll left dangling past
+      // jest.useRealTimers() corrupts every subsequent test's act()
+      // environment in this file (a real regression hit while writing this
+      // test: every test after it started failing at its very first render).
+      mockedFetchDocumentResult
+        .mockResolvedValueOnce(documentResult({ status: "processing" }))
+        .mockResolvedValue(documentResult({ status: "completed", verdict: "pass", extracted_fields: [] }));
+      const { getByText, findByText } = await renderCompliance();
+      await findByText("Estamos procesando tu identificación");
+
+      await act(async () => {
+        fireEvent.press(getByText("Continuar"));
+      });
+
+      expect(mockRouterBack).toHaveBeenCalledTimes(1);
+      // Never triggers a new attempt, never touches the existing one --
+      // "Continuar" has no wiring to triggerDocumentProcessing at all.
+      expect(mockedTriggerDocumentProcessing).not.toHaveBeenCalled();
+
+      // Polling keeps running exactly as before -- pressing Continuar
+      // didn't unmount anything or stop the query.
+      const callsBeforeAdvance = mockedFetchDocumentResult.mock.calls.length;
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      expect(mockedFetchDocumentResult.mock.calls.length).toBeGreaterThan(callsBeforeAdvance);
+      await findByText("Confirmado desde el documento");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("Document capture: operational unavailability (Phase 9C.2a, 503 on trigger)", () => {
@@ -598,7 +658,8 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
 
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(await findByText("En revisión")).toBeTruthy();
+    expect(queryByText("Por favor revisa")).toBeNull();
     expect(queryByText(/^Guardar$/i)).toBeNull();
     expect(queryByText(/^Confirmar$/i)).toBeNull();
     expect(queryByText(/guardar cambios/i)).toBeNull();
@@ -668,9 +729,19 @@ describe("Document capture: technical failure and manual review", () => {
   it("shows a manual-review waiting state, with no retry button, when verdict is review", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(await findByText("En revisión")).toBeTruthy();
     expect(await findByText(/revisión manual/i)).toBeTruthy();
     expect(queryByText("Intenta de nuevo")).toBeNull();
+  });
+
+  // "review" means STAFF/ADMIN review -- the affiliate has nothing to do
+  // and must never see wording that reads as an instruction aimed at them.
+  it("verdict: review never shows 'Por favor revisa' and clearly says no affiliate action is needed", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
+    const { findByText, queryByText } = await renderCompliance();
+    expect(await findByText("En revisión")).toBeTruthy();
+    expect(await findByText("Tu envío está en revisión manual. No necesitas hacer nada por ahora.")).toBeTruthy();
+    expect(queryByText("Por favor revisa")).toBeNull();
   });
 });
 

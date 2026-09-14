@@ -81,8 +81,12 @@ export function verdictCopy(verdict: DocumentVerdict | null): { label: string; t
     case "pass":
       return { label: strings.documentCapture.confirmedTitle, tone: "success", description: strings.documentCapture.confirmedDescription };
     case "review":
+      // "review" means STAFF/ADMIN review -- the affiliate has nothing to
+      // do here (identity_document is already resolved/passed). Never
+      // "Por favor revisa"/"Please review", which reads as an instruction
+      // aimed at the affiliate.
       return {
-        label: strings.documentCapture.pleaseReviewTitle,
+        label: strings.documentCapture.reviewTitle,
         tone: "warning",
         description: strings.compliance.manualReviewNotice,
       };

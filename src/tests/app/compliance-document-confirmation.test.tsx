@@ -240,7 +240,7 @@ describe("Document confirmation: form rendering", () => {
     );
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("Por favor revisa")).toBeTruthy();
+    expect(await findByText("En revisión")).toBeTruthy();
     expect(await findByText("Confirma tus datos")).toBeTruthy();
   });
 });
