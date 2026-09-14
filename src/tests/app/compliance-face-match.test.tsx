@@ -1024,6 +1024,119 @@ describe("Face match: Compliance semantics", () => {
     await waitFor(() => expect(mockedFetchFaceMatchResult).toHaveBeenCalled());
     expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
   });
+
+  // Confirmed physical-backend finding, compliance case 97: primary/secondary
+  // engine disagreement resolves the face_match STEP to `passed` (score 0.50,
+  // metadata.reason engine_disagreement) precisely so the CASE routes to
+  // manual_review -- the backend does NOT auto-approve, and the affiliate
+  // stays `pending`. Only ComplianceCase.status may ever say "Aprobado";
+  // ComplianceStep.status/score/affiliate status must never be used to infer
+  // approval client-side.
+  it("a passed face_match step from an engine disagreement never renders 'Aprobado', even while the case is in manual review", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "manual_review", current_step: null }));
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "passed", score: 0.5, configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "review" }));
+
+    const { findByText, findAllByText, queryByText } = await renderCompliance();
+
+    // Case-level card stays authoritative and shows the real, non-approved state.
+    expect(await findByText("Revisión manual")).toBeTruthy();
+    // Step-level badges (face_match and biometric_liveness are both `passed`
+    // here) say the steps are done, never that anything was approved.
+    expect((await findAllByText("Completado")).length).toBe(2);
+    // The face_match body itself shows the warning/review state, never a
+    // match/success message.
+    expect(await findByText("Necesita revisión")).toBeTruthy();
+    expect(queryByText("Aprobado")).toBeNull();
+    expect(queryByText("Rostro coincidente")).toBeNull();
+    expect(queryByText("Tu rostro coincidió con tu documento de identidad.")).toBeNull();
+  });
+
+  it("only the case-level card says 'Aprobado', and only when ComplianceCase.status is actually approved", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(
+      complianceCase({ status: "approved", current_step: null, approved_at: "2026-01-06T00:00:00Z" }),
+    );
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "passed", score: 0.98, configured_provider: "afilianet", provider_actionable: true }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
+
+    const { findByText, findAllByText } = await renderCompliance();
+
+    // Once the step itself is `passed`, FaceMatchStep shows its own
+    // resolved-step sentence (never "Identity verified", never re-showing
+    // FaceMatchResultView's "Rostro coincidente" match badge -- see
+    // FaceMatchStep.tsx's docblock).
+    expect(await findByText("Tu rostro coincidió con tu documento de identidad.")).toBeTruthy();
+    // "Aprobado" appears exactly twice: the case-level status badge, and the
+    // "Aprobado el <date>" line below it -- never a third time from a step
+    // badge (both steps are `passed`, which must render "Completado").
+    expect((await findAllByText(/Aprobado/)).length).toBe(2);
+    expect((await findAllByText("Completado")).length).toBe(2);
+  });
+});
+
+// --- Stale-result flash regression ---------------------------------------------------
+
+describe("Face match: no stale result flash after a new attempt starts", () => {
+  it("never re-shows a prior failed/no_match result once a new attempt has been triggered, even if a race-condition poll response is stale", async () => {
+    // Attempt 2: a real prior failure the affiliate already saw and retried from.
+    const staleFailedResult = faceMatchResult({ id: "fm-2", status: "completed", verdict: "no_match", attempt_number: 2 });
+    // Attempt 3: the fresh attempt just triggered by this retry.
+    const newPendingResult = faceMatchResult({ id: "fm-3", status: "pending", attempt_number: 3 });
+    const newMatchedResult = faceMatchResult({ id: "fm-3", status: "completed", verdict: "match", attempt_number: 3 });
+
+    mockedFetchFaceMatchResult.mockResolvedValue(staleFailedResult);
+    mockedTriggerFaceMatchProcessing.mockResolvedValue(newPendingResult);
+
+    const { getByText, findByText, queryByText } = await renderCompliance();
+    expect(await findByText("No se pudo confirmar la coincidencia")).toBeTruthy();
+
+    // The whole capture/permission/upload chain runs under REAL timers --
+    // only the poll-interval race below needs deterministic fake-timer
+    // control, and combining fake timers with that chain's own async
+    // permission-request microtask hops makes findByText's internal
+    // polling unable to ever observe them.
+    fireEvent.press(getByText("Volver a tomar selfie"));
+    await captureAndUseSelfie(getByText, findByText);
+
+    jest.useFakeTimers();
+    try {
+      // Now queue the stale, in-flight-race response for the poll tick that
+      // fires right after submission, then let genuine progress resume.
+      mockedFetchFaceMatchResult
+        // Simulates a poll response that reports the PREVIOUS attempt
+        // because the backend's own "latest attempt" read model hasn't
+        // caught up with the just-triggered attempt 3 yet.
+        .mockResolvedValueOnce(staleFailedResult)
+        .mockResolvedValue(newMatchedResult);
+
+      await act(async () => {
+        fireEvent.press(getByText("Enviar para verificación"));
+      });
+
+      // The optimistic pending attempt 3 is now cached. Advance past one
+      // poll interval -- the mocked stale attempt-2 response must be
+      // discarded, never flashing the old failed result back on screen.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      expect(queryByText("No se pudo confirmar la coincidencia")).toBeNull();
+      expect(await findByText(/Esperando la selfie|Comparando tu selfie/)).toBeTruthy();
+
+      // Polling still converges normally once the backend genuinely catches up.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      expect(await findByText("Rostro coincidente")).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 // --- Tenant isolation ----------------------------------------------------------------

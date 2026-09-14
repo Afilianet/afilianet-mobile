@@ -41,16 +41,37 @@ export function useFaceMatchResult(stepId: string | undefined) {
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
   const lastInvalidatedResultId = useRef<string | null>(null);
+  const queryKey = ["compliance", "face-match-result", orgId, stepId];
 
   const query = useApiQuery<FaceMatchProcessingResult | null>(
-    ["compliance", "face-match-result", orgId, stepId],
+    queryKey,
     async () => {
+      let fetched: FaceMatchProcessingResult | null;
       try {
-        return await fetchFaceMatchResult(stepId as string);
+        fetched = await fetchFaceMatchResult(stepId as string);
       } catch (error) {
-        if (isApiError(error) && error.kind === "not_found") return null;
-        throw error;
+        if (isApiError(error) && error.kind === "not_found") {
+          fetched = null;
+        } else {
+          throw error;
+        }
       }
+      // useTriggerFaceMatchProcessing's onSuccess writes a brand-new attempt
+      // straight into this exact cache entry the instant a retry is
+      // triggered (see that hook). A poll tick already in flight (or one
+      // that fires before the backend's own "latest attempt" read model has
+      // caught up) can still resolve with the PREVIOUS terminal attempt a
+      // moment later -- without this guard that stale response overwrites
+      // the fresh one, briefly flashing the old failed/no_match result right
+      // after a new submission has already started (a real physical-device
+      // finding, compliance case 97). attempt_number is monotonic per step,
+      // so a fetched attempt strictly older than what's already cached is
+      // always a stale race, never a legitimate update, and is discarded.
+      const cached = queryClient.getQueryData<FaceMatchProcessingResult | null>(queryKey);
+      if (cached && fetched && fetched.attempt_number < cached.attempt_number) {
+        return cached;
+      }
+      return fetched;
     },
     {
       enabled: Boolean(orgId) && Boolean(stepId),

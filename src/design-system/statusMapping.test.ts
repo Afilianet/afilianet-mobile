@@ -2,6 +2,7 @@ import {
   affiliateStatusCopy,
   commissionStatusCopy,
   complianceStatusCopy,
+  complianceStepStatusCopy,
   invitationStatusCopy,
   ledgerEntryStatusCopy,
   payoutStatusCopy,
@@ -35,6 +36,32 @@ describe("complianceStatusCopy", () => {
 
   it("falls back safely for an unknown status", () => {
     expect(complianceStatusCopy("something-new").tone).toBe("neutral");
+  });
+});
+
+describe("complianceStepStatusCopy", () => {
+  // Compliance case 97 (physical backend finding): a Face Match engine
+  // disagreement resolves the STEP to `passed` so the CASE can route to
+  // manual_review, with the case itself never approved. A step-level
+  // "passed" badge must never read as an overall approval -- that word,
+  // and the success/green tone that goes with it, belong exclusively to
+  // ComplianceCase.status === "approved" (see complianceStatusCopy above).
+  it("never labels a passed STEP 'Aprobado' or gives it the success tone", () => {
+    const copy = complianceStepStatusCopy("passed");
+    expect(copy.label).not.toBe("Aprobado");
+    expect(copy.tone).not.toBe("success");
+  });
+
+  it("maps every reachable ComplianceStepStatus case", () => {
+    expect(complianceStepStatusCopy("pending").tone).toBe("warning");
+    expect(complianceStepStatusCopy("passed").tone).toBe("neutral");
+    expect(complianceStepStatusCopy("failed").tone).toBe("danger");
+    expect(complianceStepStatusCopy("manual_review").tone).toBe("warning");
+    expect(complianceStepStatusCopy("skipped").tone).toBe("neutral");
+  });
+
+  it("falls back safely for an unknown status", () => {
+    expect(complianceStepStatusCopy("something-new").tone).toBe("neutral");
   });
 });
 
