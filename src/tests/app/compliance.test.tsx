@@ -254,12 +254,17 @@ describe("Compliance: required steps", () => {
     expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
   });
 
-  it("shows a passed step as completed, with its completion date", async () => {
+  it("shows a passed step as completed, with its completion date, never as 'Aprobado'", async () => {
+    // A step's own `passed` status means only that step is resolved -- it
+    // must never read as an overall approval (compliance case 97: a Face
+    // Match engine disagreement also resolves the step to `passed` while
+    // the case itself stays in manual review, see statusMapping.ts).
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "passed", completed_at: "2026-01-03T00:00:00Z" })]);
-    const { findByText } = await renderCompliance();
-    expect(await findByText("Aprobado")).toBeTruthy();
+    const { findByText, queryByText } = await renderCompliance();
+    expect(await findByText("Completado")).toBeTruthy();
     expect(await findByText(/verificado/i)).toBeTruthy();
-    expect(await findByText(/Completado/)).toBeTruthy();
+    expect(await findByText(/Completado el/)).toBeTruthy();
+    expect(queryByText("Aprobado")).toBeNull();
   });
 
   it("shows a failed identity_document step with a real way to try again, not a non-functional retry action", async () => {
@@ -503,7 +508,7 @@ describe("Compliance: development simulator (Fake provider steps only)", () => {
       step({ id: "doc-1", step_type: "identity_document", status: "passed", completed_at: "2026-01-03T00:00:00Z" }),
     ]);
     const { findByText, queryByText } = await renderCompliance();
-    await findByText("Aprobado");
+    await findByText("Completado");
     expect(queryByText("Pass")).toBeNull();
     expect(queryByText("Fail")).toBeNull();
   });

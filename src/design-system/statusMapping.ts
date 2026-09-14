@@ -83,10 +83,24 @@ export function complianceStatusCopy(status: string): StatusCopy {
 // "manual_review" are declared server-side but not currently reachable in
 // practice (ComplianceService only ever sets pending/passed/failed) --
 // mapped here anyway for completeness, same official tone rule as above.
+//
+// DELIBERATE EXCEPTION to the official tone rule for `passed` specifically
+// (confirmed physical-backend finding, compliance case 97): a step's own
+// `status: "passed"` means only that THIS STEP is resolved -- e.g. a Face
+// Match engine disagreement (primary/secondary engines disagree) also
+// resolves the step to `passed` precisely so the CASE can route to
+// `manual_review`, with the case itself explicitly NOT approved
+// (ComplianceCase.status stays `manual_review`, affiliate stays `pending`).
+// A green/"success"-toned step badge reading "Aprobado" in that moment
+// visually contradicts the case-level "En revisión" state directly below
+// it and can be misread as the overall verification being approved. Only
+// ComplianceCase.status === "approved" (complianceStatusCopy above) is
+// ever allowed to mean that -- this step-level badge stays neutral/"done",
+// never success/"approved", regardless of step type.
 const COMPLIANCE_STEP_STATUS: Record<string, StatusCopy> = {
   pending: { label: strings.compliance.stepStatus.pending, tone: "warning" },
   in_progress: { label: strings.compliance.stepStatus.in_progress, tone: "warning" },
-  passed: { label: strings.compliance.stepStatus.passed, tone: "success" },
+  passed: { label: strings.compliance.stepStatus.passed, tone: "neutral" },
   failed: { label: strings.compliance.stepStatus.failed, tone: "danger" },
   manual_review: { label: strings.compliance.stepStatus.manual_review, tone: "warning" },
   skipped: { label: strings.compliance.stepStatus.skipped, tone: "neutral" },

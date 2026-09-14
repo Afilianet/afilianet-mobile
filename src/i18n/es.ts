@@ -470,7 +470,12 @@ export const es = {
     stepStatus: {
       pending: "Pendiente",
       in_progress: "En progreso",
-      passed: "Aprobado",
+      // Never "Aprobado" -- a step being `passed` means only that step is
+      // resolved, not that the overall verification is approved (e.g. a
+      // Face Match engine disagreement also resolves the step to `passed`
+      // so the CASE can route to manual review). Only the case-level badge
+      // (strings.compliance.status.approved.label) may ever say "Aprobado".
+      passed: "Completado",
       failed: "Rechazado",
       manual_review: "Revisión manual",
       skipped: "Omitido",
