@@ -579,12 +579,24 @@ export const es = {
     captureHint: "Toma esta foto",
     submitForVerification: "Enviar para verificación",
     useDifferentDocument: "Usar un documento diferente",
+    // Primary heading shown regardless of pending/processing sub-stage --
+    // processing is asynchronous server-side (Horizon), so this is never
+    // phrased as an instruction to wait. waitingForDocument/processingDocument
+    // below remain as a small secondary stage indicator only.
+    processingTitle: "Estamos procesando tu identificación",
+    // No push-notification mechanism exists in this app yet -- never claim
+    // one will alert the affiliate. This is the reassurance, not a caption;
+    // see ProcessingState.tsx for why it's now visually primary.
+    processingHint: "Puedes continuar y consultar el estado después.",
+    continueAction: "Continuar",
     waitingForDocument: "Esperando el documento",
     processingDocument: "Procesando tu documento",
-    processingHint: "Esto normalmente toma unos segundos. No necesitas mantener esta pantalla abierta.",
     confirmedTitle: "Confirmado desde el documento",
     confirmedDescription: "Tus verificaciones del documento pasaron.",
-    pleaseReviewTitle: "Por favor revisa",
+    // Never "Por favor revisa" -- "review" means STAFF/ADMIN review; the
+    // affiliate has no action to take (see manualReviewNotice below, used as
+    // this state's description).
+    reviewTitle: "En revisión",
     needsCorrectionTitle: "Necesita corrección",
     needsCorrectionDescription: "No pudimos verificar tu documento. Puedes volver a tomar la foto e intentarlo de nuevo.",
     pendingLabel: "Pendiente",
