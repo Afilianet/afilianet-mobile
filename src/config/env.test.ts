@@ -52,6 +52,61 @@ describe("config/env", () => {
     expect(config.posthogApiKey).toBe("");
   });
 
+  describe("refusing an obviously local API base URL for staging/production", () => {
+    it.each(["staging", "production"])("throws for %s with localhost", (appEnv) => {
+      process.env.EXPO_PUBLIC_APP_ENV = appEnv;
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://localhost:8000";
+      expect(() => require("./env")).toThrow(/localhost/i);
+    });
+
+    it.each(["staging", "production"])("throws for %s with 127.0.0.1", (appEnv) => {
+      process.env.EXPO_PUBLIC_APP_ENV = appEnv;
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000";
+      expect(() => require("./env")).toThrow();
+    });
+
+    it.each(["staging", "production"])("throws for %s with the Android emulator alias 10.0.2.2", (appEnv) => {
+      process.env.EXPO_PUBLIC_APP_ENV = appEnv;
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://10.0.2.2:8000";
+      expect(() => require("./env")).toThrow();
+    });
+
+    it.each(["staging", "production"])("throws for %s with a private-LAN IP (192.168.x.x)", (appEnv) => {
+      process.env.EXPO_PUBLIC_APP_ENV = appEnv;
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://192.168.1.23:8000";
+      expect(() => require("./env")).toThrow();
+    });
+
+    it("never throws for development pointed at a local/LAN URL -- that is the normal, sanctioned workflow", () => {
+      process.env.EXPO_PUBLIC_APP_ENV = "development";
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://127.0.0.1:8000";
+      expect(() => require("./env")).not.toThrow();
+    });
+
+    it("never throws for internal pointed at a LAN IP -- Internal Alpha's own documented stopgap workflow", () => {
+      process.env.EXPO_PUBLIC_APP_ENV = "internal";
+      process.env.EXPO_PUBLIC_API_BASE_URL = "http://192.168.1.23:8000";
+      expect(() => require("./env")).not.toThrow();
+    });
+
+    it("never throws when the API base URL is simply unset -- that is a different problem, not a local-URL mistake", () => {
+      process.env.EXPO_PUBLIC_APP_ENV = "production";
+      delete process.env.EXPO_PUBLIC_API_BASE_URL;
+      expect(() => require("./env")).not.toThrow();
+    });
+
+    it("accepts a real HTTPS host for staging/production", () => {
+      process.env.EXPO_PUBLIC_APP_ENV = "staging";
+      process.env.EXPO_PUBLIC_API_BASE_URL = "https://staging-api.afilianet.mx";
+      expect(() => require("./env")).not.toThrow();
+
+      jest.resetModules();
+      process.env.EXPO_PUBLIC_APP_ENV = "production";
+      process.env.EXPO_PUBLIC_API_BASE_URL = "https://api.afilianet.mx";
+      expect(() => require("./env")).not.toThrow();
+    });
+  });
+
   describe("isDevelopmentSimulatorEnabled", () => {
     const ORIGINAL_DEV = (global as { __DEV__?: boolean }).__DEV__;
 
