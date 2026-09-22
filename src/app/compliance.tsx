@@ -94,7 +94,7 @@ export default function ComplianceScreen() {
         ) : complianceQuery.data ? (
           <>
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} />
           </>
         ) : null}
       </ScrollView>
@@ -144,7 +144,13 @@ function CaseCard({ compliance }: { compliance: NonNullable<ReturnType<typeof us
   );
 }
 
-function StepsCard({ query }: { query: ReturnType<typeof useComplianceSteps> }) {
+function StepsCard({
+  query,
+  currentStep,
+}: {
+  query: ReturnType<typeof useComplianceSteps>;
+  currentStep: string | null;
+}) {
   let body;
   if (query.isPending) {
     body = <SkeletonGroup lines={3} />;
@@ -159,7 +165,7 @@ function StepsCard({ query }: { query: ReturnType<typeof useComplianceSteps> }) 
     body = (
       <View>
         {query.data.map((step) => (
-          <ComplianceStepCard key={step.id} step={step} />
+          <ComplianceStepCard key={step.id} step={step} currentStep={currentStep} />
         ))}
       </View>
     );

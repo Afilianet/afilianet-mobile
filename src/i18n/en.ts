@@ -434,6 +434,7 @@ export const en = {
     approvedOn: (date: string) => `Approved ${date}`,
     completedOn: (date: string) => `Completed ${date}`,
     couldNotLoadSteps: "Couldn't load your required steps.",
+    completePreviousStep: "Complete the previous step to continue.",
     genericError: "Something went wrong. Please try again.",
     stepA11y: (label: string, statusLabel: string, completedOn: string | null) =>
       `${label}, ${statusLabel}${completedOn ? `, completed ${completedOn}` : ""}`,

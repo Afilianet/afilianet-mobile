@@ -32,7 +32,13 @@ const STEP_COMPONENTS: Record<ComplianceStepType, ComponentType<StepDetailProps>
   terms_acceptance: TermsAcceptanceStep,
 };
 
-export function ComplianceStepCard({ step }: { step: ComplianceStep }) {
+export function ComplianceStepCard({
+  step,
+  currentStep,
+}: {
+  step: ComplianceStep;
+  currentStep: string | null;
+}) {
   const mutation = useAttemptComplianceStep();
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +55,9 @@ export function ComplianceStepCard({ step }: { step: ComplianceStep }) {
   const label = STEP_LABELS[step.step_type] ?? step.step_type.replace(/_/g, " ");
   const StepDetail = STEP_COMPONENTS[step.step_type];
   const completedOn = step.completed_at ? formatDate(step.completed_at) : null;
+  const isResolved = ["passed", "skipped"].includes(step.status);
+  const isCurrent = currentStep === step.step_type;
+  const isLocked = !isResolved && !isCurrent;
 
   return (
     <View style={styles.row} accessible accessibilityLabel={strings.compliance.stepA11y(label, status.label, completedOn)}>
@@ -56,7 +65,11 @@ export function ComplianceStepCard({ step }: { step: ComplianceStep }) {
         <Text style={styles.label}>{label}</Text>
         <Badge label={status.label} tone={status.tone} />
       </View>
-      {StepDetail ? <StepDetail step={step} attempt={(payload) => void attempt(payload)} isPending={mutation.isPending} /> : null}
+      {isLocked ? (
+        <Text style={styles.locked}>{strings.compliance.completePreviousStep}</Text>
+      ) : StepDetail ? (
+        <StepDetail step={step} attempt={(payload) => void attempt(payload)} isPending={mutation.isPending} />
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {completedOn ? <Text style={styles.meta}>{strings.compliance.completedOn(completedOn)}</Text> : null}
     </View>
@@ -88,5 +101,9 @@ const styles = StyleSheet.create({
   error: {
     ...typography.body,
     color: colors.danger,
+  },
+  locked: {
+    ...typography.body,
+    color: colors.textSecondary,
   },
 });
