@@ -68,7 +68,20 @@ export function useEvidenceUploadFlow() {
 
       setStage("uploading");
       if (__DEV__) {
-        console.log("[evidence-upload] put-start");
+        let uploadHost = "unparseable";
+        let uploadProtocol = "unknown";
+        try {
+          const parsed = new URL(authorization.upload.url);
+          uploadHost = parsed.hostname;
+          uploadProtocol = parsed.protocol;
+        } catch {
+          // Safe fallback only; never log the full presigned URL.
+        }
+        console.log("[evidence-upload] put-start", {
+          uploadHost,
+          uploadProtocol,
+          signedHeaderNames: Object.keys(authorization.upload.headers).sort(),
+        });
       }
 
       let putResult: Response;
@@ -95,8 +108,14 @@ export function useEvidenceUploadFlow() {
         // networking errors include the full presigned URL, whose query
         // string is a temporary upload credential.
         if (__DEV__) {
+          const rawMessage = error instanceof Error ? error.message : String(error);
+          const safeMessage = rawMessage
+            .replace(/https?:\/\/[^\s]+/gi, "[redacted-url]")
+            .replace(/X-Amz-[A-Za-z0-9_-]+=[^&\s]+/gi, "X-Amz-[redacted]")
+            .slice(0, 300);
           console.log("[evidence-upload] put-threw", {
             errorType: error instanceof Error ? error.name : typeof error,
+            safeMessage,
           });
         }
         throw new ApiError("unknown", strings.documentCapture.uploadIncomplete);
