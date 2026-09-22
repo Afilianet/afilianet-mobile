@@ -38,7 +38,17 @@ export function useDocumentResult(stepId: string | undefined) {
     ["compliance", "document-result", orgId, stepId],
     async () => {
       try {
-        return await fetchDocumentResult(stepId as string);
+        const result = await fetchDocumentResult(stepId as string);
+        if (__DEV__ && result) {
+          console.log("[document-processing] result", {
+            id: result.id,
+            status: result.status,
+            verdict: result.verdict,
+            failureReason: result.failure_reason,
+            confirmationStatus: result.confirmation_status,
+          });
+        }
+        return result;
       } catch (error) {
         if (isApiError(error) && error.kind === "not_found") return null;
         throw error;
