@@ -1,4 +1,5 @@
-import { File, UploadType } from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
+import { File } from "expo-file-system";
 import { useState } from "react";
 import { config } from "../config/env";
 import { ApiError } from "../api/errors";
@@ -70,17 +71,12 @@ export function useEvidenceUploadFlow() {
         console.log("[evidence-upload] put-start");
       }
 
-      let putResult;
+      let putResult: Response;
       try {
-        putResult = await file.upload(authorization.upload.url, {
-        httpMethod: "PUT",
-        uploadType: UploadType.BINARY_CONTENT,
-        // The S3 presigned URL is signed for this exact Content-Type.
-        // Pass mimeType explicitly as well as the signed header so the
-        // native Android uploader does not infer/replace it from the local
-        // camera file URI/extension.
-          mimeType: params.mimeType,
+        putResult = await expoFetch(authorization.upload.url, {
+          method: "PUT",
           headers: authorization.upload.headers,
+          body: file,
         });
       } catch (error) {
         // Intentionally do not log the native error message: some native
@@ -107,7 +103,7 @@ export function useEvidenceUploadFlow() {
           mimeType: params.mimeType,
           declaredSize: size,
           httpStatus: putResult.status,
-          responseContentLength: putResult.headers["content-length"] ?? putResult.headers["Content-Length"] ?? null,
+          responseContentLength: putResult.headers.get("content-length"),
         });
       }
 
