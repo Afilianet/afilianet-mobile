@@ -57,17 +57,46 @@ export function useEvidenceUploadFlow() {
         size,
       });
 
+      if (__DEV__) {
+        console.log("[evidence-upload] authorization-ok", {
+          evidenceId: authorization.evidence.id,
+          mimeType: params.mimeType,
+          declaredSize: size,
+        });
+      }
+
       setStage("uploading");
-      const putResult = await file.upload(authorization.upload.url, {
+      if (__DEV__) {
+        console.log("[evidence-upload] put-start");
+      }
+
+      let putResult;
+      try {
+        putResult = await file.upload(authorization.upload.url, {
         httpMethod: "PUT",
         uploadType: UploadType.BINARY_CONTENT,
         // The S3 presigned URL is signed for this exact Content-Type.
         // Pass mimeType explicitly as well as the signed header so the
         // native Android uploader does not infer/replace it from the local
         // camera file URI/extension.
-        mimeType: params.mimeType,
-        headers: authorization.upload.headers,
-      });
+          mimeType: params.mimeType,
+          headers: authorization.upload.headers,
+        });
+      } catch (error) {
+        // Intentionally do not log the native error message: some native
+        // networking errors include the full presigned URL, whose query
+        // string is a temporary upload credential.
+        if (__DEV__) {
+          console.log("[evidence-upload] put-threw", {
+            errorType: error instanceof Error ? error.name : typeof error,
+          });
+        }
+        throw new ApiError("unknown", strings.documentCapture.uploadIncomplete);
+      }
+
+      if (__DEV__) {
+        console.log("[evidence-upload] put-finished", { httpStatus: putResult.status });
+      }
 
       // Safe, non-sensitive diagnostics only -- never the file's bytes/
       // base64, the presigned URL itself (its query string carries upload
@@ -87,7 +116,13 @@ export function useEvidenceUploadFlow() {
       }
 
       setStage("completing");
+      if (__DEV__) {
+        console.log("[evidence-upload] complete-start", { evidenceId: authorization.evidence.id });
+      }
       const evidence = await completeUpload.mutateAsync(authorization.evidence.id);
+      if (__DEV__) {
+        console.log("[evidence-upload] complete-ok", { evidenceId: authorization.evidence.id });
+      }
 
       try {
         file.delete();
