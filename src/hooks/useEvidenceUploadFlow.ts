@@ -98,9 +98,16 @@ export function useEvidenceUploadFlow() {
             uriScheme: params.uri.split(":")[0] || "unknown",
           });
         }
+        // expo/fetch native bridge expects headers as a tuple array
+        // ([string, string][]), not a plain JS object/ReadableNativeMap.
+        // Host is derived from the URL by the HTTP stack and must not be
+        // manually injected; S3 still signs/validates that canonical host.
+        const uploadHeaders = Object.entries(authorization.upload.headers).filter(
+          ([name]) => name.toLowerCase() !== "host",
+        );
         putResult = await expoFetch(authorization.upload.url, {
           method: "PUT",
-          headers: authorization.upload.headers,
+          headers: uploadHeaders,
           body,
         });
       } catch (error) {
