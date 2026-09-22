@@ -138,7 +138,7 @@ export function useEvidenceUploadFlow() {
             console.log("[evidence-upload] put-error", {
               httpStatus: putResult.status,
               code,
-              message: message?.slice(0, 200) ?? null,
+              message: message?.slice(0, 800) ?? null,
             });
           } catch {
             console.log("[evidence-upload] put-error", {
