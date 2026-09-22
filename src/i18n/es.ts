@@ -455,6 +455,7 @@ export const es = {
     approvedOn: (date: string) => `Aprobado el ${date}`,
     completedOn: (date: string) => `Completado el ${date}`,
     couldNotLoadSteps: "No pudimos cargar tus pasos requeridos.",
+    completePreviousStep: "Completa el paso anterior para continuar.",
     genericError: "Algo salió mal. Inténtalo de nuevo.",
     stepA11y: (label: string, statusLabel: string, completedOn: string | null) =>
       `${label}, ${statusLabel}${completedOn ? `, completado el ${completedOn}` : ""}`,
