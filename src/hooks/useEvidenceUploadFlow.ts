@@ -130,6 +130,24 @@ export function useEvidenceUploadFlow() {
 
       if (__DEV__) {
         console.log("[evidence-upload] put-finished", { httpStatus: putResult.status });
+        if (putResult.status < 200 || putResult.status >= 300) {
+          try {
+            const responseText = await putResult.clone().text();
+            const code = responseText.match(/<Code>([^<]+)<\/Code>/)?.[1] ?? null;
+            const message = responseText.match(/<Message>([^<]+)<\/Message>/)?.[1] ?? null;
+            console.log("[evidence-upload] put-error", {
+              httpStatus: putResult.status,
+              code,
+              message: message?.slice(0, 200) ?? null,
+            });
+          } catch {
+            console.log("[evidence-upload] put-error", {
+              httpStatus: putResult.status,
+              code: null,
+              message: "Unable to parse S3 error response",
+            });
+          }
+        }
       }
 
       // Safe, non-sensitive diagnostics only -- never the file's bytes/
