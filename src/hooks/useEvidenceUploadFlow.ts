@@ -61,6 +61,11 @@ export function useEvidenceUploadFlow() {
       const putResult = await file.upload(authorization.upload.url, {
         httpMethod: "PUT",
         uploadType: UploadType.BINARY_CONTENT,
+        // The S3 presigned URL is signed for this exact Content-Type.
+        // Pass mimeType explicitly as well as the signed header so the
+        // native Android uploader does not infer/replace it from the local
+        // camera file URI/extension.
+        mimeType: params.mimeType,
         headers: authorization.upload.headers,
       });
 
