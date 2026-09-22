@@ -73,10 +73,22 @@ export function useEvidenceUploadFlow() {
 
       let putResult: Response;
       try {
+        // On the physical Android QA device both File.upload() and passing
+        // the File object directly to expo/fetch reject before an HTTP
+        // response is produced. Reading the already-small capture
+        // (backend-enforced max 8 MiB) into an ArrayBuffer avoids the native
+        // file-body bridge while still sending the exact binary bytes.
+        const body = await file.arrayBuffer();
+        if (__DEV__) {
+          console.log("[evidence-upload] body-ready", {
+            byteLength: body.byteLength,
+            uriScheme: params.uri.split(":")[0] || "unknown",
+          });
+        }
         putResult = await expoFetch(authorization.upload.url, {
           method: "PUT",
           headers: authorization.upload.headers,
-          body: file,
+          body,
         });
       } catch (error) {
         // Intentionally do not log the native error message: some native
