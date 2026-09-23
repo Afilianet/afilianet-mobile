@@ -29,8 +29,10 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
   // Use the backend's exact allowlist. A review INE can include a missing
   // CURP here even though OCR correctly left it out of extracted_fields.
   // Older API responses fall back to the previously supported behavior.
-  const confirmableFields = (result.confirmable_fields ?? result.extracted_fields.filter((field) => field.value !== null).map((field) => field.name))
-    .map((name) => ({ name, value: result.extracted_fields.find((field) => field.name === name)?.value ?? "" }));
+  const confirmableFields = (
+    result.confirmable_fields ??
+    result.extracted_fields.filter((field) => field.value !== null).map((field) => field.name)
+  ).map((name) => ({ name, value: result.extracted_fields.find((field) => field.name === name)?.value ?? "" }));
 
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(confirmableFields.map((field) => [field.name, field.value])),
