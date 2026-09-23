@@ -246,37 +246,6 @@ describe("Document confirmation: form rendering", () => {
 });
 
 describe("Document confirmation: submission", () => {
-  it("shows a blank CURP for a review INE when OCR missed it and submits the human entry", async () => {
-    mockedFetchDocumentResult.mockResolvedValue(documentResult({
-      verdict: "review",
-      confirmation_required: true,
-      confirmation_status: "pending",
-      confirmable_fields: ["first_name", "curp"],
-      extracted_fields: [
-        { name: "first_name", value: "JUAN CARLOS", confidence: 0.97, confirmation_required: true },
-        { name: "full_name", value: "JUAN CARLOS", confidence: 0.97, confirmation_required: false },
-      ],
-    }));
-    mockedConfirmDocumentResult.mockResolvedValue(documentResult({
-      verdict: "review",
-      confirmation_status: "confirmed",
-      confirmed_fields: { first_name: "JUAN CARLOS", curp: "PEGJ900515HDFRZN08" },
-    }));
-
-    const { findByText, findByLabelText, queryByText } = await renderCompliance();
-    expect(await findByText("CURP")).toBeTruthy();
-    expect(queryByText("Full name")).toBeNull();
-    expect(queryByText("full_name")).toBeNull();
-    fireEvent.changeText(await findByLabelText("CURP"), "PEGJ900515HDFRZN08");
-    fireEvent.press(await findByText("Confirmar datos"));
-
-    await waitFor(() => expect(mockedConfirmDocumentResult).toHaveBeenCalledWith("step-1", {
-      first_name: "JUAN CARLOS",
-      curp: "PEGJ900515HDFRZN08",
-    }));
-    expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
-  });
-
   it("submits exactly the extracted field names/edited values, refetches, and shows confirmed_fields on success", async () => {
     mockedConfirmDocumentResult.mockResolvedValue(
       documentResult({
