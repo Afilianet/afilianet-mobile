@@ -31,11 +31,13 @@ export function DocumentResultView({
   result,
   onRetry,
   retrying,
+  hideReviewBadge = false,
 }: {
   stepId: string;
   result: DocumentProcessingResult;
   onRetry: () => void;
   retrying: boolean;
+  hideReviewBadge?: boolean;
 }) {
   if (result.status === "failed") {
     return (
@@ -48,14 +50,17 @@ export function DocumentResultView({
   }
 
   const copy = verdictCopy(result.verdict);
+  const description = result.verdict === "review" && result.confirmation_status === "confirmed"
+    ? strings.documentCapture.reviewRetryConfirmedDescription
+    : copy.description;
   const extractedFields = result.extracted_fields.filter((field) => field.value !== null);
   const showConfirmationForm = result.verdict !== "fail" && result.confirmation_status === "pending";
   const isConfirmed = result.confirmation_status === "confirmed" && result.confirmed_fields !== null;
 
   return (
     <View style={styles.container}>
-      <Badge label={copy.label} tone={copy.tone} />
-      {copy.description ? <Text style={styles.description}>{copy.description}</Text> : null}
+      {result.verdict === "review" && hideReviewBadge ? null : <Badge label={copy.label} tone={copy.tone} />}
+      {description ? <Text style={styles.description}>{description}</Text> : null}
 
       {isConfirmed ? (
         <View style={styles.fields}>
@@ -97,7 +102,7 @@ export function DocumentResultView({
 
       {result.verdict === "fail" || result.verdict === "review" ? (
         <Button
-          label={result.verdict === "review" ? strings.documentCapture.retakePhoto : strings.documentCapture.tryAgain}
+          label={result.verdict === "review" ? strings.documentCapture.retakeDocument : strings.documentCapture.tryAgain}
           onPress={onRetry}
           loading={retrying}
         />

@@ -51,7 +51,11 @@ export function ComplianceStepCard({
     }
   }
 
-  const status = complianceStepStatusCopy(step.status);
+  // A failed Afilianet document step remains retryable. "Rechazado" reads
+  // like a final case decision even when the OCR result is inconclusive.
+  const status = step.step_type === "identity_document" && step.status === "failed" && step.configured_provider === "afilianet"
+    ? { label: strings.compliance.identityDocumentStep.retryNeeded, tone: "warning" as const }
+    : complianceStepStatusCopy(step.status);
   const label = STEP_LABELS[step.step_type] ?? step.step_type.replace(/_/g, " ");
   const StepDetail = STEP_COMPONENTS[step.step_type];
   const completedOn = step.completed_at ? formatDate(step.completed_at) : null;

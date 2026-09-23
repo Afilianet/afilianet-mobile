@@ -94,7 +94,7 @@ function renderBody(
   // confirmation edits from a previous organization can ever remain visible
   // after switching (Phase 9C.2/9C.2a's explicit tenant-isolation
   // requirement).
-  return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} />;
+  return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} hideReviewBadge={step.status === "failed"} />;
 }
 
 const localStyles = StyleSheet.create({

@@ -240,12 +240,44 @@ describe("Document confirmation: form rendering", () => {
     );
     const { findByText } = await renderCompliance();
 
-    expect(await findByText("En revisión")).toBeTruthy();
+    expect(await findByText("No concluyente")).toBeTruthy();
     expect(await findByText("Confirma tus datos")).toBeTruthy();
   });
 });
 
 describe("Document confirmation: submission", () => {
+  it("keeps a review attempt retryable after CURP confirmation without calling it rejected", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([step({ status: "failed", attempt_count: 1 })]);
+    mockedFetchDocumentResult.mockResolvedValue(
+      documentResult({
+        verdict: "review",
+        confirmation_required: true,
+        confirmation_status: "pending",
+        extracted_fields: PENDING_CONFIRMATION_RESULT.extracted_fields,
+      }),
+    );
+    mockedConfirmDocumentResult.mockResolvedValue(
+      documentResult({
+        verdict: "review",
+        confirmation_required: true,
+        confirmation_status: "confirmed",
+        extracted_fields: PENDING_CONFIRMATION_RESULT.extracted_fields,
+        confirmed_fields: { first_name: "JUAN CARLOS", curp: "PEGJ900515HDFRZN08" },
+      }),
+    );
+
+    const { findByText, queryByText } = await renderCompliance();
+    expect(await findByText("Otro intento necesario")).toBeTruthy();
+    expect(queryByText("Rechazado")).toBeNull();
+    expect(queryByText("No concluyente")).toBeNull(); // One status badge for this step.
+    fireEvent.press(await findByText("Confirmar datos"));
+
+    expect(await findByText("Tus datos confirmados")).toBeTruthy();
+    expect(await findByText("Tomar nuevas fotos")).toBeTruthy();
+    expect(queryByText("Rechazado")).toBeNull();
+    expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
+  });
+
   it("submits exactly the extracted field names/edited values, refetches, and shows confirmed_fields on success", async () => {
     mockedConfirmDocumentResult.mockResolvedValue(
       documentResult({

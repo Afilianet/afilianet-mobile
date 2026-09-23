@@ -112,14 +112,12 @@ export function verdictCopy(verdict: DocumentVerdict | null): { label: string; t
     case "pass":
       return { label: strings.documentCapture.confirmedTitle, tone: "success", description: strings.documentCapture.confirmedDescription };
     case "review":
-      // "review" means STAFF/ADMIN review -- the affiliate has nothing to
-      // do here (identity_document is already resolved/passed). Never
-      // "Por favor revisa"/"Please review", which reads as an instruction
-      // aimed at the affiliate.
+      // An inconclusive OCR result leaves the step failed and retryable;
+      // confirming extracted fields does not change its verdict.
       return {
-        label: strings.documentCapture.reviewTitle,
+        label: strings.documentCapture.reviewRetryTitle,
         tone: "warning",
-        description: strings.compliance.manualReviewNotice,
+        description: strings.documentCapture.reviewRetryDescription,
       };
     case "fail":
       return {
@@ -223,7 +221,7 @@ export function providerUnavailableCopy(
  *
  * This is the PRIMARY state for badge/heading purposes -- "review" wins over
  * "confirmation_required" when both are true (a review-verdict result can
- * still have confirmable fields; the review notice takes visual priority),
+ * still have confirmable fields; the retry guidance takes visual priority),
  * but the confirmation FORM itself renders independently whenever
  * confirmation_status is "pending" and verdict isn't "fail" (see
  * DocumentResultView) -- confirmation is never gated on which of these
