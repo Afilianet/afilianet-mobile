@@ -26,16 +26,14 @@ import { confirmationFieldHelperText, fieldLabel, MONO_CONFIRMATION_FIELDS } fro
  * turn a correction into something the backend rejects unexpectedly.
  */
 export function DocumentConfirmationForm({ stepId, result }: { stepId: string; result: DocumentProcessingResult }) {
-  // Confirmable fields are exactly the extracted fields with a real value --
-  // never a broader/invented schema. Every field a parser emits is already
-  // in afilianet-api's DocumentConfirmableFields allowlist (see
-  // DOCUMENT_ENGINE.md sections F/G/J2), so deriving purely from
-  // extracted_fields here is safe and never submits a field the backend
-  // wouldn't recognize.
-  const confirmableFields = result.extracted_fields.filter((field) => field.value !== null);
+  // Use the backend's exact allowlist. A review INE can include a missing
+  // CURP here even though OCR correctly left it out of extracted_fields.
+  // Older API responses fall back to the previously supported behavior.
+  const confirmableFields = (result.confirmable_fields ?? result.extracted_fields.filter((field) => field.value !== null).map((field) => field.name))
+    .map((name) => ({ name, value: result.extracted_fields.find((field) => field.name === name)?.value ?? "" }));
 
   const [values, setValues] = useState<Record<string, string>>(() =>
-    Object.fromEntries(confirmableFields.map((field) => [field.name, field.value as string])),
+    Object.fromEntries(confirmableFields.map((field) => [field.name, field.value])),
   );
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -106,6 +104,7 @@ export function DocumentConfirmationForm({ stepId, result }: { stepId: string; r
           error={fieldErrors[field.name]}
           helperText={confirmationFieldHelperText(field.name)}
           mono={MONO_CONFIRMATION_FIELDS.has(field.name)}
+          autoCapitalize={field.name === "curp" ? "characters" : "none"}
           editable={!confirmMutation.isPending}
         />
       ))}
