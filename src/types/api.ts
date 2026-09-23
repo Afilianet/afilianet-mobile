@@ -401,6 +401,24 @@ export interface ExtractedField {
   confirmation_required: boolean;
 }
 
+export interface DocumentValidationCheck {
+  name: string;
+  passed: boolean;
+  detail: string | null;
+}
+
+export interface DocumentQualityReport {
+  decodes: boolean;
+  width: number | null;
+  height: number | null;
+  detected_mime_type: string | null;
+  meets_minimum_resolution: boolean;
+  within_dimension_bounds: boolean;
+  aspect_ratio_sane: boolean;
+  passed: boolean;
+  notes: string[];
+}
+
 // The mobile-facing lifecycle of confirmation for one result (Phase 9C.2a) --
 // "not_required" (nothing confirmable was extracted), "pending" (confirmable
 // fields exist, not yet confirmed), "confirmed" (confirmed_fields is set).
@@ -428,6 +446,8 @@ export interface DocumentProcessingResult {
   verdict: DocumentVerdict | null;
   confidence: number | null;
   extracted_fields: ExtractedField[];
+  validation_checks: DocumentValidationCheck[];
+  quality: DocumentQualityReport[] | null;
   confirmed_fields: Record<string, string> | null;
   confirmation_required: boolean;
   confirmation_status: DocumentConfirmationStatus;
