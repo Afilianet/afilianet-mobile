@@ -50,6 +50,9 @@ export function DocumentResultView({
   }
 
   const copy = verdictCopy(result.verdict);
+  const description = result.verdict === "review" && result.confirmation_status === "confirmed"
+    ? strings.documentCapture.reviewRetryConfirmedDescription
+    : copy.description;
   const extractedFields = result.extracted_fields.filter((field) => field.value !== null);
   const showConfirmationForm = result.verdict !== "fail" && result.confirmation_status === "pending";
   const isConfirmed = result.confirmation_status === "confirmed" && result.confirmed_fields !== null;
@@ -57,7 +60,7 @@ export function DocumentResultView({
   return (
     <View style={styles.container}>
       {result.verdict === "review" && hideReviewBadge ? null : <Badge label={copy.label} tone={copy.tone} />}
-      {copy.description ? <Text style={styles.description}>{copy.description}</Text> : null}
+      {description ? <Text style={styles.description}>{description}</Text> : null}
 
       {isConfirmed ? (
         <View style={styles.fields}>
