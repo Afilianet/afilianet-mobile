@@ -50,11 +50,18 @@ export function DocumentResultView({
   }
 
   const copy = verdictCopy(result.verdict);
-  const description = result.verdict === "review" && result.confirmation_status === "confirmed"
-    ? strings.documentCapture.reviewRetryConfirmedDescription
-    : copy.description;
   const extractedFields = result.extracted_fields.filter((field) => field.value !== null);
-  const showConfirmationForm = result.verdict !== "fail" && result.confirmation_status === "pending";
+  // Only a missing CURP can be added manually to an INE review. Confirming
+  // address and CURP without a name would still leave the step unresolved.
+  const missingIneName = result.document_type === "mx_ine" && result.verdict === "review" && result.confirmation_status === "pending" &&
+    (!extractedFields.some((field) => field.name === "first_name" && field.value?.trim()) ||
+      !extractedFields.some((field) => (field.name === "paternal_last_name" || field.name === "maternal_last_name") && field.value?.trim()));
+  const description = missingIneName
+    ? strings.documentCapture.missingNameRetakeDescription
+    : result.verdict === "review" && result.confirmation_status === "confirmed"
+      ? strings.documentCapture.reviewRetryConfirmedDescription
+      : copy.description;
+  const showConfirmationForm = result.verdict !== "fail" && result.confirmation_status === "pending" && !missingIneName;
   const isConfirmed = result.confirmation_status === "confirmed" && result.confirmed_fields !== null;
 
   return (
