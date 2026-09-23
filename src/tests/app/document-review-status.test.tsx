@@ -60,7 +60,7 @@ it("keeps confirmed fields and an actionable new-capture button after an inconcl
     <DocumentResultView stepId="step-1" result={reviewResult} onRetry={onRetry} retrying={false} hideReviewBadge />,
   );
   expect(screen.getByText("Tus datos confirmados")).toBeTruthy();
-  expect(screen.getByText(/necesitas tomar nuevas fotos para avanzar/i)).toBeTruthy();
+  expect(screen.getByText(/tus datos quedaron guardados, pero este intento no verificó el documento/i)).toBeTruthy();
   expect(screen.queryByText("No concluyente")).toBeNull();
   fireEvent.press(screen.getByText("Tomar nuevas fotos"));
   expect(onRetry).toHaveBeenCalledTimes(1);
