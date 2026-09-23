@@ -578,6 +578,7 @@ export const en = {
     reviewTitle: "Under review",
     reviewRetryTitle: "Inconclusive",
     reviewRetryDescription: "We couldn't verify the document from these photos. You can confirm your details, but you'll need new photos to continue.",
+    reviewRetryConfirmedDescription: "Your details were saved, but this attempt didn't verify the document. Take new photos to continue.",
     needsCorrectionTitle: "Needs correction",
     needsCorrectionDescription: "Your document couldn't be verified. You can retake the photo and try again.",
     pendingLabel: "Pending",
