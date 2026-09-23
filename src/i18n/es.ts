@@ -608,9 +608,8 @@ export const es = {
     processingDocument: "Procesando tu documento",
     confirmedTitle: "Confirmado desde el documento",
     confirmedDescription: "Tus verificaciones del documento pasaron.",
-    // Never "Por favor revisa" -- "review" means STAFF/ADMIN review; the
-    // affiliate has no action to take (see manualReviewNotice below, used as
-    // this state's description).
+    // Legacy copy for a resolved step awaiting staff review. An inconclusive
+    // OCR attempt uses reviewRetryTitle and asks for another capture.
     reviewTitle: "En revisión",
     reviewRetryTitle: "No concluyente",
     reviewRetryDescription: "No pudimos verificar el documento con estas fotos. Puedes confirmar tus datos, pero necesitas tomar nuevas fotos para avanzar.",
