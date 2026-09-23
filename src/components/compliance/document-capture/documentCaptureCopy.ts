@@ -17,12 +17,43 @@ export const EVIDENCE_TYPE_LABELS: Record<EvidenceType, string> = strings.docume
 // Every field name MxIneParser/PassportMrzParser actually emit
 // (DOCUMENT_ENGINE.md sections F/G) -- an unrecognized field still renders
 // (humanized fallback below), this only improves the label for known ones.
-const FIELD_LABELS: Record<string, string> = strings.documentCapture.fieldLabels;
+const FIELD_LABELS: Record<string, string> = {
+  first_name: "Nombre(s)",
+  paternal_last_name: "Apellido paterno",
+  maternal_last_name: "Apellido materno",
+  full_name: "Nombre completo",
+  date_of_birth: "Fecha de nacimiento",
+  curp: "CURP",
+  elector_key: "Clave de elector",
+  expiration_year: "Año de vigencia",
+  issue_year: "Año de emisión",
+  sex: "Sexo",
+  section: "Sección",
+  registration_year: "Año de registro",
+  address_raw: "Domicilio",
+  address_street: "Calle",
+  address_exterior_number: "Número exterior",
+  address_interior_number: "Número interior",
+  address_neighborhood: "Colonia",
+  address_locality: "Localidad",
+  address_municipality: "Municipio o alcaldía",
+  address_state: "Estado",
+  address_postal_code: "Código postal",
+  surname: "Apellidos",
+  given_names: "Nombres",
+  nationality: "Nacionalidad",
+  passport_number: "Número de pasaporte",
+  expiration_date: "Fecha de vencimiento",
+  issuing_country: "País emisor",
+};
 
 const DATE_FIELDS = new Set(["date_of_birth", "expiration_date"]);
 
 export function fieldLabel(name: string): string {
-  return FIELD_LABELS[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  // Identity-document field names are user-facing Mexican identity data.
+  // Keep these labels in Spanish even when an internal key is newly added;
+  // never leak raw snake_case/English implementation names into this form.
+  return FIELD_LABELS[name] ?? "Dato del documento";
 }
 
 // Format guidance for the confirmation FORM's editable inputs (Phase
