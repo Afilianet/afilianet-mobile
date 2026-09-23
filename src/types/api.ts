@@ -449,6 +449,8 @@ export interface DocumentProcessingResult {
   validation_checks: DocumentValidationCheck[];
   quality: DocumentQualityReport[] | null;
   confirmed_fields: Record<string, string> | null;
+  // Server-authorized confirmation keys; optional while older API deployments remain in use.
+  confirmable_fields?: string[];
   confirmation_required: boolean;
   confirmation_status: DocumentConfirmationStatus;
   failure_reason: string | null;
