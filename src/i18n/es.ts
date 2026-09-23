@@ -606,6 +606,10 @@ export const es = {
     continueAction: "Continuar",
     waitingForDocument: "Esperando el documento",
     processingDocument: "Procesando tu documento",
+    photosReceived: "Fotos recibidas",
+    processingTakingLong: "Está tardando más de lo habitual. Puedes comprobar el estado o volver más tarde.",
+    statusCheckFailed: "No pudimos consultar el estado. Comprueba tu conexión e inténtalo de nuevo.",
+    checkStatus: "Verificar estado",
     confirmedTitle: "Confirmado desde el documento",
     confirmedDescription: "Tus verificaciones del documento pasaron.",
     // Legacy copy for a resolved step awaiting staff review. An inconclusive
