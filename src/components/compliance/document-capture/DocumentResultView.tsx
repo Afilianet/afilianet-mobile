@@ -31,11 +31,13 @@ export function DocumentResultView({
   result,
   onRetry,
   retrying,
+  hideReviewBadge = false,
 }: {
   stepId: string;
   result: DocumentProcessingResult;
   onRetry: () => void;
   retrying: boolean;
+  hideReviewBadge?: boolean;
 }) {
   if (result.status === "failed") {
     return (
@@ -54,7 +56,7 @@ export function DocumentResultView({
 
   return (
     <View style={styles.container}>
-      <Badge label={copy.label} tone={copy.tone} />
+      {result.verdict === "review" && hideReviewBadge ? null : <Badge label={copy.label} tone={copy.tone} />}
       {copy.description ? <Text style={styles.description}>{copy.description}</Text> : null}
 
       {isConfirmed ? (
@@ -97,7 +99,7 @@ export function DocumentResultView({
 
       {result.verdict === "fail" || result.verdict === "review" ? (
         <Button
-          label={result.verdict === "review" ? strings.documentCapture.retakePhoto : strings.documentCapture.tryAgain}
+          label={result.verdict === "review" ? strings.documentCapture.retakeDocument : strings.documentCapture.tryAgain}
           onPress={onRetry}
           loading={retrying}
         />
