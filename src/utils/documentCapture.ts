@@ -47,14 +47,11 @@ export function validateCapturedAsset(asset: CapturedAssetCheck): { valid: true 
   if (!asset.width || !asset.height || asset.width <= 0 || asset.height <= 0) {
     return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
-  // INE/passport document pages are expected landscape by the server-side
-  // quality contract. Some Android camera configurations can return a
-  // physically portrait-oriented file even when the preview looked correct.
-  // Fail locally before upload rather than relying on OCR orientation search
-  // to rescue a capture that is known to be wrongly oriented.
-  if (asset.height > asset.width) {
-    return { valid: false, error: strings.documentCapture.landscapeRequired };
-  }
+  // Do NOT infer physical orientation from ImagePicker's width/height.
+  // On Android those dimensions can describe the encoded sensor buffer
+  // (e.g. 1944x2592) even when the photo is visually upright/landscape in
+  // the native preview. Rejecting height > width therefore blocks valid
+  // captures. The backend OCR already performs orientation search.
   if (asset.fileSize === null || asset.fileSize === undefined || asset.fileSize <= 0) {
     return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
