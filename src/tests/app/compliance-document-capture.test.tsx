@@ -682,7 +682,7 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
   });
 });
 
-describe("Document capture: technical failure and manual review", () => {
+describe("Document capture: technical failure and inconclusive review", () => {
   it("maps poor_image_quality to a retake-oriented message", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "failed", failure_reason: "poor_image_quality" }));
     const { findByText } = await renderCompliance();
@@ -726,11 +726,12 @@ describe("Document capture: technical failure and manual review", () => {
     expect((await findAllByText("Aún no capturado")).length).toBe(2);
   });
 
-  it("shows a manual-review waiting state, with no retry button, when verdict is review", async () => {
+  it("explains that an inconclusive result needs new photos", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
     expect(await findByText("No concluyente")).toBeTruthy();
     expect(await findByText(/necesitas tomar nuevas fotos para avanzar/i)).toBeTruthy();
+    expect(await findByText("Tomar nuevas fotos")).toBeTruthy();
     expect(queryByText("Intenta de nuevo")).toBeNull();
   });
 
