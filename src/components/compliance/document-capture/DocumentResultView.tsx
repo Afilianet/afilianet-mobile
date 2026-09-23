@@ -95,7 +95,13 @@ export function DocumentResultView({
 
       {showConfirmationForm ? <DocumentConfirmationForm stepId={stepId} result={result} /> : null}
 
-      {result.verdict === "fail" ? <Button label={strings.documentCapture.tryAgain} onPress={onRetry} loading={retrying} /> : null}
+      {result.verdict === "fail" || result.verdict === "review" ? (
+        <Button
+          label={result.verdict === "review" ? strings.documentCapture.retakePhoto : strings.documentCapture.tryAgain}
+          onPress={onRetry}
+          loading={retrying}
+        />
+      ) : null}
     </View>
   );
 }
