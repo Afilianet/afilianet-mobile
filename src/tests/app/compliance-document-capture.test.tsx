@@ -658,7 +658,7 @@ describe("Document capture: result review (read-only, no fake confirmation)", ()
 
     const { findByText, queryByText } = await renderCompliance();
 
-    expect(await findByText("En revisión")).toBeTruthy();
+    expect(await findByText("No concluyente")).toBeTruthy();
     expect(queryByText("Por favor revisa")).toBeNull();
     expect(queryByText(/^Guardar$/i)).toBeNull();
     expect(queryByText(/^Confirmar$/i)).toBeNull();
@@ -729,18 +729,17 @@ describe("Document capture: technical failure and manual review", () => {
   it("shows a manual-review waiting state, with no retry button, when verdict is review", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("En revisión")).toBeTruthy();
-    expect(await findByText(/revisión manual/i)).toBeTruthy();
+    expect(await findByText("No concluyente")).toBeTruthy();
+    expect(await findByText(/necesitas tomar nuevas fotos para avanzar/i)).toBeTruthy();
     expect(queryByText("Intenta de nuevo")).toBeNull();
   });
 
-  // "review" means STAFF/ADMIN review -- the affiliate has nothing to do
-  // and must never see wording that reads as an instruction aimed at them.
-  it("verdict: review never shows 'Por favor revisa' and clearly says no affiliate action is needed", async () => {
+  it("verdict: review explains why another capture is needed", async () => {
     mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("En revisión")).toBeTruthy();
-    expect(await findByText("Tu envío está en revisión manual. No necesitas hacer nada por ahora.")).toBeTruthy();
+    expect(await findByText("No concluyente")).toBeTruthy();
+    expect(await findByText("No pudimos verificar el documento con estas fotos. Puedes confirmar tus datos, pero necesitas tomar nuevas fotos para avanzar.")).toBeTruthy();
+    expect(await findByText("Tomar nuevas fotos")).toBeTruthy();
     expect(queryByText("Por favor revisa")).toBeNull();
   });
 });
