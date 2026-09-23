@@ -8,7 +8,10 @@ jest.mock("../../components/compliance/steps/IdentityDocumentStep", () => ({
   IdentityDocumentStep: () => null,
 }));
 jest.mock("../../components/compliance/document-capture/DocumentConfirmationForm", () => ({
-  DocumentConfirmationForm: () => null,
+  DocumentConfirmationForm: () => {
+    const { Text } = jest.requireActual("react-native");
+    return <Text>Formulario de confirmación</Text>;
+  },
 }));
 jest.mock("../../hooks/useAttemptComplianceStep", () => ({
   useAttemptComplianceStep: () => ({ mutateAsync: jest.fn(), isPending: false }),
@@ -65,4 +68,23 @@ it("keeps confirmed fields and an actionable new-capture button after an inconcl
   fireEvent.press(screen.getByText("Tomar nuevas fotos"));
   expect(onRetry).toHaveBeenCalledTimes(1);
   expect(verdictCopy("review").tone).toBe("warning");
+});
+
+it("asks for new photos when an INE has no readable name, instead of offering confirmation", async () => {
+  const result = {
+    ...reviewResult,
+    id: "result-without-name",
+    confirmation_status: "pending",
+    confirmed_fields: null,
+    extracted_fields: [
+      { name: "address_raw", value: "Domicilio legible", confidence: 0.46 },
+      { name: "address_postal_code", value: "01000", confidence: 0.93 },
+    ],
+  } as DocumentProcessingResult;
+  const screen = await render(
+    <DocumentResultView stepId="step-1" result={result} onRetry={jest.fn()} retrying={false} />,
+  );
+  expect(screen.getByText(/no pudimos leer tu nombre/i)).toBeTruthy();
+  expect(screen.getByText("Tomar nuevas fotos")).toBeTruthy();
+  expect(screen.queryByText("Formulario de confirmación")).toBeNull();
 });
