@@ -614,6 +614,7 @@ export const es = {
     reviewRetryTitle: "No concluyente",
     reviewRetryDescription: "No pudimos verificar el documento con estas fotos. Puedes confirmar tus datos, pero necesitas tomar nuevas fotos para avanzar.",
     reviewRetryConfirmedDescription: "Tus datos quedaron guardados, pero este intento no verificó el documento. Toma nuevas fotos para avanzar.",
+    missingNameRetakeDescription: "No pudimos leer tu nombre en estas fotos. Toma nuevas fotos del frente y reverso, con la credencial completa, enfocada y bien iluminada. Confirmar la CURP no completaría este intento.",
     needsCorrectionTitle: "Necesita corrección",
     needsCorrectionDescription: "No pudimos verificar tu documento. Puedes volver a tomar la foto e intentarlo de nuevo.",
     pendingLabel: "Pendiente",
