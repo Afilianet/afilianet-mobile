@@ -112,14 +112,12 @@ export function verdictCopy(verdict: DocumentVerdict | null): { label: string; t
     case "pass":
       return { label: strings.documentCapture.confirmedTitle, tone: "success", description: strings.documentCapture.confirmedDescription };
     case "review":
-      // "review" means STAFF/ADMIN review -- the affiliate has nothing to
-      // do here (identity_document is already resolved/passed). Never
-      // "Por favor revisa"/"Please review", which reads as an instruction
-      // aimed at the affiliate.
+      // An inconclusive OCR result leaves the step failed and retryable;
+      // confirming extracted fields does not change its verdict.
       return {
-        label: strings.documentCapture.reviewTitle,
+        label: strings.documentCapture.reviewRetryTitle,
         tone: "warning",
-        description: strings.compliance.manualReviewNotice,
+        description: strings.documentCapture.reviewRetryDescription,
       };
     case "fail":
       return {
