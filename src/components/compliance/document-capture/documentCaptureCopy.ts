@@ -221,7 +221,7 @@ export function providerUnavailableCopy(
  *
  * This is the PRIMARY state for badge/heading purposes -- "review" wins over
  * "confirmation_required" when both are true (a review-verdict result can
- * still have confirmable fields; the review notice takes visual priority),
+ * still have confirmable fields; the retry guidance takes visual priority),
  * but the confirmation FORM itself renders independently whenever
  * confirmation_status is "pending" and verdict isn't "fail" (see
  * DocumentResultView) -- confirmation is never gated on which of these
