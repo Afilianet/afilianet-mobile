@@ -55,6 +55,16 @@ export function CaptureScreen({
       return;
     }
 
+    if (__DEV__) {
+      console.log("[document-capture] captured", {
+        width: result.width,
+        height: result.height,
+        fileSize: result.fileSize,
+        mimeType: result.mimeType,
+        uriScheme: result.uri.split(":")[0] || "unknown",
+      });
+    }
+
     const check = validateCapturedAsset({
       uri: result.uri,
       width: result.width,
