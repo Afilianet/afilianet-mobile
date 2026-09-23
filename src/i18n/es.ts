@@ -517,6 +517,7 @@ export const es = {
       verifiedText: "Tu documento de identidad fue verificado.",
       failedText: "Tu documento de identidad no pudo ser verificado.",
       featureLabel: "Verificación de documentos",
+      retryNeeded: "Otro intento necesario",
     },
   },
   documentCapture: {
@@ -611,6 +612,8 @@ export const es = {
     // affiliate has no action to take (see manualReviewNotice below, used as
     // this state's description).
     reviewTitle: "En revisión",
+    reviewRetryTitle: "No concluyente",
+    reviewRetryDescription: "No pudimos verificar el documento con estas fotos. Puedes confirmar tus datos, pero necesitas tomar nuevas fotos para avanzar.",
     needsCorrectionTitle: "Necesita corrección",
     needsCorrectionDescription: "No pudimos verificar tu documento. Puedes volver a tomar la foto e intentarlo de nuevo.",
     pendingLabel: "Pendiente",
@@ -672,6 +675,7 @@ export const es = {
     },
     couldNotProcess: "No se pudo procesar",
     retakePhoto: "Volver a tomar foto",
+    retakeDocument: "Tomar nuevas fotos",
     tryAgain: "Intenta de nuevo",
     yourConfirmedDetails: "Tus datos confirmados",
     whatWeRead: "Lo que leímos de tu documento",
