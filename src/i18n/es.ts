@@ -620,6 +620,7 @@ export const es = {
       checkAgain: "Verificar de nuevo",
     },
     guidance: [
+      "Toma la foto en horizontal (documento acostado)",
       "Mantén todo el documento dentro del marco",
       "Evita reflejos -- inclina el documento lejos de la luz directa",
       "Usa una iluminación buena y uniforme",
@@ -644,6 +645,7 @@ export const es = {
     },
     unsupportedFormat: "El formato de esta foto no es compatible. Vuelve a tomarla.",
     corruptedPhoto: "Esta foto se ve vacía o dañada. Vuelve a tomarla.",
+    landscapeRequired: "Toma la foto con el documento en horizontal antes de continuar.",
     noPhotoCaptured: "No se capturó ninguna foto. Inténtalo de nuevo.",
     photoTooLarge: "Esta foto es demasiado grande. Vuelve a tomarla.",
     uploadIncomplete: "La carga no se completó. Inténtalo de nuevo.",

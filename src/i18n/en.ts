@@ -584,6 +584,7 @@ export const en = {
       checkAgain: "Check again",
     },
     guidance: [
+      "Take the photo in landscape (document sideways)",
       "Keep the whole document inside the frame",
       "Avoid glare -- angle away from direct light",
       "Use good, even lighting",
@@ -607,6 +608,7 @@ export const en = {
     },
     unsupportedFormat: "That photo's format isn't supported. Please retake it.",
     corruptedPhoto: "That photo looks empty or corrupted. Please retake it.",
+    landscapeRequired: "Take the photo with the document in landscape before continuing.",
     noPhotoCaptured: "No photo was captured. Please try again.",
     photoTooLarge: "That photo is too large. Please retake it.",
     uploadIncomplete: "The upload didn't complete. Please try again.",

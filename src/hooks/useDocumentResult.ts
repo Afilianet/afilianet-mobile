@@ -46,6 +46,24 @@ export function useDocumentResult(stepId: string | undefined) {
             verdict: result.verdict,
             failureReason: result.failure_reason,
             confirmationStatus: result.confirmation_status,
+            confidence: result.confidence,
+            processorVersion: result.processor_version,
+            fieldConfidences: result.extracted_fields.map((field) => ({
+              name: field.name,
+              confidence: field.confidence,
+            })),
+            failedValidationChecks: result.validation_checks
+              .filter((check) => !check.passed)
+              .map((check) => check.name),
+            quality: result.quality?.map((report) => ({
+              decodes: report.decodes,
+              width: report.width,
+              height: report.height,
+              meetsMinimumResolution: report.meets_minimum_resolution,
+              withinDimensionBounds: report.within_dimension_bounds,
+              aspectRatioSane: report.aspect_ratio_sane,
+              passed: report.passed,
+            })) ?? null,
           });
         }
         return result;

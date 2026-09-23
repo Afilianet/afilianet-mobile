@@ -47,6 +47,14 @@ export function validateCapturedAsset(asset: CapturedAssetCheck): { valid: true 
   if (!asset.width || !asset.height || asset.width <= 0 || asset.height <= 0) {
     return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
+  // INE/passport document pages are expected landscape by the server-side
+  // quality contract. Some Android camera configurations can return a
+  // physically portrait-oriented file even when the preview looked correct.
+  // Fail locally before upload rather than relying on OCR orientation search
+  // to rescue a capture that is known to be wrongly oriented.
+  if (asset.height > asset.width) {
+    return { valid: false, error: strings.documentCapture.landscapeRequired };
+  }
   if (asset.fileSize === null || asset.fileSize === undefined || asset.fileSize <= 0) {
     return { valid: false, error: strings.documentCapture.corruptedPhoto };
   }
