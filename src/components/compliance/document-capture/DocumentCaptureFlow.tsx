@@ -36,11 +36,17 @@ export function DocumentCaptureFlow({
   result,
   resultLoading,
   hideReviewBadge = false,
+  onCheckStatus,
+  checkingStatus = false,
+  statusCheckError = false,
 }: {
   stepId: string;
   result: DocumentProcessingResult | null | undefined;
   resultLoading: boolean;
   hideReviewBadge?: boolean;
+  onCheckStatus?: () => void;
+  checkingStatus?: boolean;
+  statusCheckError?: boolean;
 }) {
   // Initialized from an existing result's own document_type when one is
   // already present on mount (e.g. reopening this screen after a prior
@@ -111,7 +117,7 @@ export function DocumentCaptureFlow({
   }
 
   if (effectiveResult && (effectiveResult.status === "pending" || effectiveResult.status === "processing")) {
-    return <ProcessingState status={effectiveResult.status} />;
+    return <ProcessingState status={effectiveResult.status} onCheckStatus={onCheckStatus} checking={checkingStatus} checkError={statusCheckError} />;
   }
 
   if (effectiveResult && (effectiveResult.status === "completed" || effectiveResult.status === "failed")) {
