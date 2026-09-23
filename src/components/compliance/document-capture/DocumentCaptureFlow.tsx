@@ -35,10 +35,12 @@ export function DocumentCaptureFlow({
   stepId,
   result,
   resultLoading,
+  hideReviewBadge = false,
 }: {
   stepId: string;
   result: DocumentProcessingResult | null | undefined;
   resultLoading: boolean;
+  hideReviewBadge?: boolean;
 }) {
   // Initialized from an existing result's own document_type when one is
   // already present on mount (e.g. reopening this screen after a prior
@@ -113,7 +115,7 @@ export function DocumentCaptureFlow({
   }
 
   if (effectiveResult && (effectiveResult.status === "completed" || effectiveResult.status === "failed")) {
-    return <DocumentResultView stepId={stepId} result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} />;
+    return <DocumentResultView stepId={stepId} result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} hideReviewBadge={hideReviewBadge} />;
   }
 
   if (activeCapture) {
