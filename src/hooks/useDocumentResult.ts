@@ -33,6 +33,7 @@ export function useDocumentResult(stepId: string | undefined) {
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
   const lastInvalidatedResultId = useRef<string | null>(null);
+  const lastLoggedResultSignature = useRef<string | null>(null);
 
   const query = useApiQuery<DocumentProcessingResult | null>(
     ["compliance", "document-result", orgId, stepId],
@@ -40,7 +41,10 @@ export function useDocumentResult(stepId: string | undefined) {
       try {
         const result = await fetchDocumentResult(stepId as string);
         if (__DEV__ && result) {
-          console.log("[document-processing] result", {
+          const signature = `${result.id}:${result.status}:${result.verdict ?? "none"}`;
+          if (lastLoggedResultSignature.current !== signature) {
+            lastLoggedResultSignature.current = signature;
+            console.log("[document-processing] result", {
             id: result.id,
             status: result.status,
             verdict: result.verdict,
@@ -55,16 +59,17 @@ export function useDocumentResult(stepId: string | undefined) {
             failedValidationChecks: result.validation_checks
               .filter((check) => !check.passed)
               .map((check) => check.name),
-            quality: result.quality?.map((report) => ({
-              decodes: report.decodes,
-              width: report.width,
-              height: report.height,
-              meetsMinimumResolution: report.meets_minimum_resolution,
-              withinDimensionBounds: report.within_dimension_bounds,
-              aspectRatioSane: report.aspect_ratio_sane,
-              passed: report.passed,
-            })) ?? null,
-          });
+              quality: result.quality?.map((report) => ({
+                decodes: report.decodes,
+                width: report.width,
+                height: report.height,
+                meetsMinimumResolution: report.meets_minimum_resolution,
+                withinDimensionBounds: report.within_dimension_bounds,
+                aspectRatioSane: report.aspect_ratio_sane,
+                passed: report.passed,
+              })) ?? null,
+            });
+          }
         }
         return result;
       } catch (error) {
