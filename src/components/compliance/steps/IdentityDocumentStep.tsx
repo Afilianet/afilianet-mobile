@@ -61,6 +61,12 @@ function renderBody(
   onCheckAgain: () => void,
 ) {
   if (step.status === "passed") {
+    // A successful OCR result remains useful after the compliance step
+    // advances: the affiliate must still be able to read and, if pending,
+    // confirm the fields extracted from their own document.
+    if (result?.status === "completed" && result.verdict === "pass") {
+      return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} />;
+    }
     if (result?.verdict === "review") {
       const copy = verdictCopy("review");
       return (
