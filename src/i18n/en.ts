@@ -579,6 +579,7 @@ export const en = {
     reviewRetryTitle: "Inconclusive",
     reviewRetryDescription: "We couldn't verify the document from these photos. You can confirm your details, but you'll need new photos to continue.",
     reviewRetryConfirmedDescription: "Your details were saved, but this attempt didn't verify the document. Take new photos to continue.",
+    missingNameRetakeDescription: "We couldn't read your name from these photos. Take new photos of both sides with the whole card in focus and well lit. Confirming the CURP would not complete this attempt.",
     needsCorrectionTitle: "Needs correction",
     needsCorrectionDescription: "Your document couldn't be verified. You can retake the photo and try again.",
     pendingLabel: "Pending",
