@@ -126,7 +126,7 @@ export function FaceMatchCaptureFlow({
   }
 
   if (effectiveResult && (effectiveResult.status === "completed" || effectiveResult.status === "failed")) {
-    return <FaceMatchResultView result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} />;
+    return <FaceMatchResultView result={effectiveResult} onRetry={handleRetry} onRetryExisting={() => void handleSubmit()} retrying={triggerMutation.isPending} />;
   }
 
   if (activeCapture) {
