@@ -46,7 +46,7 @@ export function IdentityDocumentStep({ step, attempt, isPending }: StepDetailPro
 
   return (
     <View>
-      {renderBody(step, isAfilianetActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
+      {renderBody(step, isAfilianetActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain, () => void resultQuery.refetch(), resultQuery.isFetching, resultQuery.isError)}
       <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
     </View>
   );
@@ -59,6 +59,9 @@ function renderBody(
   resultLoading: boolean,
   organizationId: string | undefined,
   onCheckAgain: () => void,
+  onCheckStatus: () => void,
+  checkingStatus: boolean,
+  statusCheckError: boolean,
 ) {
   if (step.status === "passed") {
     // A successful OCR result remains useful after the compliance step
@@ -100,7 +103,7 @@ function renderBody(
   // confirmation edits from a previous organization can ever remain visible
   // after switching (Phase 9C.2/9C.2a's explicit tenant-isolation
   // requirement).
-  return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} hideReviewBadge={step.status === "failed"} />;
+  return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} hideReviewBadge={step.status === "failed"} onCheckStatus={onCheckStatus} checkingStatus={checkingStatus} statusCheckError={statusCheckError} />;
 }
 
 const localStyles = StyleSheet.create({
