@@ -4,7 +4,7 @@ import type { FaceMatchProcessingResult } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { colors, spacing, typography } from "../../ui/theme";
-import { faceMatchFailureCopy, faceMatchVerdictCopy, isReferenceInconclusive, REFERENCE_INCONCLUSIVE_COPY } from "./faceMatchCopy";
+import { faceMatchFailureCopy, faceMatchVerdictCopy, isReferenceInconclusive, isTechnicalFaceMatchFailure, REFERENCE_INCONCLUSIVE_COPY } from "./faceMatchCopy";
 
 /**
  * Read-only, normalized-fields-only display of the latest face-match
@@ -58,10 +58,12 @@ import { faceMatchFailureCopy, faceMatchVerdictCopy, isReferenceInconclusive, RE
 export function FaceMatchResultView({
   result,
   onRetry,
+  onRetryExisting,
   retrying,
 }: {
   result: FaceMatchProcessingResult;
   onRetry: () => void;
+  onRetryExisting: () => void;
   retrying: boolean;
 }) {
   if (result.status === "failed" && isReferenceInconclusive(result.failure_reason)) {
@@ -69,6 +71,16 @@ export function FaceMatchResultView({
       <View style={styles.container}>
         <Badge label={REFERENCE_INCONCLUSIVE_COPY.label} tone={REFERENCE_INCONCLUSIVE_COPY.tone} />
         <Text style={styles.description}>{REFERENCE_INCONCLUSIVE_COPY.description}</Text>
+      </View>
+    );
+  }
+
+  if (result.status === "failed" && isTechnicalFaceMatchFailure(result.failure_reason)) {
+    return (
+      <View style={styles.container}>
+        <Badge label={strings.faceMatch.technicalFailureTitle} tone="warning" />
+        <Text style={styles.description}>{strings.faceMatch.technicalFailureDescription}</Text>
+        <Button label={strings.faceMatch.retryExistingPhotos} onPress={onRetryExisting} loading={retrying} />
       </View>
     );
   }
