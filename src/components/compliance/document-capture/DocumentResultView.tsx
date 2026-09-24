@@ -39,6 +39,29 @@ export function DocumentResultView({
   retrying: boolean;
   hideReviewBadge?: boolean;
 }) {
+  if (result.capture_accepted) {
+    const visibleFields = (result.extracted_fields ?? []).filter((field) => field.value !== null);
+    return (
+      <View style={styles.container}>
+        <Badge label={strings.documentCapture.captureAcceptedTitle} tone="success" />
+        <Text style={styles.description}>{strings.documentCapture.captureAcceptedDescription}</Text>
+        {visibleFields.length > 0 ? (
+          <View style={styles.fields}>
+            <Text style={styles.fieldsTitle}>{strings.documentCapture.whatWeRead}</Text>
+            {visibleFields.map((field) => (
+              <View key={field.name} style={styles.field}>
+                <Text style={styles.fieldLabel}>{fieldLabel(field.name)}</Text>
+                <Text style={styles.fieldValue} numberOfLines={1}>
+                  {fieldDisplayValue(field.name, field.value)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   if (result.status === "failed") {
     return (
       <View style={styles.container}>
