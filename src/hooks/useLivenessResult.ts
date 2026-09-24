@@ -35,6 +35,7 @@ export function useLivenessResult(stepId: string | undefined) {
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
   const lastInvalidatedResultId = useRef<string | null>(null);
+  const lastLoggedResultId = useRef<string | null>(null);
 
   const query = useApiQuery<LivenessSession | null>(
     ["compliance", "liveness-result", orgId, stepId],
@@ -57,7 +58,17 @@ export function useLivenessResult(stepId: string | undefined) {
 
   useEffect(() => {
     const result = query.data;
-    if (!result || !orgId || result.status !== "completed") return;
+    if (!result || !orgId) return;
+    if (__DEV__ && (result.status === "completed" || result.status === "failed") && lastLoggedResultId.current !== result.id) {
+      lastLoggedResultId.current = result.id;
+      console.log("[liveness] result", {
+        id: result.id,
+        status: result.status,
+        verdict: result.verdict,
+        failureReason: result.failure_reason,
+      });
+    }
+    if (result.status !== "completed") return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
     void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
