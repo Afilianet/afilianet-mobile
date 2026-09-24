@@ -171,7 +171,7 @@ export async function triggerDocumentProcessing(
   documentType: DocumentType,
 ): Promise<DocumentProcessingResult> {
   const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
-    `/api/v1/compliance/steps/${stepId}/document-processing`,
+    `/api/v1/compliance/steps/${stepId}/document-capture`,
     { method: "POST", body: { document_type: documentType } },
   );
   return data;

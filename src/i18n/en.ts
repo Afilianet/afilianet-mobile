@@ -574,6 +574,8 @@ export const en = {
     waitingForDocument: "Waiting for document",
     processingDocument: "Processing your document",
     photosReceived: "Photos received",
+    captureAcceptedTitle: "ID photos saved",
+    captureAcceptedDescription: "Continue with the liveness check and face comparison. We can review missing details later.",
     processingTakingLong: "This is taking longer than usual. Check the status or come back later.",
     statusCheckFailed: "We couldn't check the status. Check your connection and try again.",
     checkStatus: "Check status",

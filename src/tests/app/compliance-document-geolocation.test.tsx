@@ -199,6 +199,8 @@ function documentResult(overrides: Partial<DocumentProcessingResult> = {}): Docu
     verdict: null,
     confidence: null,
     extracted_fields: [],
+    validation_checks: [],
+    quality: null,
     confirmed_fields: null,
     confirmation_required: false,
     confirmation_status: "not_required",

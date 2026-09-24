@@ -26,6 +26,10 @@ export function useTriggerDocumentProcessing(stepId: string) {
     mutationFn: (documentType: DocumentType) => triggerDocumentProcessing(stepId, documentType),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKey, result);
+      // The server has accepted the photos and opened the next steps even
+      // while OCR remains pending. Refresh the case and step cards now.
+      void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
     },
     onError: (error) => {
       if (isApiError(error) && error.status === 409) {
