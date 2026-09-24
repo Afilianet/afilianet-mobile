@@ -441,6 +441,8 @@ export type DocumentConfirmationStatus = "not_required" | "pending" | "confirmed
 // DocumentConfirmableFields in afilianet-api).
 export interface DocumentProcessingResult {
   id: string;
+  /** The stored ID photos passed the server's capture-quality gate. */
+  capture_accepted?: boolean;
   document_type: DocumentType;
   status: DocumentProcessingStatus;
   verdict: DocumentVerdict | null;
