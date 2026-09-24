@@ -86,7 +86,7 @@ This app supports four environments, each with its own settings file:
 
 Each environment file sets the same four things:
 
-- **`EXPO_PUBLIC_API_BASE_URL`** — which backend this build talks to. Never edited automatically between environments; a build only uses whatever its own environment file says, so a `staging`/`internal` build can never silently point at production.
+- **`EXPO_PUBLIC_API_BASE_URL`** — which backend this build talks to. Never edited automatically between environments; a build only uses whatever its own environment file says, so a `staging`/`internal` build can never silently point at production. `src/config/env.ts` centralizes every read of this (and every other `EXPO_PUBLIC_*`) value — nothing else in the app reads `process.env` directly — and **refuses to start a `staging` or `production` build whose API base URL looks local** (`localhost`, `127.0.0.1`, `10.0.2.2`, or any `10.x`/`172.16-31.x`/`192.168.x` LAN address): that class of URL can only be a mistake for a shared environment, so it throws immediately rather than silently talking to the wrong place. `development` and `internal` are exempt — a local Docker backend, an emulator alias, or a tester's LAN IP are all legitimate there (see "Changing the API URL" above and "Internal Alpha" below).
 - **`EXPO_PUBLIC_APP_ENV`** — this build's own identifier (`"development"` / `"internal"` / `"staging"` / `"production"`), read in `src/config/env.ts`. This is the single signal that gates the development-only Compliance simulator (see below) and tags Sentry error reports by environment, so an Internal Alpha crash is never confused with a real production one.
 - **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; both no-op when blank.
 
@@ -101,7 +101,7 @@ Each environment file sets the same four things:
 ### Fastest path: a custom dev client via EAS (still no local Xcode/Android Studio needed)
 
 1. One-time setup: `npx eas-cli login`, then `npx eas-cli build:configure` (see "Standalone installable app" below for what this does).
-2. Set a real, reachable `EXPO_PUBLIC_API_BASE_URL` for the `development` profile in `eas.json` (a LAN IP if the tester's phone and the Docker host share a network, or a real staging URL).
+2. Nothing to configure here for the API URL — a dev-client build always connects live to your Metro server for JS, which reads whatever `EXPO_PUBLIC_API_BASE_URL` your local `.env` currently has (the same value `npm start` already uses). `eas.json`'s `development` profile deliberately bakes in no URL of its own, to avoid a committed, go-stale LAN IP.
 3. `npx eas-cli build --platform android --profile development` — builds a dev-client APK in the cloud (a few minutes), same as an Internal Alpha build but with Metro's dev menu/fast-refresh included.
 4. Install that APK on the phone, then run `npm start` (or `npm run start:internal`) on your computer and open the app on the phone — it connects to your local Metro server over the same Wi-Fi network, the same way Expo Go used to, just via this project's own dev-client build instead of the generic Expo Go app.
 
@@ -109,17 +109,26 @@ This still needs one cloud build up front (step 3), but every code change after 
 
 ### Standalone installable app: EAS Build
 
-[EAS Build](https://docs.expo.dev/build/introduction/) compiles a real native binary in the cloud — an APK you can hand someone to sideload, or (once Apple prerequisites exist) a TestFlight build. `eas.json` in this repo already defines three build profiles:
+[EAS Build](https://docs.expo.dev/build/introduction/) compiles a real native binary in the cloud — an APK you can hand someone to sideload, or (once Apple prerequisites exist) a TestFlight build. `eas.json` in this repo defines four build profiles:
 
 | Profile | Produces | Distribution | Use for |
 | --- | --- | --- | --- |
 | `development` | Android APK / iOS simulator build, with the Expo dev-client menu | internal | Local iteration against Metro (see "Fastest path" above) — this is what replaced the old Expo Go workflow once a custom native module existed. |
 | `internal` | Android APK, standalone (no dev-client menu, no Metro connection) | internal (direct install/sideload) | **Internal Alpha** — this is the one to use for a real handoff. |
+| `staging` | Android APK, standalone | internal (direct install/sideload) | A shared pre-production backend, once one exists — see below for exactly how its API URL is set. |
 | `production` | Android App Bundle (`.aab`) | store submission | The real Play Store / App Store release, later. |
 
-Building ANY of these three profiles now compiles `modules/aws-face-liveness`'s real Swift/Kotlin source as part of the app's native code (see "AWS Face Liveness architecture" below) — this is not gated by profile; there is no way to build a version of this app without it once it's part of the project.
+Building ANY of these four profiles now compiles `modules/aws-face-liveness`'s real Swift/Kotlin source as part of the app's native code (see "AWS Face Liveness architecture" below) — this is not gated by profile; there is no way to build a version of this app without it once it's part of the project.
 
-**Before running an `internal` or `development` build**, set a real, reachable `EXPO_PUBLIC_API_BASE_URL` — `eas.json` deliberately leaves it unset for those two profiles (a cloud build has no access to your local `.env.internal`, and guessing a URL here risks silently baking in a stale one). Edit `eas.json`'s `build.internal.env.EXPO_PUBLIC_API_BASE_URL` directly, or run `eas env:create` to set it as a proper EAS environment variable — either way, use the same kind of reachable URL described above (a real staging deployment, or a LAN IP if the tester's phone and the Docker host are on the same network).
+**Before running an `internal` build**, set a real, reachable `EXPO_PUBLIC_API_BASE_URL` — `eas.json` deliberately leaves it unset for that profile (a cloud build has no access to your local `.env.internal`, and guessing a URL here risks silently baking in a stale one). Edit `eas.json`'s `build.internal.env.EXPO_PUBLIC_API_BASE_URL` directly, or run `eas env:create` to set it as a proper EAS environment variable — either way, use the same kind of reachable URL described above (a real staging deployment, or a LAN IP if the tester's phone and the Docker host are on the same network).
+
+**`staging` is wired up differently, on purpose**: `eas.json`'s `staging` profile carries `"environment": "staging"` but no `EXPO_PUBLIC_API_BASE_URL` literal at all — staging's real backend is an ALB behind a not-yet-final HTTPS/custom domain, so nothing here should ever hardcode today's ALB DNS name into a committed file (it will change). **The one variable to set, once that real HTTPS staging URL exists**, is:
+
+```bash
+eas env:create --environment staging --name EXPO_PUBLIC_API_BASE_URL --value https://<the-real-staging-host> --visibility plaintext
+```
+
+`npx eas-cli build --platform android --profile staging` then picks that value up automatically at build time — no `eas.json` edit needed. `src/config/env.ts` refuses to build/start with a `staging`-tagged environment whose API URL resolves to a local/LAN address (see "Environments" above), so an accidental ALB-not-ready placeholder can't silently ship either.
 
 **Setup, one-time** (needs a free or paid [Expo/EAS account](https://expo.dev/signup) — this repo has no EAS project configured yet):
 
@@ -363,7 +372,7 @@ These are known gaps, not implemented in this app version:
 - **Push notifications** — the in-app notification inbox and unread badge are real; device push (APNs/FCM) isn't wired up.
 - **A real payout provider** — payout destinations are self-attested labels only (never a verified bank/card link), and payouts don't move real money.
 - **Terms of Service versioning** — there's no published, versioned terms document yet; the terms-acceptance step records a provisional acceptance and is explicit with the user that formal terms haven't been published.
-- **A hosted `internal`/`staging` backend** — Internal Alpha's own environment file needs a real, reachable `EXPO_PUBLIC_API_BASE_URL`; today that means a LAN IP pointing at someone's Docker instance (see "Internal Alpha" above), not a stable, always-on URL. A real deployed backend for this purpose doesn't exist yet.
+- **A hosted `internal`/`staging` backend** — Internal Alpha's own environment file needs a real, reachable `EXPO_PUBLIC_API_BASE_URL`; today that means a LAN IP pointing at someone's Docker instance (see "Internal Alpha" above), not a stable, always-on URL. The mobile-side plumbing for a real staging backend is ready (the `staging` EAS build profile and `src/config/env.ts`'s local-URL guardrail, see "Environments"/"Standalone installable app" above) — what's still missing is the backend itself: staging currently runs behind an ALB whose DNS name isn't final (no HTTPS/custom domain yet), so nothing here hardcodes it. Once that HTTPS URL exists, set it with `eas env:create --environment staging --name EXPO_PUBLIC_API_BASE_URL --value <url>` and staging builds pick it up with no further code changes.
 - **A few Expo SDK packages are a patch version or two behind** what SDK 57's latest release expects (`npx expo-doctor` flags ~15 patch-level mismatches, e.g. `expo` 57.0.15 vs. the 57.0.19 the tooling currently recommends) — not treated as a build blocker (patch-level, and a same-day `npm install` attempt to align them hit an unrelated `npm` peer-dependency resolution conflict in this environment), but worth a dedicated `npx expo install --check` pass before a wider release.
 
 ## Everyday commands
@@ -381,6 +390,8 @@ These are known gaps, not implemented in this app version:
 | `npx eas-cli build:configure` | Link this repo to an EAS project (one-time) |
 | `npx eas-cli build --platform android --profile internal` | Build the Internal Alpha Android APK |
 | `npx eas-cli build --platform ios --profile internal` | Build the Internal Alpha iOS app (needs an Apple Developer account — see "iOS readiness") |
+| `npx eas-cli build --platform android --profile staging` | Build a staging Android APK (reads `EXPO_PUBLIC_API_BASE_URL` from EAS's `staging` environment variables, once set — see "Standalone installable app" above) |
+| `eas env:create --environment staging --name EXPO_PUBLIC_API_BASE_URL --value <url> --visibility plaintext` | Set the real staging API URL once it exists (one-time, or whenever it changes) |
 
 ## App identifiers & branding
 

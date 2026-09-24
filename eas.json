@@ -11,8 +11,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_APP_ENV": "development",
-        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.68.110:8000"
+        "EXPO_PUBLIC_APP_ENV": "development"
       }
     },
     "internal": {
@@ -22,6 +21,16 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "internal"
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "environment": "staging",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
     "production": {
