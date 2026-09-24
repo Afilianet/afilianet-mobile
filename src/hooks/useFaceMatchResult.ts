@@ -41,6 +41,7 @@ export function useFaceMatchResult(stepId: string | undefined) {
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
   const lastInvalidatedResultId = useRef<string | null>(null);
+  const lastLoggedResultId = useRef<string | null>(null);
   const queryKey = ["compliance", "face-match-result", orgId, stepId];
 
   const query = useApiQuery<FaceMatchProcessingResult | null>(
@@ -85,6 +86,16 @@ export function useFaceMatchResult(stepId: string | undefined) {
   useEffect(() => {
     const result = query.data;
     if (!result || !orgId) return;
+    if (__DEV__ && (result.status === "completed" || result.status === "failed") && lastLoggedResultId.current !== result.id) {
+      lastLoggedResultId.current = result.id;
+      // Stable diagnostic fields only: never log uploaded images, signed URLs, or identity details.
+      console.log("[face-match] result", {
+        id: result.id,
+        status: result.status,
+        verdict: result.verdict,
+        failureReason: result.failure_reason,
+      });
+    }
     const touchesComplianceState = result.status === "completed" || result.failure_reason === "ambiguous_document_reference";
     if (!touchesComplianceState) return;
     if (lastInvalidatedResultId.current === result.id) return;
