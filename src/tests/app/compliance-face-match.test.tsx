@@ -1001,6 +1001,19 @@ describe("Face match: result UX", () => {
     expect(await findByText("Capturado")).toBeTruthy();
   });
 
+  it("retries a technical server failure using the already uploaded photos", async () => {
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "unexpected_error" }));
+    const { findByText, queryByText } = await renderCompliance();
+    expect(await findByText("Verificación temporalmente no disponible")).toBeTruthy();
+    expect(queryByText("No se pudo procesar")).toBeNull();
+    expect(queryByText("Volver a tomar selfie")).toBeNull();
+
+    fireEvent.press(await findByText("Reintentar con las mismas fotos"));
+    await waitFor(() => expect(mockedTriggerFaceMatchProcessing).toHaveBeenCalledWith("face-match-step-1"));
+    expect(mockedRequestEvidenceUpload).not.toHaveBeenCalled();
+    expect(mockLaunchCamera).not.toHaveBeenCalled();
+  });
+
   it("maps an engine-unavailable technical failure to a temporarily-unavailable message", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "unreachable" }));
     const { findByText } = await renderCompliance();
