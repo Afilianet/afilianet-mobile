@@ -85,7 +85,12 @@ const ENGINE_UNAVAILABLE_REASONS = new Set([
   "malformed_response",
   "image_too_large",
   "evidence_unavailable",
+  "unexpected_error",
 ]);
+
+export function isTechnicalFaceMatchFailure(reason: string | null): boolean {
+  return reason !== null && ENGINE_UNAVAILABLE_REASONS.has(reason);
+}
 
 /**
  * Maps a technical/capture-quality `failure_reason` to safe, understandable
@@ -116,7 +121,7 @@ export function faceMatchFailureCopy(reason: string | null): { message: string }
   if (reason !== null && reason in PROBE_FAILURE_COPY) {
     return { message: PROBE_FAILURE_COPY[reason] };
   }
-  if (reason !== null && ENGINE_UNAVAILABLE_REASONS.has(reason)) {
+  if (isTechnicalFaceMatchFailure(reason)) {
     return { message: strings.faceMatch.serviceUnavailable };
   }
   return { message: strings.faceMatch.genericError };
