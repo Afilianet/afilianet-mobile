@@ -36,7 +36,7 @@ const POLL_INTERVAL_MS = 3000;
  * would keep seeing the technical-failure screen instead of the
  * "needs review" state FaceMatchStep.tsx renders once the step catches up.
  */
-export function useFaceMatchResult(stepId: string | undefined) {
+export function useFaceMatchResult(stepId: string | undefined, stepPending = false) {
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
@@ -78,7 +78,8 @@ export function useFaceMatchResult(stepId: string | undefined) {
       enabled: Boolean(orgId) && Boolean(stepId),
       refetchInterval: (activeQuery) => {
         const status = activeQuery.state.data?.status;
-        return status === "pending" || status === "processing" ? POLL_INTERVAL_MS : false;
+        return status === "pending" || status === "processing"
+          || (stepPending && activeQuery.state.data?.verdict === "match") ? POLL_INTERVAL_MS : false;
       },
     },
   );
