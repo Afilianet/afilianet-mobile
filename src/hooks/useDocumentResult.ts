@@ -24,8 +24,8 @@ const POLL_INTERVAL_MS = 3000;
  * ComplianceService::attemptStep() server-side exactly once -- see
  * DOCUMENT_ENGINE.md section I -- so the compliance case/steps/affiliate
  * profile can go stale the moment polling observes that transition. A
- * technical `failed` attempt never touches compliance state at all, so no
- * invalidation happens for that case. This only fires once per newly-seen
+ * technical `failed` attempt leaves the compliance step untouched but
+ * changes the separate identity-data status, so the case is refreshed too. This only fires once per newly-seen
  * completed attempt (tracked by id), not on every poll tick.
  */
 export function useDocumentResult(stepId: string | undefined) {
@@ -88,7 +88,7 @@ export function useDocumentResult(stepId: string | undefined) {
 
   useEffect(() => {
     const result = query.data;
-    if (!result || !orgId || result.status !== "completed") return;
+    if (!result || !orgId || (result.status !== "completed" && result.status !== "failed")) return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
     void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
