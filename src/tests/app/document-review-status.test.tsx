@@ -7,12 +7,6 @@ import type { ComplianceStep, DocumentProcessingResult } from "../../types/api";
 jest.mock("../../components/compliance/steps/IdentityDocumentStep", () => ({
   IdentityDocumentStep: () => null,
 }));
-jest.mock("../../components/compliance/document-capture/DocumentConfirmationForm", () => ({
-  DocumentConfirmationForm: () => {
-    const { Text } = jest.requireActual("react-native");
-    return <Text>Formulario de confirmación</Text>;
-  },
-}));
 jest.mock("../../hooks/useAttemptComplianceStep", () => ({
   useAttemptComplianceStep: () => ({ mutateAsync: jest.fn(), isPending: false }),
 }));
@@ -60,7 +54,7 @@ it("uses a retry status for an inconclusive document instead of a rejection", as
 it("keeps confirmed fields and an actionable new-capture button after an inconclusive result", async () => {
   const onRetry = jest.fn();
   const screen = await render(
-    <DocumentResultView stepId="step-1" result={reviewResult} onRetry={onRetry} retrying={false} hideReviewBadge />,
+    <DocumentResultView result={reviewResult} onRetry={onRetry} retrying={false} hideReviewBadge />,
   );
   expect(screen.getByText("Tus datos confirmados")).toBeTruthy();
   expect(screen.getByText(/tus datos quedaron guardados, pero este intento no verificó el documento/i)).toBeTruthy();
@@ -82,7 +76,7 @@ it("asks for new photos when an INE has no readable name, instead of offering co
     ],
   } as DocumentProcessingResult;
   const screen = await render(
-    <DocumentResultView stepId="step-1" result={result} onRetry={jest.fn()} retrying={false} />,
+    <DocumentResultView result={result} onRetry={jest.fn()} retrying={false} />,
   );
   expect(screen.getByText(/no pudimos leer tu nombre/i)).toBeTruthy();
   expect(screen.getByText("Tomar nuevas fotos")).toBeTruthy();
