@@ -394,6 +394,18 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     expect(await findByText("Enviar para verificación")).toBeTruthy();
   });
 
+  it("does not show the previous match as the result of a reopened face step", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([
+      faceMatchStep({ status: "pending", attempt_count: 1 }),
+      biometricStep({ status: "passed" }),
+    ]);
+    mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
+    const { findByText, queryByText } = await renderCompliance();
+
+    expect(await findByText("Selfie")).toBeTruthy();
+    expect(queryByText("Tu rostro coincidió con tu documento de identidad.")).toBeNull();
+  });
+
   it("a passed face_match step is never editable, regardless of the underlying processing result", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([
       faceMatchStep({ status: "passed", configured_provider: "afilianet", provider_actionable: true }),
