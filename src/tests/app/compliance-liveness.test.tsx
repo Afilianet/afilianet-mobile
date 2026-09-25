@@ -248,6 +248,19 @@ async function simulateError(code: string) {
   });
 }
 
+describe("Staff-requested liveness recapture", () => {
+  it("offers a new capture instead of showing the previous completed review result", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([livenessStep({ status: "pending", attempt_count: 1 })]);
+    mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
+    const { findByText, queryByText } = await renderCompliance();
+
+    expect(await findByText("Comenzar verificación")).toBeTruthy();
+    expect(queryByText("Necesita revisión")).toBeNull();
+    fireEvent.press(await findByText("Comenzar verificación"));
+    await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
+  });
+});
+
 // --- Provider awareness -------------------------------------------------------
 
 describe("Liveness: provider awareness", () => {
