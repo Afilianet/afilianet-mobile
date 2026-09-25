@@ -34,7 +34,11 @@ export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
   // routed elsewhere (or not actionable) never has a real Afilianet
   // face-match attempt to poll for (FaceMatchProcessingService::trigger()'s
   // gate in afilianet-api refuses to even create one).
-  const resultQuery = useFaceMatchResult(isAfilianetActionable ? step.id : undefined);
+  const resultQuery = useFaceMatchResult(isAfilianetActionable ? step.id : undefined, step.status === "pending");
+  // Recapture reopens this step while the previous successful attempt remains
+  // in history. The new comparison is triggered from the liveness result.
+  const result = step.status === "pending" && resultQuery.data?.verdict === "match"
+    ? null : resultQuery.data;
 
   function handleCheckAgain() {
     void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", activeOrganization?.id] });
@@ -42,7 +46,7 @@ export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
 
   return (
     <View>
-      {renderBody(step, isAfilianetActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
+      {renderBody(step, isAfilianetActionable, result, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
       <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
     </View>
   );
