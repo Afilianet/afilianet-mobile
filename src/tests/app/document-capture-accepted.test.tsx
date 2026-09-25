@@ -25,7 +25,7 @@ it("keeps accepted ID photos saved while OCR is pending and opens biometrics", a
   };
   const retry = jest.fn();
   const screen = await render(
-    <DocumentResultView stepId="step-1" result={result} onRetry={retry} retrying={false} />,
+    <DocumentResultView result={result} onRetry={retry} retrying={false} />,
   );
 
   expect(screen.getByText("Fotos de identificación guardadas")).toBeTruthy();
