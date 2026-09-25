@@ -577,6 +577,7 @@ export const en = {
     photosReceived: "Photos received",
     captureAcceptedTitle: "ID photos saved",
     captureAcceptedDescription: "Continue with the liveness check and face comparison. We can review missing details later.",
+    staffReviewDetails: "The detected details are for reference. Staff will review missing or incorrect ID details in the Admin panel.",
     processingTakingLong: "This is taking longer than usual. Check the status or come back later.",
     statusCheckFailed: "We couldn't check the status. Check your connection and try again.",
     checkStatus: "Check status",
