@@ -409,6 +409,12 @@ export const en = {
     unknown: "Unknown",
   },
   compliance: {
+    identityData: {
+      title: "Identity data",
+      description: "Data extraction and review happen separately from photo capture. Staff will resolve missing details.",
+      status: { pending: "Pending", processing: "Extracting data", needs_review: "Needs review", complete: "Completed" },
+    },
+
     screenTitle: "Compliance",
     verificationStatusA11y: (label: string) => `Verification status: ${label}`,
     stepTypeLabels: {
