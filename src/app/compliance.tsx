@@ -21,6 +21,7 @@ import { useComplianceSteps } from "../hooks/useComplianceSteps";
 import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
 import { formatDate } from "../utils/date";
+import type { ComplianceCase } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
 
@@ -94,7 +95,7 @@ export default function ComplianceScreen() {
         ) : complianceQuery.data ? (
           <>
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} />
           </>
         ) : null}
       </ScrollView>
@@ -147,9 +148,11 @@ function CaseCard({ compliance }: { compliance: NonNullable<ReturnType<typeof us
 function StepsCard({
   query,
   currentStep,
+  identityDataStatus,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
+  identityDataStatus: ComplianceCase["identity_data_status"];
 }) {
   let body;
   if (query.isPending) {
@@ -168,7 +171,20 @@ function StepsCard({
           step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
         ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
         {query.data.map((step) => (
-          <ComplianceStepCard key={step.id} step={step} currentStep={currentStep} />
+          <View key={step.id}>
+            <ComplianceStepCard step={step} currentStep={currentStep} />
+            {step.step_type === "identity_document" && identityDataStatus ? (
+              <View style={styles.identityDataRow} accessible
+                accessibilityLabel={`${strings.compliance.identityData.title}: ${strings.compliance.identityData.status[identityDataStatus]}`}>
+                <View style={styles.identityDataHeader}>
+                  <Text style={styles.identityDataLabel}>{strings.compliance.identityData.title}</Text>
+                  <Badge label={strings.compliance.identityData.status[identityDataStatus]}
+                    tone={identityDataStatus === "complete" ? "success" : "warning"} />
+                </View>
+                <Text style={styles.meta}>{strings.compliance.identityData.description}</Text>
+              </View>
+            ) : null}
+          </View>
         ))}
       </View>
     );
@@ -228,6 +244,9 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
   },
+  identityDataRow: { gap: spacing.xs, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  identityDataHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  identityDataLabel: { ...typography.bodyStrong, color: colors.textPrimary },
   recaptureNotice: {
     ...typography.bodyStrong,
     color: colors.textPrimary,

@@ -37,6 +37,6 @@ it("keeps the completed document's extracted details accessible when the step pa
     </QueryClientProvider>,
   );
   expect(screen.getByText("Confirmado desde el documento")).toBeTruthy();
-  expect(screen.getByText("Confirma tus datos")).toBeTruthy();
-  expect(screen.getByDisplayValue("JUAN")).toBeTruthy();
+  expect(screen.getByText("JUAN")).toBeTruthy();
+  expect(screen.queryByText("Confirmar datos")).toBeNull();
 });

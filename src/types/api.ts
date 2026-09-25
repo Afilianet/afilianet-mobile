@@ -194,6 +194,7 @@ export interface ComplianceCase {
   affiliate?: AffiliateRef | null;
   status: ComplianceStatus;
   current_step: ComplianceStepType | null;
+  identity_data_status?: "pending" | "processing" | "needs_review" | "complete" | null;
   risk_level: string | null;
   started_at: string | null;
   submitted_at: string | null;

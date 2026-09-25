@@ -121,7 +121,7 @@ export function DocumentCaptureFlow({
   }
 
   if (effectiveResult && (effectiveResult.status === "completed" || effectiveResult.status === "failed")) {
-    return <DocumentResultView stepId={stepId} result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} hideReviewBadge={hideReviewBadge} />;
+    return <DocumentResultView result={effectiveResult} onRetry={handleRetry} retrying={triggerMutation.isPending} hideReviewBadge={hideReviewBadge} />;
   }
 
   if (activeCapture) {
