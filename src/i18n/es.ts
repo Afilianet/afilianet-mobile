@@ -610,6 +610,7 @@ export const es = {
     photosReceived: "Fotos recibidas",
     captureAcceptedTitle: "Fotos de identificación guardadas",
     captureAcceptedDescription: "Puedes continuar con la prueba de vida y la comparación facial. Si falta algún dato, lo revisaremos después.",
+    staffReviewDetails: "Los datos leídos son informativos. Si falta alguno o requiere corrección, el equipo lo revisará desde el panel administrativo.",
     processingTakingLong: "Está tardando más de lo habitual. Puedes comprobar el estado o volver más tarde.",
     statusCheckFailed: "No pudimos consultar el estado. Comprueba tu conexión e inténtalo de nuevo.",
     checkStatus: "Verificar estado",
