@@ -428,6 +428,7 @@ export const en = {
       description: "This organization hasn't configured any required verification steps.",
     },
     startVerification: "Start verification",
+    livenessRecaptureNotice: "A new liveness check was requested. Start the capture; your new image will then be compared with the document automatically.",
     requiredSteps: "Required steps",
     nextStep: (label: string) => `Next: ${label}`,
     expiredOn: (date: string) => `Expired ${date}`,

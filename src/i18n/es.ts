@@ -449,6 +449,7 @@ export const es = {
       description: "Esta organización no ha configurado pasos de verificación requeridos.",
     },
     startVerification: "Comenzar verificación",
+    livenessRecaptureNotice: "Se solicitó repetir tu prueba de vida. Inicia la nueva captura; al terminar compararemos automáticamente tu imagen con el documento.",
     requiredSteps: "Pasos requeridos",
     nextStep: (label: string) => `Siguiente: ${label}`,
     expiredOn: (date: string) => `Venció el ${date}`,

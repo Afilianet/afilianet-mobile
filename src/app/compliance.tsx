@@ -164,6 +164,9 @@ function StepsCard({
   } else if (query.data && query.data.length > 0) {
     body = (
       <View>
+        {currentStep === "biometric_liveness" && query.data.some((step) =>
+          step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
+        ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
         {query.data.map((step) => (
           <ComplianceStepCard key={step.id} step={step} currentStep={currentStep} />
         ))}
@@ -224,6 +227,11 @@ const styles = StyleSheet.create({
   meta: {
     ...typography.body,
     color: colors.textSecondary,
+  },
+  recaptureNotice: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm,
   },
   error: {
     ...typography.body,

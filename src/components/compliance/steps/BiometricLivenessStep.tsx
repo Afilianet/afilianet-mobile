@@ -36,6 +36,11 @@ export function BiometricLivenessStep({ step, attempt, isPending }: StepDetailPr
   // poll for (LivenessProcessingService's own gate refuses to even create
   // one).
   const resultQuery = useLivenessResult(isAwsActionable ? step.id : undefined);
+  // A staff-requested recapture reopens the step before a new AWS session
+  // exists. The API still returns the previous completed review session;
+  // it must not hide the new capture button or show a stale review badge.
+  const result = step.status === "pending" && resultQuery.data?.status === "completed"
+    && resultQuery.data.verdict === "review" ? null : resultQuery.data;
 
   function handleCheckAgain() {
     void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", activeOrganization?.id] });
@@ -43,7 +48,7 @@ export function BiometricLivenessStep({ step, attempt, isPending }: StepDetailPr
 
   return (
     <View>
-      {renderBody(step, isAwsActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
+      {renderBody(step, isAwsActionable, result, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
       <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
     </View>
   );
