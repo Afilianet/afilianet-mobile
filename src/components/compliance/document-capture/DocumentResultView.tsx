@@ -4,36 +4,15 @@ import type { DocumentProcessingResult } from "../../../types/api";
 import { Badge } from "../../ui/Badge";
 import { Button } from "../../ui/Button";
 import { colors, spacing, typography } from "../../ui/theme";
-import { DocumentConfirmationForm } from "./DocumentConfirmationForm";
 import { fieldDisplayValue, fieldLabel, friendlyFailureReason, verdictCopy } from "./documentCaptureCopy";
 
-/**
- * `extracted_fields` (what OCR produced) and `confirmed_fields` (what the
- * affiliate reviewed/confirmed, via PATCH .../document-result -- Phase
- * 9C.2a) stay visually distinct here, never merged into one concept:
- * - `confirmation_status === "pending"` (and verdict isn't `fail` -- see
- *   below) renders the real, editable DocumentConfirmationForm, pre-filled
- *   from extracted_fields.
- * - `confirmation_status === "confirmed"` renders confirmed_fields
- *   read-only, labeled as confirmed.
- * - `confirmation_status === "not_required"` (nothing confirmable was
- *   extracted) falls back to the original read-only extracted_fields
- *   display.
- *
- * Confirmation is NEVER offered as a way to "fix" a failed verification --
- * a `fail` verdict never shows the form, regardless of confirmation_status
- * (Phase 9C.2a's explicit fail/review semantics: confirming does not and
- * cannot override a fail/review verdict, ComplianceStep state, or imply
- * document authenticity).
- */
+/** Display OCR data read-only. Staff correct missing ID fields in the Admin panel. */
 export function DocumentResultView({
-  stepId,
   result,
   onRetry,
   retrying,
   hideReviewBadge = false,
 }: {
-  stepId: string;
   result: DocumentProcessingResult;
   onRetry: () => void;
   retrying: boolean;
@@ -84,7 +63,6 @@ export function DocumentResultView({
     : result.verdict === "review" && result.confirmation_status === "confirmed"
       ? strings.documentCapture.reviewRetryConfirmedDescription
       : copy.description;
-  const showConfirmationForm = result.verdict !== "fail" && result.confirmation_status === "pending" && !missingIneName;
   const isConfirmed = result.confirmation_status === "confirmed" && result.confirmed_fields !== null;
 
   return (
@@ -109,7 +87,7 @@ export function DocumentResultView({
             </View>
           ))}
         </View>
-      ) : extractedFields.length > 0 && !showConfirmationForm ? (
+      ) : extractedFields.length > 0 ? (
         <View style={styles.fields}>
           <Text style={styles.fieldsTitle}>{strings.documentCapture.whatWeRead}</Text>
           {extractedFields.map((field) => (
@@ -128,7 +106,7 @@ export function DocumentResultView({
         </View>
       ) : null}
 
-      {showConfirmationForm ? <DocumentConfirmationForm stepId={stepId} result={result} /> : null}
+      {result.confirmation_status === "pending" ? <Text style={styles.description}>{strings.documentCapture.staffReviewDetails}</Text> : null}
 
       {result.verdict === "fail" || result.verdict === "review" ? (
         <Button
