@@ -213,28 +213,6 @@ export async function submitComplianceGeolocation(
 }
 
 /**
- * Phase 9C.2a: confirms/corrects the extracted fields on the step's latest
- * COMPLETED document-processing result -- PATCH .../document-result,
- * `{"fields": {...}}` exactly matching ConfirmDocumentResultRequest's
- * accepted shape (afilianet-api). `fields` must be exactly the confirmable
- * field set for this result (all-or-nothing) -- callers should derive it
- * from the result's own `extracted_fields`, never invent a broader schema.
- * Never touches ComplianceStep/ComplianceCase state server-side. A repeated
- * IDENTICAL submission is a safe no-op; a repeated DIFFERENT submission
- * after confirmation returns 409 (see useConfirmDocumentResult.ts).
- */
-export async function confirmDocumentResult(
-  stepId: string,
-  fields: Record<string, string>,
-): Promise<DocumentProcessingResult> {
-  const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
-    `/api/v1/compliance/steps/${stepId}/document-result`,
-    { method: "PATCH", body: { fields } },
-  );
-  return data;
-}
-
-/**
  * Phase 9D.2's Afilianet Face Match: triggers an async processing attempt
  * for the face_match step. No request body -- unlike triggerDocumentProcessing,
  * there is no client-declared intent field at all (TriggerFaceMatchProcessingRequest
