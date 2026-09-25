@@ -14,8 +14,8 @@ const result = {
   ],
 } as DocumentProcessingResult;
 
-it("shows extracted identity values as read-only and leaves correction to staff", () => {
-  const screen = render(<DocumentResultView result={result} onRetry={jest.fn()} retrying={false} />);
+it("shows extracted identity values as read-only and leaves correction to staff", async () => {
+  const screen = await render(<DocumentResultView result={result} onRetry={jest.fn()} retrying={false} />);
   expect(screen.getByText("JUAN")).toBeTruthy();
   expect(screen.getByText("PEGJ900515HDFRZN08")).toBeTruthy();
   expect(screen.getByText(/equipo lo revisará desde el panel administrativo/i)).toBeTruthy();
@@ -23,8 +23,8 @@ it("shows extracted identity values as read-only and leaves correction to staff"
   expect(screen.queryByDisplayValue("JUAN")).toBeNull();
 });
 
-it("keeps previously confirmed values read-only", () => {
-  const screen = render(<DocumentResultView result={{ ...result, confirmation_status: "confirmed", confirmed_fields: { first_name: "JUAN" } }}
+it("keeps previously confirmed values read-only", async () => {
+  const screen = await render(<DocumentResultView result={{ ...result, confirmation_status: "confirmed", confirmed_fields: { first_name: "JUAN" } }}
     onRetry={jest.fn()} retrying={false} />);
   expect(screen.getByText("JUAN")).toBeTruthy();
   expect(screen.queryByText("Confirmar datos")).toBeNull();
