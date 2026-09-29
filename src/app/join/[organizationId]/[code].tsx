@@ -15,9 +15,12 @@ export default function JoinScreen() {
   const { organizationId, code } = useLocalSearchParams<{ organizationId: string; code: string }>();
   const router = useRouter();
   const { registerFromReferral } = useAuth();
-  const [referral, setReferral] = useState<PublicReferral | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lookupError, setLookupError] = useState<string | null>(null);
+  const key = `${organizationId}/${code}`;
+  const [lookup, setLookup] = useState<{ key: string; referral?: PublicReferral; error?: string } | null>(null);
+  const referral = lookup?.key === key ? lookup.referral : null;
+  const lookupError =
+    !organizationId || !code ? strings.auth.join.invalidLink : lookup?.key === key ? lookup.error : null;
+  const loading = Boolean(organizationId && code && lookup?.key !== key);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -25,40 +28,31 @@ export default function JoinScreen() {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const invitationToken = useRef<string | null>(null);
+  const invitationToken = useRef<{ key: string; token: string } | null>(null);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setReferral(null);
-    setLookupError(null);
-    invitationToken.current = null;
-    if (!organizationId || !code) {
-      setLookupError(strings.auth.join.invalidLink);
-      setLoading(false);
-      return;
-    }
+    if (!organizationId || !code) return;
     void fetchPublicReferral(organizationId, code)
       .then((value) => {
-        if (active) setReferral(value);
+        if (active) setLookup({ key, referral: value });
       })
       .catch((error) => {
         if (active)
-          setLookupError(
-            isApiError(error) && error.kind === "not_found"
-              ? strings.auth.join.invalidLink
-              : isApiError(error)
-                ? friendlyMessage(error)
-                : strings.shared.genericError,
-          );
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+          setLookup({
+            key,
+            error:
+              isApiError(error) && error.kind === "not_found"
+                ? strings.auth.join.invalidLink
+                : isApiError(error)
+                  ? friendlyMessage(error)
+                  : strings.shared.genericError,
+          });
       });
     return () => {
       active = false;
     };
-  }, [organizationId, code]);
+  }, [organizationId, code, key]);
 
   async function submit() {
     const normalizedEmail = email.trim().toLowerCase();
@@ -73,11 +67,11 @@ export default function JoinScreen() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      if (!invitationToken.current) {
-        invitationToken.current = (await startReferralInvitation(organizationId, code)).token;
+      if (invitationToken.current?.key !== key) {
+        invitationToken.current = { key, token: (await startReferralInvitation(organizationId, code)).token };
       }
-      if (!invitationToken.current) throw new Error("Missing invitation token");
-      await registerFromReferral(invitationToken.current, {
+      if (!invitationToken.current.token) throw new Error("Missing invitation token");
+      await registerFromReferral(invitationToken.current.token, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         email: normalizedEmail,
