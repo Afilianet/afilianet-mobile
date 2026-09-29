@@ -1,5 +1,8 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
+import { useAuth } from "../../auth/AuthContext";
+import { useOrganization } from "../../state/OrganizationContext";
+import { listPendingAssisted, syncPendingAssisted } from "../../services/assistedQueue";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -29,6 +32,31 @@ import type { AffiliateProfile } from "../../types/api";
 
 export default function NetworkScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { activeOrganization } = useOrganization();
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user || !activeOrganization) return;
+    void listPendingAssisted(user.id, activeOrganization.id).then((items) => setPendingCount(items.length)).catch(() => setSyncMessage("No se pudieron leer los registros pendientes."));
+  }, [user?.id, activeOrganization?.id]);
+
+  async function syncPending() {
+    if (!user || !activeOrganization) return;
+    setSyncing(true);
+    try {
+      const { completed, remaining } = await syncPendingAssisted(user.id, activeOrganization.id);
+      setPendingCount(remaining);
+      setSyncMessage(completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : "No se pudo sincronizar aún. Revisa la conexión y los datos.");
+      if (completed.length) await Promise.all([sponsoredQuery.refetch(), placementChildrenQuery.refetch()]);
+    } catch {
+      setSyncMessage("No se pudo sincronizar. Los registros siguen guardados en este teléfono.");
+    } finally {
+      setSyncing(false);
+    }
+  }
   const affiliateQuery = useAffiliateProfile();
   const sponsorQuery = useMySponsor();
   const placementParentQuery = useMyPlacementParent();
@@ -53,6 +81,11 @@ export default function NetworkScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
+    if (user && activeOrganization) {
+      try {
+        setPendingCount((await listPendingAssisted(user.id, activeOrganization.id)).length);
+      } catch { /* The network screen remains usable if device storage fails. */ }
+    }
     try {
       await Promise.all([
         affiliateQuery.refetch(),
@@ -106,6 +139,15 @@ export default function NetworkScreen() {
             iconLeft={<Icon name="compartir" size={16} color={colors.textOnBrand} />}
             onPress={pressInvite}
           />
+
+          <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
+          {pendingCount > 0 ? (
+            <Card style={styles.pendingCard}>
+              <Text style={styles.pendingText}>{pendingCount} registro(s) guardado(s) solo en este teléfono. Todavía no se han creado ni enviado por correo.</Text>
+              <Button label="Sincronizar registros pendientes" loading={syncing} onPress={() => void syncPending()} />
+            </Card>
+          ) : null}
+          {syncMessage ? <Text style={styles.pendingText}>{syncMessage}</Text> : null}
 
           <SectionCard
             title={strings.network.sponsor.title}
@@ -249,6 +291,8 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textTertiary,
   },
+  pendingCard: { gap: spacing.sm },
+  pendingText: { ...typography.body, color: colors.textSecondary },
   invitationsList: {
     gap: spacing.sm,
   },
