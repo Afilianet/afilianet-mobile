@@ -1,7 +1,7 @@
 import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { ScrollView, StyleSheet, Text, TextInput } from "react-native";
 import { createAssistedEnrollment, type AssistedEnrollmentInput, type AssistedEnrollmentResult } from "../api/assistedEnrollment";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { Button } from "../components/ui/Button";
@@ -26,10 +26,6 @@ export default function AssistedEnrollmentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssistedEnrollmentResult | null>(null);
   const [queued, setQueued] = useState(false);
-
-  useEffect(() => {
-    setRequestId(Crypto.randomUUID());
-  }, [activeOrganization?.id]);
 
   async function submit() {
     if (!user || !activeOrganization) return;

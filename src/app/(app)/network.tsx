@@ -41,7 +41,7 @@ export default function NetworkScreen() {
   useEffect(() => {
     if (!user || !activeOrganization) return;
     void listPendingAssisted(user.id, activeOrganization.id).then((items) => setPendingCount(items.length)).catch(() => setSyncMessage("No se pudieron leer los registros pendientes."));
-  }, [user?.id, activeOrganization?.id]);
+  }, [user, activeOrganization]);
 
   async function syncPending() {
     if (!user || !activeOrganization) return;
