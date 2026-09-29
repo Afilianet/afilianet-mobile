@@ -21,7 +21,7 @@ export default function AssistedEnrollmentScreen() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [consent, setConsent] = useState(false);
-  const [requestId, setRequestId] = useState(() => Crypto.randomUUID());
+  const [requestId] = useState(() => Crypto.randomUUID());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssistedEnrollmentResult | null>(null);
@@ -34,7 +34,7 @@ export default function AssistedEnrollmentScreen() {
       return;
     }
     if (!consent) {
-      setError("La persona debe estar presente y autorizar el registro y el envío de su enlace de acceso.");
+      setError("La persona debe estar presente y autorizar el registro, la verificación de identidad y el envío de su enlace de acceso.");
       return;
     }
     const input: AssistedEnrollmentInput = {
@@ -85,6 +85,7 @@ export default function AssistedEnrollmentScreen() {
       ) : queued ? (
         <Card style={styles.card}>
           <Text style={styles.success}>Guardado en este teléfono</Text>
+          <Button label="Capturar INE sin conexión" onPress={() => router.replace(`/assisted-offline/${requestId}` as never)} />
           <Text style={styles.description}>Aún no se creó el afiliado ni se envió el correo. Al recuperar la conexión, abre Red y pulsa «Sincronizar registros pendientes».</Text>
           <Button label="Volver a Red" onPress={() => router.back()} />
         </Card>
@@ -101,7 +102,7 @@ export default function AssistedEnrollmentScreen() {
             variant="secondary"
             onPress={() => setConsent((value) => !value)}
           />
-          <Text style={styles.hint}>Confirma solo si la persona está presente y acepta recibir el enlace para terminar su registro.</Text>
+          <Text style={styles.hint}>Confirma solo si la persona está presente y acepta registrar sus datos, verificar su identidad y recibir el enlace para terminar su acceso.</Text>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button label="Registrar" loading={saving} onPress={() => void submit()} />
         </Card>

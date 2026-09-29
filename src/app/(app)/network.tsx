@@ -4,7 +4,7 @@ import { fetchPendingAssistedEnrollments } from "../../api/assistedEnrollment";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
-import { listPendingAssisted, syncPendingAssisted } from "../../services/assistedQueue";
+import { listPendingAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -42,7 +42,7 @@ export default function NetworkScreen() {
     () => fetchPendingAssistedEnrollments(assistedPage),
     { enabled: Boolean(user) && Boolean(activeOrganization) },
   );
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingItems, setPendingItems] = useState<PendingAssistedEnrollment[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -50,7 +50,7 @@ export default function NetworkScreen() {
     if (!user || !activeOrganization) return;
     let active = true;
     void listPendingAssisted(user.id, activeOrganization.id)
-      .then((items) => { if (active) setPendingCount(items.length); })
+      .then((items) => { if (active) { setPendingItems(items); } })
       .catch(() => { if (active) setSyncMessage("No se pudieron leer los registros pendientes."); });
     return () => { active = false; };
   }, [user, activeOrganization]));
@@ -59,9 +59,9 @@ export default function NetworkScreen() {
     if (!user || !activeOrganization) return;
     setSyncing(true);
     try {
-      const { completed, remaining } = await syncPendingAssisted(user.id, activeOrganization.id);
-      setPendingCount(remaining);
-      setSyncMessage(completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : "No se pudo sincronizar aún. Revisa la conexión y los datos.");
+      const { completed, remaining, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id);
+      setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
+      setSyncMessage(syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : "No se pudo sincronizar aún. Revisa la conexión y los datos."));
       if (completed.length) await Promise.all([sponsoredQuery.refetch(), placementChildrenQuery.refetch(), assistedQuery.refetch()]);
     } catch {
       setSyncMessage("No se pudo sincronizar. Los registros siguen guardados en este teléfono.");
@@ -95,7 +95,8 @@ export default function NetworkScreen() {
     setRefreshing(true);
     if (user && activeOrganization) {
       try {
-        setPendingCount((await listPendingAssisted(user.id, activeOrganization.id)).length);
+        const items = await listPendingAssisted(user.id, activeOrganization.id);
+        setPendingItems(items);
       } catch { /* The network screen remains usable if device storage fails. */ }
     }
     try {
@@ -117,6 +118,44 @@ export default function NetworkScreen() {
   const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
   const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
+  const visiblePending = pendingItems.filter((item) => item.sponsorUserId === user?.id && item.organizationId === activeOrganization?.id);
+  const assistedSection = user && activeOrganization ? (
+    <>
+      <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
+          {visiblePending.length > 0 ? (
+            <Card style={styles.pendingCard}>
+              <Text style={styles.pendingText}>{visiblePending.length} registro(s) pendiente(s) de sincronizar. Revisa la INE guardada y recupera la conexión para enviar.</Text>
+              {visiblePending.map((item) => (
+                <View key={item.input.client_request_id} style={styles.pendingCard}>
+                  <Text style={styles.pendingText}>{item.input.first_name} {item.input.last_name}</Text>
+                  <Button label="Capturar o revisar INE guardada" variant="secondary" disabled={syncing}
+                    onPress={() => router.push(`/assisted-offline/${item.input.client_request_id}` as never)} />
+                </View>
+              ))}
+              <Button label="Sincronizar registros pendientes" loading={syncing} onPress={() => void syncPending()} />
+            </Card>
+          ) : null}
+          {syncMessage ? <Text style={styles.pendingText}>{syncMessage}</Text> : null}
+          {assistedQuery.isError ? (
+            <ErrorState error={assistedQuery.error} onRetry={() => void assistedQuery.refetch()} />
+          ) : assistedQuery.data && assistedQuery.data.data.length > 0 ? (
+            <Card style={styles.pendingCard}>
+              <Text style={styles.pendingHeading}>Registros asistidos · acceso pendiente</Text>
+              <Text style={styles.pendingText}>Puedes continuar la verificación desde aquí antes de que activen su cuenta.</Text>
+              {assistedQuery.data.data.map((item) => (
+                <View key={item.id} style={styles.pendingCard}>
+                  <Text style={styles.pendingText}>{item.first_name} {item.last_name} · {item.affiliate_code}</Text>
+                  <Button label="Continuar verificación" variant="secondary"
+                    onPress={() => router.push(`/assisted-verification/${item.id}` as never)} />
+                </View>
+              ))}
+              {assistedPage > 1 ? <Button label="Registros anteriores" variant="ghost" onPress={() => setAssistedPage((page) => page - 1)} /> : null}
+              {assistedPage < assistedQuery.data.meta.last_page ? <Button label="Más registros" variant="ghost" onPress={() => setAssistedPage((page) => page + 1)} /> : null}
+            </Card>
+          ) : null}
+    </>
+  ) : null;
+
   return (
     <ScrollView
       style={styles.screen}
@@ -125,6 +164,7 @@ export default function NetworkScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Text style={styles.heading}>{strings.network.title}</Text>
+      {!affiliateQuery.data || loadFailed || forbidden ? assistedSection : null}
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />
@@ -153,31 +193,7 @@ export default function NetworkScreen() {
             onPress={pressInvite}
           />
 
-          <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
-          {pendingCount > 0 ? (
-            <Card style={styles.pendingCard}>
-              <Text style={styles.pendingText}>{pendingCount} registro(s) guardado(s) solo en este teléfono. Todavía no se han creado ni enviado por correo.</Text>
-              <Button label="Sincronizar registros pendientes" loading={syncing} onPress={() => void syncPending()} />
-            </Card>
-          ) : null}
-          {syncMessage ? <Text style={styles.pendingText}>{syncMessage}</Text> : null}
-          {assistedQuery.isError ? (
-            <ErrorState error={assistedQuery.error} onRetry={() => void assistedQuery.refetch()} />
-          ) : assistedQuery.data && assistedQuery.data.data.length > 0 ? (
-            <Card style={styles.pendingCard}>
-              <Text style={styles.pendingHeading}>Registros asistidos · acceso pendiente</Text>
-              <Text style={styles.pendingText}>Puedes continuar la verificación desde aquí antes de que activen su cuenta.</Text>
-              {assistedQuery.data.data.map((item) => (
-                <View key={item.id} style={styles.pendingCard}>
-                  <Text style={styles.pendingText}>{item.first_name} {item.last_name} · {item.affiliate_code}</Text>
-                  <Button label="Continuar verificación" variant="secondary"
-                    onPress={() => router.push(`/assisted-verification/${item.id}` as never)} />
-                </View>
-              ))}
-              {assistedPage > 1 ? <Button label="Registros anteriores" variant="ghost" onPress={() => setAssistedPage((page) => page - 1)} /> : null}
-              {assistedPage < assistedQuery.data.meta.last_page ? <Button label="Más registros" variant="ghost" onPress={() => setAssistedPage((page) => page + 1)} /> : null}
-            </Card>
-          ) : null}
+          {assistedSection}
 
           <SectionCard
             title={strings.network.sponsor.title}

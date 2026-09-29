@@ -5,6 +5,7 @@ import { isApiError, type ApiError } from "../api/errors";
 import { fetchMyOrganizations } from "../api/endpoints";
 import { useAuth } from "../auth/AuthContext";
 import { secureStorage } from "../services/storage";
+import { restoreOfflineOrganizations, saveOfflineOrganizations } from "../services/offlineSession";
 import type { Organization } from "../types/api";
 import { OrganizationContext, type OrganizationContextValue, type OrganizationStatus } from "./OrganizationContext";
 
@@ -26,12 +27,16 @@ const TENANT_QUERY_DOMAINS = [
   "payouts",
   "payout-destinations",
   "notifications",
+  "assisted-enrollment",
+  "assisted-enrollments",
+  "assisted-local",
 ] as const;
 
 const ACTIVE_ORG_KEY = "afilianet_active_organization_id";
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, user } = useAuth();
+  const userId = user?.id;
   const [status, setStatus] = useState<OrganizationStatus>("idle");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
@@ -69,11 +74,20 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     [organizations],
   );
 
-  async function load() {
+  const load = useCallback(async () => {
     setStatus("loading");
     setError(null);
     try {
-      const orgs = await fetchMyOrganizations();
+      let orgs: Organization[];
+      try {
+        orgs = await fetchMyOrganizations();
+        if (userId) await saveOfflineOrganizations(userId, orgs).catch(() => undefined);
+      } catch (cause) {
+        if (!userId || !isApiError(cause) || !["offline", "timeout"].includes(cause.kind)) throw cause;
+        const saved = await restoreOfflineOrganizations(userId);
+        if (!saved) throw cause;
+        orgs = saved;
+      }
       setOrganizations(orgs);
 
       const storedId = await secureStorage.get(ACTIVE_ORG_KEY);
@@ -96,7 +110,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       if (isApiError(err)) setError(err);
       setStatus("error");
     }
-  }
+  }, [userId]);
 
   useEffect(() => {
     void (async () => {
@@ -111,7 +125,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         await secureStorage.remove(ACTIVE_ORG_KEY);
       }
     })();
-  }, [authStatus]);
+  }, [authStatus, load]);
 
   const value = useMemo<OrganizationContextValue>(
     () => ({
@@ -122,7 +136,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       selectOrganization,
       refresh: load,
     }),
-    [status, organizations, activeOrganization, error, selectOrganization],
+    [status, organizations, activeOrganization, error, selectOrganization, load],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
