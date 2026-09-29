@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { triggerFaceMatchProcessing } from "../api/endpoints";
 import { isApiError } from "../api/errors";
@@ -20,13 +21,14 @@ import { useOrganization } from "../state/OrganizationContext";
  * error message -- this hook never swallows the error.
  */
 export function useTriggerFaceMatchProcessing(stepId: string) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = activeOrganization?.id;
-  const queryKey = ["compliance", "face-match-result", orgId, stepId];
+  const queryKey = scopedComplianceKey(["compliance", "face-match-result", orgId, stepId], assistedId);
 
   return useMutation({
-    mutationFn: () => triggerFaceMatchProcessing(stepId),
+    mutationFn: () => triggerFaceMatchProcessing(stepId, ...assistedScopeArgs(assistedId)),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKey, result);
     },

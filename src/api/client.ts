@@ -124,3 +124,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   return payload as T;
 }
+
+/** A multi-request sync stops if the user signs out or switches organization. */
+export function captureApiSessionGuard(organizationId: string): () => boolean {
+  const token = getToken();
+  return () => Boolean(token) && getToken() === token && getOrganizationId() === organizationId;
+}

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { queryClient } from "../api/queryClient";
 import { configureApiClient } from "../api/client";
 import { isApiError } from "../api/errors";
 import { acceptReferralInvitation, fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
 import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
 import { tokenStorage } from "./tokenStorage";
+import { forgetOfflineUser, restoreOfflineUser, saveOfflineUser } from "../services/offlineSession";
 import type { ApiError } from "../api/errors";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -14,9 +16,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const tokenRef = useRef<string | null>(null);
 
   async function establishSession(token: string) {
+    if (tokenRef.current !== token) queryClient.clear();
     tokenRef.current = token;
     await tokenStorage.setToken(token);
     const me = await fetchMe();
+    await saveOfflineUser(token, me).catch(() => undefined);
     setUser(me);
     setStatus("signedIn");
   }
@@ -31,7 +35,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // ignored -- local logout below always proceeds regardless.
     }
     tokenRef.current = null;
+    queryClient.clear();
     await tokenStorage.clearToken();
+    await forgetOfflineUser().catch(() => undefined);
     setUser(null);
     setError(null);
     setStatus("signedOut");
@@ -63,6 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Offline or server error while restoring: keep the token so the
         // user isn't logged out just for launching without connectivity.
         tokenRef.current = storedToken;
+        if (isApiError(err) && (err.kind === "offline" || err.kind === "timeout")) {
+          setUser(await restoreOfflineUser(storedToken));
+        }
         setStatus("signedIn");
         setError(isApiError(err) ? err : null);
       }
@@ -92,8 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         const result = await acceptReferralInvitation(invitationToken, registration);
         if (!result.token) throw new Error("The registration did not return a session token.");
+        queryClient.clear();
         tokenRef.current = result.token;
         await tokenStorage.setToken(result.token);
+        await saveOfflineUser(result.token, result.user).catch(() => undefined);
         setUser(result.user);
         setStatus("signedIn");
       },

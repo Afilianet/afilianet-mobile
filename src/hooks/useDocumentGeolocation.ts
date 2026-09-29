@@ -1,3 +1,4 @@
+import { assistedScopeArgs, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useRef } from "react";
 import { submitComplianceGeolocation } from "../api/endpoints";
 import { buildGeolocationSubmission, captureDeviceGeolocation } from "../utils/geolocation";
@@ -35,6 +36,7 @@ import { buildGeolocationSubmission, captureDeviceGeolocation } from "../utils/g
  * additional observations" contract.
  */
 export function useDocumentGeolocation(stepId: string) {
+  const assistedId = useAssistedComplianceId();
   const hasSubmittedRef = useRef(false);
 
   function allow() {
@@ -44,7 +46,7 @@ export function useDocumentGeolocation(stepId: string) {
       try {
         const outcome = await captureDeviceGeolocation();
         const payload = buildGeolocationSubmission(outcome);
-        await submitComplianceGeolocation(stepId, payload);
+        await submitComplianceGeolocation(stepId, payload, ...assistedScopeArgs(assistedId));
       } catch {
         // Never surfaced -- this observation is a courtesy, not a requirement.
       }

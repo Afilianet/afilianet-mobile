@@ -85,8 +85,12 @@ export async function fetchWalletActivity(
   );
 }
 
-export async function fetchMyCompliance(): Promise<ComplianceCase> {
-  const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance");
+function complianceScope(assistedEnrollmentId?: string) {
+  return assistedEnrollmentId ? { headers: { "X-Assisted-Enrollment-ID": assistedEnrollmentId } } : {};
+}
+
+export async function fetchMyCompliance(assistedEnrollmentId?: string): Promise<ComplianceCase> {
+  const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance", complianceScope(assistedEnrollmentId));
   return data;
 }
 
@@ -97,16 +101,17 @@ export async function fetchMyCompliance(): Promise<ComplianceCase> {
  * idempotent "get or create" here, so callers should only reach this from
  * the not-started empty state.
  */
-export async function startCompliance(): Promise<ComplianceCase> {
+export async function startCompliance(assistedEnrollmentId?: string): Promise<ComplianceCase> {
   const { data } = await apiRequest<{ data: ComplianceCase }>("/api/v1/compliance/start", {
+    ...complianceScope(assistedEnrollmentId),
     method: "POST",
   });
   return data;
 }
 
 /** GET /api/v1/compliance/steps -- the affiliate's own required steps for their latest case. */
-export async function fetchComplianceSteps(): Promise<ComplianceStep[]> {
-  const { data } = await apiRequest<{ data: ComplianceStep[] }>("/api/v1/compliance/steps");
+export async function fetchComplianceSteps(assistedEnrollmentId?: string): Promise<ComplianceStep[]> {
+  const { data } = await apiRequest<{ data: ComplianceStep[] }>("/api/v1/compliance/steps", complianceScope(assistedEnrollmentId));
   return data;
 }
 
@@ -121,8 +126,9 @@ export async function fetchComplianceSteps(): Promise<ComplianceStep[]> {
  * providers; see DevelopmentStepSimulator for the only place that's meant
  * to be reachable from.
  */
-export async function attemptComplianceStep(stepId: string, payload: AttemptStepPayload): Promise<ComplianceCase> {
+export async function attemptComplianceStep(stepId: string, payload: AttemptStepPayload, assistedEnrollmentId?: string): Promise<ComplianceCase> {
   const { data } = await apiRequest<{ data: ComplianceCase }>(`/api/v1/compliance/steps/${stepId}/attempt`, {
+    ...complianceScope(assistedEnrollmentId),
     method: "POST",
     body: payload,
   });
@@ -140,17 +146,19 @@ export async function attemptComplianceStep(stepId: string, payload: AttemptStep
 export async function requestEvidenceUpload(
   stepId: string,
   params: { evidence_type: EvidenceType; mime_type: string; size: number },
+  assistedEnrollmentId?: string,
 ): Promise<EvidenceUploadAuthorization> {
   const { data } = await apiRequest<{ data: EvidenceUploadAuthorization }>(
     `/api/v1/compliance/steps/${stepId}/evidence/uploads`,
-    { method: "POST", body: params },
+    { ...complianceScope(assistedEnrollmentId), method: "POST", body: params },
   );
   return data;
 }
 
 /** Phase 9B evidence upload-session flow, step 3 (after the direct PUT in step 2): confirms the object actually landed. */
-export async function completeEvidenceUpload(evidenceId: string): Promise<Evidence> {
+export async function completeEvidenceUpload(evidenceId: string, assistedEnrollmentId?: string): Promise<Evidence> {
   const { data } = await apiRequest<{ data: Evidence }>(`/api/v1/compliance/evidence/${evidenceId}/complete`, {
+    ...complianceScope(assistedEnrollmentId),
     method: "POST",
     body: {},
   });
@@ -169,10 +177,11 @@ export async function completeEvidenceUpload(evidenceId: string): Promise<Eviden
 export async function triggerDocumentProcessing(
   stepId: string,
   documentType: DocumentType,
+  assistedEnrollmentId?: string,
 ): Promise<DocumentProcessingResult> {
   const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/document-capture`,
-    { method: "POST", body: { document_type: documentType } },
+    { ...complianceScope(assistedEnrollmentId), method: "POST", body: { document_type: documentType } },
   );
   return data;
 }
@@ -183,9 +192,10 @@ export async function triggerDocumentProcessing(
  * been triggered for this step -- callers should treat that as "no result
  * yet", not a hard error (see useDocumentResult.ts).
  */
-export async function fetchDocumentResult(stepId: string): Promise<DocumentProcessingResult> {
+export async function fetchDocumentResult(stepId: string, assistedEnrollmentId?: string): Promise<DocumentProcessingResult> {
   const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/document-result`,
+    complianceScope(assistedEnrollmentId),
   );
   return data;
 }
@@ -204,10 +214,11 @@ export async function fetchDocumentResult(stepId: string): Promise<DocumentProce
 export async function submitComplianceGeolocation(
   stepId: string,
   payload: ComplianceGeolocationSubmission,
+  assistedEnrollmentId?: string,
 ): Promise<ComplianceGeolocationObservation> {
   const { data } = await apiRequest<{ data: ComplianceGeolocationObservation }>(
     `/api/v1/compliance/steps/${stepId}/geolocation`,
-    { method: "POST", body: payload },
+    { ...complianceScope(assistedEnrollmentId), method: "POST", body: payload },
   );
   return data;
 }
@@ -223,10 +234,10 @@ export async function submitComplianceGeolocation(
  * reference). Returns 202 immediately (a `pending` FaceMatchProcessingResult) --
  * the real outcome is only ever read back via fetchFaceMatchResult's polling.
  */
-export async function triggerFaceMatchProcessing(stepId: string): Promise<FaceMatchProcessingResult> {
+export async function triggerFaceMatchProcessing(stepId: string, assistedEnrollmentId?: string): Promise<FaceMatchProcessingResult> {
   const { data } = await apiRequest<{ data: FaceMatchProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/face-match-processing`,
-    { method: "POST", body: {} },
+    { ...complianceScope(assistedEnrollmentId), method: "POST", body: {} },
   );
   return data;
 }
@@ -237,9 +248,10 @@ export async function triggerFaceMatchProcessing(stepId: string): Promise<FaceMa
  * been triggered for this step -- callers should treat that as "no result
  * yet", not a hard error (see useFaceMatchResult.ts).
  */
-export async function fetchFaceMatchResult(stepId: string): Promise<FaceMatchProcessingResult> {
+export async function fetchFaceMatchResult(stepId: string, assistedEnrollmentId?: string): Promise<FaceMatchProcessingResult> {
   const { data } = await apiRequest<{ data: FaceMatchProcessingResult }>(
     `/api/v1/compliance/steps/${stepId}/face-match-result`,
+    complianceScope(assistedEnrollmentId),
   );
   return data;
 }
@@ -255,8 +267,9 @@ export async function fetchFaceMatchResult(stepId: string): Promise<FaceMatchPro
  * is where the AWS session lives, both required by the native capture
  * component.
  */
-export async function createLivenessSession(stepId: string): Promise<LivenessSession> {
+export async function createLivenessSession(stepId: string, assistedEnrollmentId?: string): Promise<LivenessSession> {
   const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-session`, {
+    ...complianceScope(assistedEnrollmentId),
     method: "POST",
     body: {},
   });
@@ -272,10 +285,10 @@ export async function createLivenessSession(stepId: string): Promise<LivenessSes
  * STS AssumeRole -- never call this speculatively or cache its result
  * beyond one capture attempt (see useLivenessCredentials.ts).
  */
-export async function fetchLivenessCredentials(stepId: string): Promise<LivenessCredentials> {
+export async function fetchLivenessCredentials(stepId: string, assistedEnrollmentId?: string): Promise<LivenessCredentials> {
   const { data } = await apiRequest<{ data: LivenessCredentials }>(
     `/api/v1/compliance/steps/${stepId}/liveness-session/credentials`,
-    { method: "POST", body: {} },
+    { ...complianceScope(assistedEnrollmentId), method: "POST", body: {} },
   );
   return data;
 }
@@ -287,8 +300,8 @@ export async function fetchLivenessCredentials(stepId: string): Promise<Liveness
  * "processing"). Same LivenessSession shape as createLivenessSession's
  * response (one resource, two entry points).
  */
-export async function fetchLivenessResult(stepId: string): Promise<LivenessSession> {
-  const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-result`);
+export async function fetchLivenessResult(stepId: string, assistedEnrollmentId?: string): Promise<LivenessSession> {
+  const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-result`, complianceScope(assistedEnrollmentId));
   return data;
 }
 
@@ -304,8 +317,9 @@ export async function fetchLivenessResult(stepId: string): Promise<LivenessSessi
  * request body, same "operates on the step's own latest session" shape as
  * fetchLivenessCredentials.
  */
-export async function abandonLivenessSession(stepId: string): Promise<LivenessSession> {
+export async function abandonLivenessSession(stepId: string, assistedEnrollmentId?: string): Promise<LivenessSession> {
   const { data } = await apiRequest<{ data: LivenessSession }>(`/api/v1/compliance/steps/${stepId}/liveness-session/abandon`, {
+    ...complianceScope(assistedEnrollmentId),
     method: "POST",
     body: {},
   });

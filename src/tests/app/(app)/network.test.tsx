@@ -18,6 +18,18 @@ const mockRouter = { push: jest.fn(), back: jest.fn() };
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
+  useFocusEffect: jest.fn(),
+}));
+
+jest.mock("../../../auth/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "sponsor-user" } }),
+}));
+jest.mock("../../../api/assistedEnrollment", () => ({
+  fetchPendingAssistedEnrollments: jest.fn().mockResolvedValue({ data: [], meta: { current_page: 1, last_page: 1 } }),
+}));
+jest.mock("../../../services/assistedQueue", () => ({
+  listPendingAssisted: jest.fn().mockResolvedValue([]),
+  syncPendingAssisted: jest.fn(),
 }));
 
 jest.mock("../../../api/endpoints", () => ({

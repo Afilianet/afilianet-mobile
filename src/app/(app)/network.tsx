@@ -1,5 +1,10 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { fetchPendingAssistedEnrollments } from "../../api/assistedEnrollment";
+import { useApiQuery } from "../../hooks/useApiQuery";
+import { useAuth } from "../../auth/AuthContext";
+import { useOrganization } from "../../state/OrganizationContext";
+import { listPendingAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -29,6 +34,41 @@ import type { AffiliateProfile } from "../../types/api";
 
 export default function NetworkScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const { activeOrganization } = useOrganization();
+  const [assistedPage, setAssistedPage] = useState(1);
+  const assistedQuery = useApiQuery(
+    ["assisted-enrollments", user?.id, activeOrganization?.id, assistedPage],
+    () => fetchPendingAssistedEnrollments(assistedPage),
+    { enabled: Boolean(user) && Boolean(activeOrganization) },
+  );
+  const [pendingItems, setPendingItems] = useState<PendingAssistedEnrollment[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    if (!user || !activeOrganization) return;
+    let active = true;
+    void listPendingAssisted(user.id, activeOrganization.id)
+      .then((items) => { if (active) { setPendingItems(items); } })
+      .catch(() => { if (active) setSyncMessage("No se pudieron leer los registros pendientes."); });
+    return () => { active = false; };
+  }, [user, activeOrganization]));
+
+  async function syncPending() {
+    if (!user || !activeOrganization) return;
+    setSyncing(true);
+    try {
+      const { completed, remaining, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id);
+      setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
+      setSyncMessage(syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : "No se pudo sincronizar aún. Revisa la conexión y los datos."));
+      if (completed.length) await Promise.all([sponsoredQuery.refetch(), placementChildrenQuery.refetch(), assistedQuery.refetch()]);
+    } catch {
+      setSyncMessage("No se pudo sincronizar. Los registros siguen guardados en este teléfono.");
+    } finally {
+      setSyncing(false);
+    }
+  }
   const affiliateQuery = useAffiliateProfile();
   const sponsorQuery = useMySponsor();
   const placementParentQuery = useMyPlacementParent();
@@ -53,6 +93,12 @@ export default function NetworkScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
+    if (user && activeOrganization) {
+      try {
+        const items = await listPendingAssisted(user.id, activeOrganization.id);
+        setPendingItems(items);
+      } catch { /* The network screen remains usable if device storage fails. */ }
+    }
     try {
       await Promise.all([
         affiliateQuery.refetch(),
@@ -61,6 +107,7 @@ export default function NetworkScreen() {
         sponsoredQuery.refetch(),
         placementChildrenQuery.refetch(),
         invitationsQuery.refetch(),
+        assistedQuery.refetch(),
       ]);
     } finally {
       setRefreshing(false);
@@ -71,6 +118,44 @@ export default function NetworkScreen() {
   const forbidden = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "forbidden";
   const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
+  const visiblePending = pendingItems.filter((item) => item.sponsorUserId === user?.id && item.organizationId === activeOrganization?.id);
+  const assistedSection = user && activeOrganization ? (
+    <>
+      <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
+          {visiblePending.length > 0 ? (
+            <Card style={styles.pendingCard}>
+              <Text style={styles.pendingText}>{visiblePending.length} registro(s) pendiente(s) de sincronizar. Revisa la INE guardada y recupera la conexión para enviar.</Text>
+              {visiblePending.map((item) => (
+                <View key={item.input.client_request_id} style={styles.pendingCard}>
+                  <Text style={styles.pendingText}>{item.input.first_name} {item.input.last_name}</Text>
+                  <Button label="Capturar o revisar INE guardada" variant="secondary" disabled={syncing}
+                    onPress={() => router.push(`/assisted-offline/${item.input.client_request_id}` as never)} />
+                </View>
+              ))}
+              <Button label="Sincronizar registros pendientes" loading={syncing} onPress={() => void syncPending()} />
+            </Card>
+          ) : null}
+          {syncMessage ? <Text style={styles.pendingText}>{syncMessage}</Text> : null}
+          {assistedQuery.isError ? (
+            <ErrorState error={assistedQuery.error} onRetry={() => void assistedQuery.refetch()} />
+          ) : assistedQuery.data && assistedQuery.data.data.length > 0 ? (
+            <Card style={styles.pendingCard}>
+              <Text style={styles.pendingHeading}>Registros asistidos · acceso pendiente</Text>
+              <Text style={styles.pendingText}>Puedes continuar la verificación desde aquí antes de que activen su cuenta.</Text>
+              {assistedQuery.data.data.map((item) => (
+                <View key={item.id} style={styles.pendingCard}>
+                  <Text style={styles.pendingText}>{item.first_name} {item.last_name} · {item.affiliate_code}</Text>
+                  <Button label="Continuar verificación" variant="secondary"
+                    onPress={() => router.push(`/assisted-verification/${item.id}` as never)} />
+                </View>
+              ))}
+              {assistedPage > 1 ? <Button label="Registros anteriores" variant="ghost" onPress={() => setAssistedPage((page) => page - 1)} /> : null}
+              {assistedPage < assistedQuery.data.meta.last_page ? <Button label="Más registros" variant="ghost" onPress={() => setAssistedPage((page) => page + 1)} /> : null}
+            </Card>
+          ) : null}
+    </>
+  ) : null;
+
   return (
     <ScrollView
       style={styles.screen}
@@ -79,6 +164,7 @@ export default function NetworkScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Text style={styles.heading}>{strings.network.title}</Text>
+      {!affiliateQuery.data || loadFailed || forbidden ? assistedSection : null}
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />
@@ -106,6 +192,8 @@ export default function NetworkScreen() {
             iconLeft={<Icon name="compartir" size={16} color={colors.textOnBrand} />}
             onPress={pressInvite}
           />
+
+          {assistedSection}
 
           <SectionCard
             title={strings.network.sponsor.title}
@@ -249,6 +337,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textTertiary,
   },
+  pendingCard: { gap: spacing.sm },
+  pendingHeading: { ...typography.bodyStrong, color: colors.textPrimary },
+  pendingText: { ...typography.body, color: colors.textSecondary },
   invitationsList: {
     gap: spacing.sm,
   },

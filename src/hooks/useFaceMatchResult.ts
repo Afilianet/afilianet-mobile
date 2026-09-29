@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { fetchFaceMatchResult } from "../api/endpoints";
@@ -37,19 +38,20 @@ const POLL_INTERVAL_MS = 3000;
  * "needs review" state FaceMatchStep.tsx renders once the step catches up.
  */
 export function useFaceMatchResult(stepId: string | undefined, stepPending = false) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
   const lastInvalidatedResultId = useRef<string | null>(null);
   const lastLoggedResultId = useRef<string | null>(null);
-  const queryKey = ["compliance", "face-match-result", orgId, stepId];
+  const queryKey = scopedComplianceKey(["compliance", "face-match-result", orgId, stepId], assistedId);
 
   const query = useApiQuery<FaceMatchProcessingResult | null>(
     queryKey,
     async () => {
       let fetched: FaceMatchProcessingResult | null;
       try {
-        fetched = await fetchFaceMatchResult(stepId as string);
+        fetched = await fetchFaceMatchResult(stepId as string, ...assistedScopeArgs(assistedId));
       } catch (error) {
         if (isApiError(error) && error.kind === "not_found") {
           fetched = null;
@@ -101,10 +103,10 @@ export function useFaceMatchResult(stepId: string | undefined, stepPending = fal
     if (!touchesComplianceState) return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: ["affiliate", "me", orgId] });
-  }, [query.data, orgId, queryClient]);
+  }, [query.data, orgId, queryClient, assistedId]);
 
   return query;
 }

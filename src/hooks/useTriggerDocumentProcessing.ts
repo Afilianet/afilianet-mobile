@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { triggerDocumentProcessing } from "../api/endpoints";
 import { isApiError } from "../api/errors";
@@ -17,19 +18,20 @@ import type { DocumentType } from "../types/api";
  * if this trigger had succeeded.
  */
 export function useTriggerDocumentProcessing(stepId: string) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = activeOrganization?.id;
-  const queryKey = ["compliance", "document-result", orgId, stepId];
+  const queryKey = scopedComplianceKey(["compliance", "document-result", orgId, stepId], assistedId);
 
   return useMutation({
-    mutationFn: (documentType: DocumentType) => triggerDocumentProcessing(stepId, documentType),
+    mutationFn: (documentType: DocumentType) => triggerDocumentProcessing(stepId, documentType, ...assistedScopeArgs(assistedId)),
     onSuccess: (result) => {
       queryClient.setQueryData(queryKey, result);
       // The server has accepted the photos and opened the next steps even
       // while OCR remains pending. Refresh the case and step cards now.
-      void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
-      void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
+      void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
+      void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     },
     onError: (error) => {
       if (isApiError(error) && error.status === 409) {

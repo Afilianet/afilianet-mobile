@@ -1,3 +1,4 @@
+import { assistedScopeArgs, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useCallback } from "react";
 import { fetchLivenessCredentials } from "../api/endpoints";
 import type { LivenessCredentials } from "../types/api";
@@ -19,6 +20,7 @@ import type { LivenessCredentials } from "../types/api";
  * global/persisted state.
  */
 export function useLivenessCredentials(stepId: string) {
-  const fetchCredentials = useCallback((): Promise<LivenessCredentials> => fetchLivenessCredentials(stepId), [stepId]);
+  const assistedId = useAssistedComplianceId();
+  const fetchCredentials = useCallback((): Promise<LivenessCredentials> => fetchLivenessCredentials(stepId, ...assistedScopeArgs(assistedId)), [stepId, assistedId]);
   return { fetchCredentials };
 }

@@ -2,6 +2,10 @@ import { apiRequest } from "./client";
 import {
   acceptReferralInvitation,
   fetchPublicReferral,
+  fetchMyCompliance,
+  requestEvidenceUpload,
+  fetchLivenessCredentials,
+  triggerFaceMatchProcessing,
   signIn,
   signOutRequest,
   startReferralInvitation,
@@ -87,5 +91,28 @@ describe("public referral registration", () => {
         skipUnauthorizedHandling: true,
       },
     ]);
+  });
+});
+
+describe("assisted verification request scope", () => {
+  beforeEach(() => {
+    mockedApiRequest.mockReset();
+    mockedApiRequest.mockResolvedValue({ data: {} });
+  });
+
+  it("binds document uploads and AWS credentials to the assisted affiliate explicitly", async () => {
+    await requestEvidenceUpload("document-step", { evidence_type: "id_document_front", mime_type: "image/jpeg", size: 100 }, "enrollment-a");
+    await fetchLivenessCredentials("liveness-step", "enrollment-a");
+    expect(mockedApiRequest.mock.calls[0][1].headers).toEqual({ "X-Assisted-Enrollment-ID": "enrollment-a" });
+    expect(mockedApiRequest.mock.calls[1][1].headers).toEqual({ "X-Assisted-Enrollment-ID": "enrollment-a" });
+  });
+
+  it("never carries an assisted header into a subsequent self request or another affiliate", async () => {
+    await fetchMyCompliance("enrollment-a");
+    await fetchMyCompliance();
+    await triggerFaceMatchProcessing("face-step", "enrollment-b");
+    expect(mockedApiRequest.mock.calls[0][1].headers).toEqual({ "X-Assisted-Enrollment-ID": "enrollment-a" });
+    expect(mockedApiRequest.mock.calls[1][1].headers).toBeUndefined();
+    expect(mockedApiRequest.mock.calls[2][1].headers).toEqual({ "X-Assisted-Enrollment-ID": "enrollment-b" });
   });
 });
