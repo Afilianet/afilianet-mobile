@@ -28,7 +28,7 @@ export default function AssistedOfflineScreen() {
     ["assisted-local", user?.id, activeOrganization?.id, requestId],
     async () => (await listPendingAssisted(user!.id, activeOrganization!.id))
       .find((item) => item.input.client_request_id === requestId) ?? null,
-    { enabled: Boolean(user) && Boolean(activeOrganization) },
+    { enabled: Boolean(user) && Boolean(activeOrganization), networkMode: "always" },
   );
 
   async function capture(type: AssistedPhoto["evidenceType"]) {
@@ -74,19 +74,26 @@ export default function AssistedOfflineScreen() {
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   const item = query.data;
   if (!item) return <Card><Text>Este registro ya se sincronizó o no pertenece a esta sesión.</Text><Button label="Volver" onPress={() => router.back()} /></Card>;
+  const savedCount = (["id_document_front", "id_document_back"] as const)
+    .filter((type) => item.photos?.some((photo) => photo.evidenceType === type)).length;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.heading}>INE guardada sin conexión</Text>
+    <Text style={styles.heading}>{savedCount === 2 ? "INE guardada en este teléfono" : "Capturar INE sin conexión"}</Text>
     <Text style={styles.description}>{item.input.first_name} {item.input.last_name}</Text>
     <Text style={styles.description}>Fotografía la INE completa, con luz y sin reflejos. Las fotos quedan cifradas en este teléfono; su calidad se validará al enviarlas.</Text>
+    <Card style={savedCount === 2 ? styles.savedCard : styles.card}>
+      <Text accessibilityLiveRegion="polite" style={savedCount === 2 ? styles.savedLabel : styles.label}>{savedCount} de 2 fotos guardadas en este teléfono</Text>
+      <Text style={styles.description}>{savedCount === 2 ? "Las dos fotos se conservarán al salir. Todavía falta sincronizarlas desde Red para enviarlas al panel de administración." : "Cada foto queda guardada al terminar la captura. Captura el frente y el reverso."}</Text>
+    </Card>
     {(["id_document_front", "id_document_back"] as const).map((type) => {
       const saved = item.photos?.some((photo) => photo.evidenceType === type);
       const label = type === "id_document_front" ? "Frente de INE" : "Reverso de INE";
-      return <Card key={type} style={styles.card}>
-        <Text style={styles.label}>{label} · {saved ? "Guardado en el teléfono" : "Pendiente"}</Text>
+      return <Card key={type} style={saved ? styles.savedCard : styles.card}>
+        <Text style={styles.label}>{label}</Text>
+        <Text accessibilityLiveRegion="polite" style={saved ? styles.savedLabel : styles.description}>{saved ? "✓ Foto guardada en este teléfono" : "Sin foto guardada"}</Text>
         <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} />
       </Card>;
     })}
-    <Text style={styles.description}>La prueba de vida requiere conexión. Al volver la red, sincroniza desde Red y continúa la verificación en este teléfono.</Text>
+    <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. El afiliado recibirá un correo para crear su contraseña y completar la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />
     <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />
@@ -99,6 +106,8 @@ const styles = StyleSheet.create({
   heading: { ...typography.title, color: colors.textPrimary },
   description: { ...typography.body, color: colors.textSecondary },
   card: { gap: spacing.sm },
+  savedCard: { gap: spacing.sm, backgroundColor: colors.semantic.success.soft, borderColor: colors.semantic.success.base },
+  savedLabel: { ...typography.bodyStrong, color: colors.success },
   label: { ...typography.bodyStrong, color: colors.textPrimary },
   error: { ...typography.body, color: colors.danger },
 });

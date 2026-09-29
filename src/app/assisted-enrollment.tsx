@@ -78,7 +78,7 @@ export default function AssistedEnrollmentScreen() {
       {result ? (
         <Card style={styles.card}>
           <Text style={styles.success}>Afiliado registrado · {result.affiliate_code}</Text>
-          <Text style={styles.description}>Acceso pendiente: debe abrir el correo y crear su contraseña. La verificación de identidad podrá realizarse en este teléfono mientras siga pendiente.</Text>
+          <Text style={styles.description}>Acceso pendiente: debe abrir el correo, crear su contraseña y completar la verificación desde su propia app. Si siguen juntos, también pueden verificar su identidad en este teléfono antes de que active su cuenta.</Text>
           <Button label="Verificar identidad ahora" onPress={() => router.replace(`/assisted-verification/${result.id}` as never)} />
           <Button label="Volver a Red" variant="secondary" onPress={() => router.back()} />
         </Card>
