@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { configureApiClient } from "../api/client";
 import { isApiError } from "../api/errors";
-import { fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
+import { acceptReferralInvitation, fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
 import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
 import { tokenStorage } from "./tokenStorage";
@@ -87,6 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (isApiError(err)) setError(err);
           throw err;
         }
+      },
+      async registerFromReferral(invitationToken, registration) {
+        setError(null);
+        const result = await acceptReferralInvitation(invitationToken, registration);
+        if (!result.token) throw new Error("The registration did not return a session token.");
+        tokenRef.current = result.token;
+        await tokenStorage.setToken(result.token);
+        setUser(result.user);
+        setStatus("signedIn");
       },
       signOut,
     }),

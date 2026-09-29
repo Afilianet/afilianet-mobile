@@ -40,6 +40,19 @@ export const es = {
     startingUp: "Iniciando...",
   },
   auth: {
+    join: {
+      title: "Crea tu cuenta de afiliado",
+      invitedBy: (name: string) => `Te invitó ${name}`,
+      invalidLink: "Esta liga de referido no está disponible.",
+      checkFields: "Completa tu nombre, apellido, correo válido y una contraseña de al menos 8 caracteres.",
+      passwordMismatch: "Las contraseñas no coinciden.",
+      alreadyRegistered: "No pudimos crear la cuenta. Si ya tienes una, inicia sesión.",
+      firstName: "Nombre",
+      lastName: "Apellido",
+      confirmPassword: "Confirma tu contraseña",
+      submit: "Crear cuenta",
+      signIn: "Ya tengo cuenta",
+    },
     login: {
       subtitle: "Inicia sesión en tu cuenta",
       emailLabel: "Correo electrónico",

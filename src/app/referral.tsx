@@ -20,6 +20,7 @@ import { affiliateStatusCopy } from "../design-system/statusMapping";
 import { fontSize } from "../design-system/tokens";
 import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
+import { useOrganization } from "../state/OrganizationContext";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
@@ -28,6 +29,7 @@ import { buildReferralUrl, canShareReferral } from "../utils/referral";
 export default function ReferralScreen() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
+  const { activeOrganization } = useOrganization();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,6 +92,7 @@ export default function ReferralScreen() {
         ) : affiliateQuery.data ? (
           <ReferralBody
             affiliate={affiliateQuery.data}
+            organizationId={activeOrganization?.id ?? ""}
             onCopied={() => showToast(strings.referral.linkCopied)}
             onViewInvitations={() => router.push(routes.network as never)}
           />
@@ -103,16 +106,18 @@ export default function ReferralScreen() {
 
 function ReferralBody({
   affiliate,
+  organizationId,
   onCopied,
   onViewInvitations,
 }: {
   affiliate: AffiliateProfile;
+  organizationId: string;
   onCopied: () => void;
   onViewInvitations: () => void;
 }) {
   const status = affiliateStatusCopy(affiliate.status);
-  const shareable = canShareReferral(affiliate.status);
-  const url = buildReferralUrl(affiliate.affiliate_code);
+  const shareable = canShareReferral(affiliate.status) && Boolean(organizationId);
+  const url = buildReferralUrl(organizationId, affiliate.affiliate_code);
 
   const qrViewedRef = useRef(false);
   useEffect(() => {

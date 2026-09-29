@@ -85,7 +85,7 @@ const EMPTY_SPONSORED = { data: [], meta: { total: 0 } };
 const NOT_FOUND = new ApiError("not_found", "Not Found.", 404);
 
 function authValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
-  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), signOut: jest.fn(), ...overrides };
+  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn(), ...overrides };
 }
 
 function orgValue(overrides: Partial<OrganizationContextValue> = {}): OrganizationContextValue {

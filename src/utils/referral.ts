@@ -1,16 +1,10 @@
-// Referral URL convention, confirmed against afilianet-api (not a value the
-// backend exposes via config or API response -- see that repo's README.md
-// "Referral URLs" section and ReferralController's docblock): referral
-// links are conceptually `https://app.afilianet.mx/join/{affiliate_code}`,
-// and GET /api/v1/organizations/{organization}/referrals/{code} resolves
-// one publicly. There is no FRONTEND_URL/APP_JOIN_URL-style config value
-// anywhere in afilianet-api -- the domain is a fixed, documented
-// convention, so it's a constant here rather than something read from env.
-const REFERRAL_BASE_URL = "https://app.afilianet.mx/join";
+// Until the HTTPS join landing page and universal links are deployed, the
+// installed app handles its registered scheme directly. Both identifiers are
+// required: affiliate codes are scoped to organizations in afilianet-api.
+const REFERRAL_BASE_URL = "afilianetmobile://join";
 
-/** Builds the one true referral URL for an affiliate code. Nothing else in this app should construct this string by hand. */
-export function buildReferralUrl(affiliateCode: string): string {
-  return `${REFERRAL_BASE_URL}/${encodeURIComponent(affiliateCode)}`;
+export function buildReferralUrl(organizationId: string, affiliateCode: string): string {
+  return `${REFERRAL_BASE_URL}/${encodeURIComponent(organizationId)}/${encodeURIComponent(affiliateCode)}`;
 }
 
 // Mirrors afilianet-api's ReferralResolver (app/Modules/Affiliates/Services/ReferralResolver.php):
