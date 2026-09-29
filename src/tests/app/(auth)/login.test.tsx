@@ -8,6 +8,7 @@ function renderLogin(overrides: Partial<AuthContextValue> = {}) {
     user: null,
     error: null,
     signIn: jest.fn(),
+    registerFromReferral: jest.fn(),
     signOut: jest.fn(),
     ...overrides,
   };

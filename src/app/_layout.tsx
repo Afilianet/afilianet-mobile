@@ -74,14 +74,15 @@ function RootNavigation() {
     if (authStatus === "loading") return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const inJoin = segments[0] === "join";
     const inOrganizationPicker = segments[0] === "organization-picker";
 
     if (authStatus === "signedOut") {
-      if (!inAuthGroup) router.replace(routes.login as never);
+      if (!inAuthGroup && !inJoin) router.replace(routes.login as never);
       return;
     }
 
-    if (inAuthGroup) {
+    if (inAuthGroup || inJoin) {
       router.replace(routes.home as never);
       return;
     }

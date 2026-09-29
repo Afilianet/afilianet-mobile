@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 import type { ApiError } from "../api/errors";
 import type { User } from "../types/api";
+import type { ReferralRegistration } from "../api/endpoints";
 
 export type AuthStatus = "loading" | "signedOut" | "signedIn";
 
@@ -14,6 +15,7 @@ export interface AuthContextValue {
   user: User | null;
   error: ApiError | null;
   signIn: (email: string, password: string) => Promise<void>;
+  registerFromReferral: (invitationToken: string, registration: ReferralRegistration) => Promise<void>;
   signOut: () => Promise<void>;
 }
 

@@ -20,6 +20,19 @@ export const en = {
     startingUp: "Starting up...",
   },
   auth: {
+    join: {
+      title: "Create your affiliate account",
+      invitedBy: (name: string) => `Invited by ${name}`,
+      invalidLink: "This referral link is unavailable.",
+      checkFields: "Enter your name, a valid email, and a password of at least 8 characters.",
+      passwordMismatch: "Passwords do not match.",
+      alreadyRegistered: "We couldn't create this account. If you already have one, sign in.",
+      firstName: "First name",
+      lastName: "Last name",
+      confirmPassword: "Confirm password",
+      submit: "Create account",
+      signIn: "I already have an account",
+    },
     login: {
       subtitle: "Sign in to your account",
       emailLabel: "Email",

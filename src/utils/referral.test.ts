@@ -1,12 +1,12 @@
 import { buildReferralUrl, canShareReferral } from "./referral";
 
 describe("buildReferralUrl", () => {
-  it("builds the documented app.afilianet.mx/join/{code} URL", () => {
-    expect(buildReferralUrl("AFF100")).toBe("https://app.afilianet.mx/join/AFF100");
+  it("includes the organization and code in the installed app link", () => {
+    expect(buildReferralUrl("org-1", "AFF100")).toBe("afilianetmobile://join/org-1/AFF100");
   });
 
   it("URL-encodes the affiliate code", () => {
-    expect(buildReferralUrl("AFF 100/ x")).toBe("https://app.afilianet.mx/join/AFF%20100%2F%20x");
+    expect(buildReferralUrl("org/a", "AFF 100/ x")).toBe("afilianetmobile://join/org%2Fa/AFF%20100%2F%20x");
   });
 });
 

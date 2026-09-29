@@ -540,6 +540,47 @@ export async function signIn(email: string, password: string): Promise<LoginResp
   });
 }
 
+export interface PublicReferral {
+  id: string;
+  affiliate_code: string;
+  referrer_first_name: string;
+}
+
+export interface PublicInvitation {
+  token: string;
+}
+
+export interface ReferralRegistration {
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+}
+
+export async function fetchPublicReferral(organizationId: string, code: string): Promise<PublicReferral> {
+  const { data } = await apiRequest<{ data: PublicReferral }>(
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/referrals/${encodeURIComponent(code)}`,
+    { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+  );
+  return data;
+}
+
+export async function startReferralInvitation(organizationId: string, code: string): Promise<PublicInvitation> {
+  const { data } = await apiRequest<{ data: PublicInvitation }>(
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/referrals/${encodeURIComponent(code)}/invitations`,
+    { method: "POST", body: {}, skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+  );
+  return data;
+}
+
+export async function acceptReferralInvitation(token: string, registration: ReferralRegistration): Promise<LoginResponse> {
+  const { data } = await apiRequest<{ data: LoginResponse }>(
+    `/api/v1/invitations/${encodeURIComponent(token)}/accept`,
+    { method: "POST", body: registration, skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+  );
+  return data;
+}
+
 /**
  * Best-effort server-side logout. Callers should still clear local session
  * state even if this throws (offline, already-expired token, etc.) -- see

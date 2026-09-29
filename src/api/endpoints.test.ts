@@ -1,5 +1,11 @@
 import { apiRequest } from "./client";
-import { signIn, signOutRequest } from "./endpoints";
+import {
+  acceptReferralInvitation,
+  fetchPublicReferral,
+  signIn,
+  signOutRequest,
+  startReferralInvitation,
+} from "./endpoints";
 
 jest.mock("./client", () => ({
   apiRequest: jest.fn(),
@@ -43,5 +49,43 @@ describe("signOutRequest", () => {
       skipOrganization: true,
       skipUnauthorizedHandling: true,
     });
+  });
+});
+
+describe("public referral registration", () => {
+  beforeEach(() => mockedApiRequest.mockReset());
+
+  it("uses the organization scope and never sends a stored user's credentials", async () => {
+    mockedApiRequest.mockResolvedValueOnce({ data: { affiliate_code: "AFF100" } });
+    mockedApiRequest.mockResolvedValueOnce({ data: { token: "invite" } });
+    mockedApiRequest.mockResolvedValueOnce({ data: { token: "session", user: { id: "u1" } } });
+
+    await fetchPublicReferral("org-1", "AFF100");
+    await startReferralInvitation("org-1", "AFF100");
+    await acceptReferralInvitation("invite", {
+      first_name: "Ana",
+      last_name: "López",
+      email: "ana@example.com",
+      password: "strongpass1",
+    });
+
+    expect(mockedApiRequest.mock.calls[0]).toEqual([
+      "/api/v1/organizations/org-1/referrals/AFF100",
+      { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+    ]);
+    expect(mockedApiRequest.mock.calls[1]).toEqual([
+      "/api/v1/organizations/org-1/referrals/AFF100/invitations",
+      { method: "POST", body: {}, skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+    ]);
+    expect(mockedApiRequest.mock.calls[2]).toEqual([
+      "/api/v1/invitations/invite/accept",
+      {
+        method: "POST",
+        body: { first_name: "Ana", last_name: "López", email: "ana@example.com", password: "strongpass1" },
+        skipAuth: true,
+        skipOrganization: true,
+        skipUnauthorizedHandling: true,
+      },
+    ]);
   });
 });

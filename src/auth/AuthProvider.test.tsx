@@ -2,7 +2,7 @@ import { act, render, waitFor } from "@testing-library/react-native";
 import { useEffect } from "react";
 import { ApiError } from "../api/errors";
 import * as SecureStore from "expo-secure-store";
-import { fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
+import { acceptReferralInvitation, fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
 import { AuthProvider } from "./AuthProvider";
 import { useAuth, type AuthContextValue } from "./AuthContext";
 
@@ -16,6 +16,7 @@ jest.mock("../api/endpoints", () => ({
   fetchMe: jest.fn(),
   signIn: jest.fn(),
   signOutRequest: jest.fn(),
+  acceptReferralInvitation: jest.fn(),
 }));
 
 const mockedGetItem = SecureStore.getItemAsync as jest.Mock;
@@ -24,6 +25,7 @@ const mockedDeleteItem = SecureStore.deleteItemAsync as jest.Mock;
 const mockedFetchMe = fetchMe as jest.Mock;
 const mockedSignIn = signInRequest as jest.Mock;
 const mockedSignOutRequest = signOutRequest as jest.Mock;
+const mockedAcceptReferral = acceptReferralInvitation as jest.Mock;
 
 let authValue: AuthContextValue;
 
@@ -54,6 +56,18 @@ beforeEach(() => {
 });
 
 describe("AuthProvider: login", () => {
+  it("stores the token returned by referral acceptance and signs in", async () => {
+    mockedAcceptReferral.mockResolvedValue({ token: "new-token", user: { id: "user-2", first_name: "Bea" } });
+    await renderAuth();
+    await act(async () => {
+      await authValue.registerFromReferral("invitation-token", {
+        first_name: "Bea", last_name: "López", email: "bea@example.com", password: "strongpass1",
+      });
+    });
+    expect(mockedSetItem).toHaveBeenCalledWith(expect.any(String), "new-token");
+    expect(authValue.status).toBe("signedIn");
+    expect(authValue.user?.first_name).toBe("Bea");
+  });
   it("starts signed out when there's no stored token", async () => {
     await renderAuth();
     expect(authValue.status).toBe("signedOut");

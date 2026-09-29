@@ -107,7 +107,7 @@ describe("Referral: active affiliate", () => {
     const { findByText, getByLabelText } = await renderReferral();
 
     expect(await findByText("AFF100")).toBeTruthy();
-    expect(await findByText("https://app.afilianet.mx/join/AFF100")).toBeTruthy();
+    expect(await findByText("afilianetmobile://join/org-1/AFF100")).toBeTruthy();
     expect(getByLabelText(/Código QR para tu liga de referido/)).toBeTruthy();
     expect(await findByText("Compartir")).toBeTruthy();
     expect(await findByText("Copiar liga")).toBeTruthy();
@@ -133,7 +133,7 @@ describe("Referral: pending affiliate", () => {
 
     expect(await findByText("Pendiente")).toBeTruthy();
     expect(await findByText(/tu liga de referido ya funciona/i)).toBeTruthy();
-    expect(await findByText("https://app.afilianet.mx/join/AFF100")).toBeTruthy();
+    expect(await findByText("afilianetmobile://join/org-1/AFF100")).toBeTruthy();
     expect(await findByText("Compartir")).toBeTruthy();
   });
 });
@@ -145,7 +145,7 @@ describe("Referral: suspended affiliate", () => {
 
     expect(await findByText("Suspendido")).toBeTruthy();
     expect(await findByText(/compartir no está disponible/i)).toBeTruthy();
-    expect(queryByText("https://app.afilianet.mx/join/AFF100")).toBeNull();
+    expect(queryByText("afilianetmobile://join/org-1/AFF100")).toBeNull();
     expect(queryByText("Compartir")).toBeNull();
     expect(queryByText("Copiar liga")).toBeNull();
     expect(queryByLabelText(/QR code/)).toBeNull();
@@ -173,7 +173,7 @@ describe("Referral: copy link", () => {
       fireEvent.press(copyButton);
     });
 
-    expect(mockedSetStringAsync).toHaveBeenCalledWith("https://app.afilianet.mx/join/AFF100");
+    expect(mockedSetStringAsync).toHaveBeenCalledWith("afilianetmobile://join/org-1/AFF100");
     expect(mockedCapture).toHaveBeenCalledWith("referral_link_copied");
     const copyCall = mockedCapture.mock.calls.find(([event]) => event === "referral_link_copied");
     expect(copyCall).toHaveLength(1);
@@ -195,7 +195,7 @@ describe("Referral: share", () => {
 
     expect(shareSpy).toHaveBeenCalledTimes(1);
     const [shareContent] = shareSpy.mock.calls[0];
-    expect(shareContent.message).toContain("https://app.afilianet.mx/join/AFF100");
+    expect(shareContent.message).toContain("afilianetmobile://join/org-1/AFF100");
 
     expect(mockedCapture).toHaveBeenCalledWith("referral_share_opened");
     const shareCall = mockedCapture.mock.calls.find(([event]) => event === "referral_share_opened");
