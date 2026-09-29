@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { attemptComplianceStep } from "../api/endpoints";
 import { isApiError } from "../api/errors";
@@ -14,20 +15,21 @@ import type { AttemptStepPayload } from "../types/api";
  * error too -- not just success.
  */
 export function useAttemptComplianceStep() {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = activeOrganization?.id;
 
   function refreshComplianceSurface() {
     if (!orgId) return;
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: ["affiliate", "me", orgId] });
   }
 
   return useMutation({
     mutationFn: ({ stepId, payload }: { stepId: string; payload: AttemptStepPayload }) =>
-      attemptComplianceStep(stepId, payload),
+      attemptComplianceStep(stepId, payload, ...assistedScopeArgs(assistedId)),
     onSuccess: refreshComplianceSurface,
     onError: (error) => {
       if (isApiError(error) && (error.kind === "not_found" || error.kind === "validation")) {

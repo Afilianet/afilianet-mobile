@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { fetchComplianceSteps } from "../api/endpoints";
 import { useOrganization } from "../state/OrganizationContext";
 import { useApiQuery } from "./useApiQuery";
@@ -9,8 +10,9 @@ import { useApiQuery } from "./useApiQuery";
  * called -- callers should gate this on the case query having data.
  */
 export function useComplianceSteps(enabled: boolean) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
-  return useApiQuery(["compliance", "steps", activeOrganization?.id], fetchComplianceSteps, {
+  return useApiQuery(scopedComplianceKey(["compliance", "steps", activeOrganization?.id], assistedId), () => fetchComplianceSteps(...assistedScopeArgs(assistedId)), {
     enabled: Boolean(activeOrganization) && enabled,
   });
 }

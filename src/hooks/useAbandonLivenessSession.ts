@@ -1,3 +1,4 @@
+import { assistedScopeArgs, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useCallback } from "react";
 import { abandonLivenessSession } from "../api/endpoints";
 import type { LivenessSession } from "../types/api";
@@ -19,6 +20,7 @@ import type { LivenessSession } from "../types/api";
  * short immediately.
  */
 export function useAbandonLivenessSession(stepId: string) {
-  const abandon = useCallback((): Promise<LivenessSession> => abandonLivenessSession(stepId), [stepId]);
+  const assistedId = useAssistedComplianceId();
+  const abandon = useCallback((): Promise<LivenessSession> => abandonLivenessSession(stepId, ...assistedScopeArgs(assistedId)), [stepId, assistedId]);
   return { abandon };
 }

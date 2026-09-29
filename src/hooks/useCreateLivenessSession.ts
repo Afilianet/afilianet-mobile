@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createLivenessSession } from "../api/endpoints";
 import { useOrganization } from "../state/OrganizationContext";
@@ -15,13 +16,14 @@ import { useOrganization } from "../state/OrganizationContext";
  * waiting for a first poll tick.
  */
 export function useCreateLivenessSession(stepId: string) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = activeOrganization?.id;
-  const queryKey = ["compliance", "liveness-result", orgId, stepId];
+  const queryKey = scopedComplianceKey(["compliance", "liveness-result", orgId, stepId], assistedId);
 
   return useMutation({
-    mutationFn: () => createLivenessSession(stepId),
+    mutationFn: () => createLivenessSession(stepId, ...assistedScopeArgs(assistedId)),
     onSuccess: (session) => {
       queryClient.setQueryData(queryKey, session);
     },

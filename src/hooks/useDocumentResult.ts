@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { fetchDocumentResult } from "../api/endpoints";
@@ -29,6 +30,7 @@ const POLL_INTERVAL_MS = 3000;
  * completed attempt (tracked by id), not on every poll tick.
  */
 export function useDocumentResult(stepId: string | undefined) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
@@ -36,10 +38,10 @@ export function useDocumentResult(stepId: string | undefined) {
   const lastLoggedResultSignature = useRef<string | null>(null);
 
   const query = useApiQuery<DocumentProcessingResult | null>(
-    ["compliance", "document-result", orgId, stepId],
+    scopedComplianceKey(["compliance", "document-result", orgId, stepId], assistedId),
     async () => {
       try {
-        const result = await fetchDocumentResult(stepId as string);
+        const result = await fetchDocumentResult(stepId as string, ...assistedScopeArgs(assistedId));
         if (__DEV__ && result) {
           const signature = `${result.id}:${result.status}:${result.verdict ?? "none"}`;
           if (lastLoggedResultSignature.current !== signature) {
@@ -91,10 +93,10 @@ export function useDocumentResult(stepId: string | undefined) {
     if (!result || !orgId || (result.status !== "completed" && result.status !== "failed")) return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: ["affiliate", "me", orgId] });
-  }, [query.data, orgId, queryClient]);
+  }, [query.data, orgId, queryClient, assistedId]);
 
   return query;
 }

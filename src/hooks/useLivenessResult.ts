@@ -1,3 +1,4 @@
+import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { fetchLivenessResult } from "../api/endpoints";
@@ -31,6 +32,7 @@ const POLL_INTERVAL_MS = 3000;
  * happens for that case.
  */
 export function useLivenessResult(stepId: string | undefined) {
+  const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
   const queryClient = useQueryClient();
@@ -38,10 +40,10 @@ export function useLivenessResult(stepId: string | undefined) {
   const lastLoggedResultId = useRef<string | null>(null);
 
   const query = useApiQuery<LivenessSession | null>(
-    ["compliance", "liveness-result", orgId, stepId],
+    scopedComplianceKey(["compliance", "liveness-result", orgId, stepId], assistedId),
     async () => {
       try {
-        return await fetchLivenessResult(stepId as string);
+        return await fetchLivenessResult(stepId as string, ...assistedScopeArgs(assistedId));
       } catch (error) {
         if (isApiError(error) && error.kind === "not_found") return null;
         throw error;
@@ -71,10 +73,10 @@ export function useLivenessResult(stepId: string | undefined) {
     if (result.status !== "completed") return;
     if (lastInvalidatedResultId.current === result.id) return;
     lastInvalidatedResultId.current = result.id;
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "me", orgId] });
-    void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", orgId] });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
+    void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: ["affiliate", "me", orgId] });
-  }, [query.data, orgId, queryClient]);
+  }, [query.data, orgId, queryClient, assistedId]);
 
   return query;
 }
