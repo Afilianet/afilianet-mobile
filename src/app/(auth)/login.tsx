@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../auth/AuthContext";
 import { loginErrorMessage } from "../../api/errors";
@@ -10,6 +11,7 @@ import { strings } from "../../i18n";
 
 export default function LoginScreen() {
   const { signIn, error } = useAuth();
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +64,7 @@ export default function LoginScreen() {
             loading={submitting}
             disabled={!email || !password}
           />
+          <Button label="¿Olvidaste tu contraseña?" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={submitting} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
