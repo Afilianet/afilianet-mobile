@@ -40,6 +40,21 @@ export const es = {
     startingUp: "Iniciando...",
   },
   auth: {
+    registration: {
+      description: "Únete con el código de quien te invitó o elige una organización con registro abierto.",
+      withCode: "Tengo un código",
+      chooseOrganization: "Elegir organización",
+      codeLabel: "Código de invitación o enlace",
+      codeHint: "Puedes pegar el código o el enlace que te compartieron.",
+      findInvitation: "Buscar invitación",
+      invalidCode: "Revisa el código o enlace de invitación.",
+      codeNotFound: "No encontramos una invitación disponible con ese código.",
+      organizationSearch: "Nombre de la organización",
+      search: "Buscar organizaciones",
+      openOrganizationsOnly: "Solo aparecen organizaciones que permiten registro abierto.",
+      noOrganizations: "No encontramos organizaciones con registro abierto. Puedes usar un código de invitación.",
+      continueWith: (name: string) => `Continuar con ${name}`,
+    },
     join: {
       title: "Crea tu cuenta de afiliado",
       invitedBy: (name: string) => `Te invitó ${name}`,

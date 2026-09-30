@@ -61,6 +61,15 @@ function renderBody(
   onCheckAgain: () => void,
 ) {
   if (step.status === "passed") {
+    if (result?.verdict === "match") {
+      const copy = faceMatchVerdictCopy("match");
+      return (
+        <View style={localStyles.stateGroup}>
+          <Badge label={copy.label} tone={copy.tone} />
+          <Text style={styles.description}>{copy.description}</Text>
+        </View>
+      );
+    }
     if (result?.verdict === "review") {
       const copy = faceMatchVerdictCopy("review");
       return (
@@ -119,3 +128,4 @@ const localStyles = StyleSheet.create({
     alignItems: "flex-start",
   },
 });
+
