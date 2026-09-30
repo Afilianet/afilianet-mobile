@@ -21,7 +21,7 @@ import { useComplianceSteps } from "../hooks/useComplianceSteps";
 import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
 import { formatDate } from "../utils/date";
-import type { ComplianceCase } from "../types/api";
+import type { ComplianceCase, ComplianceStep } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
 
@@ -95,7 +95,7 @@ export default function ComplianceScreen() {
         ) : complianceQuery.data ? (
           <>
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} />
           </>
         ) : null}
       </ScrollView>
@@ -149,28 +149,34 @@ function StepsCard({
   query,
   currentStep,
   identityDataStatus,
+  caseSteps,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
   identityDataStatus: ComplianceCase["identity_data_status"];
+  caseSteps?: ComplianceStep[];
 }) {
+  // Case status, current step and rows must come from one server snapshot.
+  // The separate steps query may finish before or after a staff update.
+  const steps = caseSteps ?? query.data;
+  const hasCaseSnapshot = caseSteps !== undefined;
   let body;
-  if (query.isPending) {
+  if (!hasCaseSnapshot && query.isPending) {
     body = <SkeletonGroup lines={3} />;
-  } else if (query.isError) {
+  } else if (!hasCaseSnapshot && query.isError) {
     body = (
       <View style={styles.stateGroup}>
         <Text style={styles.error}>{strings.compliance.couldNotLoadSteps}</Text>
         <RetryButton onPress={() => void query.refetch()} loading={query.isFetching} />
       </View>
     );
-  } else if (query.data && query.data.length > 0) {
+  } else if (steps && steps.length > 0) {
     body = (
       <View>
-        {currentStep === "biometric_liveness" && query.data.some((step) =>
+        {currentStep === "biometric_liveness" && steps.some((step) =>
           step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
         ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
-        {query.data.map((step) => (
+        {steps.map((step) => (
           <View key={step.id}>
             <ComplianceStepCard step={step} currentStep={currentStep} />
             {step.step_type === "identity_document" && identityDataStatus ? (
@@ -188,7 +194,7 @@ function StepsCard({
         ))}
       </View>
     );
-  } else if (query.data) {
+  } else if (steps) {
     body = (
       <EmptyState
         compact

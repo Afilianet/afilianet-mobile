@@ -677,3 +677,25 @@ describe("Compliance: step attempt analytics and privacy", () => {
     }
   });
 });
+
+it("uses case steps with the case current step instead of mixing a separate steps response", async () => {
+  const document = step({ id: "document-snapshot", status: "passed" });
+  const liveness = step({
+    id: "liveness-snapshot", step_type: "biometric_liveness",
+    configured_provider: null, provider_actionable: false,
+    provider_unavailable_reason: "not_configured",
+  });
+  mockedFetchMyCompliance.mockResolvedValue(complianceCase({
+    status: "manual_review", current_step: "biometric_liveness",
+    identity_data_status: "complete", steps: [document, liveness],
+  }));
+  mockedFetchComplianceSteps.mockResolvedValue([
+    step({ id: "stale-document", status: "failed" }),
+    step({ id: "stale-liveness", step_type: "biometric_liveness", status: "passed" }),
+  ]);
+  const { findByText, queryByText } = await renderCompliance();
+  expect(await findByText("Siguiente: Prueba de vida")).toBeTruthy();
+  await waitFor(() => expect(mockedFetchComplianceSteps).toHaveBeenCalled());
+  expect(queryByText("Otro intento necesario")).toBeNull();
+  expect(queryByText(/Este paso todavía no está disponible/)).toBeNull();
+});
