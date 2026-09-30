@@ -64,6 +64,7 @@ export default function LoginScreen() {
             loading={submitting}
             disabled={!email || !password}
           />
+          <Button label={strings.auth.join.submit} variant="secondary" onPress={() => router.push("/(auth)/register")} disabled={submitting} />
           <Button label="¿Olvidaste tu contraseña?" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={submitting} />
         </View>
       </ScrollView>

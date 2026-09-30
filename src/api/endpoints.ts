@@ -607,3 +607,25 @@ export async function signOutRequest(): Promise<void> {
     skipUnauthorizedHandling: true,
   });
 }
+
+export interface RegistrationOption {
+  organization_id: string;
+  organization_name: string;
+  affiliate_code: string;
+  referrer_first_name: string;
+}
+
+export async function resolveRegistrationCode(code: string): Promise<RegistrationOption[]> {
+  const { data } = await apiRequest<{ data: RegistrationOption[] }>(
+    `/api/v1/registration/referrals/${encodeURIComponent(code)}`,
+    { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+  );
+  return data;
+}
+
+export async function fetchRegistrationOrganizations(search = "", page = 1): Promise<{ data: RegistrationOption[]; next_page: number | null }> {
+  return apiRequest<{ data: RegistrationOption[]; next_page: number | null }>(
+    `/api/v1/registration/organizations?q=${encodeURIComponent(search)}&page=${page}`,
+    { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
+  );
+}

@@ -22,3 +22,5 @@ jobs:
       - run: npm run lint
       # Other identity capture suites contain failures reproduced on unchanged main.
       - run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/document-capture-accepted.test.tsx src/tests/app/document-pass-details.test.tsx src/tests/app/document-review-status.test.tsx
+      - name: Verify public registration and account creation
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/register.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/join.test.tsx

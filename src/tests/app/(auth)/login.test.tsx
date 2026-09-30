@@ -1,6 +1,9 @@
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import { AuthContext, type AuthContextValue } from "../../../auth/AuthContext";
 import LoginScreen from "../../../app/(auth)/login";
+
+const mockPush = jest.fn();
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockPush }) }));
 
 function renderLogin(overrides: Partial<AuthContextValue> = {}) {
   const value: AuthContextValue = {
@@ -34,4 +37,11 @@ describe("LoginScreen", () => {
     expect(getByPlaceholderText("you@example.com")).toBeTruthy();
     expect(getByPlaceholderText("••••••••")).toBeTruthy();
   });
+});
+
+
+it("opens account creation directly from sign in", async () => {
+  const screen = await renderLogin();
+  fireEvent.press(screen.getByText("Crear cuenta"));
+  expect(mockPush).toHaveBeenCalledWith("/(auth)/register");
 });

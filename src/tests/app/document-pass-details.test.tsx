@@ -40,3 +40,16 @@ it("keeps the completed document's extracted details accessible when the step pa
   expect(screen.getByText("JUAN")).toBeTruthy();
   expect(screen.queryByText("Confirmar datos")).toBeNull();
 });
+
+
+it("shows accepted document photos without an inconclusive OCR badge after the step completes", async () => {
+  mockResult.verdict = "review";
+  const screen = await render(
+    <QueryClientProvider client={new QueryClient()}>
+      <IdentityDocumentStep step={{ id: "step-review", status: "passed", configured_provider: "afilianet", provider_actionable: true } as ComplianceStep} attempt={jest.fn()} isPending={false} />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("Fotos de identificación guardadas")).toBeTruthy();
+  expect(screen.queryByText("No concluyente")).toBeNull();
+  expect(screen.queryByText("Tomar nuevas fotos")).toBeNull();
+});

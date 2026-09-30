@@ -1,13 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { useDocumentResult } from "../../../hooks/useDocumentResult";
 import { strings } from "../../../i18n";
 import { useOrganization } from "../../../state/OrganizationContext";
 import type { ComplianceStep } from "../../../types/api";
-import { Badge } from "../../ui/Badge";
-import { spacing } from "../../ui/theme";
 import { DocumentCaptureFlow } from "../document-capture/DocumentCaptureFlow";
-import { verdictCopy } from "../document-capture/documentCaptureCopy";
 import { ProviderUnavailableState } from "../document-capture/ProviderUnavailableState";
 import { DevelopmentStepSimulator } from "./DevelopmentStepSimulator";
 import { styles } from "./styles";
@@ -70,16 +67,7 @@ function renderBody(
     if (result?.status === "completed" && result.verdict === "pass") {
       return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} />;
     }
-    if (result?.verdict === "review") {
-      const copy = verdictCopy("review");
-      return (
-        <View style={localStyles.stateGroup}>
-          <Badge label={copy.label} tone={copy.tone} />
-          <Text style={styles.description}>{copy.description}</Text>
-        </View>
-      );
-    }
-    return <Text style={styles.description}>{strings.compliance.identityDocumentStep.verifiedText}</Text>;
+    return <Text style={styles.description}>{strings.documentCapture.captureAcceptedTitle}</Text>;
   }
 
   if (!isAfilianetActionable) {
@@ -105,10 +93,3 @@ function renderBody(
   // requirement).
   return <DocumentCaptureFlow key={organizationId} stepId={step.id} result={result} resultLoading={resultLoading} hideReviewBadge={step.status === "failed"} onCheckStatus={onCheckStatus} checkingStatus={checkingStatus} statusCheckError={statusCheckError} />;
 }
-
-const localStyles = StyleSheet.create({
-  stateGroup: {
-    gap: spacing.sm,
-    alignItems: "flex-start",
-  },
-});

@@ -185,7 +185,7 @@ function StepsCard({
                 <View style={styles.identityDataHeader}>
                   <Text style={styles.identityDataLabel}>{strings.compliance.identityData.title}</Text>
                   <Badge label={strings.compliance.identityData.status[identityDataStatus]}
-                    tone={identityDataStatus === "complete" ? "success" : "warning"} />
+                    tone={identityDataStatus === "complete" ? "neutral" : "warning"} />
                 </View>
                 <Text style={styles.meta}>{strings.compliance.identityData.description}</Text>
               </View>

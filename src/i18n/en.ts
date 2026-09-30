@@ -20,6 +20,21 @@ export const en = {
     startingUp: "Starting up...",
   },
   auth: {
+    registration: {
+      description: "Join with an invitation code or choose an organization with open registration.",
+      withCode: "I have a code",
+      chooseOrganization: "Choose organization",
+      codeLabel: "Invitation code or link",
+      codeHint: "Paste the code or link shared with you.",
+      findInvitation: "Find invitation",
+      invalidCode: "Check the invitation code or link.",
+      codeNotFound: "No available invitation matches this code.",
+      organizationSearch: "Organization name",
+      search: "Search organizations",
+      openOrganizationsOnly: "Only organizations with open registration appear here.",
+      noOrganizations: "No organizations with open registration found. You can use an invitation code.",
+      continueWith: (name: string) => `Continue with ${name}`,
+    },
     join: {
       title: "Create your affiliate account",
       invitedBy: (name: string) => `Invited by ${name}`,
