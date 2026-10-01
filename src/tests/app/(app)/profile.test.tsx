@@ -12,9 +12,11 @@ const mockPush = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, back: jest.fn() }),
+  useFocusEffect: jest.fn(),
 }));
 
 jest.mock("../../../api/endpoints", () => ({
+  fetchMe: jest.fn().mockResolvedValue({ id: "user-1", email: "jordan@example.com", email_verified_at: null }),
   fetchMyAffiliateProfile: jest.fn(),
   fetchMyCompliance: jest.fn(),
 }));
@@ -244,3 +246,4 @@ describe("Profile: analytics", () => {
     expect(call).toHaveLength(1);
   });
 });
+
