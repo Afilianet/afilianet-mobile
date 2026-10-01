@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from "react-native";
+import { friendlyMessage, isApiError } from "../../api/errors";
 import { apiRequest } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
@@ -14,16 +15,21 @@ export default function ForgotPasswordScreen() {
   const [error, setError] = useState("");
   async function submit() {
     if (pending) return;
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 254) {
+      setError("Escribe un correo electrónico válido.");
+      return;
+    }
     setPending(true);
     setError("");
     try {
       await apiRequest("/auth/forgot-password", {
-        method: "POST", body: { email: email.trim() },
+        method: "POST", body: { email: normalizedEmail },
         skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true,
       });
       setDone(true);
-    } catch {
-      setError("No se pudo enviar la solicitud. Revisa tu conexión e inténtalo de nuevo en un minuto.");
+    } catch (cause) {
+      setError(isApiError(cause) ? friendlyMessage(cause) : "No se pudo enviar la solicitud. Inténtalo de nuevo.");
     } finally { setPending(false); }
   }
   return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -31,8 +37,8 @@ export default function ForgotPasswordScreen() {
       <Text style={styles.heading}>Recuperar contraseña</Text>
       {done ? <Text accessibilityLiveRegion="polite" style={styles.body}>Si el correo corresponde a una cuenta, recibirás un enlace para crear una contraseña nueva. Revisa también la carpeta de spam y después vuelve a iniciar sesión en la app.</Text> : <>
         <Text style={styles.body}>Escribe el correo con el que registraste tu cuenta.</Text>
-        <TextInput label="Correo electrónico" value={email} onChangeText={setEmail} keyboardType="email-address" textContentType="emailAddress" />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <TextInput label="Correo electrónico" value={email} onChangeText={setEmail} editable={!pending} maxLength={254} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" />
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <Button label="Enviar enlace de recuperación" loading={pending} disabled={!email.trim()} onPress={() => void submit()} />
       </>}
       <Button label="Volver al inicio de sesión" variant="ghost" disabled={pending} onPress={() => router.back()} />
@@ -46,3 +52,4 @@ const styles = StyleSheet.create({
   body: { ...typography.body, color: colors.textSecondary },
   error: { ...typography.body, color: colors.danger },
 });
+

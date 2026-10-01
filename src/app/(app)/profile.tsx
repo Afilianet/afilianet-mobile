@@ -1,3 +1,4 @@
+import { EmailVerificationCard } from "../../components/account/EmailVerificationCard";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -42,6 +43,8 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{user?.email}</Text>
         </View>
       </Card>
+
+      {user ? <EmailVerificationCard key={user.id} user={user} /> : null}
 
       <SectionCard
         title={strings.profile.affiliateTitle}
