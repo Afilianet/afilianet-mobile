@@ -6,6 +6,7 @@ import { OrganizationContext, type OrganizationContextValue } from "../../../sta
 import { analytics } from "../../../services/analytics";
 import type { AffiliateProfile, LedgerEntry, Organization, PaginatedResponse, WalletSummary } from "../../../types/api";
 import WalletScreen from "../../../app/(app)/wallet";
+jest.mock("../../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: jest.fn(), back: jest.fn() }),

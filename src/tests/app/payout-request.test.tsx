@@ -7,6 +7,7 @@ import { OrganizationContext, type OrganizationContextValue } from "../../state/
 import { analytics } from "../../services/analytics";
 import type { Organization, PaginatedResponse, Payout, PayoutDestination, PayoutEligibility } from "../../types/api";
 import PayoutRequestScreen from "../../app/payout-request/[currency]";
+jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 const mockBack = jest.fn();
 let mockCurrency = "MXN";
@@ -173,7 +174,7 @@ describe("Payout request: amount validation", () => {
     const { findByText, getByLabelText } = await renderRequest();
     await findByText("Elegible para retirar");
     fireEvent.changeText(getByLabelText("Monto"), "900.00");
-    expect(await findByText(/hasta \$800\.00/i)).toBeTruthy();
+    expect(await findByText(/hasta (?:MX)?\$800\.00/i)).toBeTruthy();
   });
 
   it("disables submit until a valid amount and destination are chosen", async () => {

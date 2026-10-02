@@ -1,3 +1,4 @@
+import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -21,6 +22,14 @@ import type { WalletSummary } from "../../types/api";
 import { addMoney, formatMoney } from "../../utils/money";
 
 export default function WalletScreen() {
+  return (
+    <CommercialFeatureGate>
+      <WalletScreenContent />
+    </CommercialFeatureGate>
+  );
+}
+
+function WalletScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();

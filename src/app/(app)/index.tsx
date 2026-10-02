@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { releaseFeatures } from "../../config/release";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
@@ -31,8 +32,8 @@ export default function HomeScreen() {
 
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();
-  const commissionsQuery = useCommissions();
-  const walletQuery = useWallet();
+  const commissionsQuery = useCommissions(releaseFeatures.commerce);
+  const walletQuery = useWallet(releaseFeatures.commerce);
   const sponsoredQuery = useSponsoredAffiliates(affiliateQuery.data?.id);
   // Same query key as NotificationBell's own call, so this shares its cache
   // entry rather than firing a second request -- this instance exists only
@@ -47,7 +48,7 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (walletQuery.isSuccess && !walletViewedRef.current) {
+    if (releaseFeatures.commerce && walletQuery.isSuccess && !walletViewedRef.current) {
       walletViewedRef.current = true;
       analytics.capture("wallet_section_viewed");
     }
@@ -59,8 +60,7 @@ export default function HomeScreen() {
       await Promise.all([
         affiliateQuery.refetch(),
         complianceQuery.refetch(),
-        commissionsQuery.refetch(),
-        walletQuery.refetch(),
+        ...(releaseFeatures.commerce ? [commissionsQuery.refetch(), walletQuery.refetch()] : []),
         sponsoredQuery.refetch(),
         unreadCountQuery.refetch(),
       ]);
@@ -90,23 +90,27 @@ export default function HomeScreen() {
 
       <ComplianceCard query={complianceQuery} />
 
-      <SectionCard
-        title={strings.home.commissionsTitle}
-        query={commissionsQuery}
-        isEmpty={(list) => list.length === 0}
-        emptyTitle={strings.home.noCommissionsYet}
-      >
-        {(list) => <CommissionsContent commissions={list} />}
-      </SectionCard>
+      {releaseFeatures.commerce ? (
+        <SectionCard
+          title={strings.home.commissionsTitle}
+          query={commissionsQuery}
+          isEmpty={(list) => list.length === 0}
+          emptyTitle={strings.home.noCommissionsYet}
+        >
+          {(list) => <CommissionsContent commissions={list} />}
+        </SectionCard>
+      ) : null}
 
-      <SectionCard
-        title={strings.home.walletTitle}
-        query={walletQuery}
-        isEmpty={(list) => list.length === 0}
-        emptyTitle={strings.home.noWalletBalanceYet}
-      >
-        {(list) => <WalletContent wallets={list} />}
-      </SectionCard>
+      {releaseFeatures.commerce ? (
+        <SectionCard
+          title={strings.home.walletTitle}
+          query={walletQuery}
+          isEmpty={(list) => list.length === 0}
+          emptyTitle={strings.home.noWalletBalanceYet}
+        >
+          {(list) => <WalletContent wallets={list} />}
+        </SectionCard>
+      ) : null}
 
       {activeOrganization && affiliateQuery.isSuccess ? (
         <NetworkPreviewCard sponsor={affiliateQuery.data.sponsor} query={sponsoredQuery} />

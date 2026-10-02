@@ -1,3 +1,4 @@
+import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -30,6 +31,14 @@ import type { Payout, PayoutDestination, WalletSummary } from "../types/api";
 import { formatMoney } from "../utils/money";
 
 export default function PayoutsScreen() {
+  return (
+    <CommercialFeatureGate>
+      <PayoutsScreenContent />
+    </CommercialFeatureGate>
+  );
+}
+
+function PayoutsScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();

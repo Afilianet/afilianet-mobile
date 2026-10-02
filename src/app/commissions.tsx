@@ -1,3 +1,4 @@
+import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -22,6 +23,14 @@ import { formatMoney } from "../utils/money";
 import type { Commission } from "../types/api";
 
 export default function CommissionsScreen() {
+  return (
+    <CommercialFeatureGate>
+      <CommissionsScreenContent />
+    </CommercialFeatureGate>
+  );
+}
+
+function CommissionsScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();

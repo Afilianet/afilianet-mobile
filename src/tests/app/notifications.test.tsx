@@ -11,6 +11,7 @@ import { OrganizationContext, type OrganizationContextValue } from "../../state/
 import { analytics } from "../../services/analytics";
 import type { Notification, NotificationType, Organization, PaginatedResponse } from "../../types/api";
 import NotificationsScreen from "../../app/notifications";
+jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();

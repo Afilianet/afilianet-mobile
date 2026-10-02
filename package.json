@@ -68,7 +68,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "jest"
+    "test": "jest",
+    "check:build-env": "node scripts/check-build-env.mjs",
+    "test:build-env": "node --test scripts/check-build-env.test.mjs",
+    "eas-build-pre-install": "node scripts/check-build-env.mjs"
   },
   "private": true,
   "jest": {

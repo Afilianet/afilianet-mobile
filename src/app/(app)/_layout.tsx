@@ -1,3 +1,4 @@
+import { releaseFeatures } from "../../config/release";
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { Icon } from "../../design-system/icons/Icon";
@@ -44,20 +45,22 @@ export default function AppTabsLayout() {
           tabBarIcon: ({ color, size }) => <Icon name="red" size={size} color={color as string} />,
         }}
       />
-      <Tabs.Screen
-        name="sales"
-        options={{
-          title: strings.nav.sales,
-          tabBarIcon: ({ color, size }) => <Icon name="ventas" size={size} color={color as string} />,
-        }}
-      />
-      <Tabs.Screen
-        name="wallet"
-        options={{
-          title: strings.nav.wallet,
-          tabBarIcon: ({ color, size }) => <Icon name="monedero" size={size} color={color as string} />,
-        }}
-      />
+      <Tabs.Protected guard={releaseFeatures.commerce}>
+        <Tabs.Screen
+          name="sales"
+          options={{
+            title: strings.nav.sales,
+            tabBarIcon: ({ color, size }) => <Icon name="ventas" size={size} color={color as string} />,
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            title: strings.nav.wallet,
+            tabBarIcon: ({ color, size }) => <Icon name="monedero" size={size} color={color as string} />,
+          }}
+        />
+      </Tabs.Protected>
       <Tabs.Screen
         name="profile"
         options={{

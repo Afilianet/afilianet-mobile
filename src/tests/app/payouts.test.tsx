@@ -22,6 +22,7 @@ import type {
   WalletSummary,
 } from "../../types/api";
 import PayoutsScreen from "../../app/payouts";
+jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),

@@ -1,3 +1,4 @@
+import { releaseFeatures } from "../../../config/release";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render } from "@testing-library/react-native";
 import { ApiError } from "../../../api/errors";
@@ -13,6 +14,7 @@ import { AuthContext, type AuthContextValue } from "../../../auth/AuthContext";
 import { OrganizationContext, type OrganizationContextValue } from "../../../state/OrganizationContext";
 import type { AffiliateProfile, Commission, ComplianceCase, Organization, User, WalletSummary } from "../../../types/api";
 import HomeScreen from "../../../app/(app)/index";
+jest.mock("../../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => false };
 
@@ -123,6 +125,7 @@ async function renderHome(options: { auth?: Partial<AuthContextValue>; org?: Par
 }
 
 beforeEach(() => {
+  releaseFeatures.commerce = true;
   jest.clearAllMocks();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mockedFetchMyAffiliateProfile.mockResolvedValue(ACTIVE_AFFILIATE);
@@ -464,5 +467,25 @@ describe("Home: notification bell", () => {
       fireEvent.press(bell);
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/notifications");
+  });
+});
+
+
+describe("First release: no commercial dependency", () => {
+  it("loads enrollment and network without financial requests, including refresh", async () => {
+    releaseFeatures.commerce = false;
+    const { findByText, queryByText, getByTestId } = await renderHome();
+    await findByText("AFF100");
+    await findByText("Aún no hay actividad en tu red");
+    expect(queryByText("Mis comisiones")).toBeNull();
+    expect(queryByText("Mi monedero")).toBeNull();
+    expect(mockedFetchMyCommissions).not.toHaveBeenCalled();
+    expect(mockedFetchMyWallet).not.toHaveBeenCalled();
+    await act(async () => {
+      getByTestId("home-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(mockedFetchMyAffiliateProfile).toHaveBeenCalledTimes(2);
+    expect(mockedFetchMyCommissions).not.toHaveBeenCalled();
+    expect(mockedFetchMyWallet).not.toHaveBeenCalled();
   });
 });

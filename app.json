@@ -37,7 +37,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Afilianet to access your camera to capture identity documents and selfies for verification.",
+          "cameraPermission": "Afilianet necesita acceder a tu cámara para fotografiar tu identificación y verificar tu identidad.",
           "microphonePermission": false,
           "photosPermission": false
         }
