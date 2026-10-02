@@ -1,9 +1,9 @@
 import { ApiError } from "../api/errors";
 import { createAssistedEnrollment } from "../api/assistedEnrollment";
 import { captureApiSessionGuard } from "../api/client";
-import { completeEvidenceUpload, fetchComplianceSteps, fetchMyCompliance, requestEvidenceUpload, triggerDocumentProcessing } from "../api/endpoints";
+import { completeEvidenceUpload, fetchComplianceSteps, fetchMyCompliance, requestEvidenceUpload, submitComplianceGeolocation, triggerDocumentProcessing } from "../api/endpoints";
 import { fetch as expoFetch } from "expo/fetch";
-import { listPendingAssisted, savePendingAssisted, syncPendingAssisted, replaceAssistedPhoto } from "./assistedQueue";
+import { listPendingAssisted, savePendingAssisted, syncPendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation } from "./assistedQueue";
 import { removeAssistedPhoto } from "./assistedEvidenceVault";
 
 const mockStore = new Map<string, string>();
@@ -18,7 +18,7 @@ jest.mock("../api/client", () => ({ captureApiSessionGuard: jest.fn(() => () => 
 jest.mock("../api/assistedEnrollment", () => ({ createAssistedEnrollment: jest.fn() }));
 jest.mock("../api/endpoints", () => ({
   fetchMyCompliance: jest.fn(), startCompliance: jest.fn(), fetchComplianceSteps: jest.fn(),
-  requestEvidenceUpload: jest.fn(), completeEvidenceUpload: jest.fn(), triggerDocumentProcessing: jest.fn(),
+  requestEvidenceUpload: jest.fn(), completeEvidenceUpload: jest.fn(), triggerDocumentProcessing: jest.fn(), submitComplianceGeolocation: jest.fn(),
 }));
 jest.mock("./assistedEvidenceVault", () => ({
   openAssistedPhoto: jest.fn(async () => new Uint8Array([1, 2, 3])),
@@ -78,4 +78,29 @@ it("retains both encrypted photos after a failed upload and deletes them only af
   expect(triggerDocumentProcessing).toHaveBeenCalledWith("document-a", "mx_ine", "enrollment-a");
   expect(removeAssistedPhoto).toHaveBeenCalledTimes(2);
   expect((expoFetch as jest.Mock).mock.calls[0][1].headers).toEqual([["Content-Type", "image/jpeg"]]);
+});
+
+const location = { permission_status: "granted", capture_status: "captured", latitude: 19.43, longitude: -99.13, accuracy_meters: 12, captured_at: "2026-10-01T12:00:00.000Z" } as const;
+
+it("keeps a saved location scoped to its sponsor and organization", async () => {
+  await savePendingAssisted(draft);
+  await expect(replaceAssistedGeolocation("sponsor-b", "org-a", "request-a", location)).rejects.toThrow();
+  await expect(replaceAssistedGeolocation("sponsor-a", "org-b", "request-a", location)).rejects.toThrow();
+  await replaceAssistedGeolocation("sponsor-a", "org-a", "request-a", location);
+  expect((await listPendingAssisted("sponsor-a", "org-a"))[0].geolocation).toEqual(location);
+  await replaceAssistedGeolocation("sponsor-a", "org-a", "request-a", undefined);
+  expect((await listPendingAssisted("sponsor-a", "org-a"))[0].geolocation).toBeUndefined();
+});
+
+it("retains location after a failed sync and sends its original date to the assisted case", async () => {
+  await savePendingAssisted(draft);
+  await replaceAssistedGeolocation("sponsor-a", "org-a", "request-a", location);
+  (fetchMyCompliance as jest.Mock).mockResolvedValue({ id: "case-a" });
+  (fetchComplianceSteps as jest.Mock).mockResolvedValue([{ id: "document-a", step_type: "identity_document" }]);
+  (submitComplianceGeolocation as jest.Mock).mockRejectedValueOnce(new ApiError("timeout", "timeout")).mockResolvedValue({ id: "geo-a" });
+  expect((await syncPendingAssisted("sponsor-a", "org-a")).remaining).toBe(1);
+  expect((await listPendingAssisted("sponsor-a", "org-a"))[0].geolocation).toEqual(location);
+  expect((await syncPendingAssisted("sponsor-a", "org-a")).remaining).toBe(0);
+  expect(submitComplianceGeolocation).toHaveBeenLastCalledWith("document-a", location, "enrollment-a");
+  expect(triggerDocumentProcessing).not.toHaveBeenCalled();
 });
