@@ -1,3 +1,5 @@
+import { releaseFeatures } from "../config/release";
+
 export const routes = {
   register: "/(auth)/register",
   login: "/(auth)/login",
@@ -31,6 +33,7 @@ const NOTIFICATION_SCREEN_ROUTES: Record<string, string> = {
 /** Returns the whitelisted destination for a notification's payload.screen, or null if absent/unrecognized. */
 export function notificationDestination(screen: string | undefined): string | null {
   if (!screen) return null;
+  if (!releaseFeatures.commerce && (screen === "commissions" || screen === "payouts")) return null;
   return NOTIFICATION_SCREEN_ROUTES[screen] ?? null;
 }
 

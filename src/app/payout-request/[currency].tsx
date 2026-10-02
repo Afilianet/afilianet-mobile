@@ -1,3 +1,4 @@
+import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -22,6 +23,14 @@ import { analytics } from "../../services/analytics";
 import { formatMoney, parseAmountInput, toMinorUnits } from "../../utils/money";
 
 export default function PayoutRequestScreen() {
+  return (
+    <CommercialFeatureGate>
+      <PayoutRequestScreenContent />
+    </CommercialFeatureGate>
+  );
+}
+
+function PayoutRequestScreenContent() {
   const router = useRouter();
   const { currency } = useLocalSearchParams<{ currency: string }>();
   const eligibilityQuery = usePayoutEligibility(currency);

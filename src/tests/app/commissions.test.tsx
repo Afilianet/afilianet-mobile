@@ -6,6 +6,7 @@ import { OrganizationContext, type OrganizationContextValue } from "../../state/
 import { analytics } from "../../services/analytics";
 import type { AffiliateProfile, Commission, Organization, PaginatedResponse, WalletSummary } from "../../types/api";
 import CommissionsScreen from "../../app/commissions";
+jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 const mockBack = jest.fn();
 
