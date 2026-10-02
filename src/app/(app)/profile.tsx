@@ -83,6 +83,8 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
+      <Button label="Eliminar mi cuenta" variant="ghost" onPress={() => router.push("/delete-account" as never)} />
       <Button label={strings.profile.signOut} variant="secondary" onPress={() => signOut()} />
     </ScrollView>
   );
