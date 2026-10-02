@@ -23,7 +23,7 @@ export default function ForgotPasswordScreen() {
     setPending(true);
     setError("");
     try {
-      await apiRequest("/auth/forgot-password", {
+      await apiRequest("/api/v1/auth/forgot-password", {
         method: "POST", body: { email: normalizedEmail },
         skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true,
       });

@@ -40,7 +40,7 @@ export function EmailVerificationCard({ user }: { user: User }) {
     setError("");
     setMessage("");
     try {
-      await apiRequest("/auth/email-verification", { method: "POST", skipOrganization: true });
+      await apiRequest("/api/v1/auth/email-verification", { method: "POST", skipOrganization: true });
       setMessage("Solicitud recibida. Revisa tu correo y la carpeta de spam. El enlace dura 60 minutos.");
       setCooldown(60);
     } catch (cause) {
