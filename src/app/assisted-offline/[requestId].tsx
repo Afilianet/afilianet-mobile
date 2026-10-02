@@ -10,10 +10,12 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useDocumentCamera } from "../../hooks/useDocumentCamera";
-import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto } from "../../services/assistedQueue";
+import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
 import { useOrganization } from "../../state/OrganizationContext";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
+
+import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
 
 export default function AssistedOfflineScreen() {
   const { requestId } = useLocalSearchParams<{ requestId: string }>();
@@ -61,6 +63,27 @@ export default function AssistedOfflineScreen() {
     }
   }
 
+  async function captureLocation() {
+    if (!user || !activeOrganization || !query.data || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await captureDeviceGeolocation();
+      if (outcome.kind !== "captured") {
+        setError("No se obtuvo la ubicación. Puedes continuar sin ella o volver a intentarlo.");
+        return;
+      }
+      await replaceAssistedGeolocation(user.id, activeOrganization.id, requestId, buildGeolocationSubmission(outcome));
+      await query.refetch();
+    } catch {
+      setError("No se pudo guardar la ubicación. Puedes continuar sin ella.");
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   function discard() {
     Alert.alert("Eliminar copia local", "Se eliminarán los datos y fotos guardados en este teléfono. Si el afiliado ya se creó al sincronizar, su registro en la organización se conserva.", [
       { text: "Cancelar", style: "cancel" },
@@ -93,6 +116,15 @@ export default function AssistedOfflineScreen() {
         <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} />
       </Card>;
     })}
+    <Card style={styles.card}>
+      <Text style={styles.label}>Ubicación opcional</Text>
+      <Text style={styles.description}>Con el consentimiento de la persona, guarda la ubicación de este teléfono durante el registro asistido. No acredita su domicilio. Se conservará protegida y se enviará al sincronizar, junto con la fecha original de captura.</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.description}>{item.geolocation?.capture_status === "captured" ? `Ubicación guardada: ${new Date(item.geolocation.captured_at!).toLocaleString("es-MX")}` : "Sin ubicación guardada. Puedes continuar sin compartirla."}</Text>
+      <Button label={item.geolocation ? "Actualizar ubicación con consentimiento" : "Compartir ubicación con consentimiento"} loading={busy} onPress={() => void captureLocation()} />
+      {item.geolocation && <Button label="Quitar ubicación guardada" variant="secondary" disabled={busy} onPress={() => {
+        void replaceAssistedGeolocation(user!.id, activeOrganization!.id, requestId, undefined).then(() => query.refetch()).catch(() => setError("No se pudo quitar la ubicación."));
+      }} />}
+    </Card>
     <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. El afiliado recibirá un correo para crear su contraseña y completar la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />

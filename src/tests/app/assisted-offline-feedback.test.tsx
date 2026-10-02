@@ -1,7 +1,10 @@
 import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import AssistedOfflineScreen from "../../app/assisted-offline/[requestId]";
-import { replaceAssistedPhoto } from "../../services/assistedQueue";
+import { captureDeviceGeolocation } from "../../utils/geolocation";
+import { replaceAssistedPhoto, replaceAssistedGeolocation } from "../../services/assistedQueue";
+
+jest.mock("../../utils/geolocation", () => ({ captureDeviceGeolocation: jest.fn(), buildGeolocationSubmission: jest.fn() }));
 
 let mockPhotos: { evidenceType: string }[] = [];
 const mockCapture = jest.fn();
@@ -13,7 +16,7 @@ jest.mock("../../hooks/useDocumentCamera", () => ({ useDocumentCamera: () => ({ 
 jest.mock("../../services/assistedQueue", () => ({
   listPendingAssisted: jest.fn(async () => [{ input: { client_request_id: "request-a", first_name: "Ana", last_name: "López" }, photos: [...mockPhotos] }]),
   replaceAssistedPhoto: jest.fn(async (_user, _org, _request, photo) => { mockPhotos = [...mockPhotos.filter((p) => p.evidenceType !== photo.evidenceType), photo]; }),
-  removePendingAssisted: jest.fn(),
+  removePendingAssisted: jest.fn(), replaceAssistedGeolocation: jest.fn(),
 }));
 jest.mock("../../services/assistedEvidenceVault", () => ({ sealAssistedPhoto: jest.fn(async (evidenceType) => ({ evidenceType, mimeType: "image/jpeg", fileName: "sealed", keyName: "key" })), removeAssistedPhoto: jest.fn() }));
 
@@ -51,6 +54,21 @@ it("does not report a captured photo as saved when persistence fails", async () 
   await waitFor(() => expect(screen.getByText("No se pudo guardar la foto.")).toBeTruthy());
   expect(screen.getByText("0 de 2 fotos guardadas en este teléfono")).toBeTruthy();
   expect(screen.queryByText("✓ Foto guardada en este teléfono")).toBeNull();
+  await screen.unmount();
+  client.clear();
+});
+
+it("requests location only after consent and keeps photo capture available when permission is denied", async () => {
+  (captureDeviceGeolocation as jest.Mock).mockResolvedValue({ kind: "denied" });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const screen = await render(<QueryClientProvider client={client}><AssistedOfflineScreen /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByText("Compartir ubicación con consentimiento")).toBeTruthy());
+  expect(captureDeviceGeolocation).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText("Compartir ubicación con consentimiento"));
+  await waitFor(() => expect(screen.getByText("No se obtuvo la ubicación. Puedes continuar sin ella o volver a intentarlo.")).toBeTruthy());
+  expect(replaceAssistedGeolocation).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText("Capturar: Frente de INE"));
+  await waitFor(() => expect(screen.getByText("1 de 2 fotos guardadas en este teléfono")).toBeTruthy());
   await screen.unmount();
   client.clear();
 });

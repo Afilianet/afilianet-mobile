@@ -3,9 +3,11 @@ import { secureStorage } from "./storage";
 import type { AssistedEnrollmentInput, AssistedEnrollmentResult } from "../api/assistedEnrollment";
 import { createAssistedEnrollment } from "../api/assistedEnrollment";
 import { captureApiSessionGuard } from "../api/client";
-import { completeEvidenceUpload, fetchComplianceSteps, fetchMyCompliance, requestEvidenceUpload, startCompliance, triggerDocumentProcessing } from "../api/endpoints";
+import { completeEvidenceUpload, fetchComplianceSteps, fetchMyCompliance, requestEvidenceUpload, startCompliance, submitComplianceGeolocation, triggerDocumentProcessing } from "../api/endpoints";
 import { ApiError, friendlyMessage, isApiError } from "../api/errors";
 import { openAssistedPhoto, removeAssistedPhoto, type AssistedPhoto } from "./assistedEvidenceVault";
+
+import type { ComplianceGeolocationSubmission } from "../types/api";
 
 const INDEX_KEY = "afn.assisted.pending.ids";
 const ITEM_PREFIX = "afn.assisted.pending.";
@@ -18,6 +20,8 @@ export interface PendingAssistedEnrollment {
   organizationId: string;
   input: AssistedEnrollmentInput;
   photos?: AssistedPhoto[];
+  geolocation?: ComplianceGeolocationSubmission;
+  geolocationUploaded?: boolean;
   enrollmentId?: string;
   uploadedTypes?: AssistedPhoto["evidenceType"][];
 }
@@ -72,6 +76,19 @@ export async function replaceAssistedPhoto(
   });
 }
 
+export async function replaceAssistedGeolocation(
+  sponsorUserId: string, organizationId: string, requestId: string,
+  geolocation: ComplianceGeolocationSubmission | undefined,
+): Promise<void> {
+  return mutate(async () => {
+    const item = (await listPendingAssisted(sponsorUserId, organizationId)).find((value) => value.input.client_request_id === requestId);
+    if (!item) throw new Error("Este registro ya se sincronizó o no pertenece a esta sesión.");
+    item.geolocation = geolocation;
+    item.geolocationUploaded = false;
+    await secureStorage.set(ITEM_PREFIX + requestId, JSON.stringify(item));
+  });
+}
+
 async function removeUnlocked(id: string): Promise<void> {
   const raw = await secureStorage.get(ITEM_PREFIX + id);
   if (raw) {
@@ -112,10 +129,10 @@ export async function syncPendingAssisted(
           item.enrollmentId = result.id;
           await secureStorage.set(ITEM_PREFIX + item.input.client_request_id, JSON.stringify(item));
           const photos = item.photos ?? [];
-          if (photos.length) {
+          if (photos.length || item.geolocation) {
             if (result.access_status !== "pending") throw new ApiError("conflict", "La persona ya activó su cuenta. Debe continuar la captura de su ID desde su propia sesión.");
-            if (!photos.some((photo) => photo.evidenceType === "id_document_front")
-              || !photos.some((photo) => photo.evidenceType === "id_document_back")) {
+            if (photos.length && (!photos.some((photo) => photo.evidenceType === "id_document_front")
+              || !photos.some((photo) => photo.evidenceType === "id_document_back"))) {
               throw new ApiError("validation", "Falta una cara de la INE guardada. Completa las fotos antes de sincronizarlas.");
             }
             requireCurrent();
@@ -148,10 +165,20 @@ export async function syncPendingAssisted(
               item.uploadedTypes = [...(item.uploadedTypes ?? []), photo.evidenceType];
               await secureStorage.set(ITEM_PREFIX + item.input.client_request_id, JSON.stringify(item));
             }
+            if (photos.length) {
             requireCurrent();
             try { await triggerDocumentProcessing(document.id, "mx_ine", result.id); } catch (error) {
               if (!isApiError(error) || error.kind !== "conflict") throw error;
               // Already queued by a previous response-lost retry; evidence is uploaded.
+            }
+            }
+            // Send the saved observation, never recapture at the time of synchronization.
+            // A failed request retains the encrypted draft for a later retry.
+            if (item.geolocation && !item.geolocationUploaded) {
+              requireCurrent();
+              await submitComplianceGeolocation(document.id, item.geolocation, result.id);
+              item.geolocationUploaded = true;
+              await secureStorage.set(ITEM_PREFIX + item.input.client_request_id, JSON.stringify(item));
             }
           }
           completed.push(result);
