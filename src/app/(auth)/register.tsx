@@ -101,6 +101,7 @@ export default function RegisterScreen() {
         </Card>
       ))}
       {mode === "organization" && nextPage && !error ? <Button label={strings.shared.loadMore} variant="ghost" loading={busy} onPress={() => void load("organization", nextPage)} /> : null}
+      <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
       <Button label={strings.auth.join.signIn} variant="ghost" onPress={() => router.replace(routes.login as never)} />
     </ScrollView>
   );
