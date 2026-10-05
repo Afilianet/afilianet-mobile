@@ -37,7 +37,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Afilianet necesita acceder a tu cámara para fotografiar tu identificación y verificar tu identidad.",
+          "cameraPermission": "Afilianet necesita acceder a tu c\u00e1mara para fotografiar tu identificaci\u00f3n y verificar tu identidad.",
           "microphonePermission": false,
           "photosPermission": false
         }
@@ -45,7 +45,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Afilianet puede usar tu ubicación, de forma opcional, para ayudar a proteger tu cuenta durante la verificación de identidad.",
+          "locationWhenInUsePermission": "Afilianet puede usar tu ubicaci\u00f3n, de forma opcional, para ayudar a proteger tu cuenta durante la verificaci\u00f3n de identidad.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
           "motionUsagePermission": false,
@@ -62,7 +62,8 @@
           }
         }
       ],
-      "./plugins/withAndroidCoreLibraryDesugaring"
+      "./plugins/withAndroidCoreLibraryDesugaring",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,

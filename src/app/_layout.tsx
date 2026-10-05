@@ -10,6 +10,7 @@ import { queryClient } from "../api/queryClient";
 import { strings } from "../i18n";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth } from "../auth/AuthContext";
+import { PushLifecycle } from "../components/PushLifecycle";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
@@ -56,6 +57,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <OrganizationProvider>
+            <PushLifecycle />
             <RootNavigation />
           </OrganizationProvider>
         </AuthProvider>

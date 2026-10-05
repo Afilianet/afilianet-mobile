@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { unregisterPush } from "../services/push";
 import { queryClient } from "../api/queryClient";
 import { configureApiClient } from "../api/client";
 import { isApiError } from "../api/errors";
@@ -26,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    await unregisterPush().catch(() => undefined);
     try {
       // Best-effort: revoke the token server-side. If this fails (offline,
       // token already invalid, ...) we still tear down the local session below --
