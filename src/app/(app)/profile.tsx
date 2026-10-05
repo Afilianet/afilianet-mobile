@@ -46,6 +46,7 @@ export default function ProfileScreen() {
 
       {user ? <EmailVerificationCard key={user.id} user={user} /> : null}
 
+      {activeOrganization ? <>
       <SectionCard
         title={strings.profile.affiliateTitle}
         query={affiliateQuery}
@@ -60,6 +61,8 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>{strings.profile.complianceTitle}</Text>
         <ComplianceSummary query={complianceQuery} onPress={() => router.push(routes.compliance as never)} />
       </Card>
+
+      </> : <Text style={styles.fieldValue}>Tu cuenta sigue activa. Actualmente no tienes una organización seleccionada.</Text>}
 
       {organizations.length > 1 ? (
         <Card style={styles.card}>
@@ -83,6 +86,10 @@ export default function ProfileScreen() {
         </Card>
       ) : null}
 
+      <Button label="Configurar notificaciones" variant="secondary" onPress={() => router.push("/notifications" as never)} />
+      {activeOrganization ? <Button label={`Salir de ${activeOrganization.name}`} variant="ghost" onPress={() => router.push({ pathname: "/leave-organization", params: { organizationId: activeOrganization.id } } as never)} /> : null}
+      <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
+      <Button label="Eliminar mi cuenta" variant="ghost" onPress={() => router.push("/delete-account" as never)} />
       <Button label={strings.profile.signOut} variant="secondary" onPress={() => signOut()} />
     </ScrollView>
   );

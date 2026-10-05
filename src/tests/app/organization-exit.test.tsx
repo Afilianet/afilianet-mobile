@@ -1,0 +1,21 @@
+import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import LeaveOrganizationScreen from "../../app/leave-organization";
+import { apiRequest } from "../../api/client";
+const mockRefresh = jest.fn().mockResolvedValue(undefined);
+jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn() }), useLocalSearchParams: () => ({ organizationId: "org-one" }) }));
+jest.mock("../../state/OrganizationContext", () => ({ useOrganization: () => ({ organizations: [{ id: "org-one", name: "Primera organización" }, { id: "org-two", name: "Otra organización" }], refresh: mockRefresh }) }));
+jest.mock("../../api/client", () => ({ apiRequest: jest.fn() }));
+const api = apiRequest as jest.Mock;
+beforeEach(() => { api.mockReset(); mockRefresh.mockClear(); api.mockResolvedValue({ data: { status: "removed" } }); });
+it("requires confirmation and exits only the organization shown", async () => {
+  const screen = await render(<LeaveOrganizationScreen />);
+  await fireEvent.press(screen.getByText("Confirmar salida"));
+  expect(api).not.toHaveBeenCalled();
+  await fireEvent.changeText(screen.getByLabelText("Contraseña actual"), "test-password");
+  await fireEvent.changeText(screen.getByLabelText("Escribe SALIR"), "SALIR");
+  await act(async () => { await fireEvent.press(screen.getByText("Confirmar salida")); });
+  await waitFor(() => expect(mockRefresh).toHaveBeenCalledWith("org-one"));
+  expect(api).toHaveBeenCalledTimes(1);
+  expect(api).toHaveBeenCalledWith("/api/v1/me/organizations/org-one/leave", expect.objectContaining({ method: "POST", skipOrganization: true, body: { password: "test-password", confirmation: "SALIR" } }));
+  expect(screen.getByText("Ya saliste de esta organización. Tu cuenta y las demás afiliaciones siguen activas.")).toBeTruthy();
+});

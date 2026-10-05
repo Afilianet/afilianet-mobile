@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { PushPreferences } from "../components/PushPreferences";
 import { NotificationRow } from "../components/NotificationRow";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { Button } from "../components/ui/Button";
@@ -76,6 +77,8 @@ export default function NotificationsScreen() {
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
+
+        <PushPreferences />
 
         {hasUnread ? (
           <View style={styles.markAllRow}>

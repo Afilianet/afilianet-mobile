@@ -10,7 +10,7 @@ export interface OrganizationContextValue {
   activeOrganization: Organization | null;
   error: ApiError | null;
   selectOrganization: (organizationId: string) => Promise<void>;
-  refresh: () => Promise<void>;
+  refresh: (removedOrganizationId?: string) => Promise<void>;
 }
 
 export const OrganizationContext = createContext<OrganizationContextValue | null>(null);
