@@ -6,7 +6,7 @@ import { registerPush } from "../services/push";
 import { Button } from "./ui/Button";
 import { colors, spacing } from "./ui/theme";
 
-type Preferences = { service_push: boolean; promotions: boolean; consent_version: string };
+type Preferences = { push_enabled?: boolean; service_push: boolean; promotions: boolean; consent_version: string };
 export function PushPreferences() {
   const { activeOrganization } = useOrganization();
   const id = activeOrganization?.id;
@@ -35,10 +35,11 @@ function OrganizationPreferences({ id, name }: { id: string; name: string }) {
   return <View style={styles.card}>
     <Text style={styles.title}>Notificaciones · {name}</Text>
     <Text>Activa las notificaciones del teléfono para recibir avisos fuera de la app. Puedes seguir usando Afilianet sin permitirlas.</Text>
-    <Button label="Activar en este teléfono" variant="secondary" disabled={busy} onPress={() => {
+    <Button label="Activar en este teléfono" variant="secondary" disabled={busy || value?.push_enabled === false} onPress={() => {
       setBusy(true); void registerPush(true).then(ok => setMessage(ok ? "Teléfono registrado." : "No se activaron. Revisa los permisos del teléfono."))
         .catch(() => setMessage("No se pudo registrar el teléfono. Intenta nuevamente." )).finally(() => setBusy(false));
     }} />
+    {value?.push_enabled === false ? <Text>Las notificaciones push están en preparación; todavía no se envían mensajes al teléfono.</Text> : null}
     {value ? <>
       <Text>Avisos de cuenta y organización</Text>
       <Switch accessibilityLabel="Avisos de cuenta y organización" value={value.service_push} disabled={busy} onValueChange={v => setValue({ ...value, service_push: v })} />

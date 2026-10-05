@@ -10,6 +10,8 @@ Notifications.setNotificationHandler({ handleNotification: async () => ({
 
 export async function registerPush(requestPermission = false): Promise<boolean> {
   if (Platform.OS === "web" || !Device.isDevice) return false;
+  const capabilities = await apiRequest<{ data: { enabled: boolean } }>("/api/v1/push/capabilities", { skipOrganization: true });
+  if (!capabilities.data.enabled) return false;
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("service", { name: "Avisos de cuenta y organización", importance: Notifications.AndroidImportance.DEFAULT });
     await Notifications.setNotificationChannelAsync("promotions", { name: "Promociones", importance: Notifications.AndroidImportance.DEFAULT });
