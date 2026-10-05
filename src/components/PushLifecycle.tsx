@@ -8,12 +8,13 @@ import { registerPush } from "../services/push";
 
 export function PushLifecycle() {
   const { status, user } = useAuth();
+  const userId = user?.id;
   const router = useRouter();
   const organization = useOrganization();
   const orgRef = useRef(organization);
   useEffect(() => { orgRef.current = organization; }, [organization]);
   useEffect(() => {
-    if (status !== "signedIn" || !user || organization.status !== "ready") return;
+    if (status !== "signedIn" || !userId || organization.status !== "ready") return;
     const refresh = () => { void registerPush(false).catch(() => undefined); };
     refresh();
     const state = AppState.addEventListener("change", value => { if (value === "active") refresh(); });
@@ -27,9 +28,9 @@ export function PushLifecycle() {
     };
     const response = Notifications.addNotificationResponseReceivedListener(open);
     void Notifications.getLastNotificationResponseAsync().then(value => {
-      if (value) { open(value); void Notifications.clearLastNotificationResponseAsync(); }
-    });
+      if (value) { open(value); void Notifications.clearLastNotificationResponseAsync().catch(() => undefined); }
+    }).catch(() => undefined);
     return () => { state.remove(); token.remove(); response.remove(); };
-  }, [status, user?.id, router, organization.status]);
+  }, [status, userId, router, organization.status]);
   return null;
 }
