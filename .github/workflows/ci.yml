@@ -25,9 +25,12 @@ jobs:
       - name: Verify public registration and account creation
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/register.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/join.test.tsx
       - name: Verify account email and recovery
-        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/email-verification.test.tsx src/tests/app/forgot-password.test.tsx 'src/tests/app/(app)/profile.test.tsx'
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/email-verification.test.tsx src/tests/app/forgot-password.test.tsx 'src/tests/app/(app)/profile.test.tsx' src/tests/app/account-deletion.test.tsx
 
       - name: Verify first release scope and build environment
         run: |
           npm run test:build-env
           npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/config/release.test.tsx 'src/tests/app/(app)/index.test.tsx'
+
+      - name: Verify organization exit and optional promotional consent
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/organization-exit.test.tsx src/tests/push/preferences.test.tsx

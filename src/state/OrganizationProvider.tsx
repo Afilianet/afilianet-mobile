@@ -74,7 +74,18 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     [organizations],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (removedOrganizationId?: string) => {
+    if (removedOrganizationId) {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      activeOrgIdRef.current = null;
+      setActiveOrganization(null);
+      await secureStorage.remove(ACTIVE_ORG_KEY);
+      if (userId) {
+        const saved = await restoreOfflineOrganizations(userId);
+        await saveOfflineOrganizations(userId, (saved ?? []).filter(org => org.id !== removedOrganizationId));
+      }
+    }
     setStatus("loading");
     setError(null);
     try {
@@ -88,6 +99,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         if (!saved) throw cause;
         orgs = saved;
       }
+      orgs = orgs.filter(org => org.id !== removedOrganizationId);
       setOrganizations(orgs);
 
       const storedId = await secureStorage.get(ACTIVE_ORG_KEY);

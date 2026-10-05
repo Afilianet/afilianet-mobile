@@ -80,7 +80,7 @@ function RootNavigation() {
     const inOrganizationPicker = segments[0] === "organization-picker";
 
     if (authStatus === "signedOut") {
-      if (!inAuthGroup && !inJoin) router.replace(routes.login as never);
+      if (!inAuthGroup && !inJoin && segments[0] !== "privacy") router.replace(routes.login as never);
       return;
     }
 
@@ -90,7 +90,7 @@ function RootNavigation() {
     }
 
     const needsOrganizationChoice = orgStatus === "ready" && !activeOrganization && organizations.length > 1;
-    if (needsOrganizationChoice && !inOrganizationPicker) {
+    if (needsOrganizationChoice && !inOrganizationPicker && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
       router.replace(routes.organizationPicker as never);
     }
   }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
@@ -103,7 +103,7 @@ function RootNavigation() {
   // query disabled (they all gate on activeOrganization) with no way to
   // recover -- every screen would sit in permanent, silent loading. This is
   // the one place that state is visible regardless of which screen is active.
-  if (authStatus === "signedIn" && orgStatus === "error") {
+  if (authStatus === "signedIn" && orgStatus === "error" && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
     return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 
