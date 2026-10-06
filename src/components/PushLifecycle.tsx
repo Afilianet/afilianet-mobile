@@ -24,12 +24,23 @@ export function PushLifecycle() {
     refresh();
     const state = AppState.addEventListener("change", value => { if (value === "active") refresh(); });
     const token = Notifications.addPushTokenListener(refresh);
+    // One shared tap-to-navigate listener for BOTH organization and platform
+    // push notifications -- never a second, duplicate listener (see
+    // SendPlatformNotificationPush on afilianet-api, whose payload omits
+    // organization_id entirely for exactly this branch, vs
+    // SendNotificationPush's org-scoped payload, which always includes it).
     const open = (response: Notifications.NotificationResponse) => {
-      const organizationId = response.notification.request.content.data?.organization_id;
-      if (typeof organizationId !== "string") return;
-      const current = orgRef.current;
-      if (!current.organizations.some(org => org.id === organizationId)) return;
-      void current.selectOrganization(organizationId).then(() => router.push("/notifications")).catch(() => undefined);
+      const data = response.notification.request.content.data;
+      const organizationId = data?.organization_id;
+      if (typeof organizationId === "string") {
+        const current = orgRef.current;
+        if (!current.organizations.some(org => org.id === organizationId)) return;
+        void current.selectOrganization(organizationId).then(() => router.push("/notifications")).catch(() => undefined);
+        return;
+      }
+      if (data?.screen === "platform-notifications") {
+        router.push("/platform-notifications");
+      }
     };
     const response = Notifications.addNotificationResponseReceivedListener(open);
     void Notifications.getLastNotificationResponseAsync().then(value => {
