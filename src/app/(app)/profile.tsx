@@ -62,7 +62,7 @@ export default function ProfileScreen() {
         <ComplianceSummary query={complianceQuery} onPress={() => router.push(routes.compliance as never)} />
       </Card>
 
-      </> : <Text style={styles.fieldValue}>Tu cuenta sigue activa. Actualmente no tienes una organización seleccionada.</Text>}
+      </> : <Text style={styles.fieldValue}>{strings.noOrganization.description}</Text>}
 
       {organizations.length > 1 ? (
         <Card style={styles.card}>

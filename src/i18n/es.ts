@@ -400,6 +400,41 @@ export const es = {
     opensNotificationHint: "Abre esta notificación",
     bellUnreadA11y: (count: number) => `Notificaciones, ${count} sin leer`,
   },
+  // Afilianet-wide communications - independent of any organization, so
+  // reachable (and visually distinguished via the "Afilianet" badge in
+  // NotificationRow) regardless of how many organizations the account
+  // currently belongs to. Mirrors `notifications` above field-for-field.
+  platformNotifications: {
+    title: "Notificaciones de Afilianet",
+    badge: "Afilianet",
+    markAllRead: "Marcar todo como leído",
+    markAllReadA11y: "Marcar todas las notificaciones de Afilianet como leídas",
+    couldNotMarkAllRead: "No pudimos marcar todo como leído. Intenta de nuevo.",
+    recentTitle: "Avisos de Afilianet",
+    noneYet: "Aún no hay notificaciones de Afilianet",
+    forbiddenArea: "notificaciones de Afilianet",
+    opensNotificationHint: "Abre esta notificación",
+  },
+  noOrganization: {
+    title: "Sin organización activa",
+    description: "Tu cuenta sigue activa. Actualmente no perteneces a ninguna organización.",
+    viewNotifications: "Ver notificaciones de Afilianet",
+    viewProfile: "Ver mi perfil",
+    acceptInvitationHint: "Si recibiste una invitación de una organización, ábrela para unirte.",
+  },
+  staffInvite: {
+    title: "Invitación de organización",
+    loading: "Cargando invitación…",
+    notFound: "Esta invitación ya no está disponible. Puede haber expirado o haber sido cancelada.",
+    roleLabel: "Rol",
+    acceptAs: (organization: string) => `Unirme a ${organization}`,
+    accepting: "Uniéndote…",
+    accepted: (organization: string) => `Ya formas parte de ${organization}.`,
+    signInToAccept: "Inicia sesión con tu cuenta para aceptar esta invitación.",
+    signIn: "Iniciar sesión",
+    goHome: "Ir al inicio",
+    genericError: "No se pudo procesar la invitación. Intenta de nuevo.",
+  },
   organizationPicker: {
     title: "Elige una organización",
     switchTo: (name: string) => `Cambiar a ${name}`,

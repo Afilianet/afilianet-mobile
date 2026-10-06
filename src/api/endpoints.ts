@@ -629,3 +629,124 @@ export async function fetchRegistrationOrganizations(search = "", page = 1): Pro
     { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
   );
 }
+
+// --- Platform-wide (organization-independent) notifications ----------------
+// Same backend contract as fetchNotifications/etc. above, minus the
+// organization dimension -- GET /platform/notifications/* has no `tenant`
+// middleware and never consults X-Organization-ID, so every call here is
+// skipOrganization: true, reachable identically whether the caller
+// currently belongs to zero, one, or many organizations.
+
+export async function fetchPlatformNotifications(page = 1, perPage = 25): Promise<PaginatedResponse<Notification>> {
+  return apiRequest<PaginatedResponse<Notification>>(`/api/v1/platform/notifications?per_page=${perPage}&page=${page}`, {
+    skipOrganization: true,
+  });
+}
+
+export async function fetchPlatformUnreadNotificationCount(): Promise<number> {
+  const { data } = await apiRequest<{ data: { count: number } }>("/api/v1/platform/notifications/unread-count", {
+    skipOrganization: true,
+  });
+  return data.count;
+}
+
+export async function markPlatformNotificationRead(notificationId: string): Promise<Notification> {
+  const { data } = await apiRequest<{ data: Notification }>(`/api/v1/platform/notifications/${notificationId}/read`, {
+    method: "POST",
+    skipOrganization: true,
+  });
+  return data;
+}
+
+export async function markAllPlatformNotificationsRead(): Promise<void> {
+  await apiRequest<{ message: string }>("/api/v1/platform/notifications/read-all", {
+    method: "POST",
+    skipOrganization: true,
+  });
+}
+
+export interface PlatformNotificationPreferences {
+  push_enabled: boolean;
+  service_push: boolean;
+  promotions: boolean;
+  consent_version: string;
+}
+
+export async function fetchPlatformNotificationPreferences(): Promise<PlatformNotificationPreferences> {
+  const { data } = await apiRequest<{ data: PlatformNotificationPreferences }>("/api/v1/platform/notifications/preferences", {
+    skipOrganization: true,
+  });
+  return data;
+}
+
+export async function updatePlatformNotificationPreferences(input: {
+  service_push: boolean;
+  promotions: boolean;
+  consent_version: string;
+}): Promise<PlatformNotificationPreferences> {
+  const { data } = await apiRequest<{ data: PlatformNotificationPreferences }>("/api/v1/platform/notifications/preferences", {
+    method: "PUT",
+    body: input,
+    skipOrganization: true,
+  });
+  return data;
+}
+
+// --- Staff invitations (owner invites staff to a second organization) ------
+// Deliberately separate from the referral/registration invitation functions
+// above (fetchPublicReferral/startReferralInvitation/acceptReferralInvitation,
+// which enroll a NEW affiliate) -- a staff invitation only ever creates/
+// updates an OrganizationMembership for owner/admin/manager roles. Public
+// (no auth required to view), but accept() recognizes an already-signed-in
+// caller automatically if an Authorization header is present (the backend
+// branches on $request->user('sanctum') -- see
+// PublicStaffInvitationController::accept() in afilianet-api) -- so an
+// authenticated call here must NOT set skipAuth, unlike the referral flow.
+
+export interface StaffInvitation {
+  organization: { id: string; name: string };
+  role: string;
+}
+
+export async function fetchStaffInvitation(token: string): Promise<StaffInvitation> {
+  const { data } = await apiRequest<{ data: StaffInvitation }>(`/api/v1/staff-invitations/${encodeURIComponent(token)}`, {
+    skipAuth: true,
+    skipOrganization: true,
+    skipUnauthorizedHandling: true,
+  });
+  return data;
+}
+
+export interface StaffInvitationAcceptResult {
+  user: User;
+  organization: { id: string; name: string };
+  role: string;
+  /** Only present for a brand-new (previously signed-out) acceptance --
+   * an already-authenticated acceptance returns null here since the
+   * caller's existing session is reused as-is. */
+  token: string | null;
+}
+
+/**
+ * Accepts a staff invitation. Pass `authenticated: true` when the caller
+ * already has a session (the request then carries the normal Authorization
+ * header and the backend identity-matches by email, never a registration
+ * body); pass `authenticated: false` with `registration` for a signed-out
+ * visitor, mirroring acceptReferralInvitation's shape.
+ */
+export async function acceptStaffInvitation(
+  token: string,
+  options: { authenticated: true } | { authenticated: false; registration: ReferralRegistration },
+): Promise<StaffInvitationAcceptResult> {
+  const { data } = await apiRequest<{ data: StaffInvitationAcceptResult }>(
+    `/api/v1/staff-invitations/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+      body: options.authenticated ? {} : options.registration,
+      skipAuth: options.authenticated ? false : true,
+      skipOrganization: true,
+      skipUnauthorizedHandling: true,
+    },
+  );
+  return data;
+}
