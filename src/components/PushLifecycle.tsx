@@ -5,17 +5,22 @@ import { useRouter } from "expo-router";
 import { useAuth } from "../auth/AuthContext";
 import { useOrganization } from "../state/OrganizationContext";
 import { registerPush } from "../services/push";
+import { createAutomaticPushRefresh } from "../services/automaticPushRefresh";
 
 export function PushLifecycle() {
   const { status, user } = useAuth();
   const userId = user?.id;
+  const automaticRefresh = useRef<{ userId: typeof userId; refresh: () => void } | null>(null);
   const router = useRouter();
   const organization = useOrganization();
   const orgRef = useRef(organization);
   useEffect(() => { orgRef.current = organization; }, [organization]);
   useEffect(() => {
     if (status !== "signedIn" || !userId || organization.status !== "ready") return;
-    const refresh = () => { void registerPush(false).catch(() => undefined); };
+    if (automaticRefresh.current?.userId !== userId) {
+      automaticRefresh.current = { userId, refresh: createAutomaticPushRefresh(() => registerPush(false)) };
+    }
+    const refresh = automaticRefresh.current.refresh;
     refresh();
     const state = AppState.addEventListener("change", value => { if (value === "active") refresh(); });
     const token = Notifications.addPushTokenListener(refresh);
