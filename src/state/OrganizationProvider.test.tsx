@@ -173,6 +173,22 @@ describe("organization initialization after login", () => {
     expect(orgValue.activeOrganization).toBeNull();
     expect(orgValue.organizations).toHaveLength(0);
   });
+
+  it("resolves to a clean, errorless ready state with zero organizations (the self-service leave-last-org case)", async () => {
+    mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1", first_name: "Real" });
+    mockedFetchMyOrganizations.mockResolvedValue([]);
+
+    await renderApp();
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+
+    await waitFor(() => expect(orgValue.status).toBe("ready"));
+    expect(orgValue.activeOrganization).toBeNull();
+    expect(orgValue.organizations).toHaveLength(0);
+    expect(orgValue.error).toBeNull();
+  });
 });
 
 describe("organization switching and tenant query isolation", () => {

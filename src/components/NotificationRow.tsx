@@ -13,7 +13,18 @@ import { colors, radius, spacing, typography } from "./ui/theme";
  * server's own `title`/`body` (already-trusted display copy) and the
  * type's centralized icon/category (design-system/notificationMapping.ts).
  */
-export function NotificationRow({ notification, onPress }: { notification: Notification; onPress: () => void }) {
+export function NotificationRow({
+  notification,
+  onPress,
+  badgeLabel,
+}: {
+  notification: Notification;
+  onPress: () => void;
+  /** Visually distinguishes a platform-wide notification from an
+   * organization one (e.g. "Afilianet") -- omitted entirely for the
+   * existing organization-scoped notifications screen, unchanged. */
+  badgeLabel?: string;
+}) {
   const isUnread = notification.read_at === null;
   const meta = notificationTypeMeta(notification.type);
 
@@ -22,7 +33,7 @@ export function NotificationRow({ notification, onPress }: { notification: Notif
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       accessibilityRole="button"
-      accessibilityLabel={`${isUnread ? strings.notifications.unreadPrefix : strings.notifications.readPrefix}: ${notification.title}. ${notification.body}. ${formatDateTime(notification.created_at)}`}
+      accessibilityLabel={`${badgeLabel ? badgeLabel + ". " : ""}${isUnread ? strings.notifications.unreadPrefix : strings.notifications.readPrefix}: ${notification.title}. ${notification.body}. ${formatDateTime(notification.created_at)}`}
       accessibilityHint={strings.notifications.opensNotificationHint}
     >
       <View style={styles.iconMark}>
@@ -30,6 +41,11 @@ export function NotificationRow({ notification, onPress }: { notification: Notif
       </View>
 
       <View style={styles.info}>
+        {badgeLabel ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{badgeLabel}</Text>
+          </View>
+        ) : null}
         <View style={styles.topLine}>
           <Text style={[styles.title, isUnread ? styles.titleUnread : null]} numberOfLines={1}>
             {notification.title}
@@ -68,6 +84,18 @@ const styles = StyleSheet.create({
   info: {
     flex: 1,
     gap: 2,
+  },
+  badge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 1,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+  },
+  badgeText: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    fontWeight: "700",
   },
   topLine: {
     flexDirection: "row",

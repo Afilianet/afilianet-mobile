@@ -14,6 +14,8 @@ export const routes = {
   payouts: "/payouts",
   compliance: "/compliance",
   notifications: "/notifications",
+  platformNotifications: "/platform-notifications",
+  noOrganization: "/no-organization",
 } as const;
 
 // The only screen values afilianet-api's notification listeners ever put in
@@ -28,6 +30,8 @@ const NOTIFICATION_SCREEN_ROUTES: Record<string, string> = {
   network: routes.network,
   commissions: routes.commissions,
   payouts: routes.payouts,
+  notifications: routes.notifications,
+  "platform-notifications": routes.platformNotifications,
 };
 
 /** Returns the whitelisted destination for a notification's payload.screen, or null if absent/unrecognized. */
@@ -50,4 +54,11 @@ export function networkAffiliateDetail(affiliateUuid: string): string {
 
 export function payoutRequest(currency: string): string {
   return `/payout-request/${currency}`;
+}
+
+/** A staff invitation to join another organization as owner/admin/manager -
+ * distinct from `/join/[organizationId]/[code]`, which is the unrelated
+ * affiliate-referral/registration flow. */
+export function staffInvite(token: string): string {
+  return `/staff-invite/${encodeURIComponent(token)}`;
 }

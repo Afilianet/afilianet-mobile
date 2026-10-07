@@ -239,6 +239,24 @@ describe("Profile: organizations and sign out", () => {
   });
 });
 
+describe("Profile: notifications settings link", () => {
+  it("routes to the organization's notifications when one is active", async () => {
+    const { findByText } = await renderProfile();
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notifications");
+  });
+
+  it("routes to platform-wide notifications instead when there is no active organization", async () => {
+    const { findByText } = await renderProfile({ org: { organizations: [], activeOrganization: null } });
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/platform-notifications");
+  });
+});
+
 describe("Profile: analytics", () => {
   it("fires profile_viewed with no properties", async () => {
     await renderProfile();
