@@ -14,27 +14,12 @@ import { PushLifecycle } from "../components/PushLifecycle";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
-import { routes } from "../navigation/routes";
+import { isExemptRoute, resolveRedirect } from "../navigation/rootNavigationGuard";
 import { initSentry } from "../services/sentry";
 import { OrganizationProvider } from "../state/OrganizationProvider";
 import { useOrganization } from "../state/OrganizationContext";
 
 initSentry();
-
-// Route segments reachable regardless of organization state (zero orgs, a
-// failed org load, or an org-choice still pending) -- account-level or
-// platform-wide screens that never need tenant context. Centralized here
-// (both the organization-choice redirect and the org-load-error screen
-// below read from the same set) rather than two separately-maintained
-// inline lists.
-const EXEMPT_SEGMENTS = new Set([
-  "delete-account",
-  "privacy",
-  "leave-organization",
-  "no-organization",
-  "platform-notifications",
-  "staff-invite",
-]);
 
 // Held until the official Manrope/JetBrains Mono weights are loaded, so the
 // app never flashes system-font text -- see src/design-system/README.md.
@@ -88,42 +73,15 @@ function RootNavigation() {
   const router = useRouter();
 
   useEffect(() => {
-    if (authStatus === "loading") return;
-
-    const inAuthGroup = segments[0] === "(auth)";
-    const inJoin = segments[0] === "join";
-    const inStaffInvite = segments[0] === "staff-invite";
-    const inOrganizationPicker = segments[0] === "organization-picker";
-    const inExemptRoute = EXEMPT_SEGMENTS.has(segments[0]);
-
-    if (authStatus === "signedOut") {
-      if (!inAuthGroup && !inJoin && !inStaffInvite && segments[0] !== "privacy") router.replace(routes.login as never);
-      return;
-    }
-
-    if (inAuthGroup || inJoin) {
-      router.replace(routes.home as never);
-      return;
-    }
-
-    const needsOrganizationChoice = orgStatus === "ready" && !activeOrganization && organizations.length > 1;
-    if (needsOrganizationChoice && !inOrganizationPicker && !inExemptRoute) {
-      router.replace(routes.organizationPicker as never);
-      return;
-    }
-
-    // Zero organizations is a real, stable account state (not "still
-    // loading a choice") -- see MembershipService::leave() on the backend,
-    // which lets a user leave their last organization and keep their
-    // account. Previously nothing redirected here at all, so the app fell
-    // through to Home/Network with every SectionCard stuck in a permanent
-    // skeleton (a disabled React Query reports isPending forever) -- see
-    // SectionCard/PaginatedSectionCard's `enabled` prop for the
-    // complementary fix on that side.
-    const needsNoOrganizationScreen = orgStatus === "ready" && organizations.length === 0;
-    const inNoOrganizationScreen = segments[0] === "no-organization";
-    if (needsNoOrganizationScreen && !inNoOrganizationScreen && !inExemptRoute) {
-      router.replace(routes.noOrganization as never);
+    const target = resolveRedirect({
+      authStatus,
+      orgStatus,
+      hasActiveOrganization: Boolean(activeOrganization),
+      organizationsCount: organizations.length,
+      segments,
+    });
+    if (target) {
+      router.replace(target as never);
     }
   }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
 
@@ -135,7 +93,7 @@ function RootNavigation() {
   // query disabled (they all gate on activeOrganization) with no way to
   // recover -- every screen would sit in permanent, silent loading. This is
   // the one place that state is visible regardless of which screen is active.
-  if (authStatus === "signedIn" && orgStatus === "error" && !EXEMPT_SEGMENTS.has(segments[0])) {
+  if (authStatus === "signedIn" && orgStatus === "error" && !isExemptRoute(segments)) {
     return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 
