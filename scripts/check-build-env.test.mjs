@@ -10,7 +10,7 @@ const production = {
 
 test("accepts the production origin and explicit staging profiles", () => {
   assert.deepEqual(validateBuildEnvironment(production), []);
-  for (const profile of ["staging", "store-beta"]) {
+  for (const profile of ["staging", "store-beta", "development-staging"]) {
     assert.deepEqual(validateBuildEnvironment({ EAS_BUILD_PROFILE: profile, EXPO_PUBLIC_APP_ENV: "staging", EXPO_PUBLIC_API_BASE_URL: "https://staging-api.afilianet.mx" }), []);
   }
 });
@@ -31,4 +31,11 @@ test("rejects missing and mismatched environments", () => {
   assert.ok(validateBuildEnvironment({}).length);
   assert.ok(validateBuildEnvironment({ ...production, EXPO_PUBLIC_APP_ENV: "staging" }).length);
   assert.ok(validateBuildEnvironment({ ...production, EAS_BUILD_PROFILE: "store-beta" }).length);
+});
+
+test("development-staging rejects a local API or a different environment", () => {
+  const env = { EAS_BUILD_PROFILE: "development-staging", EXPO_PUBLIC_APP_ENV: "staging", EXPO_PUBLIC_API_BASE_URL: "https://staging-api.afilianet.mx" };
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_API_BASE_URL: "http://192.168.68.110:8000" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_API_BASE_URL: "https://api.afilianet.mx" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_APP_ENV: "development" }).length);
 });
