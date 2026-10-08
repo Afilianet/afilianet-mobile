@@ -56,7 +56,7 @@ jest.mock("expo-image-picker", () => ({
   CameraType: { back: "back", front: "front" },
 }));
 
-const mockFileUpload = jest.fn();
+const mockExpoFetch = jest.fn();
 const mockFileDelete = jest.fn();
 // The REAL, current on-disk byte count `new File(uri).size` reports --
 // deliberately independent of whatever a test's mocked expo-image-picker
@@ -76,15 +76,46 @@ jest.mock("expo-file-system", () => ({
     get size() {
       return mockFileSize;
     }
-    upload(...args: unknown[]) {
-      return mockFileUpload(...args);
+    // useEvidenceUploadFlow.ts reads the body via arrayBuffer() (never
+    // File.upload()/UploadType -- a physical Android device had both
+    // File.upload() and handing the File object to expo/fetch reject
+    // before an HTTP response was produced). The exact byte CONTENT here
+    // is never asserted on anywhere -- only that an ArrayBuffer of the
+    // declared size is what gets handed to the PUT -- so a zero-filled
+    // buffer of `mockFileSize` bytes is a faithful, real-shaped stand-in.
+    async arrayBuffer() {
+      return new ArrayBuffer(mockFileSize);
     }
     delete(...args: unknown[]) {
       return mockFileDelete(...args);
     }
   },
-  UploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
 }));
+
+// expo/fetch's own `fetch` -- the native-bridge HTTP client
+// useEvidenceUploadFlow.ts now PUTs the evidence body through, replacing
+// the old File.upload()/UploadType API entirely.
+jest.mock("expo/fetch", () => ({
+  fetch: (...args: unknown[]) => mockExpoFetch(...args),
+}));
+
+// A minimal, real-shaped stand-in for the global Response expoFetch resolves
+// with -- only the members useEvidenceUploadFlow.ts actually reads.
+interface FakeUploadResponse {
+  status: number;
+  headers: { get: (name: string) => string | null };
+  clone: () => FakeUploadResponse;
+  text: () => Promise<string>;
+}
+
+function fakeUploadResponse(status: number, body = ""): FakeUploadResponse {
+  return {
+    status,
+    headers: { get: () => null },
+    clone: () => fakeUploadResponse(status, body),
+    text: async () => body,
+  };
+}
 
 jest.mock("expo-image", () => {
   const { Image: RNImage } = jest.requireActual("react-native");
@@ -263,7 +294,7 @@ beforeEach(() => {
   mockedFetchComplianceSteps.mockResolvedValue([step()]);
   mockedFetchDocumentResult.mockRejectedValue(NOT_FOUND);
   mockedRequestEvidenceUpload.mockResolvedValue(uploadAuthorization());
-  mockFileUpload.mockResolvedValue({ status: 200, headers: {}, body: "" });
+  mockExpoFetch.mockResolvedValue(fakeUploadResponse(200));
   mockedCompleteEvidenceUpload.mockResolvedValue(evidence());
   mockedTriggerDocumentProcessing.mockResolvedValue(documentResult({ status: "pending" }));
 });
@@ -406,9 +437,9 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
       ),
     );
     await waitFor(() =>
-      expect(mockFileUpload).toHaveBeenCalledWith(
+      expect(mockExpoFetch).toHaveBeenCalledWith(
         "http://127.0.0.1:8000/api/v1/_internal/evidence-local-uploads/local/abc123",
-        expect.objectContaining({ httpMethod: "PUT", headers: { "Content-Type": "image/jpeg" } }),
+        expect.objectContaining({ method: "PUT", headers: [["Content-Type", "image/jpeg"]] }),
       ),
     );
     await waitFor(() => expect(mockedCompleteEvidenceUpload).toHaveBeenCalledWith("ev-1"));
@@ -429,7 +460,7 @@ describe("Document capture: upload flow (Phase 9B real endpoints)", () => {
   });
 
   it("surfaces a clean error and keeps the local photo when the direct PUT fails", async () => {
-    mockFileUpload.mockResolvedValue({ status: 500, headers: {}, body: "" });
+    mockExpoFetch.mockResolvedValue(fakeUploadResponse(500));
     const { getByText, findByText } = await renderCompliance();
     await chooseIne(getByText, findByText);
     await captureAndUse(getByText, findByText);
