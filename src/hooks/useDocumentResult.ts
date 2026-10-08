@@ -37,11 +37,30 @@ export function useDocumentResult(stepId: string | undefined) {
   const lastInvalidatedResultId = useRef<string | null>(null);
   const lastLoggedResultSignature = useRef<string | null>(null);
 
+  const queryKey = scopedComplianceKey(["compliance", "document-result", orgId, stepId], assistedId);
+
   const query = useApiQuery<DocumentProcessingResult | null>(
-    scopedComplianceKey(["compliance", "document-result", orgId, stepId], assistedId),
+    queryKey,
     async () => {
       try {
         const result = await fetchDocumentResult(stepId as string, ...assistedScopeArgs(assistedId));
+        // useTriggerDocumentProcessing's onSuccess writes a brand-new attempt
+        // straight into this exact cache entry the instant a retry is
+        // triggered (see that hook). A poll tick already in flight (or one
+        // that fires before the backend's own "latest attempt" read model
+        // has caught up) can still resolve with the PREVIOUS terminal
+        // attempt a moment later -- without this guard that stale response
+        // overwrites the fresh one, briefly flashing an old failed/review
+        // result (or an old "still processing" label) right after a new
+        // submission has already started. Mirrors the same confirmed fix in
+        // useFaceMatchResult.ts (compliance case 97): attempt_number is
+        // monotonic per step, so a fetched attempt strictly older than
+        // what's already cached is always a stale race, never a legitimate
+        // update, and is discarded.
+        const cached = queryClient.getQueryData<DocumentProcessingResult | null>(queryKey);
+        if (cached && result && result.attempt_number < cached.attempt_number) {
+          return cached;
+        }
         if (__DEV__ && result) {
           const signature = `${result.id}:${result.status}:${result.verdict ?? "none"}`;
           if (lastLoggedResultSignature.current !== signature) {
