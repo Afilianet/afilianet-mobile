@@ -123,8 +123,16 @@
     flex-direction: column;
     gap: 10px;
   }
+  /* Nullable-accent fallback: current/A simply don't define --featured-wash /
+     --actionable-bar / --actionable-width below, so these rules fall back to
+     the plain surface/border -- never a literal transparent fill or an
+     orphaned accent color, mirroring DemoCard's useFeatured/useActionable
+     gating in src/design-system/demo/DemoPrimitives.tsx. */
   .card.featured { background: var(--featured-wash, var(--surface)); }
-  .card.actionable { border-left: 4px solid var(--actionable-bar, var(--border)); }
+  .card.actionable {
+    border-left-width: var(--actionable-width, 1px);
+    border-left-color: var(--actionable-bar, var(--border));
+  }
   .heading-row { display: flex; align-items: center; gap: 10px; }
   .icon-chip { width: 36px; height: 36px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--chip-bg, transparent); }
   .icon-chip svg { width: 17px; height: 17px; stroke: var(--text-primary); fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
@@ -139,10 +147,18 @@
   .badge.success { background: var(--success-wash); color: var(--success-text); }
   .badge.warning { background: var(--warning-wash); color: var(--warning-text); }
   .badge.neutral { background: rgba(130,130,140,.22); color: var(--text-secondary); }
-  .btn { border: none; border-radius: 10px; padding: 9px 14px; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+  /* min-height 44px: the real DemoButton keeps a visually smaller 34/42px
+     box and reaches 44px only via invisible hitSlop (RN-only API, no DOM
+     equivalent) -- this static mockup instead draws the full 44px so the
+     tap target is honestly visible here too, rather than silently
+     understating it. See demo/README.md and DemoPrimitives.tsx. */
+  .btn { border: none; border-radius: 10px; padding: 9px 14px; min-height: 44px; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
   .btn.primary { background: var(--action-primary); color: #fff; }
   .btn.secondary { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border); }
   .btn.ghost { background: transparent; color: var(--text-secondary); padding-left: 2px; }
+  /* especificacion/componentes.md §1 "peligro": transparent fill, danger-toned text/border -- never plain ghost/secondary for a destructive action. */
+  .btn.danger { background: transparent; color: var(--danger-text); border: 1px solid var(--danger-text); }
+  .actions-label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 500; margin: 2px 2px 0; }
   .bell-wrap { position: relative; }
   .bell-dot { position: absolute; top: -1px; right: -1px; width: 8px; height: 8px; border-radius: 999px; background: var(--danger-text); }
   .skeleton-bar { height: 13px; border-radius: 6px; background: var(--surface-raised); position: relative; overflow: hidden; }
@@ -168,7 +184,10 @@
 
 <h1>Afilianet Mobile — comparación de dirección visual</h1>
 <p class="sub">
-  Misma identidad aprobada (<code>design/handoff/tokens/afilianet.tokens.json</code>), tres aplicaciones. Sin color inventado — cada valor de esta página es un token oficial. Ver <code>design/BRAND_VISUAL_AUDIT.md</code> para el diagnóstico completo.
+  Misma identidad aprobada (<code>design/handoff/tokens/afilianet.tokens.json</code>), tres aplicaciones. Sin color inventado — cada valor de esta página es un token oficial. Ver <code>design/BRAND_VISUAL_AUDIT.md</code> para el diagnóstico completo (incluida la separación entre contraste calculado, comprobaciones en dispositivo pendientes, y opinión de diseño).
+</p>
+<p class="sub">
+  Esta página es un sustituto de captura real, hecho a mano con los valores hex exactos de los tokens — no una captura de dispositivo. No se pudo abrir un simulador en el entorno de esta sesión; ver <code>src/design-system/demo/README.md</code> para los pasos verificados para obtener capturas nativas.
 </p>
 
 <div class="controls">
@@ -201,8 +220,11 @@ const palettes = {
       "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
       "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
       "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
-      "--brand-wash": "rgba(109,74,255,0.18)",
-      "--featured-wash": "#F3F2F8", "--actionable-bar": "#E4E1EE",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(87,80,114,0.16)",
+      // No --featured-wash / --actionable-bar / --actionable-width: this
+      // variant has no accent at all, so .featured/.actionable fall back to
+      // the plain surface/border (see the CSS rules above) -- never a
+      // see-through fill or an orphaned bar color.
     },
   },
   proposalA: {
@@ -215,13 +237,14 @@ const palettes = {
       "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
       "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
       "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
-      "--brand-wash": "rgba(109,74,255,0.18)",
-      "--featured-wash": "#14101F", "--actionable-bar": "#2A2340",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(154,146,196,0.16)",
+      // Restores the official dark default as-is -- still no accent of its
+      // own, so .featured/.actionable fall back the same way as `current`.
     },
   },
   proposalB: {
     heading: "Propuesta B — oscuro + color",
-    note: "Misma base oscura + chip de ícono por sección, una tarjeta destacada con lavado de marca, barra de 4px en la acción primaria. Mismos tokens, más aplicaciones.",
+    note: "Misma base oscura + chip de ícono por sección (solo donde el estado real lo justifica), una tarjeta destacada con lavado de marca, barra de 4px en la única tarjeta con acción primaria pendiente. Mismos tokens, más aplicaciones.",
     vars: {
       "--bg": "#0C0A14", "--surface": "#14101F", "--surface-raised": "#1C1730",
       "--border": "#2A2340", "--text-primary": "#ECEAF4", "--text-secondary": "#A9A2C4",
@@ -229,8 +252,9 @@ const palettes = {
       "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
       "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
       "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
-      "--brand-wash": "rgba(109,74,255,0.18)",
-      "--featured-wash": "rgba(109,74,255,0.18)", "--actionable-bar": "#6D4AFF",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(154,146,196,0.16)",
+      "--featured-wash": "rgba(109,74,255,0.18)",
+      "--actionable-bar": "#6D4AFF", "--actionable-width": "4px",
     },
   },
 };
@@ -248,6 +272,21 @@ const icons = {
 function icon(name) { return `<svg viewBox="0 0 24 24">${icons[name]}</svg>`; }
 
 const state = { screen: "home", uiState: "data" };
+
+// guia/implementacion.md §2: "aqua solo para dinero liberado... alerta solo
+// si existe espera real" -- an icon chip's tone must mirror the ACTUAL,
+// currently-displayed state, never be assigned by the section's name. Only
+// Afiliado (éxito cuando activo) and Verificación (alerta cuando hay una
+// espera real) have a tone that is ever anything but neutral, and only in
+// the "Con datos" state -- every other section, and every section in
+// loading/empty/error, stays neutral. Mirrors BrandDirectionDemo.tsx's
+// affiliateTone/complianceTone.
+const hasData = () => state.uiState === "data";
+const chip = {
+  neutral: "--neutral-wash",
+  affiliate: () => (hasData() ? "--success-wash" : "--neutral-wash"),
+  compliance: () => (hasData() ? "--warning-wash" : "--neutral-wash"),
+};
 
 function cardBody(key, labels) {
   if (state.uiState === "loading") {
@@ -279,13 +318,13 @@ function homeScreen() {
         <p class="body-text">Afilianet Norte</p>
       </div>
       <div class="bell-wrap">
-        <div class="icon-chip" style="--chip-bg:var(--brand-wash)">${icon("campana")}</div>
+        <div class="icon-chip" style="--chip-bg:var(${chip.neutral})">${icon("campana")}</div>
         <div class="bell-dot"></div>
       </div>
     </div>
 
-    <div class="card featured actionable">
-      ${sectionHeading("afiliados", "--brand-wash", "ESTADO DE AFILIADO")}
+    <div class="card featured">
+      ${sectionHeading("afiliados", chip.affiliate(), "ESTADO DE AFILIADO")}
       ${cardBody("affiliate", {
         error: "No pudimos cargar tu estado de afiliado.",
         empty: "Aún no tienes un perfil de afiliado.",
@@ -296,8 +335,8 @@ function homeScreen() {
       })}
     </div>
 
-    <div class="card">
-      ${sectionHeading("cumplimiento", "--warning-wash", "VERIFICACIÓN")}
+    <div class="card actionable">
+      ${sectionHeading("cumplimiento", chip.compliance(), "VERIFICACIÓN")}
       ${cardBody("compliance", {
         error: "No pudimos cargar tu verificación.",
         empty: "Aún no has iniciado tu verificación.",
@@ -308,7 +347,7 @@ function homeScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("comision", "--success-wash", "COMISIONES")}
+      ${sectionHeading("comision", chip.neutral, "COMISIONES")}
       ${cardBody("commissions", {
         error: "No pudimos cargar tus comisiones.",
         empty: "Aún no tienes comisiones.",
@@ -320,7 +359,7 @@ function homeScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("monedero", "--success-wash", "MONEDERO")}
+      ${sectionHeading("monedero", chip.neutral, "MONEDERO")}
       ${cardBody("wallet", {
         error: "No pudimos cargar tu monedero.",
         empty: "Aún no tienes saldo.",
@@ -331,7 +370,7 @@ function homeScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("red", "--brand-wash", "RED")}
+      ${sectionHeading("red", chip.neutral, "RED")}
       ${cardBody("network", {
         error: "No pudimos cargar tu red.",
         empty: "Aún no tienes actividad de red.",
@@ -354,7 +393,7 @@ function profileScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("afiliados", "--brand-wash", "AFILIADO")}
+      ${sectionHeading("afiliados", chip.affiliate(), "AFILIADO")}
       ${cardBody("affiliate", {
         error: "No pudimos cargar tu perfil de afiliado.",
         empty: "Necesitas un perfil de afiliado.",
@@ -365,7 +404,7 @@ function profileScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("cumplimiento", "--warning-wash", "VERIFICACIÓN")}
+      ${sectionHeading("cumplimiento", chip.compliance(), "VERIFICACIÓN")}
       ${cardBody("compliance", {
         error: "No pudimos cargar tu verificación.",
         empty: "Aún no has iniciado tu verificación.",
@@ -375,18 +414,29 @@ function profileScreen() {
     </div>
 
     <div class="card">
-      ${sectionHeading("nivel", "--brand-wash", "ORGANIZACIONES")}
+      ${sectionHeading("nivel", chip.neutral, "ORGANIZACIONES")}
       <div class="org-row active"><span class="body-text" style="color:var(--text-primary)">Afilianet Norte</span><span class="badge success">Activa</span></div>
       <div class="org-row"><span class="body-text" style="color:var(--text-primary)">Afilianet Centro</span></div>
     </div>
 
+    <div class="actions-label">ACCIONES DE CUENTA</div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <button class="btn secondary" style="width:100%;justify-content:center">Configurar notificaciones</button>
-      <button class="btn ghost" style="width:100%;justify-content:center">Aviso de privacidad</button>
+      <button class="btn ghost" style="width:100%;justify-content:center">Salir de la organización</button>
+      <button class="btn danger" style="width:100%;justify-content:center">Eliminar mi cuenta</button>
       <button class="btn secondary" style="width:100%;justify-content:center">Cerrar sesión</button>
     </div>
+    <button class="btn ghost" style="width:100%;justify-content:center">Aviso de privacidad</button>
   `;
 }
+// Known difference from today's shipped src/app/(app)/profile.tsx: the real
+// screen orders these Notificaciones -> [Salir de organización] -> Aviso de
+// privacidad -> Eliminar mi cuenta (currently `ghost`, not `danger`) ->
+// Cerrar sesión. This mockup instead groups the five actions with Aviso de
+// privacidad last/standalone and Eliminar mi cuenta in the `danger` variant
+// the component spec defines for destructive actions -- flagged here for
+// product to confirm, not assumed. Mirrors the same comment in
+// BrandDirectionDemo.tsx's ProfileDemo.
 
 function render() {
   const columnsEl = document.getElementById("columns");

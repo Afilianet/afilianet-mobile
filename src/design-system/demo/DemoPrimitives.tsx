@@ -24,21 +24,23 @@ export function DemoCard({
   ...viewProps
 }: {
   palette: BrandPalette;
-  /** proposalB only (transparent wash elsewhere): tints the ONE hero card per screen. */
+  /** Only applied when the active palette actually defines a featuredCardWash (proposalB) -- current/A silently fall back to the normal `surface` fill, never a see-through card. */
   featured?: boolean;
-  /** proposalB only: 4px left bar marking the single primary-actionable card. */
+  /** Only applied when the active palette actually defines an actionableBar (proposalB) -- current/A keep their normal, uniform 1px border. */
   actionable?: boolean;
 } & React.ComponentProps<typeof View>) {
+  const useFeatured = featured && palette.accent.featuredCardWash != null;
+  const useActionable = actionable && palette.accent.actionableBar != null;
   return (
     <View
       style={[
         styles.card,
         {
-          backgroundColor: featured ? palette.accent.featuredCardWash : palette.surface,
+          backgroundColor: useFeatured ? palette.accent.featuredCardWash! : palette.surface,
           borderWidth: 1,
           borderColor: palette.border,
-          borderLeftWidth: actionable ? 4 : 1,
-          borderLeftColor: actionable ? palette.accent.actionableBar : palette.border,
+          borderLeftWidth: useActionable ? 4 : 1,
+          borderLeftColor: useActionable ? palette.accent.actionableBar! : palette.border,
         },
         style,
       ]}
@@ -52,17 +54,23 @@ const toneAccentKey: Record<BadgeTone, keyof BrandPalette["accent"]["iconChip"] 
   brand: "brand",
   success: "success",
   warning: "warning",
-  danger: null,
+  danger: "danger",
 };
 
+/**
+ * `tone` must reflect the ACTUAL data currently on screen (e.g. the same
+ * tone a Badge below it already computed from statusMapping.ts) -- never a
+ * fixed tone chosen because of what the section is *called*. See
+ * brandDemoPalettes.ts's `accent.iconChip` docblock and
+ * guia/implementacion.md §2 ("aqua solo para dinero liberado... alerta solo
+ * si existe espera real"). Falls back to a plain, untinted chip whenever the
+ * active palette has no accent for that tone (current/A always; B falls
+ * back too for `tone="neutral"`, which has no official wash to begin with).
+ */
 export function DemoIconChip({ palette, tone, children }: { palette: BrandPalette; tone: BadgeTone; children: React.ReactNode }) {
   const key = toneAccentKey[tone];
-  const background = key ? palette.accent.iconChip[key] : "transparent";
-  return (
-    <View style={[styles.iconChip, { backgroundColor: background }]}>
-      {children}
-    </View>
-  );
+  const background = key ? palette.accent.iconChip[key] : null;
+  return <View style={[styles.iconChip, { backgroundColor: background ?? "transparent" }]}>{children}</View>;
 }
 
 export function DemoBadge({ palette, label, tone = "neutral" }: { palette: BrandPalette; label: string; tone?: BadgeTone }) {
@@ -81,7 +89,13 @@ export function DemoBadge({ palette, label, tone = "neutral" }: { palette: Brand
   );
 }
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+
+/** Mirrors Button.tsx's own touchHitSlop() exactly -- a sub-44px visual size (per especificacion/componentes.md §1's sm/md table) still gets a full 44px tappable area. */
+function touchHitSlop(height: number) {
+  const deficit = Math.max(0, 44 - height) / 2;
+  return { top: deficit, bottom: deficit, left: 0, right: 0 };
+}
 
 export function DemoButton({
   palette,
@@ -107,11 +121,16 @@ export function DemoButton({
     primary: { background: palette.primary, text: palette.textOnBrand },
     secondary: { background: palette.surface, text: palette.textPrimary, border: palette.border },
     ghost: { background: "transparent", text: palette.textSecondary },
+    // especificacion/componentes.md §1: "peligro... destructivo, siempre con
+    // confirmación" -- transparent fill, error-toned text/border, never a
+    // plain ghost/secondary button for a destructive action.
+    danger: { background: "transparent", text: palette.semantic.danger.text, border: palette.semantic.danger.overDark },
   };
   const v = variants[variant];
   return (
     <Pressable
       accessibilityRole="button"
+      hitSlop={touchHitSlop(dims.height)}
       onPressIn={() => Animated.timing(scale, { toValue: motion.pressScale, duration: motion.duration.instant, easing: Easing.bezier(...motion.easing.standard), useNativeDriver: true }).start()}
       onPressOut={() => Animated.timing(scale, { toValue: 1, duration: motion.duration.instant, easing: Easing.bezier(...motion.easing.standard), useNativeDriver: true }).start()}
       onPress={onPress}
@@ -120,8 +139,12 @@ export function DemoButton({
         style={[
           styles.buttonBase,
           {
-            height: dims.height,
+            // minHeight, not height: lets the row grow instead of clipping
+            // the label when the OS text-size setting (Dynamic Type /
+            // "Larger Text") makes it wrap to two lines.
+            minHeight: dims.height,
             paddingHorizontal: dims.ph,
+            paddingVertical: spacing.xs,
             borderRadius: radius.md,
             width: fullWidth ? "100%" : undefined,
             backgroundColor: v.background,
@@ -145,9 +168,9 @@ export function DemoSkeleton({ palette, width = "100%", height = 14 }: { palette
 const styles = StyleSheet.create({
   card: { borderRadius: radius.xl, padding: 20, gap: spacing.sm },
   iconChip: { width: 40, height: 40, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  badge: { alignSelf: "flex-start", height: 24, justifyContent: "center", borderRadius: radius.pill, paddingHorizontal: spacing[3] - 2 },
+  badge: { alignSelf: "flex-start", minHeight: 24, justifyContent: "center", borderRadius: radius.pill, paddingHorizontal: spacing[3] - 2, paddingVertical: 2 },
   badgeLabel: { fontFamily: typography.bodyStrong.fontFamily, fontSize: 11, fontWeight: typography.bodyStrong.fontWeight },
   buttonBase: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing[2] },
-  buttonLabel: { fontFamily: typography.bodyStrong.fontFamily, fontWeight: typography.bodyStrong.fontWeight, fontSize: typography.body.fontSize },
+  buttonLabel: { fontFamily: typography.bodyStrong.fontFamily, fontWeight: typography.bodyStrong.fontWeight, fontSize: typography.body.fontSize, flexShrink: 1 },
   skeletonBar: { borderRadius: radius.sm },
 });

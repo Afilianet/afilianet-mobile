@@ -5,11 +5,23 @@
  * and the real spacing/radius/typography/motion tokens, with color supplied
  * by the selected brandVariants palette instead of the global theme (see
  * DemoPrimitives.tsx for why).
+ *
+ * Color discipline (per guia/implementacion.md §2 -- see each call site
+ * below for the specific justification): a section's icon chip is tinted
+ * ONLY when the badge directly below it already reflects a real,
+ * currently-displayed semantic state that matches that tint's official
+ * meaning (éxito = liquidado/verificado/activo, alerta = espera real).
+ * Never a fixed tone chosen because of what the section is named. A
+ * section whose content is a *list* of mixed states (Comisiones) or whose
+ * money figure already carries its own color (Monedero's "disponible"
+ * text) gets a neutral, untinted chip -- the per-row badge/figure is the
+ * only color carrier there, exactly as it already is in the real app.
  */
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Icon, type IconName } from "../icons/Icon";
 import { Avatar } from "../../components/ui/Avatar";
+import type { BadgeTone } from "../../components/ui/Badge";
 import { radius, spacing, typography } from "../../components/ui/theme";
 import { brandVariantLabels, brandVariants, type BrandPalette, type BrandVariantKey } from "./brandDemoPalettes";
 import { DemoBadge, DemoButton, DemoCard, DemoIconChip, DemoSkeleton } from "./DemoPrimitives";
@@ -76,7 +88,8 @@ function SegmentRow<T extends string>({
   );
 }
 
-function SectionHeading({ palette, icon, tone, title }: { palette: BrandPalette; icon: IconName; tone: "brand" | "success" | "warning"; title: string }) {
+/** `tone="neutral"` renders an untinted chip -- the deliberate default for any section without a single, real, currently-displayed semantic state to reflect (see file docblock). */
+function SectionHeading({ palette, icon, tone, title }: { palette: BrandPalette; icon: IconName; tone: BadgeTone; title: string }) {
   return (
     <View style={styles.sectionHeadingRow}>
       <DemoIconChip palette={palette} tone={tone}>
@@ -134,6 +147,13 @@ function CardBody({
 }
 
 function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiState }) {
+  const hasData = uiState === "data";
+  // Mirrors the real affiliate/compliance status exactly as it would be
+  // computed by affiliateStatusCopy/complianceStatusCopy from the
+  // synthetic record below -- the chip never picks a tone independently.
+  const affiliateTone: BadgeTone = hasData ? "success" : "neutral"; // "activo" -> éxito, per the official status table
+  const complianceTone: BadgeTone = hasData ? "warning" : "neutral"; // "en progreso" -> a genuine, real wait on review
+
   return (
     <View style={styles.screenGap}>
       <View style={styles.headerRow}>
@@ -142,15 +162,16 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
           <Text style={[typography.body, { color: palette.textSecondary }]}>Afilianet Norte</Text>
         </View>
         <View style={styles.bellWrap}>
-          <DemoIconChip palette={palette} tone="brand">
+          {/* The bell itself has no semantic state of its own -- neutral chip; only the unread dot (a real count, not decoration) carries color. */}
+          <DemoIconChip palette={palette} tone="neutral">
             <Icon name="campana" size={18} color={palette.textPrimary} />
           </DemoIconChip>
           <View style={[styles.bellDot, { backgroundColor: palette.semantic.danger.text }]} />
         </View>
       </View>
 
-      <DemoCard palette={palette} featured actionable>
-        <SectionHeading palette={palette} icon="afiliados" tone="brand" title="ESTADO DE AFILIADO" />
+      <DemoCard palette={palette} featured>
+        <SectionHeading palette={palette} icon="afiliados" tone={affiliateTone} title="ESTADO DE AFILIADO" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu estado de afiliado." emptyTitle="Aún no tienes un perfil de afiliado." emptyDescription="Únete al programa para empezar.">
           <View style={styles.row}>
             <DemoBadge palette={palette} label="Activo" tone="success" />
@@ -161,8 +182,9 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
         </CardBody>
       </DemoCard>
 
-      <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="cumplimiento" tone="warning" title="VERIFICACIÓN" />
+      {/* The one card marked `actionable`: it's the thing genuinely pending the affiliate's own action right now, not an arbitrary "primary" pick. */}
+      <DemoCard palette={palette} actionable={hasData}>
+        <SectionHeading palette={palette} icon="cumplimiento" tone={complianceTone} title="VERIFICACIÓN" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu verificación." emptyTitle="Aún no has iniciado tu verificación.">
           <DemoBadge palette={palette} label="En progreso" tone="warning" />
           <Text style={[typography.body, { color: palette.textSecondary }]}>Siguiente: Documento de identidad</Text>
@@ -171,7 +193,8 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
       </DemoCard>
 
       <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="comision" tone="success" title="COMISIONES" />
+        {/* Neutral chip: this card lists MIXED states (liquidada/pendiente) -- no single tone represents "Comisiones" as a whole. Each row's own badge already carries the real color (éxito for liquidada, alerta for pendiente). */}
+        <SectionHeading palette={palette} icon="comision" tone="neutral" title="COMISIONES" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tus comisiones." emptyTitle="Aún no tienes comisiones." emptyDescription="Aparecerán aquí en cuanto tengas tu primera venta.">
           <View style={styles.commissionRow}>
             <View>
@@ -192,7 +215,8 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
       </DemoCard>
 
       <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="monedero" tone="success" title="MONEDERO" />
+        {/* Neutral chip: the section itself isn't "liberado", only the specific "disponible" figure below is -- that figure keeps its own éxito color, same as the real app. */}
+        <SectionHeading palette={palette} icon="monedero" tone="neutral" title="MONEDERO" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu monedero." emptyTitle="Aún no tienes saldo.">
           <Text style={[typography.caption, { color: palette.textTertiary }]}>MXN · pendiente $320.00</Text>
           <Text style={[typography.subtitle, { color: palette.semantic.success.text }]}>$4,180.00 disponible</Text>
@@ -201,7 +225,8 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
       </DemoCard>
 
       <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="red" tone="brand" title="RED" />
+        {/* Neutral chip: viewing your network has no inherent success/warning/danger meaning. */}
+        <SectionHeading palette={palette} icon="red" tone="neutral" title="RED" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu red." emptyTitle="Aún no tienes actividad de red.">
           <Text style={[typography.body, { color: palette.textSecondary }]}>Referido por AFF-10021</Text>
           <Text style={[typography.body, { color: palette.textSecondary }]}>12 referidos directos</Text>
@@ -213,6 +238,10 @@ function HomeDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiStat
 }
 
 function ProfileDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiState }) {
+  const hasData = uiState === "data";
+  const affiliateTone: BadgeTone = hasData ? "success" : "neutral";
+  const complianceTone: BadgeTone = hasData ? "warning" : "neutral";
+
   return (
     <View style={styles.screenGap}>
       <DemoCard palette={palette} featured style={styles.identityRow}>
@@ -224,7 +253,7 @@ function ProfileDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiS
       </DemoCard>
 
       <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="afiliados" tone="brand" title="AFILIADO" />
+        <SectionHeading palette={palette} icon="afiliados" tone={affiliateTone} title="AFILIADO" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu perfil de afiliado." emptyTitle="Necesitas un perfil de afiliado.">
           <View style={styles.row}>
             <DemoBadge palette={palette} label="Activo" tone="success" />
@@ -235,8 +264,8 @@ function ProfileDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiS
         </CardBody>
       </DemoCard>
 
-      <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="cumplimiento" tone="warning" title="VERIFICACIÓN" />
+      <DemoCard palette={palette} actionable={hasData}>
+        <SectionHeading palette={palette} icon="cumplimiento" tone={complianceTone} title="VERIFICACIÓN" />
         <CardBody palette={palette} uiState={uiState} errorLabel="No pudimos cargar tu verificación." emptyTitle="Aún no has iniciado tu verificación.">
           <DemoBadge palette={palette} label="En progreso" tone="warning" />
           <DemoButton palette={palette} label="Ver verificación" variant="secondary" size="sm" onPress={() => {}} />
@@ -244,16 +273,35 @@ function ProfileDemo({ palette, uiState }: { palette: BrandPalette; uiState: UiS
       </DemoCard>
 
       <DemoCard palette={palette}>
-        <SectionHeading palette={palette} icon="nivel" tone="brand" title="ORGANIZACIONES" />
+        {/* Neutral chip: only ONE row in this list is "Activa" -- the section as a whole isn't. */}
+        <SectionHeading palette={palette} icon="nivel" tone="neutral" title="ORGANIZACIONES" />
         <OrgRow palette={palette} name="Afilianet Norte" active />
         <OrgRow palette={palette} name="Afilianet Centro" active={false} />
       </DemoCard>
 
+      {/*
+        Real screen today (src/app/(app)/profile.tsx): Notificaciones ->
+        [Salir de organización] -> Aviso de privacidad -> Eliminar mi cuenta
+        -> Cerrar sesión -- "Eliminar mi cuenta" currently renders as a plain
+        `ghost` button, not the spec's dedicated `peligro` variant
+        (especificacion/componentes.md §1: "destructivo, siempre con
+        confirmación"). This demo groups the account-level actions into
+        their own labeled block with the destructive action in that
+        `danger` variant, and keeps "Aviso de privacidad" as the LAST
+        element on the screen (per this round's explicit instruction) --
+        OUTSIDE that block, since it's informational, not an account
+        action. KNOWN DIFFERENCE FROM THE REAL SCREEN, left for product to
+        confirm: this reorders/regroups the five buttons; it does not match
+        today's shipped order 1:1.
+      */}
       <View style={styles.actionsGap}>
+        <Text style={[typography.label, { color: palette.textTertiary }]}>ACCIONES DE CUENTA</Text>
         <DemoButton palette={palette} label="Configurar notificaciones" variant="secondary" fullWidth onPress={() => {}} />
-        <DemoButton palette={palette} label="Aviso de privacidad" variant="ghost" fullWidth onPress={() => {}} />
+        <DemoButton palette={palette} label="Salir de la organización" variant="ghost" fullWidth onPress={() => {}} />
+        <DemoButton palette={palette} label="Eliminar mi cuenta" variant="danger" fullWidth onPress={() => {}} />
         <DemoButton palette={palette} label="Cerrar sesión" variant="secondary" fullWidth onPress={() => {}} />
       </View>
+      <DemoButton palette={palette} label="Aviso de privacidad" variant="ghost" fullWidth onPress={() => {}} />
     </View>
   );
 }

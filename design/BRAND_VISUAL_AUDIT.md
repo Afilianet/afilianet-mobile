@@ -51,23 +51,33 @@ Hallazgo transversal (afecta las 5 áreas por igual, ver detalle en cada una):
 > `guia/implementacion.md` §2 y `especificacion/componentes.md` línea 5 dicen,
 > **textualmente, dos veces**: *"Tema oscuro por defecto en el producto; claro
 > solo en landing, documentos y correo."* La app usa claro en el producto
-> completo. Esto no es solo estético — **es la causa raíz medible de por qué
-> se ve "sobria"**:
-> - Los 24 tonos de marca (`violeta`, `aqua`, `alerta`, `error`) fueron
->   calibrados por el propio equipo de marca para leerse sobre
->   `#0C0A14` (ver la tabla de contraste verificado en
->   `implementacion.md` §2). Sobre blanco, se desvanecen.
-> - **Verificado con cálculo WCAG 2.1 real** (ver §5): `colors.danger`
->   (`#FF6A5E`), `colors.success` (`#2DD4BF`) y `colors.warning` (`#F2B94B`)
->   usados como texto plano fallan contraste sobre el fondo claro actual
->   (1.78–2.81:1, muy por debajo del mínimo 4.5:1 AA) y pasan a AA/AAA
->   (6.99–11.05:1) sobre el fondo oscuro oficial. **28 archivos** en
->   `src/` usan estos colores como texto plano (`color: colors.danger`, etc.)
->   — es un defecto de accesibilidad real y medible, no una opinión, y
->   afecta igualmente a Home, Perfil, Login, Notificaciones y KYC.
-> - El violeta de marca aparece solo en: el botón primario, el wordmark del
->   login y el activo de un badge — en una pantalla típica, ~2% de los
->   píxeles visibles.
+> completo.
+>
+> **Lo que está confirmado por cálculo (hecho, no opinión):** ver la tabla
+> WCAG 2.1 completa en §5. En resumen: `colors.danger` (`#FF6A5E`),
+> `colors.success` (`#2DD4BF`) y `colors.warning` (`#F2B94B`) usados como
+> texto plano fallan el mínimo 4.5:1 AA sobre el fondo claro actual
+> (1.78–2.81:1) y lo cumplen con margen (6.99–11.05:1) sobre el fondo oscuro
+> oficial. **28 archivos** en `src/` usan estos colores como texto plano
+> (`color: colors.danger`, etc.) — esto es un defecto de accesibilidad real
+> y medible (la razón de contraste es matemática, no depende de gusto), y
+> afecta igualmente a Home, Perfil, Login, Notificaciones y KYC. Esto
+> confirma que los 24 tonos de marca fueron calibrados contra `#0C0A14`
+> (coincide con la tabla de contraste que el propio manual publica en
+> `implementacion.md` §2), no contra blanco.
+>
+> **Lo que es opinión/estética (mi lectura, no un hecho verificado):** que
+> esta desviación de tema es LA causa de que el usuario perciba la app como
+> "sobria" es una hipótesis razonable, respaldada por el defecto de
+> contraste de arriba y por el hecho de que el violeta de marca ocupa
+> ~2% de los píxeles visibles en una pantalla típica (botón primario,
+> wordmark del login, activo de un badge) — pero no es algo que se pueda
+> confirmar sin mostrarle al usuario la versión oscura y preguntar si
+> cambia su percepción. Tratar "tema claro" como la causa confirmada de la
+> queja subjetiva sería sobre-afirmar; lo que SÍ está confirmado es que el
+> tema claro es una desviación documentada del manual y que produce fallos
+> de contraste reales. Que corregirlo también resuelva la sensación de
+> "sobria" es la recomendación de diseño en §3, no un hecho medido.
 
 ### Home (`src/app/(app)/index.tsx`)
 - Jerarquía correcta (saludo → estado → verificación → finanzas → red), pero
@@ -161,21 +171,29 @@ decoración" (ninguna pinta un fondo grande de violeta):
    es, literalmente, "violeta es acción": marca cuál tarjeta pide acción,
    nunca decora una que no la tiene.
 
-**Recomendación razonada: Propuesta A primero, como su propio cambio,
-seguida de Propuesta B.** La causa raíz (tema invertido) es un defecto de
-cumplimiento de marca Y de accesibilidad verificable — corregirla sola ya
-resuelve la queja de "se ve sobria" en gran parte, con el menor riesgo
-posible (ningún componente cambia, solo qué paleta activa `theme.ts`). B es
-una mejora genuina pero más opinativa (qué tarjeta es "destacada", qué tono
-le toca a cada sección) — vale la pena, pero amerita su propia revisión de
-diseño por separado una vez A esté validada en producción, no en el mismo
-PR.
+**Recomendación razonada (opinión de diseño, apoyada en los hechos de
+arriba, no un hecho en sí misma): Propuesta A primero, como su propio
+cambio, seguida de Propuesta B.** Lo confirmado es que el tema invertido es
+un defecto de cumplimiento de marca Y de accesibilidad verificable (§5a).
+Mi lectura es que corregirlo probablemente resuelve buena parte de la queja
+de "se ve sobria" — pero eso es una expectativa, no algo medido; la forma
+de confirmarlo es mostrarle al usuario la versión oscura y preguntar,
+no asumirlo aquí. Con el menor riesgo posible (ningún componente cambia,
+solo qué paleta activa `theme.ts`), A es el paso más seguro para probar esa
+hipótesis. B es una mejora genuina pero más opinativa todavía (qué tarjeta
+es "destacada", qué tono le toca a cada sección) — vale la pena, pero
+amerita su propia revisión de diseño por separado una vez A esté validada
+en producción, no en el mismo PR.
 
 ## 4. Demostración aislada
 
-`src/design-system/demo/` + `src/app/_dev/brand-demo.tsx` (excluido del
-enrutador real — ver ese README). Muestra Home y Perfil con datos sintéticos,
-en los 3 modos (`current`/`proposalA`/`proposalB`) × 4 estados
+`src/design-system/demo/` + `src/app/dev-brand-demo.tsx` (una ruta real de
+Expo Router, pero que solo renderiza contenido cuando
+`isDevelopmentSimulatorEnabled` es verdadero — nunca en un build de
+release; ver ese README, incluida la corrección sobre por qué NO se usó una
+carpeta `_dev/` como mecanismo de exclusión). Muestra Home y Perfil con
+datos sintéticos, en los 3 modos (`current`/`proposalA`/`proposalB`) × 4
+estados
 (`Con datos`/`Cargando`/`Vacío`/`Error`), reutilizando `Icon`/`Avatar` reales
 y réplicas fieles de `Card`/`Badge`/`Button`/`Skeleton` (ver ese mismo README
 para por qué no se reutilizaron los componentes reales literalmente: todos
@@ -195,6 +213,16 @@ definitivamente entre A y B.
 
 ## 5. Contraste, legibilidad, texto ampliado, controles
 
+Esta sección separa tres clases de afirmación, a propósito, para no hacer
+pasar una por otra: **(a) contraste calculado** — matemático, verificable
+por cualquiera con la misma fórmula, no depende de probarlo en un
+dispositivo; **(b) comprobaciones en dispositivo** — requieren un
+simulador/dispositivo real y **no se realizaron en esta entrega** (ver
+limitación de entorno en §4); **(c) opinión estética/de diseño** — mi
+lectura, útil pero no un hecho.
+
+### (a) Contraste — calculado, confirmado
+
 **Calculado con la fórmula WCAG 2.1 (luminancia relativa + razón
 (L1+0.05)/(L2+0.05))**, no estimado:
 
@@ -209,22 +237,47 @@ definitivamente entre A y B.
 | Blanco sobre `violeta-500` (botón primario) | — | 5.15:1 AA | 5.15:1 AA (no cambia) |
 | Badge `exito` (texto sobre `exito.sobreOscuro`) | superficie1 | 1.54:1 FALLA (si se reutilizara así) | 7.82:1 AAA |
 
-El tema oscuro no es solo más vistoso: **es el único de los dos donde los
-tres colores semánticos cumplen AA como texto**, confirmando que fueron
-diseñados contra `#0C0A14`, no contra blanco.
+Esto es un hecho calculado: **el tema oscuro es el único de los dos donde
+los tres colores semánticos cumplen AA como texto**, lo cual es consistente
+con que fueron diseñados contra `#0C0A14`, no contra blanco. (Decir que el
+tema oscuro "se ve mejor" es otra cosa — eso es opinión, ver §3; lo que
+está en esta tabla es solo la razón de contraste.)
 
-**Texto ampliado**: `especificacion/componentes.md` fija mínimos de 13px web
-/ 12px móvil (11px solo para `etiqueta`); `typography.ts` ya respeta esto.
-Ninguna propuesta cambia tamaños de fuente — el único riesgo de texto
-ampliado (Dynamic Type / accesibilidad del SO) es el mismo hoy que en
-cualquiera de las dos propuestas, ya que ningún texto aquí usa `fontSize`
-fijo no escalable distinto del ya existente.
+### (b) Comprobaciones en dispositivo — NO realizadas, pendientes
 
-**Tamaño de controles**: `Button`/`IconButton` ya cumplen 44px mínimo de
-toque (`medidas.toqueMinimo`, con `hitSlop` para `sm`). Ninguna propuesta
-reduce el tamaño de ningún control — los chips de ícono de la Propuesta B
-son 40×40 puramente decorativos (no tocables), nunca sustituyen a un
-`IconButton` real.
+**Texto ampliado (Dynamic Type / "Larger Text" del SO): no se probó en un
+simulador ni dispositivo real en esta entrega** (misma limitación de
+entorno que las capturas, ver §4 — no hubo forma de abrir un simulador en
+esta sesión). Lo único verificado es por **inspección de código**, que es
+un nivel de evidencia distinto y más débil que probarlo:
+`especificacion/componentes.md` fija mínimos de 13px web / 12px móvil (11px
+solo para `etiqueta`), `typography.ts` ya los respeta, y no se encontró
+ningún `allowFontScaling={false}` ni `fontSize` fijo no escalable en los
+componentes tocados por esta demo o por las dos propuestas. Eso hace
+*plausible* que el comportamiento de escalado de texto sea el mismo hoy que
+en cualquiera de las dos propuestas (ninguna toca `fontSize` ni props de
+escalado), pero **no se debe dar por validado** hasta confirmarlo en un
+dispositivo real con "Texto más grande" / Dynamic Type activado —
+especialmente en los botones y badges de la demo, donde se añadió
+`minHeight` en vez de `height` fijo precisamente para no romper ese caso,
+pero esa corrección en sí tampoco se ha probado en pantalla.
+
+Tampoco se probó en dispositivo: la sensación táctil real de los 44px de
+`hitSlop`, el renderizado real de los lavados/acentos semitransparentes de
+la Propuesta B sobre pantallas OLED vs. LCD, ni el contraste percibido bajo
+luz solar directa. Estas quedan como pendientes explícitas, no como
+supuestos.
+
+### (c) Opinión de diseño (no un hecho)
+
+**Tamaño de controles**: por inspección de código, `Button`/`IconButton` ya
+implementan 44px mínimo de toque (`medidas.toqueMinimo`, con `hitSlop` para
+`sm`) y ninguna propuesta reduce el tamaño de ningún control — los chips de
+ícono de la Propuesta B son 40×40 puramente decorativos (no tocables),
+nunca sustituyen a un `IconButton` real. Esto es verificable leyendo el
+código (no requiere dispositivo), pero que el resultado "se sienta" bien al
+tocar sigue siendo, como con el texto ampliado, algo no comprobado en
+dispositivo.
 
 ## Lista de tokens/componentes a cambiar para aplicar la opción elegida
 
