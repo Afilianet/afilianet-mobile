@@ -573,6 +573,113 @@ describe("Document capture: processing and polling", () => {
       jest.useRealTimers();
     }
   });
+
+  it("stops polling once the compliance screen unmounts -- no further requests after leaving", async () => {
+    jest.useFakeTimers();
+    try {
+      mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "processing" }));
+      const { findByText, unmount } = await renderCompliance();
+      await findByText("Estamos procesando tu identificación");
+
+      const callsBeforeUnmount = mockedFetchDocumentResult.mock.calls.length;
+      await unmount();
+
+      // If the poll interval were still armed, this would fire at least one
+      // more fetch -- it must not, now that nothing observes the query.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(9000);
+      });
+      expect(mockedFetchDocumentResult.mock.calls.length).toBe(callsBeforeUnmount);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("never lets a stale poll response for an older attempt overwrite a newer attempt already in progress", async () => {
+    jest.useFakeTimers();
+    try {
+      // Attempt 2 is already the latest by the time this screen mounts
+      // (e.g. the affiliate submitted, then reopened the app).
+      const newPendingResult = documentResult({ id: "result-2", status: "pending", attempt_number: 2 });
+      // Attempt 1's own, older terminal result -- a real prior failure.
+      const staleFailedResult = documentResult({
+        id: "result-1",
+        status: "failed",
+        failure_reason: "poor_image_quality",
+        attempt_number: 1,
+      });
+      const newCompletedResult = documentResult({
+        id: "result-2",
+        status: "completed",
+        verdict: "pass",
+        attempt_number: 2,
+        extracted_fields: [],
+      });
+
+      mockedFetchDocumentResult.mockResolvedValueOnce(newPendingResult);
+      const { findByText, queryByText } = await renderCompliance();
+      await findByText("Estamos procesando tu identificación");
+
+      // Simulates a poll response that still reports the PREVIOUS attempt,
+      // because the backend's own "latest attempt" read model hasn't caught
+      // up with attempt 2 yet -- this must never flash the old failure back
+      // on screen over the attempt that's actually in progress.
+      mockedFetchDocumentResult.mockResolvedValueOnce(staleFailedResult).mockResolvedValue(newCompletedResult);
+
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      expect(queryByText("Necesita corrección")).toBeNull();
+      expect(await findByText("Estamos procesando tu identificación")).toBeTruthy();
+
+      // Polling still converges normally once the backend genuinely catches up.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(3000);
+      });
+      expect(await findByText("Confirmado desde el documento")).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("distinguishes a real connection failure from slow processing, and 'Verificar estado' recovers without a new upload or a new extraction attempt", async () => {
+    jest.useFakeTimers();
+    try {
+      mockedFetchDocumentResult
+        .mockResolvedValueOnce(documentResult({ status: "processing" }))
+        .mockRejectedValue(new ApiError("offline", "No connection."));
+
+      const { getByText, findByText, queryByText } = await renderCompliance();
+      await findByText("Estamos procesando tu identificación");
+
+      // Exhausts useApiQuery's own retry-twice backoff (~1s then ~2s) for a
+      // retryable "offline" error before the query settles into isError.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(8000);
+      });
+
+      expect(await findByText(/no pudimos consultar el estado/i)).toBeTruthy();
+      // A real connection failure is never worded the same as "just slow."
+      expect(queryByText(/tardando más de lo habitual/i)).toBeNull();
+
+      const callsBeforeRecheck = mockedFetchDocumentResult.mock.calls.length;
+      mockedFetchDocumentResult.mockResolvedValue(documentResult({ status: "completed", verdict: "pass", extracted_fields: [] }));
+      await act(async () => {
+        fireEvent.press(getByText("Verificar estado"));
+      });
+
+      expect(mockedFetchDocumentResult.mock.calls.length).toBeGreaterThan(callsBeforeRecheck);
+      expect(await findByText("Confirmado desde el documento")).toBeTruthy();
+
+      // Recovery is a read-only status recheck -- never a re-upload, and
+      // never a second extraction attempt stacked on top of the one already
+      // running.
+      expect(mockedRequestEvidenceUpload).not.toHaveBeenCalled();
+      expect(mockedTriggerDocumentProcessing).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("Document capture: operational unavailability (Phase 9C.2a, 503 on trigger)", () => {
