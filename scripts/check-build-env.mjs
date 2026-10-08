@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 export function validateBuildEnvironment(env) {
   const errors = [];
   const appEnv = env.EXPO_PUBLIC_APP_ENV;
-  const expected = { production: "production", staging: "staging", "store-beta": "staging", internal: "internal", development: "development" };
+  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", internal: "internal", development: "development" };
   if (!["development", "internal", "staging", "production"].includes(appEnv)) {
     errors.push("Define EXPO_PUBLIC_APP_ENV explícitamente.");
   }
@@ -26,7 +26,7 @@ export function validateBuildEnvironment(env) {
     if (appEnv === "production" && url.origin !== "https://api.afilianet.mx") {
       errors.push("Producción requiere https://api.afilianet.mx; no uses staging, direcciones locales ni ejemplos.");
     }
-    if (["staging", "store-beta"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
+    if (["staging", "store-beta", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
       errors.push("El perfil de pruebas requiere https://staging-api.afilianet.mx.");
     }
   }
