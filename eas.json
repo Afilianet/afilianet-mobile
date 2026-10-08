@@ -60,6 +60,13 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://staging-api.afilianet.mx",
         "EXPO_NO_DOTENV": "1"
       }
+    },
+    "development-staging": {
+      "extends": "staging",
+      "developmentClient": true,
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
+      }
     }
   },
   "submit": {
