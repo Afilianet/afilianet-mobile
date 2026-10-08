@@ -1,0 +1,473 @@
+<title>Dirección Visual Afilianet</title>
+<style>
+  /* Layout: a neutral review-tool chrome hosting three fixed-palette phone
+     mockups side by side — the chrome is theme-aware (viewer's OS theme);
+     the three phone palettes are NOT (they're the literal subject being
+     compared: the app's own current/proposed themes), so they're declared
+     as static per-column tokens, not reactive to prefers-color-scheme. */
+  :root {
+    --chrome-bg: #F7F7F8;
+    --chrome-surface: #FFFFFF;
+    --chrome-border: #E2E2E6;
+    --chrome-fg: #16161A;
+    --chrome-fg-muted: #65656F;
+    --chrome-accent: #4150E0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --chrome-bg: #0E0E12;
+      --chrome-surface: #17171C;
+      --chrome-border: #2A2A32;
+      --chrome-fg: #F0F0F3;
+      --chrome-fg-muted: #9A9AA4;
+      --chrome-accent: #8C97FF;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --chrome-bg: #0E0E12;
+    --chrome-surface: #17171C;
+    --chrome-border: #2A2A32;
+    --chrome-fg: #F0F0F3;
+    --chrome-fg-muted: #9A9AA4;
+    --chrome-accent: #8C97FF;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--chrome-bg);
+    color: var(--chrome-fg);
+    font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
+    padding-inline: 20px;
+    padding-block: 20px calc(32px + env(safe-area-inset-bottom, 0px));
+  }
+  h1 { font-size: 20px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--chrome-fg-muted); font-size: 13px; margin: 0 0 20px; max-width: 70ch; }
+
+  .controls {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 5;
+    background: var(--chrome-bg);
+    padding-block: 10px;
+    margin-bottom: 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    border-bottom: 1px solid var(--chrome-border);
+  }
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--chrome-surface);
+    border: 1px solid var(--chrome-border);
+    border-radius: 10px;
+    padding: 2px;
+  }
+  .segmented button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--chrome-fg-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .segmented button[aria-pressed="true"] {
+    background: var(--chrome-accent);
+    color: #fff;
+  }
+  .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--chrome-fg-muted); margin-right: 2px; }
+
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 22px;
+    align-items: start;
+  }
+  .column { min-width: 0; }
+  .column-heading { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--chrome-fg); }
+  .column-note { font-size: 11.5px; color: var(--chrome-fg-muted); margin: 6px 2px 0; line-height: 1.5; }
+
+  .phone {
+    width: 100%;
+    max-width: 340px;
+    border-radius: 28px;
+    padding: 10px;
+    background: #050507;
+    box-shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.28);
+  }
+  .screen {
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--bg);
+    min-height: 560px;
+    font-family: "Manrope", "Inter", -apple-system, sans-serif;
+  }
+  .screen-pad { padding: 20px 20px 28px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* ---- mock component primitives, palette-driven via CSS vars set per .screen ---- */
+  .row { display: flex; align-items: center; gap: 10px; }
+  .between { display: flex; align-items: center; justify-content: space-between; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /* Nullable-accent fallback: current/A simply don't define --featured-wash /
+     --actionable-bar / --actionable-width below, so these rules fall back to
+     the plain surface/border -- never a literal transparent fill or an
+     orphaned accent color, mirroring DemoCard's useFeatured/useActionable
+     gating in src/design-system/demo/DemoPrimitives.tsx. */
+  .card.featured { background: var(--featured-wash, var(--surface)); }
+  .card.actionable {
+    border-left-width: var(--actionable-width, 1px);
+    border-left-color: var(--actionable-bar, var(--border));
+  }
+  .heading-row { display: flex; align-items: center; gap: 10px; }
+  .icon-chip { width: 36px; height: 36px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--chip-bg, transparent); }
+  .icon-chip svg { width: 17px; height: 17px; stroke: var(--text-primary); fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .section-label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 500; }
+  .title-lg { font-size: 22px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.015em; margin: 0; }
+  .subtitle { font-size: 17px; font-weight: 700; color: var(--text-primary); margin: 0; }
+  .body-text { font-size: 13.5px; color: var(--text-secondary); margin: 0; line-height: 1.4; }
+  .caption { font-size: 11.5px; color: var(--text-tertiary); margin: 0; }
+  .amount { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 15px; font-weight: 700; }
+  .avatar { width: 46px; height: 46px; border-radius: 999px; background: #3D26B8; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; }
+  .badge { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.01em; }
+  .badge.success { background: var(--success-wash); color: var(--success-text); }
+  .badge.warning { background: var(--warning-wash); color: var(--warning-text); }
+  .badge.neutral { background: rgba(130,130,140,.22); color: var(--text-secondary); }
+  /* min-height 44px: the real DemoButton keeps a visually smaller 34/42px
+     box and reaches 44px only via invisible hitSlop (RN-only API, no DOM
+     equivalent) -- this static mockup instead draws the full 44px so the
+     tap target is honestly visible here too, rather than silently
+     understating it. See demo/README.md and DemoPrimitives.tsx. */
+  .btn { border: none; border-radius: 10px; padding: 9px 14px; min-height: 44px; font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.primary { background: var(--action-primary); color: #fff; }
+  .btn.secondary { background: var(--surface); color: var(--text-primary); border: 1px solid var(--border); }
+  .btn.ghost { background: transparent; color: var(--text-secondary); padding-left: 2px; }
+  /* especificacion/componentes.md §1 "peligro": transparent fill, danger-toned text/border -- never plain ghost/secondary for a destructive action. */
+  .btn.danger { background: transparent; color: var(--danger-text); border: 1px solid var(--danger-text); }
+  .actions-label { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); font-weight: 500; margin: 2px 2px 0; }
+  .bell-wrap { position: relative; }
+  .bell-dot { position: absolute; top: -1px; right: -1px; width: 8px; height: 8px; border-radius: 999px; background: var(--danger-text); }
+  .skeleton-bar { height: 13px; border-radius: 6px; background: var(--surface-raised); position: relative; overflow: hidden; }
+  .skeleton-bar.short { width: 55%; }
+  .skeleton-bar::after {
+    content: ""; position: absolute; inset: 0;
+    animation: pulse 1.2s ease-in-out infinite;
+    background: var(--surface-raised);
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+  .error-mark { width: 34px; height: 34px; border-radius: 999px; background: var(--danger-wash); display:flex; align-items:center; justify-content:center; }
+  .error-mark svg { width: 16px; height: 16px; stroke: var(--danger-text); fill: none; stroke-width: 1.75; }
+  .mono-small { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 10.5px; color: var(--text-tertiary); }
+  .org-row { display: flex; align-items: center; justify-content: space-between; min-height: 40px; padding: 0 10px; border-radius: 10px; }
+  .org-row.active { background: var(--surface-raised); }
+
+  @media (max-width: 420px) {
+    .phone { max-width: 100%; }
+  }
+</style>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+
+<h1>Afilianet Mobile — comparación de dirección visual</h1>
+<p class="sub">
+  Misma identidad aprobada (<code>design/handoff/tokens/afilianet.tokens.json</code>), tres aplicaciones. Sin color inventado — cada valor de esta página es un token oficial. Ver <code>design/BRAND_VISUAL_AUDIT.md</code> para el diagnóstico completo (incluida la separación entre contraste calculado, comprobaciones en dispositivo pendientes, y opinión de diseño).
+</p>
+<p class="sub">
+  Esta página es un sustituto de captura real, hecho a mano con los valores hex exactos de los tokens — no una captura de dispositivo. No se pudo abrir un simulador en el entorno de esta sesión; ver <code>src/design-system/demo/README.md</code> para los pasos verificados para obtener capturas nativas.
+</p>
+
+<div class="controls">
+  <span class="label">Pantalla</span>
+  <div class="segmented" id="screen-tabs">
+    <button data-screen="home" aria-pressed="true">Home</button>
+    <button data-screen="profile" aria-pressed="false">Perfil</button>
+  </div>
+  <span class="label">Estado</span>
+  <div class="segmented" id="state-tabs">
+    <button data-state="data" aria-pressed="true">Con datos</button>
+    <button data-state="loading" aria-pressed="false">Cargando</button>
+    <button data-state="empty" aria-pressed="false">Vacío</button>
+    <button data-state="error" aria-pressed="false">Error</button>
+  </div>
+</div>
+
+<div class="columns" id="columns"></div>
+
+<script>
+// ---- Official tokens (design/handoff/tokens/afilianet.tokens.json), nothing invented ----
+const palettes = {
+  current: {
+    heading: "Actual (claro)",
+    note: "Lo publicado hoy. themes.light de theme.ts — una desviación temporal documentada del tema oficial (ver auditoría §1).",
+    vars: {
+      "--bg": "#FFFFFF", "--surface": "#F3F2F8", "--surface-raised": "#F4F0FF",
+      "--border": "#E4E1EE", "--text-primary": "#0C0A14", "--text-secondary": "#575072",
+      "--text-tertiary": "#575072", "--action-primary": "#6D4AFF",
+      "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
+      "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
+      "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(87,80,114,0.16)",
+      // No --featured-wash / --actionable-bar / --actionable-width: this
+      // variant has no accent at all, so .featured/.actionable fall back to
+      // the plain surface/border (see the CSS rules above) -- never a
+      // see-through fill or an orphaned bar color.
+    },
+  },
+  proposalA: {
+    heading: "Propuesta A — oscuro oficial",
+    note: "themes.dark tal cual, sin cambios adicionales. Restaura el valor que el propio manual define como obligatorio para el producto.",
+    vars: {
+      "--bg": "#0C0A14", "--surface": "#14101F", "--surface-raised": "#1C1730",
+      "--border": "#2A2340", "--text-primary": "#ECEAF4", "--text-secondary": "#A9A2C4",
+      "--text-tertiary": "#857CA8", "--action-primary": "#6D4AFF",
+      "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
+      "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
+      "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(154,146,196,0.16)",
+      // Restores the official dark default as-is -- still no accent of its
+      // own, so .featured/.actionable fall back the same way as `current`.
+    },
+  },
+  proposalB: {
+    heading: "Propuesta B — oscuro + color",
+    note: "Misma base oscura + chip de ícono por sección (solo donde el estado real lo justifica), una tarjeta destacada con lavado de marca, barra de 4px en la única tarjeta con acción primaria pendiente. Mismos tokens, más aplicaciones.",
+    vars: {
+      "--bg": "#0C0A14", "--surface": "#14101F", "--surface-raised": "#1C1730",
+      "--border": "#2A2340", "--text-primary": "#ECEAF4", "--text-secondary": "#A9A2C4",
+      "--text-tertiary": "#857CA8", "--action-primary": "#6D4AFF",
+      "--success-wash": "rgba(45,212,191,0.14)", "--success-text": "#2DD4BF",
+      "--warning-wash": "rgba(242,185,75,0.14)", "--warning-text": "#F2B94B",
+      "--danger-wash": "rgba(255,106,94,0.14)", "--danger-text": "#FF6A5E",
+      "--brand-wash": "rgba(109,74,255,0.18)", "--neutral-wash": "rgba(154,146,196,0.16)",
+      "--featured-wash": "rgba(109,74,255,0.18)",
+      "--actionable-bar": "#6D4AFF", "--actionable-width": "4px",
+    },
+  },
+};
+
+const icons = {
+  afiliados: '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/>',
+  cumplimiento: '<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  comision: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9M9.5 9.5c0-1.2 1.1-2 2.5-2s2.5.9 2.5 2-1 1.6-2.5 2-2.5.8-2.5 2 1.1 2 2.5 2 2.5-.8 2.5-2"/>',
+  monedero: '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M15.5 12h2.5"/>',
+  red: '<rect x="9.5" y="3" width="5" height="5" rx="1.5"/><rect x="3" y="16" width="5" height="5" rx="1.5"/><rect x="16" y="16" width="5" height="5" rx="1.5"/><path d="M12 8v4M12 12 5.5 16M12 12 18.5 16"/>',
+  nivel: '<path d="M4 18h3v-6H4zM10.5 18h3V8h-3zM17 18h3v-10h-3z"/>',
+  campana: '<path d="M6 10a6 6 0 0 1 12 0v4l2 3H4l2-3z"/><path d="M10 20a2 2 0 0 0 4 0"/>',
+  alerta: '<path d="M12 4 2 20h20z"/><path d="M12 10v4"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/>',
+};
+function icon(name) { return `<svg viewBox="0 0 24 24">${icons[name]}</svg>`; }
+
+const state = { screen: "home", uiState: "data" };
+
+// guia/implementacion.md §2: "aqua solo para dinero liberado... alerta solo
+// si existe espera real" -- an icon chip's tone must mirror the ACTUAL,
+// currently-displayed state, never be assigned by the section's name. Only
+// Afiliado (éxito cuando activo) and Verificación (alerta cuando hay una
+// espera real) have a tone that is ever anything but neutral, and only in
+// the "Con datos" state -- every other section, and every section in
+// loading/empty/error, stays neutral. Mirrors BrandDirectionDemo.tsx's
+// affiliateTone/complianceTone.
+const hasData = () => state.uiState === "data";
+const chip = {
+  neutral: "--neutral-wash",
+  affiliate: () => (hasData() ? "--success-wash" : "--neutral-wash"),
+  compliance: () => (hasData() ? "--warning-wash" : "--neutral-wash"),
+};
+
+function cardBody(key, labels) {
+  if (state.uiState === "loading") {
+    return `<div style="display:flex;flex-direction:column;gap:8px"><div class="skeleton-bar"></div><div class="skeleton-bar short"></div></div>`;
+  }
+  if (state.uiState === "error") {
+    return `<div style="display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+      <div class="error-mark">${icon("alerta")}</div>
+      <p class="body-text">${labels.error}</p>
+      <p class="mono-small">ERR-503 · 09:41</p>
+      <button class="btn secondary">Reintentar</button>
+    </div>`;
+  }
+  if (state.uiState === "empty") {
+    return `<div><p class="body-text">${labels.empty}</p>${labels.emptyNote ? `<p class="caption">${labels.emptyNote}</p>` : ""}</div>`;
+  }
+  return labels.data;
+}
+
+function sectionHeading(iconName, chipVar, title) {
+  return `<div class="heading-row"><div class="icon-chip" style="--chip-bg:var(${chipVar})">${icon(iconName)}</div><span class="section-label">${title}</span></div>`;
+}
+
+function homeScreen() {
+  return `
+    <div class="between">
+      <div>
+        <p class="title-lg" style="margin-bottom:2px">Hola, Daniela</p>
+        <p class="body-text">Afilianet Norte</p>
+      </div>
+      <div class="bell-wrap">
+        <div class="icon-chip" style="--chip-bg:var(${chip.neutral})">${icon("campana")}</div>
+        <div class="bell-dot"></div>
+      </div>
+    </div>
+
+    <div class="card featured">
+      ${sectionHeading("afiliados", chip.affiliate(), "ESTADO DE AFILIADO")}
+      ${cardBody("affiliate", {
+        error: "No pudimos cargar tu estado de afiliado.",
+        empty: "Aún no tienes un perfil de afiliado.",
+        emptyNote: "Únete al programa para empezar.",
+        data: `<div class="row"><span class="badge success">Activo</span><span class="body-text">AFF-10492</span></div>
+               <p class="body-text">Afiliado desde el 12 feb 2026</p>
+               <button class="btn secondary">↗ Compartir enlace</button>`,
+      })}
+    </div>
+
+    <div class="card actionable">
+      ${sectionHeading("cumplimiento", chip.compliance(), "VERIFICACIÓN")}
+      ${cardBody("compliance", {
+        error: "No pudimos cargar tu verificación.",
+        empty: "Aún no has iniciado tu verificación.",
+        data: `<span class="badge warning">En progreso</span>
+               <p class="body-text">Siguiente: Documento de identidad</p>
+               <button class="btn secondary">Continuar verificación</button>`,
+      })}
+    </div>
+
+    <div class="card">
+      ${sectionHeading("comision", chip.neutral, "COMISIONES")}
+      ${cardBody("commissions", {
+        error: "No pudimos cargar tus comisiones.",
+        empty: "Aún no tienes comisiones.",
+        emptyNote: "Aparecerán aquí en cuanto tengas tu primera venta.",
+        data: `<div class="between"><div><p class="body-text" style="margin-bottom:4px">3 oct 2026</p><span class="badge success">Liquidada</span></div><span class="amount" style="color:var(--success-text)">+$1,240.00</span></div>
+               <div class="between"><div><p class="body-text" style="margin-bottom:4px">28 sep 2026</p><span class="badge warning">Pendiente</span></div><span class="amount" style="color:var(--text-primary)">+$640.00</span></div>
+               <button class="btn ghost">Ver todas</button>`,
+      })}
+    </div>
+
+    <div class="card">
+      ${sectionHeading("monedero", chip.neutral, "MONEDERO")}
+      ${cardBody("wallet", {
+        error: "No pudimos cargar tu monedero.",
+        empty: "Aún no tienes saldo.",
+        data: `<p class="caption">MXN · pendiente $320.00</p>
+               <p class="subtitle" style="color:var(--success-text)">$4,180.00 disponible</p>
+               <button class="btn ghost">Ver monedero</button>`,
+      })}
+    </div>
+
+    <div class="card">
+      ${sectionHeading("red", chip.neutral, "RED")}
+      ${cardBody("network", {
+        error: "No pudimos cargar tu red.",
+        empty: "Aún no tienes actividad de red.",
+        data: `<p class="body-text">Referido por AFF-10021</p>
+               <p class="body-text">12 referidos directos</p>
+               <button class="btn ghost">Ver red</button>`,
+      })}
+    </div>
+  `;
+}
+
+function profileScreen() {
+  return `
+    <div class="card featured" style="flex-direction:row;align-items:center;gap:14px">
+      <div class="avatar">DR</div>
+      <div>
+        <p class="subtitle" style="margin-bottom:2px">Daniela Ruiz</p>
+        <p class="body-text">daniela.ruiz@example.com</p>
+      </div>
+    </div>
+
+    <div class="card">
+      ${sectionHeading("afiliados", chip.affiliate(), "AFILIADO")}
+      ${cardBody("affiliate", {
+        error: "No pudimos cargar tu perfil de afiliado.",
+        empty: "Necesitas un perfil de afiliado.",
+        data: `<div class="row"><span class="badge success">Activo</span><span class="body-text">AFF-10492</span></div>
+               <div class="between"><span class="body-text">Organización</span><span class="body-text" style="color:var(--text-primary)">Afilianet Norte</span></div>
+               <div class="between"><span class="body-text">Patrocinador</span><span class="body-text" style="color:var(--text-primary)">AFF-10021</span></div>`,
+      })}
+    </div>
+
+    <div class="card">
+      ${sectionHeading("cumplimiento", chip.compliance(), "VERIFICACIÓN")}
+      ${cardBody("compliance", {
+        error: "No pudimos cargar tu verificación.",
+        empty: "Aún no has iniciado tu verificación.",
+        data: `<span class="badge warning">En progreso</span>
+               <button class="btn secondary">Ver verificación</button>`,
+      })}
+    </div>
+
+    <div class="card">
+      ${sectionHeading("nivel", chip.neutral, "ORGANIZACIONES")}
+      <div class="org-row active"><span class="body-text" style="color:var(--text-primary)">Afilianet Norte</span><span class="badge success">Activa</span></div>
+      <div class="org-row"><span class="body-text" style="color:var(--text-primary)">Afilianet Centro</span></div>
+    </div>
+
+    <div class="actions-label">ACCIONES DE CUENTA</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button class="btn secondary" style="width:100%;justify-content:center">Configurar notificaciones</button>
+      <button class="btn ghost" style="width:100%;justify-content:center">Salir de la organización</button>
+      <button class="btn danger" style="width:100%;justify-content:center">Eliminar mi cuenta</button>
+      <button class="btn secondary" style="width:100%;justify-content:center">Cerrar sesión</button>
+    </div>
+    <button class="btn ghost" style="width:100%;justify-content:center">Aviso de privacidad</button>
+  `;
+}
+// Known difference from today's shipped src/app/(app)/profile.tsx: the real
+// screen orders these Notificaciones -> [Salir de organización] -> Aviso de
+// privacidad -> Eliminar mi cuenta (currently `ghost`, not `danger`) ->
+// Cerrar sesión. This mockup instead groups the five actions with Aviso de
+// privacidad last/standalone and Eliminar mi cuenta in the `danger` variant
+// the component spec defines for destructive actions -- flagged here for
+// product to confirm, not assumed. Mirrors the same comment in
+// BrandDirectionDemo.tsx's ProfileDemo.
+
+function render() {
+  const columnsEl = document.getElementById("columns");
+  const content = state.screen === "home" ? homeScreen() : profileScreen();
+  columnsEl.innerHTML = Object.entries(palettes).map(([key, p]) => {
+    const varsCss = Object.entries(p.vars).map(([k, v]) => `${k}:${v}`).join(";");
+    return `
+      <div class="column">
+        <div class="column-heading">${p.heading}</div>
+        <div class="phone">
+          <div class="screen" style="${varsCss}">
+            <div class="screen-pad">${content}</div>
+          </div>
+        </div>
+        <p class="column-note">${p.note}</p>
+      </div>
+    `;
+  }).join("");
+}
+
+function wireTabs(containerId, key) {
+  const container = document.getElementById(containerId);
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-" + key + "]");
+    if (!btn) return;
+    state[key === "state" ? "uiState" : key] = btn.dataset[key];
+    [...container.querySelectorAll("button")].forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    render();
+  });
+}
+wireTabs("screen-tabs", "screen");
+wireTabs("state-tabs", "state");
+render();
+</script>
