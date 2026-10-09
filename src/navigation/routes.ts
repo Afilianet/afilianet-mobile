@@ -14,6 +14,7 @@ export const routes = {
   payouts: "/payouts",
   compliance: "/compliance",
   notifications: "/notifications",
+  notificationSettings: "/notification-settings",
 } as const;
 
 // The only screen values afilianet-api's notification listeners ever put in
@@ -50,4 +51,10 @@ export function networkAffiliateDetail(affiliateUuid: string): string {
 
 export function payoutRequest(currency: string): string {
   return `/payout-request/${currency}`;
+}
+
+// Singular top-level segment, for the same file-vs-directory reason as
+// networkAffiliateDetail above: notifications.tsx already owns "/notifications".
+export function notificationDetail(notificationId: string): string {
+  return `/notification/${notificationId}`;
 }

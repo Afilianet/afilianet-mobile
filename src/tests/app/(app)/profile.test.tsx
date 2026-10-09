@@ -196,6 +196,18 @@ describe("Profile: loading and error states", () => {
   });
 });
 
+describe("Profile: notification settings", () => {
+  it("opens notification settings, not the inbox", async () => {
+    const { findByText } = await renderProfile();
+
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+    expect(mockPush).not.toHaveBeenCalledWith("/notifications");
+  });
+});
+
 describe("Profile: compliance summary", () => {
   it("shows the current compliance status and links to the full screen", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress", approved_at: null }));
