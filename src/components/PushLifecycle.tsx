@@ -6,6 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useOrganization } from "../state/OrganizationContext";
 import { registerPush } from "../services/push";
 import { createAutomaticPushRefresh } from "../services/automaticPushRefresh";
+import { analytics } from "../services/analytics";
 
 export function PushLifecycle() {
   const { status, user } = useAuth();
@@ -14,6 +15,8 @@ export function PushLifecycle() {
   const router = useRouter();
   const organization = useOrganization();
   const orgRef = useRef(organization);
+  // A tap can reach us twice (live listener + cold-start replay). Handle each once.
+  const handledResponses = useRef(new Set<string>());
   useEffect(() => { orgRef.current = organization; }, [organization]);
   useEffect(() => {
     if (status !== "signedIn" || !userId || organization.status !== "ready") return;
@@ -24,11 +27,18 @@ export function PushLifecycle() {
     refresh();
     const state = AppState.addEventListener("change", value => { if (value === "active") refresh(); });
     const token = Notifications.addPushTokenListener(refresh);
+    // Only a user's tap on a push lands here -- receiving one never does. The
+    // push carries no notification id (only organization_id), so a tap opens
+    // the inbox and never marks anything read on its own.
     const open = (response: Notifications.NotificationResponse) => {
+      const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (handledResponses.current.has(responseKey)) return;
       const organizationId = response.notification.request.content.data?.organization_id;
       if (typeof organizationId !== "string") return;
       const current = orgRef.current;
       if (!current.organizations.some(org => org.id === organizationId)) return;
+      handledResponses.current.add(responseKey);
+      analytics.capture("push_notification_opened");
       void current.selectOrganization(organizationId).then(() => router.push("/notifications")).catch(() => undefined);
     };
     const response = Notifications.addNotificationResponseReceivedListener(open);

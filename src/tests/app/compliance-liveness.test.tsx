@@ -259,6 +259,25 @@ describe("Staff-requested liveness recapture", () => {
     fireEvent.press(await findByText("Comenzar verificación"));
     await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
   });
+
+  it("tells the affiliate what was requested, why, and that the previous capture stays in history", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([livenessStep({ status: "pending", attempt_count: 1 })]);
+    mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
+    const { findByTestId, getByText } = await renderCompliance();
+
+    expect(await findByTestId("recapture-request")).toBeTruthy();
+    expect(getByText("Acción requerida")).toBeTruthy();
+    expect(getByText("Necesitamos una nueva prueba de vida")).toBeTruthy();
+    expect(getByText(/^Motivo:/)).toBeTruthy();
+    expect(getByText(/captura anterior se conserva/)).toBeTruthy();
+  });
+
+  it("shows no recapture request on a first, never-attempted liveness step", async () => {
+    const { findByText, queryByTestId } = await renderCompliance();
+    await findByText("Comenzar verificación");
+
+    expect(queryByTestId("recapture-request")).toBeNull();
+  });
 });
 
 // --- Provider awareness -------------------------------------------------------

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
+import { recaptureRequest } from "../components/compliance/recaptureRequest";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { RetryButton } from "../components/RetryButton";
@@ -173,9 +174,17 @@ function StepsCard({
   } else if (steps && steps.length > 0) {
     body = (
       <View>
-        {currentStep === "biometric_liveness" && steps.some((step) =>
-          step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
-        ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
+        {recaptureRequest(currentStep, steps) ? (
+          <View testID="recapture-request" style={styles.recaptureBox} accessible accessibilityRole="alert">
+            <View style={styles.recaptureHeader}>
+              <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+              <Text style={styles.recaptureNotice}>{strings.compliance.recaptureRequest.title}</Text>
+            </View>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.reason}</Text>
+            <Text style={styles.description}>{strings.compliance.livenessRecaptureNotice}</Text>
+            <Text style={styles.meta}>{strings.compliance.recaptureRequest.history}</Text>
+          </View>
+        ) : null}
         {steps.map((step) => (
           <View key={step.id}>
             <ComplianceStepCard step={step} currentStep={currentStep} />
@@ -253,10 +262,18 @@ const styles = StyleSheet.create({
   identityDataRow: { gap: spacing.xs, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   identityDataHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   identityDataLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  recaptureBox: {
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  recaptureHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   recaptureNotice: {
     ...typography.bodyStrong,
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
+    flexShrink: 1,
   },
   error: {
     ...typography.body,
