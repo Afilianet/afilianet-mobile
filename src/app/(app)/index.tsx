@@ -25,6 +25,7 @@ import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from 
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import { canShareReferral } from "../../utils/referral";
+import { recaptureRequest } from "../../components/compliance/recaptureRequest";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
 export default function HomeScreen() {
@@ -206,6 +207,12 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
           <View style={styles.stateGroupLocal}>
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
+            {compliance.steps && recaptureRequest(compliance.current_step, compliance.steps) ? (
+              <View testID="home-recapture-request" style={styles.stateGroupLocal} accessible accessibilityRole="alert">
+                <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+                <Text style={styles.meta}>{strings.home.livenessRecaptureRequested}</Text>
+              </View>
+            ) : null}
             {compliance.status !== "approved" ? (
               <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
             ) : null}

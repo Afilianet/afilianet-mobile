@@ -116,6 +116,7 @@ export const en = {
     notYetActivated: "Not yet activated",
     shareReferralLink: "Share referral link",
     continueVerification: "Continue verification",
+    livenessRecaptureRequested: "You were asked to repeat your liveness check. Open Verification to do it.",
     viewAllCommissions: "View all commissions",
     pendingAmount: (amount: string) => `Pending: ${amount}`,
     availableAmount: (amount: string) => `Available: ${amount}`,
@@ -478,7 +479,8 @@ export const en = {
     recaptureRequest: {
       badge: "Action required",
       title: "We need a new liveness check",
-      reason: "Reason: the review team needs you to repeat your liveness check to continue your verification.",
+      reason: "Reason: your previous liveness check was inconclusive and the review team asked you to repeat it.",
+      action: "To continue you need a new liveness check; a selfie doesn't replace it.",
       history: "Your previous capture stays in your history; we'll use the new one to continue.",
     },
     livenessRecaptureNotice: "A new liveness check was requested. Start the capture; your new image will then be compared with the document automatically.",
