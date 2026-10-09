@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spanish copy for AWS's official FaceLivenessDetector
+  (com.amplifyframework.ui:liveness:1.11.0), which ships English-only
+  resources (res/values only, no values-es). Overriding the library's own
+  string names here is Android's supported resource-merge mechanism: a
+  library module's resources take priority over those of its own
+  dependencies, so these win over the AAR's defaults. Declared in the
+  default `values/` (not `values-es/`) on purpose: the app's UI is always
+  Spanish regardless of device language (see src/i18n/index.ts), so the
+  AWS screens must be too.
+
+  The key set is EXACTLY the 17 <string> resources in that AAR's
+  res/values/values.xml -- re-diff against the new AAR whenever the
+  liveness dependency in build.gradle is bumped. This is native code:
+  Metro never reloads it, a new development/staging APK is required.
+-->
+<resources>
+    <string name="amplify_ui_liveness_challenge_a11y_cancel_content_description">Cancelar verificación</string>
+    <string name="amplify_ui_liveness_challenge_connecting">Conectando</string>
+    <string name="amplify_ui_liveness_challenge_instruction_hold_face_during_freshness">No te muevas</string>
+    <string name="amplify_ui_liveness_challenge_instruction_move_face">Coloca tu rostro frente a la cámara</string>
+    <string name="amplify_ui_liveness_challenge_instruction_move_face_closer">Acércate</string>
+    <string name="amplify_ui_liveness_challenge_instruction_move_face_further">Aléjate</string>
+    <string name="amplify_ui_liveness_challenge_instruction_multiple_faces_detected">Solo debe aparecer un rostro</string>
+    <string name="amplify_ui_liveness_challenge_recording_indicator_label">GRABANDO</string>
+    <string name="amplify_ui_liveness_challenge_verifying">Verificando</string>
+    <string name="amplify_ui_liveness_get_ready_a11y_photosensitivity_icon_content_description">Información sobre fotosensibilidad</string>
+    <string name="amplify_ui_liveness_get_ready_begin_check">Comenzar verificación con video</string>
+    <string name="amplify_ui_liveness_get_ready_center_face_label">Centra tu rostro</string>
+    <string name="amplify_ui_liveness_get_ready_photosensitivity_description">Esta verificación muestra destellos de distintos colores. Ten precaución si eres fotosensible.</string>
+    <string name="amplify_ui_liveness_get_ready_photosensitivity_dialog_description">Algunas personas pueden tener crisis epilépticas al exponerse a luces de colores. Ten precaución si tú o alguien de tu familia tiene epilepsia.</string>
+    <string name="amplify_ui_liveness_get_ready_photosensitivity_dialog_dismiss">Entendido</string>
+    <string name="amplify_ui_liveness_get_ready_photosensitivity_dialog_title">Advertencia de fotosensibilidad</string>
+    <string name="amplify_ui_liveness_get_ready_photosensitivity_title">Advertencia de fotosensibilidad</string>
+</resources>

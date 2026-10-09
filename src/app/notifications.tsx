@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { PushPreferences } from "../components/PushPreferences";
 import { NotificationRow } from "../components/NotificationRow";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { Button } from "../components/ui/Button";
@@ -10,18 +9,20 @@ import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { strings } from "../i18n";
 import { useMarkAllNotificationsRead } from "../hooks/useMarkAllNotificationsRead";
-import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
-import { notificationDestination } from "../navigation/routes";
+import { notificationDetail } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
+/**
+ * Inbox only -- the bell opens this screen. Push preferences live in
+ * notification-settings.tsx, reached from Profile.
+ */
 export default function NotificationsScreen() {
   const router = useRouter();
   const notificationsQuery = useNotifications();
   const unreadCountQuery = useUnreadNotificationCount();
-  const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -38,19 +39,11 @@ export default function NotificationsScreen() {
     }
   }
 
-  async function handleOpen(notification: Notification) {
+  // Viewing the inbox never marks anything read. Only opening one
+  // notification's detail does (see notification/[id].tsx), and only that one.
+  function handleOpen(notification: Notification) {
     analytics.capture("notification_opened");
-    try {
-      await markReadMutation.mutateAsync(notification.id);
-    } catch {
-      // Refresh already happens inside useMarkNotificationRead's onError --
-      // a failed read mutation must never block opening an otherwise-valid
-      // notification below.
-    }
-    const destination = notificationDestination(notification.payload.screen);
-    if (destination) {
-      router.push(destination as never);
-    }
+    router.push(notificationDetail(notification.id) as never);
   }
 
   async function handleMarkAllRead() {
@@ -78,8 +71,6 @@ export default function NotificationsScreen() {
           </IconButton>
         </View>
 
-        <PushPreferences />
-
         {hasUnread ? (
           <View style={styles.markAllRow}>
             <Button
@@ -99,7 +90,7 @@ export default function NotificationsScreen() {
           query={notificationsQuery}
           emptyTitle={strings.notifications.noneYet}
           renderItem={(notification) => (
-            <NotificationRow notification={notification} onPress={() => void handleOpen(notification)} />
+            <NotificationRow notification={notification} onPress={() => handleOpen(notification)} />
           )}
         />
       </ScrollView>

@@ -7,6 +7,9 @@
     "icon": "./assets/brand/afilianet-app-icon-1024.png",
     "scheme": "afilianetmobile",
     "userInterfaceStyle": "light",
+    "locales": {
+      "es": "./locales/es.json"
+    },
     "android": {
       "package": "com.afilianet.mobile",
       "adaptiveIcon": {

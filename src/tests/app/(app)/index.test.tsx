@@ -267,6 +267,50 @@ describe("Home: compliance", () => {
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
   });
+
+  function caseWithLiveness(liveness: { status: "pending" | "failed"; attempt_count: number }): ComplianceCase {
+    return {
+      id: "case-1",
+      status: "in_progress",
+      current_step: "biometric_liveness",
+      risk_level: null,
+      started_at: "2026-01-01T00:00:00Z",
+      submitted_at: null,
+      reviewed_at: null,
+      approved_at: null,
+      rejected_at: null,
+      expires_at: null,
+      rejection_reason: null,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [{
+        id: "liveness-step-1",
+        step_type: "biometric_liveness",
+        provider: null,
+        score: null,
+        completed_at: null,
+        created_at: "2026-01-01T00:00:00Z",
+        configured_provider: "aws_rekognition",
+        provider_actionable: true,
+        provider_unavailable_reason: null,
+        ...liveness,
+      }],
+    };
+  }
+
+  it("warns about a staff-requested liveness recapture", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(caseWithLiveness({ status: "pending", attempt_count: 1 }));
+    const { findByTestId, getByText } = await renderHome();
+    expect(await findByTestId("home-recapture-request")).toBeTruthy();
+    expect(getByText(/repetir tu prueba de vida/)).toBeTruthy();
+    expect(getByText("Continuar verificación")).toBeTruthy();
+  });
+
+  it("shows no recapture warning on a first liveness attempt", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(caseWithLiveness({ status: "pending", attempt_count: 0 }));
+    const { findByText, queryByTestId } = await renderHome();
+    await findByText("Continuar verificación");
+    expect(queryByTestId("home-recapture-request")).toBeNull();
+  });
 });
 
 describe("Home: commissions", () => {
