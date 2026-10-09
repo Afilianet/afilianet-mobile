@@ -88,9 +88,10 @@ export default function ProfileScreen() {
 
       <Button label={strings.notifications.settingsTitle} variant="secondary" onPress={() => router.push(routes.notificationSettings as never)} />
       {activeOrganization ? <Button label={`Salir de ${activeOrganization.name}`} variant="ghost" onPress={() => router.push({ pathname: "/leave-organization", params: { organizationId: activeOrganization.id } } as never)} /> : null}
-      <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
       <Button label="Eliminar mi cuenta" variant="ghost" onPress={() => router.push("/delete-account" as never)} />
       <Button label={strings.profile.signOut} variant="secondary" onPress={() => signOut()} />
+      {/* Privacy notice is always the last item on Profile. */}
+      <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
     </ScrollView>
   );
 }

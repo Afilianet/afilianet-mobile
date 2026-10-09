@@ -69,8 +69,8 @@ function notification(overrides: Partial<Notification> = {}): Notification {
   };
 }
 
-function page(data: Notification[]): PaginatedResponse<Notification> {
-  return { data, meta: { current_page: 1, last_page: 1, per_page: 25, total: data.length } };
+function page(data: Notification[], currentPage = 1, lastPage = 1): PaginatedResponse<Notification> {
+  return { data, meta: { current_page: currentPage, last_page: lastPage, per_page: 100, total: data.length } };
 }
 
 let queryClient: QueryClient;
@@ -92,7 +92,7 @@ async function renderDetail() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockId = "notif-1";
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   mockedFetchNotifications.mockResolvedValue(page([notification(), notification({ id: "notif-2", title: "Otra" })]));
   mockedFetchUnreadNotificationCount.mockResolvedValue(2);
   mockedMarkNotificationRead.mockResolvedValue(notification({ read_at: "2026-01-01T10:05:00Z" }));
@@ -169,5 +169,63 @@ describe("Notification detail", () => {
       fireEvent.press(getByText("Volver a notificaciones"));
     });
     expect(mockReplace).toHaveBeenCalledWith("/notifications");
+  });
+});
+
+describe("Notification detail: resolving without the inbox", () => {
+  it("finds a notification beyond the first page, without the inbox ever having loaded it", async () => {
+    mockId = "notif-150";
+    mockedFetchNotifications.mockImplementation((pageNumber: number) =>
+      Promise.resolve(
+        pageNumber === 1
+          ? page([notification({ id: "notif-1" })], 1, 2)
+          : page([notification({ id: "notif-150", title: "Pago realizado" })], 2, 2),
+      ),
+    );
+    const { findByText } = await renderDetail();
+
+    expect(await findByText("Pago realizado")).toBeTruthy();
+    expect(mockedFetchNotifications).toHaveBeenCalledWith(1, 100);
+    expect(mockedFetchNotifications).toHaveBeenCalledWith(2, 100);
+    await waitFor(() => expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(1));
+    expect(mockedMarkNotificationRead.mock.calls[0][0]).toBe("notif-150");
+  });
+
+  it("shows a retryable error -- never 'not found' -- when the request fails", async () => {
+    mockedFetchNotifications.mockRejectedValue(new ApiError("server", "Server error.", 500));
+    const { findByText, getByText, queryByText } = await renderDetail();
+
+    expect(await findByText("No se pudo cargar")).toBeTruthy();
+    expect(queryByText("No encontramos esta notificación")).toBeNull();
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+
+    mockedFetchNotifications.mockResolvedValue(page([notification()]));
+    await act(async () => {
+      fireEvent.press(getByText("Intenta de nuevo"));
+    });
+    expect(await findByText("Acción requerida")).toBeTruthy();
+  });
+
+  it("reports 'not found' only after reading through the last page", async () => {
+    mockId = "missing";
+    mockedFetchNotifications.mockImplementation((pageNumber: number) =>
+      Promise.resolve(page([notification({ id: `notif-p${pageNumber}` })], pageNumber, 3)),
+    );
+    const { findByText } = await renderDetail();
+
+    expect(await findByText("No encontramos esta notificación")).toBeTruthy();
+    expect(mockedFetchNotifications).toHaveBeenCalledTimes(3);
+  });
+
+  it("says it could not locate the notification, not that it does not exist, when the search limit is reached", async () => {
+    mockId = "missing";
+    mockedFetchNotifications.mockImplementation((pageNumber: number) =>
+      Promise.resolve(page([notification({ id: `notif-p${pageNumber}` })], pageNumber, 500)),
+    );
+    const { findByText, queryByText } = await renderDetail();
+
+    expect(await findByText("No pudimos ubicar esta notificación")).toBeTruthy();
+    expect(queryByText("No encontramos esta notificación")).toBeNull();
+    expect(mockedFetchNotifications).toHaveBeenCalledTimes(20);
   });
 });

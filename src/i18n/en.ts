@@ -384,6 +384,8 @@ export const en = {
     notFoundTitle: "We couldn't find this notification",
     notFoundDescription: "It may no longer be available. Go back to the inbox to see your notifications.",
     backToInbox: "Back to notifications",
+    notLocatedTitle: "We couldn't locate this notification",
+    notLocatedDescription: "It may be very old. Look for it in the notifications inbox.",
     goToSection: {
       compliance: "Go to Verification",
       profile: "Go to Profile",

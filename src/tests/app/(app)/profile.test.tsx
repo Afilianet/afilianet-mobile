@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../../api/errors";
 import { fetchMyAffiliateProfile, fetchMyCompliance } from "../../../api/endpoints";
 import { AuthContext, type AuthContextValue } from "../../../auth/AuthContext";
@@ -205,6 +205,17 @@ describe("Profile: notification settings", () => {
     });
     expect(mockPush).toHaveBeenCalledWith("/notification-settings");
     expect(mockPush).not.toHaveBeenCalledWith("/notifications");
+  });
+});
+
+describe("Profile: account actions order", () => {
+  it("keeps the privacy notice as the very last action, after sign out", async () => {
+    const { findByText, getAllByRole } = await renderProfile();
+    await findByText("Aviso de privacidad");
+
+    const buttons = getAllByRole("button");
+    expect(within(buttons[buttons.length - 1]).getByText("Aviso de privacidad")).toBeTruthy();
+    expect(within(buttons[buttons.length - 2]).getByText(/cerrar sesión/i)).toBeTruthy();
   });
 });
 

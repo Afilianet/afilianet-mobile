@@ -405,6 +405,8 @@ export const es = {
     notFoundTitle: "No encontramos esta notificación",
     notFoundDescription: "Puede que ya no esté disponible. Regresa a la bandeja para ver tus notificaciones.",
     backToInbox: "Volver a notificaciones",
+    notLocatedTitle: "No pudimos ubicar esta notificación",
+    notLocatedDescription: "Es posible que sea muy antigua. Búscala en la bandeja de notificaciones.",
     goToSection: {
       compliance: "Ir a Verificación",
       profile: "Ir a Perfil",
