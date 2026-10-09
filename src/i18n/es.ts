@@ -136,6 +136,7 @@ export const es = {
     notYetActivated: "Aún no activado",
     shareReferralLink: "Compartir liga de referido",
     continueVerification: "Continuar verificación",
+    livenessRecaptureRequested: "Se pidió repetir tu prueba de vida. Entra a Verificación para hacerla.",
     viewAllCommissions: "Ver todas las comisiones",
     pendingAmount: (amount: string) => `Pendiente: ${amount}`,
     availableAmount: (amount: string) => `Disponible: ${amount}`,
@@ -499,7 +500,8 @@ export const es = {
     recaptureRequest: {
       badge: "Acción requerida",
       title: "Necesitamos una nueva prueba de vida",
-      reason: "Motivo: el equipo de revisión necesita repetir tu prueba de vida para continuar con tu verificación.",
+      reason: "Motivo: el resultado de tu prueba de vida anterior no fue concluyente y el equipo de revisión pidió repetirla.",
+      action: "Para continuar necesitas una nueva prueba de vida; una selfie no la sustituye.",
       history: "Tu captura anterior se conserva en tu historial; para continuar usaremos la nueva.",
     },
     livenessRecaptureNotice: "Se solicitó repetir tu prueba de vida. Inicia la nueva captura; al terminar compararemos automáticamente tu imagen con el documento.",

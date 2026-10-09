@@ -181,6 +181,7 @@ function StepsCard({
               <Text style={styles.recaptureNotice}>{strings.compliance.recaptureRequest.title}</Text>
             </View>
             <Text style={styles.description}>{strings.compliance.recaptureRequest.reason}</Text>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.action}</Text>
             <Text style={styles.description}>{strings.compliance.livenessRecaptureNotice}</Text>
             <Text style={styles.meta}>{strings.compliance.recaptureRequest.history}</Text>
           </View>

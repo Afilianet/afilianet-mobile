@@ -7,7 +7,10 @@ import type { ComplianceStep, ComplianceStepType } from "../../types/api";
  * reopens the case to in_progress with current_step "biometric_liveness"
  * and that step back to `pending`, without resetting attempt_count. Those
  * existing fields are the only signal used here -- nothing is inferred
- * from fields the API does not return.
+ * from fields the API does not return. A failed attempt leaves the step
+ * `failed`, never `pending`, so pending-with-attempts is reachable only via
+ * that endpoint. Its precondition (latest AWS verdict "review") is the only
+ * reason the contract guarantees, which is what the copy says.
  *
  * Only "liveness" is ever returned: a selfie never substitutes for a
  * required liveness check, and the face_match step stays locked behind
