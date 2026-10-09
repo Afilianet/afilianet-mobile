@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
+import { configureApiClient } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { fetchNotifications, fetchUnreadNotificationCount, markAllNotificationsRead, markNotificationRead } from "../../api/endpoints";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import type { Notification, Organization, PaginatedResponse } from "../../types/api";
 import NotificationDetailScreen from "../../app/notification/[id]";
 jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
+// The first render pays the screen's cold module cost; on slow machines that alone can pass Jest's 10s default.
+jest.setTimeout(30_000);
 
 const mockPush = jest.fn();
 const mockBack = jest.fn();
@@ -45,11 +48,16 @@ const ORG_A: Organization = {
   my_membership_status: "active",
 };
 
-function orgValue(): OrganizationContextValue {
+const ORG_B: Organization = { ...ORG_A, id: "org-b", name: "Beta" };
+
+// What the global API client would send right now (Authorization / X-Organization-ID).
+const mockSession: { token: string | null; orgId: string | null } = { token: "token-a", orgId: "org-a" };
+
+function orgValue(org: Organization = ORG_A): OrganizationContextValue {
   return {
     status: "ready",
-    organizations: [ORG_A],
-    activeOrganization: ORG_A,
+    organizations: [ORG_A, ORG_B],
+    activeOrganization: org,
     error: null,
     selectOrganization: jest.fn(),
     refresh: jest.fn(),
@@ -75,16 +83,20 @@ function page(data: Notification[], currentPage = 1, lastPage = 1): PaginatedRes
 
 let queryClient: QueryClient;
 
-async function renderDetail() {
+function detailTree(org: Organization = ORG_A) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <OrganizationContext.Provider value={orgValue(org)}>
+        <NotificationDetailScreen />
+      </OrganizationContext.Provider>
+    </QueryClientProvider>
+  );
+}
+
+async function renderDetail(org: Organization = ORG_A) {
   let result!: Awaited<ReturnType<typeof render>>;
   await act(async () => {
-    result = await render(
-      <QueryClientProvider client={queryClient}>
-        <OrganizationContext.Provider value={orgValue()}>
-          <NotificationDetailScreen />
-        </OrganizationContext.Provider>
-      </QueryClientProvider>,
-    );
+    result = await render(detailTree(org));
   });
   return result;
 }
@@ -92,6 +104,9 @@ async function renderDetail() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockId = "notif-1";
+  mockSession.token = "token-a";
+  mockSession.orgId = "org-a";
+  configureApiClient({ getToken: () => mockSession.token, getOrganizationId: () => mockSession.orgId });
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 } } });
   mockedFetchNotifications.mockResolvedValue(page([notification(), notification({ id: "notif-2", title: "Otra" })]));
   mockedFetchUnreadNotificationCount.mockResolvedValue(2);
@@ -227,5 +242,104 @@ describe("Notification detail: resolving without the inbox", () => {
     expect(await findByText("No pudimos ubicar esta notificación")).toBeTruthy();
     expect(queryByText("No encontramos esta notificación")).toBeNull();
     expect(mockedFetchNotifications).toHaveBeenCalledTimes(20);
+  });
+});
+
+describe("Notification detail: bound to the session it started in", () => {
+  type Call = { org: string | null; token: string | null; page: number };
+
+  function controlledPages() {
+    const calls: Call[] = [];
+    const pending: { resolve: (value: PaginatedResponse<Notification>) => void; reject: (error: unknown) => void }[] = [];
+    mockedFetchNotifications.mockImplementation((pageNumber: number) => {
+      calls.push({ org: mockSession.orgId, token: mockSession.token, page: pageNumber });
+      return new Promise((resolve, reject) => pending.push({ resolve, reject }));
+    });
+    return { calls, pending };
+  }
+
+  function detailState(org: string, id: string) {
+    return queryClient.getQueryState(["notifications", "mine", org, "detail", id]);
+  }
+
+  it("stops when the organization changes while a page is pending: no next page in the new context, nothing stored under the old key", async () => {
+    mockId = "notif-150";
+    const { calls, pending } = controlledPages();
+    const screen = await renderDetail(ORG_A);
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    mockSession.orgId = "org-b";
+    await act(async () => {
+      screen.rerender(detailTree(ORG_B));
+    });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    await act(async () => {
+      // Org A's page 1 (not the last page) lands after the switch.
+      pending[0].resolve(page([notification({ id: "notif-a-1" })], 1, 2));
+      // Org B's own search: page 1 is its last page.
+      pending[1].resolve(page([notification({ id: "notif-b-1", title: "De Beta" })], 1, 1));
+    });
+
+    expect(await screen.findByText("No encontramos esta notificación")).toBeTruthy();
+    expect(calls).toEqual([
+      { org: "org-a", token: "token-a", page: 1 },
+      { org: "org-b", token: "token-a", page: 1 },
+    ]);
+    const stale = detailState("org-a", "notif-150");
+    expect(stale?.data).toBeUndefined();
+    expect(stale?.error).toBeNull();
+    expect(stale?.fetchStatus).toBe("idle");
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+  });
+
+  it("never shows, or marks read, a notification whose page arrives after sign-out", async () => {
+    const { calls, pending } = controlledPages();
+    const screen = await renderDetail();
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    mockSession.token = null;
+    await act(async () => {
+      pending[0].resolve(page([notification()]));
+    });
+
+    expect(screen.queryByText("Acción requerida")).toBeNull();
+    expect(screen.queryByText("No encontramos esta notificación")).toBeNull();
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+    const stale = detailState("org-a", "notif-1");
+    expect(stale?.data).toBeUndefined();
+    expect(stale?.error).toBeNull();
+    expect(stale?.fetchStatus).toBe("idle");
+  });
+
+  it("does not request the next page under another account signed into the same organization", async () => {
+    mockId = "notif-150";
+    const { calls, pending } = controlledPages();
+    const screen = await renderDetail();
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    mockSession.token = "token-b";
+    await act(async () => {
+      pending[0].resolve(page([notification({ id: "notif-a-1" })], 1, 2));
+    });
+
+    expect(calls).toEqual([{ org: "org-a", token: "token-a", page: 1 }]);
+    expect(screen.queryByText("No encontramos esta notificación")).toBeNull();
+    expect(screen.queryByText("No pudimos ubicar esta notificación")).toBeNull();
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+  });
+
+  it("does not surface an error caused by the session ending mid-request", async () => {
+    const { calls, pending } = controlledPages();
+    const screen = await renderDetail();
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    mockSession.token = null;
+    await act(async () => {
+      pending[0].reject(new ApiError("unauthorized", "Unauthenticated.", 401));
+    });
+
+    expect(screen.queryByText("No se pudo cargar")).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect(detailState("org-a", "notif-1")?.error).toBeNull();
   });
 });

@@ -35,7 +35,7 @@ jobs:
       - name: Verify organization exit and optional promotional consent
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/organization-exit.test.tsx src/tests/push/preferences.test.tsx
 
-      - name: Verify notification inbox, detail, settings, push opening and native liveness copy
+      - name: Verify notification inbox, detail (incl. session/organization isolation), settings, push opening and native liveness copy
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/notifications.test.tsx src/tests/app/notification-detail.test.tsx src/tests/app/notification-settings.test.tsx src/components/PushLifecycleOpen.test.tsx src/components/compliance/recaptureRequest.test.ts src/tests/native/livenessNativeStrings.test.ts
       # compliance-liveness.test.tsx has a failure reproduced on unchanged main; gate only the recapture block.
       - name: Verify staff-requested liveness recapture notice

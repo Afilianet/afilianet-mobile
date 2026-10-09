@@ -1,4 +1,5 @@
-import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { CancelledError, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { captureApiSessionGuard } from "../api/client";
 import { fetchNotifications } from "../api/endpoints";
 import { useOrganization } from "../state/OrganizationContext";
 import type { Notification, PaginatedResponse } from "../types/api";
@@ -27,19 +28,44 @@ export type NotificationLookup =
  * resolved by paging GET /api/v1/notifications -- independently of which
  * inbox pages happen to be loaded (cold start, deep link, reopened app).
  * Keyed under the inbox's own ["notifications","mine",orgId] root, so the
- * read mutation's invalidation refreshes it too, and an organization switch
- * can never show another organization's notification.
+ * read mutation's invalidation refreshes it too.
+ *
+ * Every request reads token and organization from the global API client,
+ * which the query key cannot pin. So the search is bound to the session it
+ * started in (captureApiSessionGuard), checked before and after each
+ * request: if the user signs out, switches account or switches
+ * organization mid-search, it stops -- no further page is requested in the
+ * new context, and neither a result nor an error is stored under this key
+ * (the query is cancelled and reverted to its pre-search state).
  */
 export function useNotificationDetail(notificationId: string | undefined) {
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = activeOrganization?.id;
+  const queryKey = ["notifications", "mine", orgId, "detail", notificationId] as const;
 
   return useApiQuery<NotificationLookup>(
-    ["notifications", "mine", orgId, "detail", notificationId],
+    queryKey,
     async () => {
+      const stillCurrent = orgId ? captureApiSessionGuard(orgId) : () => false;
+      // cancelQueries reverts this key and settles the fetch first, so the
+      // CancelledError below is never stored or retried.
+      const abandon = async (): Promise<never> => {
+        await queryClient.cancelQueries({ queryKey, exact: true });
+        throw new CancelledError({ revert: true });
+      };
+
       for (let page = 1; page <= MAX_PAGES; page++) {
-        const response = await fetchNotifications(page, PER_PAGE);
+        if (!stillCurrent()) return abandon();
+        let response: PaginatedResponse<Notification>;
+        try {
+          response = await fetchNotifications(page, PER_PAGE);
+        } catch (error) {
+          // An error caused by the context change (e.g. a 401 after sign-out) is not this search's error.
+          if (!stillCurrent()) return abandon();
+          throw error;
+        }
+        if (!stillCurrent()) return abandon();
         const match = response.data.find((item) => item.id === notificationId);
         if (match) return { kind: "found", notification: match };
         const lastPage = response.meta?.last_page;
