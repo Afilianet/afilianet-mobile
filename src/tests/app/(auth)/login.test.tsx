@@ -58,7 +58,7 @@ describe("LoginScreen: email or mobile", () => {
     await act(async () => {
       await fireEvent.press(screen.getByText("Iniciar sesión"));
     });
-    expect(signIn).toHaveBeenCalledWith({ phone: "+525512345678" }, "secret123");
+    expect(signIn).toHaveBeenCalledWith("+525512345678", "secret123");
   });
 
   it("signs in with a normalized email", async () => {
@@ -69,7 +69,7 @@ describe("LoginScreen: email or mobile", () => {
     await act(async () => {
       await fireEvent.press(screen.getByText("Iniciar sesión"));
     });
-    expect(signIn).toHaveBeenCalledWith({ email: "ana@example.com" }, "secret123");
+    expect(signIn).toHaveBeenCalledWith("ana@example.com", "secret123");
   });
 
   it("does not call the API with an incomplete mobile number", async () => {
@@ -85,10 +85,11 @@ describe("LoginScreen: email or mobile", () => {
     expect(screen.getByText("Escribe un número de celular completo para el país elegido.")).toBeTruthy();
   });
 
-  it("reports phone sign-in that the API does not support yet in Spanish", async () => {
+  it("explains in Spanish when the deployed API does not accept the identifier yet", async () => {
     const screen = await renderLogin({ error: new ApiError("validation", "The email field is required.", 422, { email: ["The email field is required."] }) });
     await fireEvent.press(screen.getByText("Celular"));
-    expect(screen.getByText("Revisa el correo. Puede que ya esté registrado; si es tuyo, inicia sesión.")).toBeTruthy();
+    // The deployed API (before #50) only knows email: a phone attempt is "not available yet", not "check your email".
+    expect(screen.getByText("Esta opción todavía no está disponible. Inténtalo más tarde.")).toBeTruthy();
     expect(screen.queryByText(/field is required/)).toBeNull();
   });
 

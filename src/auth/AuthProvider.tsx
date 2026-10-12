@@ -7,10 +7,19 @@ import { registerAccount, signInWith } from "../api/access";
 import { acceptReferralInvitation, fetchMe, signOutRequest } from "../api/endpoints";
 import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
-import { clearPendingReferral, hydratePendingReferral } from "./pendingReferral";
+import { clearPendingReferral, hydratePendingReferral, watchPendingReferralExpiry } from "./pendingReferral";
 import { tokenStorage } from "./tokenStorage";
 import { forgetOfflineUser, restoreOfflineUser, saveOfflineUser } from "../services/offlineSession";
 import type { ApiError } from "../api/errors";
+
+/**
+ * A session is "current" only while its token is the active one. Every await
+ * in this provider can lose a race with sign-out or another sign-in; after
+ * each, nothing from the old session may be published or persisted.
+ */
+function sessionGuard(tokenRef: { current: string | null }, token: string): () => boolean {
+  return () => tokenRef.current === token;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
@@ -24,7 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenRef.current = token;
     await tokenStorage.setToken(token);
     const me = await fetchMe();
-    await saveOfflineUser(token, me).catch(() => undefined);
+    if (!sessionGuard(tokenRef, token)()) return;
+    await saveOfflineUser(token, me, sessionGuard(tokenRef, token)).catch(() => undefined);
+    if (!sessionGuard(tokenRef, token)()) return;
     setUser(me);
     setStatus("signedIn");
   }
@@ -63,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       await hydratePendingReferral();
+      watchPendingReferralExpiry();
       const storedToken = await tokenStorage.getToken();
       if (!storedToken) {
         setStatus("signedOut");
@@ -95,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signIn(identifier, password) {
         setError(null);
         try {
-          const result = await signInWith(typeof identifier === "string" ? { email: identifier } : identifier, password);
+          const result = await signInWith(identifier, password);
           // The login response already includes a User, but we still load
           // /api/v1/me via establishSession() so there's exactly one code
           // path (also used by session restore) that decides what "signed
@@ -113,7 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         queryClient.clear();
         tokenRef.current = result.token;
         await tokenStorage.setToken(result.token);
-        await saveOfflineUser(result.token, result.user).catch(() => undefined);
+        await saveOfflineUser(result.token, result.user, sessionGuard(tokenRef, result.token)).catch(() => undefined);
+        if (!sessionGuard(tokenRef, result.token)()) return;
         setUser(result.user);
         setStatus("signedIn");
       },
@@ -130,8 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await fetchMe();
         // A sign-out or another sign-in while this was in flight must not
         // resurrect the previous account.
-        if (tokenRef.current !== token) return null;
-        await saveOfflineUser(token, me).catch(() => undefined);
+        if (!sessionGuard(tokenRef, token)()) return null;
+        // The write itself re-checks right before writing (see saveOfflineUser);
+        // and the session is checked again after it before publishing anything.
+        await saveOfflineUser(token, me, sessionGuard(tokenRef, token)).catch(() => undefined);
+        if (!sessionGuard(tokenRef, token)()) return null;
         setUser(me);
         return me;
       },

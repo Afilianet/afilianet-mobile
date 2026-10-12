@@ -214,14 +214,14 @@ describe("AuthProvider: access by email or mobile", () => {
     await renderAuth();
 
     await act(async () => {
-      await authValue.signIn({ phone: "+525512345678" }, "hunter22");
+      await authValue.signIn("+525512345678", "hunter22");
     });
 
-    expect(mockedSignIn).toHaveBeenCalledWith({ phone: "+525512345678" }, "hunter22");
+    expect(mockedSignIn).toHaveBeenCalledWith("+525512345678", "hunter22");
     expect(authValue.status).toBe("signedIn");
   });
 
-  it("keeps a bare string as an email sign-in", async () => {
+  it("passes an email identifier through unchanged", async () => {
     mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
     mockedFetchMe.mockResolvedValue({ id: "user-1" });
     await renderAuth();
@@ -230,7 +230,7 @@ describe("AuthProvider: access by email or mobile", () => {
       await authValue.signIn("person@example.com", "hunter2");
     });
 
-    expect(mockedSignIn).toHaveBeenCalledWith({ email: "person@example.com" }, "hunter2");
+    expect(mockedSignIn).toHaveBeenCalledWith("person@example.com", "hunter2");
   });
 
   it("registers directly, loads the server's user and continues to verification", async () => {
@@ -295,5 +295,75 @@ describe("AuthProvider: access by email or mobile", () => {
     });
 
     expect(mockedDeleteItem).toHaveBeenCalledWith("afilianet.pendingReferral");
+  });
+});
+
+describe("AuthProvider: the offline profile write losing a race", () => {
+  const OFFLINE_KEY = "afn.offline.user";
+
+  async function signedInAs(token: string, id: string) {
+    mockedSignIn.mockResolvedValueOnce({ token, user: { id } });
+    mockedFetchMe.mockResolvedValueOnce({ id, first_name: id });
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+  }
+
+  // Holds the next write of the offline profile until released.
+  function holdNextOfflineWrite() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    mockedSetItem.mockImplementation(async (key: string) => {
+      if (key === OFFLINE_KEY) await gate;
+    });
+    return () => release();
+  }
+
+  it("sign-out while refreshUser's offline write is pending: nothing is published, returned or left on the phone", async () => {
+    await renderAuth();
+    await signedInAs("tok-a", "user-a");
+    const release = holdNextOfflineWrite();
+    mockedFetchMe.mockResolvedValueOnce({ id: "user-a", first_name: "fresh" });
+
+    const pending = authValue.refreshUser();
+    await waitFor(() => expect(mockedSetItem.mock.calls.some(([key]) => key === OFFLINE_KEY)).toBe(true));
+    mockedDeleteItem.mockClear();
+    mockedSetItem.mockClear();
+    // Started outside act: the promise is awaited inside the act below.
+    const signedOut = authValue.signOut();
+    await act(async () => {
+      release();
+      await pending.then((value) => expect(value).toBeNull());
+      await signedOut;
+    });
+
+    expect(authValue.status).toBe("signedOut");
+    expect(authValue.user).toBeNull();
+    // The removal of the offline profile ran after the late write, never before it.
+    expect(mockedDeleteItem).toHaveBeenCalledWith(OFFLINE_KEY);
+    expect(mockedSetItem.mock.calls.some(([key]) => key === OFFLINE_KEY)).toBe(false);
+  });
+
+  it("switching accounts while the previous account's offline write is pending never shows or keeps the previous profile", async () => {
+    await renderAuth();
+    await signedInAs("tok-a", "user-a");
+    const release = holdNextOfflineWrite();
+    mockedFetchMe.mockResolvedValueOnce({ id: "user-a", first_name: "stale-a" });
+
+    const pending = authValue.refreshUser();
+    await waitFor(() => expect(mockedSetItem.mock.calls.some(([key]) => key === OFFLINE_KEY)).toBe(true));
+    mockedSetItem.mockImplementation(async () => undefined);
+    mockedSignIn.mockResolvedValueOnce({ token: "tok-b", user: { id: "user-b" } });
+    mockedFetchMe.mockResolvedValueOnce({ id: "user-b", first_name: "Beto" });
+    const switched = authValue.signIn("other@example.com", "hunter2");
+    await act(async () => {
+      release();
+      await pending.then((value) => expect(value).toBeNull());
+      await switched;
+    });
+
+    expect(authValue.user?.id).toBe("user-b");
+    const offlineWrites = mockedSetItem.mock.calls.filter(([key]) => key === OFFLINE_KEY).map(([, value]) => JSON.parse(value as string).user.id);
+    expect(offlineWrites[offlineWrites.length - 1]).toBe("user-b");
   });
 });
