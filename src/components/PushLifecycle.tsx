@@ -7,11 +7,15 @@ import { useOrganization } from "../state/OrganizationContext";
 import { registerPush } from "../services/push";
 import { createAutomaticPushRefresh } from "../services/automaticPushRefresh";
 import { analytics } from "../services/analytics";
+import { surveysPreviewEnabled } from "../features/surveys/flags";
+import { routes, surveyDetail } from "../navigation/routes";
 
 // Organization pushes carry organization_id (SendNotificationPush); platform
 // pushes carry only screen "platform-notifications" (SendPlatformNotificationPush)
 // and never require selecting an organization.
-type OpenTarget = { kind: "organization"; organizationId: string } | { kind: "platform" };
+// Survey pushes (screen "surveys", optional survey_id) open that survey inside
+// its organization, with the same pending/retry/session protections.
+type OpenTarget = { kind: "organization"; organizationId: string; path: string } | { kind: "platform" };
 type PendingOpen = { key: string; target: OpenTarget; userId: string };
 
 export function PushLifecycle() {
@@ -79,7 +83,7 @@ export function PushLifecycle() {
           // Session ended or this effect was torn down meanwhile: navigate
           // nowhere. A still-valid tap stays pending for the next run.
           if (!active || pendingOpen.current !== pending) return;
-          complete(pending, "/notifications");
+          complete(pending, target.path);
         })
         // Selection failed: keep it pending; retried on foreground or the next effect run.
         .catch(() => undefined)
@@ -96,7 +100,7 @@ export function PushLifecycle() {
       const data = response.notification.request.content.data;
       let target: OpenTarget;
       if (typeof data?.organization_id === "string") {
-        target = { kind: "organization", organizationId: data.organization_id };
+        target = { kind: "organization", organizationId: data.organization_id, path: organizationPushPath(data) };
       } else if (data?.screen === "platform-notifications") {
         target = { kind: "platform" };
       } else {
@@ -121,4 +125,12 @@ export function PushLifecycle() {
     return () => { active = false; state.remove(); token.remove(); response.remove(); };
   }, [status, userId, router, organization.status]);
   return null;
+}
+
+/** Where an organization push opens; an unknown or tampered survey id falls back to the surveys inbox. */
+function organizationPushPath(data: Record<string, unknown>): string {
+  if (data.screen === "surveys" && surveysPreviewEnabled) {
+    return (typeof data.survey_id === "string" && surveyDetail(data.survey_id)) || routes.surveys;
+  }
+  return "/notifications";
 }

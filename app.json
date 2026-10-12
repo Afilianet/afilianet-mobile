@@ -41,7 +41,7 @@
         "expo-image-picker",
         {
           "cameraPermission": "Afilianet necesita acceder a tu c\u00e1mara para fotografiar tu identificaci\u00f3n y verificar tu identidad.",
-          "microphonePermission": false,
+          "microphonePermission": "Afilianet usa el micrófono solo para grabar entrevistas de encuestas, siempre después de que la persona entrevistada dé su consentimiento.",
           "photosPermission": false
         }
       ],
@@ -63,6 +63,15 @@
           "ios": {
             "useFrameworks": "dynamic"
           }
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Afilianet usa el micrófono solo para grabar entrevistas de encuestas, siempre después de que la persona entrevistada dé su consentimiento.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
         }
       ],
       "./plugins/withAndroidCoreLibraryDesugaring",

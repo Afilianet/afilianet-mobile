@@ -187,3 +187,36 @@ describe("PushLifecycle: opening a push", () => {
     expect(openedEvents()).toHaveLength(1);
   });
 });
+
+describe("PushLifecycle: survey pushes", () => {
+  function surveyTap(identifier: string, surveyId: unknown): Notifications.NotificationResponse {
+    return {
+      actionIdentifier: "expo.modules.notifications.actions.DEFAULT",
+      notification: { request: { identifier, content: { data: { screen: "surveys", organization_id: "org-a", survey_id: surveyId } } } },
+    } as unknown as Notifications.NotificationResponse;
+  }
+
+  it("opens that survey inside its organization, with the same session protections", async () => {
+    await act(async () => {
+      render(<PushLifecycle />);
+    });
+    await act(async () => {
+      mockResponseListener?.(surveyTap("push-s1", "fx-vecinal"));
+    });
+    expect(mockSelectOrganization).toHaveBeenCalledWith("org-a");
+    expect(mockPush).toHaveBeenCalledWith("/surveys/fx-vecinal");
+  });
+
+  it("falls back to the surveys inbox for a missing or tampered survey id", async () => {
+    await act(async () => {
+      render(<PushLifecycle />);
+    });
+    await act(async () => {
+      mockResponseListener?.(surveyTap("push-s2", "../../profile"));
+    });
+    await act(async () => {
+      mockResponseListener?.(surveyTap("push-s3", undefined));
+    });
+    expect(mockPush.mock.calls).toEqual([["/surveys"], ["/surveys"]]);
+  });
+});

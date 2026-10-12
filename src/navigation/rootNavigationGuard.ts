@@ -14,6 +14,8 @@ const EXEMPT_SEGMENTS = new Set([
   // joining an organization with the current account (later affiliation).
   "verify-account",
   "join",
+  // Signing out with unsent surveys must work with or without an organization.
+  "sign-out-pending",
 ]);
 
 /**
