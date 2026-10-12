@@ -620,6 +620,8 @@ export interface LivenessCredentials {
 // creates it). Never assume a 15th type; an unrecognized value must fail
 // safely (no icon/label/navigation) rather than guessed at.
 export type NotificationType =
+  | "announcement"
+  | "promotion"
   | "compliance_started"
   | "compliance_action_required"
   | "compliance_manual_review"
