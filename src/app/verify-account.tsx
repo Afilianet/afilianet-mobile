@@ -161,7 +161,11 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
     } catch (cause) {
       if (!mounted.current) return;
       setError(accessErrorMessage(cause));
-      if (isApiError(cause) && cause.kind === "rate_limited") countdown.start(cause.retryAfterSeconds ?? DEFAULT_RESEND_SECONDS);
+      if (isApiError(cause) && cause.kind === "rate_limited") {
+        countdown.start(cause.retryAfterSeconds ?? DEFAULT_RESEND_SECONDS);
+        // Registration already sent a code a moment ago (the API allows one per minute): let them type it.
+        setSent(true);
+      }
       if (isApiError(cause) && cause.reason === "phone_already_verified") await refreshUser().catch(() => null);
     } finally {
       if (mounted.current) setSending(false);

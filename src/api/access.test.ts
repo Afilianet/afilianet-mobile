@@ -60,14 +60,16 @@ describe("sign-in and registration", () => {
 
 describe("phone verification", () => {
   it("reports the server's resend wait and expiry", async () => {
-    fetchMock.mockResolvedValueOnce(json({ data: { retry_after: 45, expires_in: 600 } }, 202));
+    // Contract (API #50): 202 {retry_after, expires_in}, flat.
+    fetchMock.mockResolvedValueOnce(json({ retry_after: 45, expires_in: 600 }, 202));
     await expect(requestPhoneVerification()).resolves.toEqual({ retryAfterSeconds: 45, expiresInSeconds: 600 });
     expect(lastCall().headers.Authorization).toBe("Bearer session-token");
     expect(lastCall().headers["X-Organization-ID"]).toBeUndefined();
   });
 
   it("returns the server's user, never a locally-built verified one", async () => {
-    fetchMock.mockResolvedValueOnce(json({ data: { user: { ...USER, phone_verified_at: "2026-10-12T10:00:00Z" } } }));
+    // Contract (API #50): 200 {user}, flat.
+    fetchMock.mockResolvedValueOnce(json({ user: { ...USER, phone_verified_at: "2026-10-12T10:00:00Z" } }));
     const user = await verifyPhone("123456");
     expect(lastCall().body).toEqual({ code: "123456" });
     expect(user.phone_verified_at).toBe("2026-10-12T10:00:00Z");
@@ -119,6 +121,12 @@ describe("later affiliation", () => {
 });
 
 describe("accessErrorMessage", () => {
+  it("explains an invitation addressed to someone else", () => {
+    expect(accessErrorMessage(new ApiError("validation", "x", 422, undefined, { reason: "invitation_recipient_mismatch" }))).toBe(
+      "Esta invitación está dirigida a otro correo o celular. Entra con la cuenta a la que te invitaron.",
+    );
+  });
+
   it("says an endpoint the API has not deployed yet is not available, instead of a generic failure", () => {
     expect(accessErrorMessage(new ApiError("not_found", "Not Found", 404))).toBe("Esta opción todavía no está disponible. Inténtalo más tarde.");
     expect(accessErrorMessage(new ApiError("unknown", "Method Not Allowed", 405))).toBe("Esta opción todavía no está disponible. Inténtalo más tarde.");

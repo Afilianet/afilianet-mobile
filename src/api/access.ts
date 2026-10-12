@@ -16,8 +16,8 @@ import { ApiError, friendlyMessage, isApiError } from "./errors";
  *   the referral's organization with the current account (token: null, no
  *   second account).
  *
- * PROPOSED, NOT YET IN afilianet-api (sent to the API session for adoption;
- * see the PR's "Dependencias de API"):
+ * NEW in afilianet-api PR #50 (feat/unified-account-access @ b1d4269, built on
+ * #45, not merged yet; contract: docs/auth/ACCOUNT_ACCESS_CONTRACT.md):
  * - POST /api/v1/auth/register -- direct sign-up, no referral/organization
  * - POST /api/v1/auth/phone-verification, POST /api/v1/auth/verify-phone -- SMS OTP
  * - POST /api/v1/auth/login with {phone, password}
@@ -70,23 +70,28 @@ export async function requestEmailVerification(): Promise<void> {
   await apiRequest("/api/v1/auth/email-verification", { method: "POST", skipOrganization: true });
 }
 
-/** PROPOSED. Sends (or re-sends) the SMS code to the signed-in user's phone. */
+type Maybe<T> = T & { data?: T };
+
+/** Sends (or re-sends) the SMS code to the signed-in user's phone. The contract answers flat: 202 {retry_after, expires_in}. */
 export async function requestPhoneVerification(): Promise<CodeDelivery> {
-  const { data } = await apiRequest<{ data: { retry_after?: number; expires_in?: number } }>(
-    "/api/v1/auth/phone-verification",
-    { method: "POST", skipOrganization: true },
-  );
-  return { retryAfterSeconds: data?.retry_after ?? DEFAULT_RESEND_SECONDS, expiresInSeconds: data?.expires_in };
+  const body = await apiRequest<Maybe<{ retry_after?: number; expires_in?: number }> | null>("/api/v1/auth/phone-verification", {
+    method: "POST",
+    skipOrganization: true,
+  });
+  const delivery = body?.data ?? body;
+  return { retryAfterSeconds: delivery?.retry_after ?? DEFAULT_RESEND_SECONDS, expiresInSeconds: delivery?.expires_in };
 }
 
-/** PROPOSED. Returns the server's user: phone_verified_at is the only source of truth. */
+/** Returns the server's user (contract: 200 {user}); phone_verified_at is the only source of truth. */
 export async function verifyPhone(code: string): Promise<User> {
-  const { data } = await apiRequest<{ data: { user: User } }>("/api/v1/auth/verify-phone", {
+  const body = await apiRequest<Maybe<{ user?: User }>>("/api/v1/auth/verify-phone", {
     method: "POST",
     body: { code },
     skipOrganization: true,
   });
-  return data.user;
+  const user = body?.user ?? body?.data?.user;
+  if (!user) throw new ApiError("unknown", "Unexpected verify-phone response.");
+  return user;
 }
 
 /** EXISTING for {email}; PROPOSED for {phone}. The answer is generic either way (no account enumeration). */
@@ -136,6 +141,8 @@ export function accessErrorMessage(error: unknown): string {
       return copy.phoneAlreadyVerified;
     case "phone_missing":
       return copy.phoneMissing;
+    case "invitation_recipient_mismatch":
+      return copy.invitationRecipientMismatch;
   }
   if (error.kind === "not_found" || error.status === 405) return copy.notAvailableYet;
   if (error.kind === "rate_limited") {
