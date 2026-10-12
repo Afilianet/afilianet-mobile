@@ -8,7 +8,11 @@ import { registerPush } from "../services/push";
 import { createAutomaticPushRefresh } from "../services/automaticPushRefresh";
 import { analytics } from "../services/analytics";
 
-type PendingOpen = { key: string; organizationId: string; userId: string };
+// Organization pushes carry organization_id (SendNotificationPush); platform
+// pushes carry only screen "platform-notifications" (SendPlatformNotificationPush)
+// and never require selecting an organization.
+type OpenTarget = { kind: "organization"; organizationId: string } | { kind: "platform" };
+type PendingOpen = { key: string; target: OpenTarget; userId: string };
 
 export function PushLifecycle() {
   const { status, user } = useAuth();
@@ -41,28 +45,41 @@ export function PushLifecycle() {
     }
     const refresh = automaticRefresh.current.refresh;
 
+    const complete = (pending: PendingOpen, path: string) => {
+      pendingOpen.current = null;
+      completedOpens.current.add(pending.key);
+      void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+      analytics.capture("push_notification_opened");
+      router.push(path as never);
+    };
+
     // Only a user's tap on a push lands here -- receiving one never does. The
-    // push carries no notification id (only organization_id), so a tap opens
-    // the inbox and never marks anything read on its own.
+    // push carries no notification id, so a tap opens the matching inbox and
+    // never marks anything read on its own.
     const attemptOpen = () => {
       const pending = pendingOpen.current;
       if (!pending || openInFlight.current) return;
+      if (pending.userId !== userId) {
+        pendingOpen.current = null;
+        return;
+      }
+      const { target } = pending;
+      if (target.kind === "platform") {
+        complete(pending, "/platform-notifications");
+        return;
+      }
       const current = orgRef.current;
-      if (pending.userId !== userId || !current.organizations.some(org => org.id === pending.organizationId)) {
+      if (!current.organizations.some(org => org.id === target.organizationId)) {
         pendingOpen.current = null;
         return;
       }
       openInFlight.current = true;
-      current.selectOrganization(pending.organizationId)
+      current.selectOrganization(target.organizationId)
         .then(() => {
           // Session ended or this effect was torn down meanwhile: navigate
           // nowhere. A still-valid tap stays pending for the next run.
           if (!active || pendingOpen.current !== pending) return;
-          pendingOpen.current = null;
-          completedOpens.current.add(pending.key);
-          void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
-          analytics.capture("push_notification_opened");
-          router.push("/notifications");
+          complete(pending, "/notifications");
         })
         // Selection failed: keep it pending; retried on foreground or the next effect run.
         .catch(() => undefined)
@@ -76,9 +93,16 @@ export function PushLifecycle() {
     const open = (response: Notifications.NotificationResponse) => {
       const key = `${response.notification.request.identifier}:${response.actionIdentifier}`;
       if (completedOpens.current.has(key) || pendingOpen.current?.key === key) return;
-      const organizationId = response.notification.request.content.data?.organization_id;
-      if (typeof organizationId !== "string") return;
-      pendingOpen.current = { key, organizationId, userId };
+      const data = response.notification.request.content.data;
+      let target: OpenTarget;
+      if (typeof data?.organization_id === "string") {
+        target = { kind: "organization", organizationId: data.organization_id };
+      } else if (data?.screen === "platform-notifications") {
+        target = { kind: "platform" };
+      } else {
+        return;
+      }
+      pendingOpen.current = { key, target, userId };
       attemptOpen();
     };
 

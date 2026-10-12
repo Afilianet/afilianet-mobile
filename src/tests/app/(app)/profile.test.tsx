@@ -209,13 +209,16 @@ describe("Profile: notification settings", () => {
 });
 
 describe("Profile: account actions order", () => {
-  it("keeps the privacy notice as the very last action, after sign out", async () => {
-    const { findByText, getAllByRole } = await renderProfile();
+  it("keeps the privacy notice as the very last action, after sign out and the protected account options", async () => {
+    const { findByText, getAllByRole, queryByText } = await renderProfile();
     await findByText("Aviso de privacidad");
 
     const buttons = getAllByRole("button");
     expect(within(buttons[buttons.length - 1]).getByText("Aviso de privacidad")).toBeTruthy();
-    expect(within(buttons[buttons.length - 2]).getByText(/cerrar sesión/i)).toBeTruthy();
+    expect(within(buttons[buttons.length - 2]).getByText("Mostrar opciones de cuenta")).toBeTruthy();
+    expect(within(buttons[buttons.length - 3]).getByText(/cerrar sesión/i)).toBeTruthy();
+    // Leaving an organization and deleting the account stay hidden until explicitly expanded.
+    expect(queryByText("Eliminar mi cuenta")).toBeNull();
   });
 });
 
@@ -259,6 +262,27 @@ describe("Profile: organizations and sign out", () => {
       fireEvent.press(await findByText("Cerrar sesión"));
     });
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Profile: notifications settings link", () => {
+  // The settings screen itself picks organization or platform preferences;
+  // Profile never sends the user to an inbox from here.
+  it("routes to notification settings when an organization is active", async () => {
+    const { findByText } = await renderProfile();
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+  });
+
+  it("routes to the same settings screen when there is no active organization", async () => {
+    const { findByText } = await renderProfile({ org: { organizations: [], activeOrganization: null } });
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+    expect(mockPush).not.toHaveBeenCalledWith("/platform-notifications");
   });
 });
 

@@ -84,12 +84,18 @@ export default function HomeScreen() {
       {noAffiliateProfile ? (
         <EnrollmentBanner />
       ) : (
-        <SectionCard title={strings.home.affiliateStatusTitle} query={affiliateQuery} isEmpty={() => false}>
+        <SectionCard
+          title={strings.home.affiliateStatusTitle}
+          query={affiliateQuery}
+          isEmpty={() => false}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
+        >
           {(affiliate) => <AffiliateStatusContent affiliate={affiliate} />}
         </SectionCard>
       )}
 
-      <ComplianceCard query={complianceQuery} />
+      <ComplianceCard query={complianceQuery} enabled={Boolean(activeOrganization)} />
 
       {releaseFeatures.commerce ? (
         <SectionCard
@@ -97,6 +103,8 @@ export default function HomeScreen() {
           query={commissionsQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noCommissionsYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <CommissionsContent commissions={list} />}
         </SectionCard>
@@ -108,6 +116,8 @@ export default function HomeScreen() {
           query={walletQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noWalletBalanceYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <WalletContent wallets={list} />}
         </SectionCard>
@@ -180,7 +190,7 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
   );
 }
 
-function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) {
+function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompliance>; enabled: boolean }) {
   const router = useRouter();
   const notStarted = complianceStatusCopy("not_started");
 
@@ -193,6 +203,8 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
     <SectionCard
       title={strings.compliance.screenTitle}
       query={query}
+      enabled={enabled}
+      disabledTitle={strings.noOrganization.description}
       emptyContent={
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
