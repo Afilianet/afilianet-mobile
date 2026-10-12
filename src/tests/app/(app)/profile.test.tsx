@@ -63,7 +63,7 @@ const mockSignOut = jest.fn();
 const mockSelectOrganization = jest.fn();
 
 function authValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
-  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: mockSignOut, ...overrides };
+  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: mockSignOut, ...overrides };
 }
 
 function orgValue(overrides: Partial<OrganizationContextValue> = {}): OrganizationContextValue {

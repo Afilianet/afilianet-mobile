@@ -9,6 +9,7 @@ import { useEffect } from "react";
 import { queryClient } from "../api/queryClient";
 import { strings } from "../i18n";
 import { AuthProvider } from "../auth/AuthProvider";
+import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
 import { useAuth } from "../auth/AuthContext";
 import { PushLifecycle } from "../components/PushLifecycle";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
@@ -67,7 +68,9 @@ export default function RootLayout() {
 }
 
 function RootNavigation() {
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, onboardingRoute } = useAuth();
+  const pendingReferral = usePendingReferral();
+  const pendingPath = pendingReferral ? pendingReferralPath(pendingReferral) : null;
   const { status: orgStatus, organizations, activeOrganization, error: orgError, refresh: refreshOrganizations } = useOrganization();
   const segments = useSegments();
   const router = useRouter();
@@ -79,11 +82,13 @@ function RootNavigation() {
       hasActiveOrganization: Boolean(activeOrganization),
       organizationsCount: organizations.length,
       segments,
+      pendingReferralPath: pendingPath,
+      onboardingRoute,
     });
     if (target) {
       router.replace(target as never);
     }
-  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
+  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute]);
 
   if (authStatus === "loading") {
     return <LoadingState message={strings.app.startingUp} />;

@@ -60,9 +60,8 @@ describe("resolveRedirect: multi-organization and auth cases (regression -- unch
     expect(resolveRedirect(params({ authStatus: "signedOut", segments: ["privacy"] }))).toBeNull();
   });
 
-  it("bounces a signed-in user out of the auth group or join flow back home", () => {
+  it("bounces a signed-in user out of the auth group back home", () => {
     expect(resolveRedirect(params({ segments: ["(auth)", "login"] }))).toBe("/(app)");
-    expect(resolveRedirect(params({ segments: ["join", "org-1", "code"] }))).toBe("/(app)");
   });
 });
 
@@ -77,5 +76,33 @@ describe("isExemptRoute", () => {
     expect(isExemptRoute(["(app)", "profile"])).toBe(true);
     expect(isExemptRoute(["(app)", "network"])).toBe(false);
     expect(isExemptRoute(["(app)"])).toBe(false);
+  });
+});
+
+describe("resolveRedirect: access MVP (registration, verification, later affiliation)", () => {
+  it("keeps a signed-in user on /join so an existing account can accept a referral -- with or without organizations", () => {
+    expect(resolveRedirect(params({ segments: ["join", "org-1", "code"], organizationsCount: 0 }))).toBeNull();
+    expect(resolveRedirect(params({ segments: ["join", "org-1", "code"], organizationsCount: 3, hasActiveOrganization: false }))).toBeNull();
+  });
+
+  it("leaves the auth screens for verification right after sign-up, before any pending referral", () => {
+    expect(
+      resolveRedirect(params({ segments: ["(auth)", "register"], onboardingRoute: "/verify-account", pendingReferralPath: "/join/org-1/AFF" })),
+    ).toBe("/verify-account");
+  });
+
+  it("continues to a pending referral after signing in", () => {
+    expect(resolveRedirect(params({ segments: ["(auth)", "login"], pendingReferralPath: "/join/org-1/AFF" }))).toBe("/join/org-1/AFF");
+  });
+
+  it("never sends a user without organizations away from verification", () => {
+    expect(resolveRedirect(params({ segments: ["verify-account"], organizationsCount: 0 }))).toBeNull();
+  });
+
+  it("still lets a signed-out visitor open a referral link and the auth screens, nothing else", () => {
+    const signedOut = { authStatus: "signedOut" as const, orgStatus: "idle" as const };
+    expect(resolveRedirect(params({ ...signedOut, segments: ["join", "org-1", "code"] }))).toBeNull();
+    expect(resolveRedirect(params({ ...signedOut, segments: ["(auth)", "invitation"] }))).toBeNull();
+    expect(resolveRedirect(params({ ...signedOut, segments: ["verify-account"] }))).toBe("/(auth)/login");
   });
 });

@@ -27,7 +27,8 @@ export interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
+  // null for a mobile-only account (access MVP): at least one of email/phone exists.
+  email: string | null;
   phone: string | null;
   status: string;
   email_verified_at: string | null;

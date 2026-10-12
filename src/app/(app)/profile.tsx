@@ -46,6 +46,9 @@ export default function ProfileScreen() {
       </Card>
 
       {user ? <EmailVerificationCard key={user.id} user={user} /> : null}
+      {user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)) ? (
+        <Button label={strings.noOrganization.verifyAccount} variant="secondary" onPress={() => router.push(routes.verifyAccount as never)} />
+      ) : null}
 
       {activeOrganization ? <>
       <SectionCard

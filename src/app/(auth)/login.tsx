@@ -1,71 +1,114 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "../../auth/AuthContext";
+import { accessErrorMessage } from "../../api/access";
 import { loginErrorMessage } from "../../api/errors";
+import { useAuth } from "../../auth/AuthContext";
+import { usePendingReferral } from "../../auth/pendingReferral";
+import { ChannelToggle, type AccessChannel } from "../../components/account/ChannelToggle";
+import { PhoneField } from "../../components/account/PhoneField";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Logo } from "../../design-system/icons/Logo";
 import { strings } from "../../i18n";
+import { routes } from "../../navigation/routes";
+import { DEFAULT_PHONE_COUNTRY, normalizePhone } from "../../utils/phone";
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function LoginScreen() {
   const { signIn, error } = useAuth();
   const router = useRouter();
+  const pendingReferral = usePendingReferral();
+  const copy = strings.access.login;
+  const [channel, setChannel] = useState<AccessChannel>("email");
   const [email, setEmail] = useState("");
+  const [country, setCountry] = useState(DEFAULT_PHONE_COUNTRY);
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSignIn() {
+    if (submitting) return;
+    let identifier: { email: string } | { phone: string };
+    if (channel === "email") {
+      const normalized = email.trim().toLowerCase();
+      if (!EMAIL.test(normalized)) return setLocalError(copy.invalidEmail);
+      identifier = { email: normalized };
+    } else {
+      const normalized = normalizePhone(country, phone);
+      if (!normalized) return setLocalError(copy.invalidPhone);
+      identifier = { phone: normalized };
+    }
+    if (!password) return setLocalError(copy.missingPassword);
+    setLocalError(null);
     setSubmitting(true);
     try {
-      await signIn(email.trim(), password);
+      // On success the root navigation guard continues to a pending referral or Home.
+      await signIn(identifier, password);
     } catch {
-      // error is surfaced via the auth context's `error` state below.
+      // Surfaced through the auth context's `error` below.
     } finally {
       setSubmitting(false);
     }
   }
 
+  function chooseChannel(next: AccessChannel) {
+    setChannel(next);
+    setLocalError(null);
+  }
+
+  // Phone sign-in is part of the proposed contract: until it is deployed the
+  // API answers 404/405/422 and accessErrorMessage says so in Spanish.
+  const serverError = error ? (channel === "phone" ? accessErrorMessage(error) : loginErrorMessage(error)) : null;
+  const shownError = localError ?? serverError;
+
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
           <Logo variant="violeta" height={32} />
         </View>
-        <Text style={styles.subtitle}>{strings.auth.login.subtitle}</Text>
-
+        <Text style={styles.subtitle}>{copy.subtitle}</Text>
+        {pendingReferral ? <Text style={styles.notice}>{copy.referralPending}</Text> : null}
         <View style={styles.form}>
+          <ChannelToggle value={channel} onChange={chooseChannel} />
+          {channel === "email" ? (
+            <TextInput
+              label={strings.access.emailLabel}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              autoCapitalize="none"
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
+          ) : (
+            <PhoneField country={country} onCountryChange={setCountry} value={phone} onChangeText={setPhone} />
+          )}
           <TextInput
-            label={strings.auth.login.emailLabel}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            placeholder="you@example.com"
-          />
-          <TextInput
-            label={strings.auth.login.passwordLabel}
+            label={strings.access.passwordLabel}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             textContentType="password"
             placeholder="••••••••"
           />
-          {error ? <Text style={styles.error}>{loginErrorMessage(error)}</Text> : null}
+          {shownError ? <Text accessibilityRole="alert" style={styles.error}>{shownError}</Text> : null}
           <Button
-            label={strings.auth.login.submit}
+            label={copy.submit}
             size="lg"
             fullWidth
-            onPress={handleSignIn}
+            onPress={() => void handleSignIn()}
             loading={submitting}
-            disabled={!email || !password}
+            disabled={!(channel === "email" ? email : phone) || !password}
           />
-          <Button label={strings.auth.join.submit} variant="secondary" onPress={() => router.push("/(auth)/register")} disabled={submitting} />
-          <Button label="¿Olvidaste tu contraseña?" variant="ghost" onPress={() => router.push("/(auth)/forgot-password")} disabled={submitting} />
+          <Button label={copy.createAccount} variant="secondary" onPress={() => router.push(routes.register as never)} disabled={submitting} />
+          <Button label={copy.haveInvitation} variant="ghost" onPress={() => router.push(routes.invitation as never)} disabled={submitting} />
+          <Button label={copy.forgotPassword} variant="ghost" onPress={() => router.push(routes.forgotPassword as never)} disabled={submitting} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -86,6 +129,11 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
+    textAlign: "center",
+  },
+  notice: {
+    ...typography.body,
+    color: colors.textPrimary,
     textAlign: "center",
   },
   form: {

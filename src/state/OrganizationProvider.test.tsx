@@ -3,7 +3,8 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import * as SecureStore from "expo-secure-store";
 import { queryClient } from "../api/queryClient";
-import { fetchMe, fetchMyAffiliateProfile, fetchMyOrganizations, signIn as signInRequest } from "../api/endpoints";
+import { signInWith } from "../api/access";
+import { fetchMe, fetchMyAffiliateProfile, fetchMyOrganizations } from "../api/endpoints";
 import { AuthProvider } from "../auth/AuthProvider";
 import { useAuth, type AuthContextValue } from "../auth/AuthContext";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
@@ -16,9 +17,10 @@ jest.mock("expo-secure-store", () => ({
   deleteItemAsync: jest.fn(),
 }));
 
+jest.mock("../api/access", () => ({ signInWith: jest.fn(), registerAccount: jest.fn() }));
+
 jest.mock("../api/endpoints", () => ({
   fetchMe: jest.fn(),
-  signIn: jest.fn(),
   signOutRequest: jest.fn().mockResolvedValue(undefined),
   fetchMyOrganizations: jest.fn(),
   fetchMyAffiliateProfile: jest.fn(),
@@ -28,7 +30,7 @@ const mockedGetItem = SecureStore.getItemAsync as jest.Mock;
 const mockedSetItem = SecureStore.setItemAsync as jest.Mock;
 const mockedDeleteItem = SecureStore.deleteItemAsync as jest.Mock;
 const mockedFetchMe = fetchMe as jest.Mock;
-const mockedSignIn = signInRequest as jest.Mock;
+const mockedSignIn = signInWith as jest.Mock;
 const mockedFetchMyOrganizations = fetchMyOrganizations as jest.Mock;
 const mockedFetchMyAffiliateProfile = fetchMyAffiliateProfile as jest.Mock;
 

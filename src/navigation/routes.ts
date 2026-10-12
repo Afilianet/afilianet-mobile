@@ -3,6 +3,9 @@ import { releaseFeatures } from "../config/release";
 export const routes = {
   register: "/(auth)/register",
   login: "/(auth)/login",
+  invitation: "/(auth)/invitation",
+  forgotPassword: "/(auth)/forgot-password",
+  verifyAccount: "/verify-account",
   home: "/(app)",
   network: "/(app)/network",
   sales: "/(app)/sales",

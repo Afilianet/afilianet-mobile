@@ -45,7 +45,7 @@ function response(data: Record<string, unknown>): Notifications.NotificationResp
 beforeEach(() => {
   jest.clearAllMocks();
   responseListener = null;
-  mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn() });
+  mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn() });
   mockedUseOrganization.mockReturnValue({
     status: "ready",
     organizations: [ORG_A],

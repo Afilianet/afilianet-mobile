@@ -2,6 +2,8 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
+import { InvitationFinder } from "../components/account/InvitationFinder";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
@@ -22,6 +24,9 @@ import { analytics } from "../services/analytics";
 export default function NoOrganizationScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const pendingReferral = usePendingReferral();
+  // Server state only: a channel counts as verified when the API says so.
+  const hasUnverifiedChannel = Boolean(user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)));
 
   useEffect(() => {
     analytics.capture("no_organization_viewed");
@@ -39,6 +44,23 @@ export default function NoOrganizationScreen() {
         <Text style={styles.body}>{strings.noOrganization.acceptInvitationHint}</Text>
       </Card>
 
+      {pendingReferral ? (
+        <Card style={styles.card}>
+          <Text style={styles.body}>{strings.noOrganization.pendingInvitation}</Text>
+          <Button label={strings.noOrganization.continueInvitation} onPress={() => router.push(pendingReferralPath(pendingReferral) as never)} />
+        </Card>
+      ) : null}
+      {hasUnverifiedChannel ? (
+        <Card style={styles.card}>
+          <Text style={styles.body}>{strings.noOrganization.verifyPending}</Text>
+          <Button label={strings.noOrganization.verifyAccount} variant="secondary" onPress={() => router.push(routes.verifyAccount as never)} />
+        </Card>
+      ) : null}
+      <Card style={styles.card}>
+        <Text style={styles.title}>{strings.access.joinLater.title}</Text>
+        <Text style={styles.body}>{strings.access.joinLater.description}</Text>
+        <InvitationFinder />
+      </Card>
       <Button label={strings.noOrganization.viewNotifications} onPress={() => router.push(routes.platformNotifications as never)} />
       <Button label={strings.noOrganization.viewProfile} variant="secondary" onPress={() => router.push(routes.profile as never)} />
       <Button label={strings.profile.signOut} variant="ghost" onPress={() => void signOut()} />

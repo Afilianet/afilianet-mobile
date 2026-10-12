@@ -2,7 +2,8 @@ import { act, render, waitFor } from "@testing-library/react-native";
 import { useEffect } from "react";
 import { ApiError } from "../api/errors";
 import * as SecureStore from "expo-secure-store";
-import { acceptReferralInvitation, fetchMe, signIn as signInRequest, signOutRequest } from "../api/endpoints";
+import { registerAccount, signInWith } from "../api/access";
+import { acceptReferralInvitation, fetchMe, signOutRequest } from "../api/endpoints";
 import { AuthProvider } from "./AuthProvider";
 import { useAuth, type AuthContextValue } from "./AuthContext";
 
@@ -12,9 +13,13 @@ jest.mock("expo-secure-store", () => ({
   deleteItemAsync: jest.fn(),
 }));
 
+jest.mock("../api/access", () => ({
+  signInWith: jest.fn(),
+  registerAccount: jest.fn(),
+}));
+
 jest.mock("../api/endpoints", () => ({
   fetchMe: jest.fn(),
-  signIn: jest.fn(),
   signOutRequest: jest.fn(),
   acceptReferralInvitation: jest.fn(),
 }));
@@ -23,7 +28,8 @@ const mockedGetItem = SecureStore.getItemAsync as jest.Mock;
 const mockedSetItem = SecureStore.setItemAsync as jest.Mock;
 const mockedDeleteItem = SecureStore.deleteItemAsync as jest.Mock;
 const mockedFetchMe = fetchMe as jest.Mock;
-const mockedSignIn = signInRequest as jest.Mock;
+const mockedSignIn = signInWith as jest.Mock;
+const mockedRegisterAccount = registerAccount as jest.Mock;
 const mockedSignOutRequest = signOutRequest as jest.Mock;
 const mockedAcceptReferral = acceptReferralInvitation as jest.Mock;
 
@@ -198,5 +204,96 @@ describe("AuthProvider: session restore", () => {
     expect(authValue.status).toBe("signedIn");
     expect(mockedDeleteItem).not.toHaveBeenCalled();
     expect(authValue.error?.kind).toBe("offline");
+  });
+});
+
+describe("AuthProvider: access by email or mobile", () => {
+  it("signs in with a phone identifier exactly as given (E.164)", async () => {
+    mockedSignIn.mockResolvedValue({ token: "tok-phone", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1", phone: "+525512345678", phone_verified_at: null });
+    await renderAuth();
+
+    await act(async () => {
+      await authValue.signIn({ phone: "+525512345678" }, "hunter22");
+    });
+
+    expect(mockedSignIn).toHaveBeenCalledWith({ phone: "+525512345678" }, "hunter22");
+    expect(authValue.status).toBe("signedIn");
+  });
+
+  it("keeps a bare string as an email sign-in", async () => {
+    mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1" });
+    await renderAuth();
+
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+
+    expect(mockedSignIn).toHaveBeenCalledWith({ email: "person@example.com" }, "hunter2");
+  });
+
+  it("registers directly, loads the server's user and continues to verification", async () => {
+    mockedRegisterAccount.mockResolvedValue({ token: "tok-new", user: { id: "user-9" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-9", phone: "+525512345678", phone_verified_at: null });
+    await renderAuth();
+
+    await act(async () => {
+      await authValue.register({ first_name: "Ana", last_name: "Pérez", phone: "+525512345678", password: "secret123", password_confirmation: "secret123" });
+    });
+
+    expect(mockedSetItem).toHaveBeenCalledWith(expect.any(String), "tok-new");
+    expect(authValue.user?.phone_verified_at).toBeNull();
+    expect(authValue.onboardingRoute).toBe("/verify-account");
+    await act(async () => {
+      authValue.consumeOnboardingRoute();
+    });
+    expect(authValue.onboardingRoute).toBeNull();
+  });
+
+  it("refreshUser adopts the server's verification state, and never revives an account after sign-out", async () => {
+    mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1", phone_verified_at: null });
+    await renderAuth();
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+
+    mockedFetchMe.mockResolvedValueOnce({ id: "user-1", phone_verified_at: "2026-10-12T10:00:00Z" });
+    await act(async () => {
+      await authValue.refreshUser();
+    });
+    expect(authValue.user?.phone_verified_at).toBe("2026-10-12T10:00:00Z");
+
+    let resolveMe!: (value: unknown) => void;
+    mockedFetchMe.mockImplementationOnce(() => new Promise((resolve) => { resolveMe = resolve; }));
+    // Nothing renders until it resolves, so it is started outside act.
+    const pending = authValue.refreshUser();
+    await act(async () => {
+      await authValue.signOut();
+    });
+    await act(async () => {
+      resolveMe({ id: "user-1", phone_verified_at: "x" });
+      await pending;
+    });
+
+    expect(authValue.status).toBe("signedOut");
+    expect(authValue.user).toBeNull();
+  });
+
+  it("clears a pending referral when the session ends, so it never reaches another account", async () => {
+    mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1" });
+    await renderAuth();
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+    mockedDeleteItem.mockClear();
+
+    await act(async () => {
+      await authValue.signOut();
+    });
+
+    expect(mockedDeleteItem).toHaveBeenCalledWith("afilianet.pendingReferral");
   });
 });

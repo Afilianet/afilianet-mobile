@@ -10,6 +10,10 @@ const EXEMPT_SEGMENTS = new Set([
   "no-organization",
   "platform-notifications",
   "staff-invite",
+  // Account-level, never organization-scoped: channel verification, and
+  // joining an organization with the current account (later affiliation).
+  "verify-account",
+  "join",
 ]);
 
 /**
@@ -37,6 +41,10 @@ export interface ResolveRedirectParams {
   hasActiveOrganization: boolean;
   organizationsCount: number;
   segments: readonly string[];
+  /** Where a referral opened before signing in continues (see auth/pendingReferral.ts). */
+  pendingReferralPath?: string | null;
+  /** One-shot step right after a new session, e.g. "/verify-account" after sign-up. */
+  onboardingRoute?: string | null;
 }
 
 /**
@@ -53,6 +61,8 @@ export function resolveRedirect({
   hasActiveOrganization,
   organizationsCount,
   segments,
+  pendingReferralPath = null,
+  onboardingRoute = null,
 }: ResolveRedirectParams): string | null {
   if (authStatus === "loading") return null;
 
@@ -68,7 +78,10 @@ export function resolveRedirect({
     return null;
   }
 
-  if (inAuthGroup || inJoin) return routes.home;
+  // Signed in: leaving the auth screens continues the post-sign-up step, then
+  // a pending referral, then Home. /join itself stays reachable so an
+  // existing account can accept a referral without creating another one.
+  if (inAuthGroup) return onboardingRoute ?? pendingReferralPath ?? routes.home;
 
   const needsOrganizationChoice = orgStatus === "ready" && !hasActiveOrganization && organizationsCount > 1;
   if (needsOrganizationChoice && !inOrganizationPicker && !inExemptRoute) return routes.organizationPicker;

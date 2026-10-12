@@ -564,10 +564,12 @@ export interface PublicInvitation {
   token: string;
 }
 
+// The API accepts email, phone (E.164) or both -- at least one.
 export interface ReferralRegistration {
   first_name: string;
   last_name: string;
-  email: string;
+  email?: string;
+  phone?: string;
   password: string;
 }
 

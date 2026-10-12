@@ -57,7 +57,7 @@ async function renderScreen() {
 
 describe("Staff invite: signed-in acceptance", () => {
   beforeEach(() => {
-    mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1", first_name: "Dana" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn() });
+    mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1", first_name: "Dana" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn() });
   });
 
   it("shows the inviting organization and role, then accepts with the existing session", async () => {
@@ -103,7 +103,7 @@ describe("Staff invite: signed-in acceptance", () => {
 
 describe("Staff invite: signed-out visitor", () => {
   beforeEach(() => {
-    mockedUseAuth.mockReturnValue({ status: "signedOut", user: null, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn() });
+    mockedUseAuth.mockReturnValue({ status: "signedOut", user: null, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn() });
   });
 
   it("prompts sign-in first, never attempting acceptance without a session", async () => {
@@ -117,7 +117,7 @@ describe("Staff invite: signed-out visitor", () => {
 
 describe("Staff invite: invalid/expired token", () => {
   beforeEach(() => {
-    mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1", first_name: "Dana" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn() });
+    mockedUseAuth.mockReturnValue({ status: "signedIn", user: { id: "u1", first_name: "Dana" }, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn() });
   });
 
   it("shows a clear not-found message instead of a broken screen", async () => {
