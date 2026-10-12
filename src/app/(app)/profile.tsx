@@ -1,6 +1,6 @@
 import { EmailVerificationCard } from "../../components/account/EmailVerificationCard";
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
@@ -27,6 +27,7 @@ export default function ProfileScreen() {
   const { organizations, activeOrganization, selectOrganization } = useOrganization();
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();
+  const [accountOptionsOpen, setAccountOptionsOpen] = useState(false);
 
   useEffect(() => {
     analytics.capture("profile_viewed");
@@ -45,6 +46,9 @@ export default function ProfileScreen() {
       </Card>
 
       {user ? <EmailVerificationCard key={user.id} user={user} /> : null}
+      {user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)) ? (
+        <Button label={strings.noOrganization.verifyAccount} variant="secondary" onPress={() => router.push(routes.verifyAccount as never)} />
+      ) : null}
 
       {activeOrganization ? <>
       <SectionCard
@@ -62,7 +66,7 @@ export default function ProfileScreen() {
         <ComplianceSummary query={complianceQuery} onPress={() => router.push(routes.compliance as never)} />
       </Card>
 
-      </> : <Text style={styles.fieldValue}>Tu cuenta sigue activa. Actualmente no tienes una organización seleccionada.</Text>}
+      </> : <Text style={styles.fieldValue}>{strings.noOrganization.description}</Text>}
 
       {organizations.length > 1 ? (
         <Card style={styles.card}>
@@ -87,9 +91,23 @@ export default function ProfileScreen() {
       ) : null}
 
       <Button label={strings.notifications.settingsTitle} variant="secondary" onPress={() => router.push(routes.notificationSettings as never)} />
-      {activeOrganization ? <Button label={`Salir de ${activeOrganization.name}`} variant="ghost" onPress={() => router.push({ pathname: "/leave-organization", params: { organizationId: activeOrganization.id } } as never)} /> : null}
-      <Button label="Eliminar mi cuenta" variant="ghost" onPress={() => router.push("/delete-account" as never)} />
       <Button label={strings.profile.signOut} variant="secondary" onPress={() => signOut()} />
+      <Card style={styles.accountOptions}>
+        <Text style={styles.sectionTitle}>Administrar mi cuenta</Text>
+        <Text style={styles.fieldValue}>Opciones para salir de una organización o solicitar la eliminación de tu cuenta.</Text>
+        <Button
+          label={accountOptionsOpen ? "Ocultar opciones de cuenta" : "Mostrar opciones de cuenta"}
+          variant="ghost"
+          onPress={() => setAccountOptionsOpen((open) => !open)}
+        />
+        {accountOptionsOpen ? (
+          <View style={styles.stateGroup}>
+            {activeOrganization ? <Button label={`Salir de ${activeOrganization.name}`} variant="danger" onPress={() => router.push({ pathname: "/leave-organization", params: { organizationId: activeOrganization.id } } as never)} /> : null}
+            <Button label="Eliminar mi cuenta" variant="danger" onPress={() => router.push("/delete-account" as never)} />
+            <Text style={styles.fieldValue}>Revisa las consecuencias y confirma tu decisión en la siguiente pantalla.</Text>
+          </View>
+        ) : null}
+      </Card>
       {/* Privacy notice is always the last item on Profile. */}
       <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
     </ScrollView>
@@ -171,6 +189,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: measures.mobileGutter, gap: spacing.md },
   card: { gap: spacing.sm },
+  accountOptions: { gap: spacing.md, marginTop: spacing.lg },
   identityCard: { flexDirection: "row", alignItems: "center", gap: spacing[3] },
   identityText: { gap: 2 },
   name: { ...typography.subtitle, color: colors.textPrimary },

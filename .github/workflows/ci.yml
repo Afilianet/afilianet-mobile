@@ -40,3 +40,5 @@ jobs:
       # compliance-liveness.test.tsx has a failure reproduced on unchanged main; gate only the recapture block.
       - name: Verify staff-requested liveness recapture notice
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-liveness.test.tsx --testNamePattern "Staff-requested liveness recapture"
+      - name: Verify access by email or mobile, verification, recovery, later affiliation and session races
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/utils/phone.test.ts src/api/access.test.ts src/auth/pendingReferral.test.ts src/auth/AuthProvider.test.tsx src/services/offlineSession.test.ts src/tests/navigation/rootNavigationGuard.test.ts src/tests/app/register.test.tsx src/tests/app/invitation.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/verify-account.test.tsx src/tests/app/forgot-password.test.tsx src/tests/app/join.test.tsx src/tests/app/no-organization.test.tsx src/tests/app/notification-settings.test.tsx src/tests/app/platform-notifications.test.tsx src/components/PushLifecycle.test.tsx

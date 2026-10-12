@@ -3,6 +3,9 @@ import { releaseFeatures } from "../config/release";
 export const routes = {
   register: "/(auth)/register",
   login: "/(auth)/login",
+  invitation: "/(auth)/invitation",
+  forgotPassword: "/(auth)/forgot-password",
+  verifyAccount: "/verify-account",
   home: "/(app)",
   network: "/(app)/network",
   sales: "/(app)/sales",
@@ -15,6 +18,8 @@ export const routes = {
   compliance: "/compliance",
   notifications: "/notifications",
   notificationSettings: "/notification-settings",
+  platformNotifications: "/platform-notifications",
+  noOrganization: "/no-organization",
 } as const;
 
 // The only screen values afilianet-api's notification listeners ever put in
@@ -29,6 +34,8 @@ const NOTIFICATION_SCREEN_ROUTES: Record<string, string> = {
   network: routes.network,
   commissions: routes.commissions,
   payouts: routes.payouts,
+  notifications: routes.notifications,
+  "platform-notifications": routes.platformNotifications,
 };
 
 /** Returns the whitelisted destination for a notification's payload.screen, or null if absent/unrecognized. */
@@ -57,4 +64,11 @@ export function payoutRequest(currency: string): string {
 // networkAffiliateDetail above: notifications.tsx already owns "/notifications".
 export function notificationDetail(notificationId: string): string {
   return `/notification/${notificationId}`;
+}
+
+/** A staff invitation to join another organization as owner/admin/manager -
+ * distinct from `/join/[organizationId]/[code]`, which is the unrelated
+ * affiliate-referral/registration flow. */
+export function staffInvite(token: string): string {
+  return `/staff-invite/${encodeURIComponent(token)}`;
 }
