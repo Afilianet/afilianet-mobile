@@ -32,15 +32,15 @@ export default function LoginScreen() {
 
   async function handleSignIn() {
     if (submitting) return;
-    let identifier: { email: string } | { phone: string };
+    // The login contract takes one `identifier`; the channel toggle only decides how to normalize it.
+    let identifier: string;
     if (channel === "email") {
-      const normalized = email.trim().toLowerCase();
-      if (!EMAIL.test(normalized)) return setLocalError(copy.invalidEmail);
-      identifier = { email: normalized };
+      identifier = email.trim().toLowerCase();
+      if (!EMAIL.test(identifier)) return setLocalError(copy.invalidEmail);
     } else {
       const normalized = normalizePhone(country, phone);
       if (!normalized) return setLocalError(copy.invalidPhone);
-      identifier = { phone: normalized };
+      identifier = normalized;
     }
     if (!password) return setLocalError(copy.missingPassword);
     setLocalError(null);
@@ -60,9 +60,15 @@ export default function LoginScreen() {
     setLocalError(null);
   }
 
-  // Phone sign-in is part of the proposed contract: until it is deployed the
-  // API answers 404/405/422 and accessErrorMessage says so in Spanish.
-  const serverError = error ? (channel === "phone" ? accessErrorMessage(error) : loginErrorMessage(error)) : null;
+  // Before API #50 is deployed, a phone identifier is rejected for lacking `email`: that means "not available yet", not "check your email".
+  const phoneNotSupported = channel === "phone" && error?.kind === "validation" && Boolean(error.details?.email);
+  const serverError = error
+    ? phoneNotSupported
+      ? strings.access.errors.notAvailableYet
+      : error.kind === "validation"
+        ? accessErrorMessage(error)
+        : loginErrorMessage(error)
+    : null;
   const shownError = localError ?? serverError;
 
   return (

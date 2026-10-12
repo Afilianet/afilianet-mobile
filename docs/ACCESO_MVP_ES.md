@@ -28,35 +28,73 @@ Este documento describe cómo funciona en Mobile el acceso con correo o celular 
 
 ## Contrato con afilianet-api
 
-**Existe hoy** (`feat/platform-users-notifications` @ `53b1086`):
-- `POST /api/v1/auth/login` con `{email, password}`.
+**Base desplegada hoy:** `main` / API #45, rama `feat/platform-users-notifications` @ `53b1086`. Ya ofrece:
+- `POST /api/v1/auth/login` con `email`.
 - `POST /api/v1/auth/forgot-password` con `{email}`.
 - `POST /api/v1/auth/email-verification`.
 - `POST /api/v1/invitations/{token}/accept`:
   - sin sesión: registro con `email` y/o `phone`;
   - con sesión: afiliación con la cuenta actual (`token: null`).
 
-**Nuevo en afilianet-api PR #50** (`feat/unified-account-access` @ `b1d4269`). Está construido sobre API #45 y todavía sin merge. El contrato está en `docs/auth/ACCOUNT_ACCESS_CONTRACT.md` y Mobile lo consume en `src/api/access.ts`:
-- `POST /api/v1/auth/register`: `{first_name, last_name, email?, phone?, password, password_confirmation}` → `201 {token, user}`. Si el registro trae celular, la API envía el código SMS automáticamente.
-- `POST /api/v1/auth/phone-verification` (con sesión) → `202 {retry_after, expires_in}`, sin envoltorio `data`.
-- `POST /api/v1/auth/verify-phone` (con sesión): `{code}` → `200 {user}`, sin envoltorio `data`.
-- `POST /api/v1/auth/login`: acepta `identifier`, `email` o `phone`.
-- `POST /api/v1/auth/forgot-password` con `{phone}` → `{message, retry_after}`. `POST /api/v1/auth/reset-password` con `{phone, code, password, password_confirmation}`, que revoca todas las sesiones.
-- `POST /api/v1/invitations/{token}/accept` con sesión: si la invitación va dirigida a otro correo o celular, responde 422 con `reason: "invitation_recipient_mismatch"`. Las invitaciones de referido sin destinatario se siguen aceptando igual.
-
-Convenciones del contrato que Mobile usa:
-- `reason` en las respuestas 422 y 429: `otp_invalid`, `otp_expired`, `otp_attempts_exceeded`, `phone_missing`, `phone_already_verified` e `invitation_recipient_mismatch`.
-- `retry_after` en segundos en las respuestas 202 y 429, además del header `Retry-After`.
-- `UserResource` incluye `email` (puede ser `null`), `pending_email` y `pending_phone`.
+**API #50** (`feat/unified-account-access` @ `03c6b8b`): sin merge, construido sobre API #45. El contrato está en `docs/auth/ACCOUNT_ACCESS_CONTRACT.md`. La sesión de API confirmó, punto por punto, que estas formas son finales para esta ronda en `03c6b8b`.
+- **Login:** `{identifier, password}` es el contrato canónico; `email` y `phone` son alias compatibles.
+  - Mobile envía siempre `identifier`, ya normalizado (correo en minúsculas o celular en E.164).
+  - Para un correo agrega también el alias `email`. Así el login por correo funciona con la API desplegada hoy y con API #50, sin importar cuál se despliegue primero.
+- **Registro:** `POST /api/v1/auth/register` con `{first_name, last_name, email?, phone?, password, password_confirmation}` → `201 {token, user}`. Si viene celular, envía el código SMS automáticamente.
+- **Envío del código:** `POST /api/v1/auth/phone-verification` → `202 {retry_after, expires_in}`. En 422 devuelve `reason` `phone_missing` o `phone_already_verified`. En 429 devuelve `retry_after` y el header `Retry-After`.
+- **Verificación del código:** `POST /api/v1/auth/verify-phone {code}` → `200 {user}`.
+  - En 422 devuelve `errors.code` y `reason` `otp_invalid`, `otp_expired` u `otp_attempts_exceeded`.
+  - El código tiene 6 dígitos, vence en 10 minutos y admite 5 intentos.
+- **Recuperación:**
+  - `POST /api/v1/auth/forgot-password {phone}` → `200 {message, retry_after}`, respuesta genérica.
+  - `POST /api/v1/auth/reset-password {phone, code, password, password_confirmation}` → `200 {message}`; revoca todas las sesiones.
+  - Errores: los mismos `reason`, con `errors.code`.
+  - Ambos endpoints también aceptan `identifier`. Mobile usa `email` o `phone`, que también son finales.
+- **Invitaciones:** `accept` con sesión devuelve `reason: "invitation_recipient_mismatch"` solo si la invitación va dirigida a otro correo o celular. Las invitaciones de referido sin destinatario se siguen aceptando igual.
+- **Usuario:** `UserResource` incluye `email` (puede ser `null`), `pending_email` y `pending_phone`.
 
 **Pendiente en API:**
-- Nunca se ha enviado un SMS real: `SMS_PROVIDER_ENABLED=false` y no hay credenciales de AWS SNS. Mientras eso no cambie, staging responde con error en lugar de enviar.
-- El cambio de correo o celular (`PATCH /me/email` y `PATCH /me/phone`) existe en el API, pero todavía no está en Mobile.
+- Nunca se ha enviado un SMS real: `SMS_PROVIDER_ENABLED=false` y no hay credenciales de AWS SNS. Aun con API #50 desplegada, cualquier paso que requiera recibir un SMS termina en el error del servidor, no en un código.
+- El cambio de correo o celular (`PATCH /me/email` y `PATCH /me/phone`) existe en API #50, pero no en Mobile.
 
-## Pruebas físicas
+## Pruebas: qué se puede probar y dónde
 
-Usar el development-staging APK con Metro. Todo es JavaScript: no requiere un APK nuevo.
+### A. Funciona hoy, en dispositivo, con la API desplegada (Metro sobre el APK actual)
+- **Login con correo:** Mobile envía `identifier` y el alias `email`.
+- **Recuperación por correo:** "¿Olvidaste tu contraseña?" → Correo → enlace.
+- **Verificación de correo de una cuenta existente:** "Enviar enlace" → abrir el enlace → "Ya confirmé mi correo". El estado sale de `/me`.
+- **Registro desde una invitación** con correo, celular o ambos: `/join` → "Crear cuenta" → Verificación. El registro por invitación ya acepta `phone`.
+- **Afiliación posterior con la cuenta actual:** Inicio sin organización → "Código o enlace de invitación" → "Unirme con mi cuenta". "Ahora no" descarta la invitación, y una organización a la que ya pertenece muestra "Ya perteneces…".
+- **Referido conservado:**
+  - Abrir `adb shell am start -W -a android.intent.action.VIEW -d "afilianetmobile://join/<organizationId>/<code>" com.afilianet.mobile` sin sesión → "Ya tengo cuenta" → iniciar sesión con correo. Debe volver sola a "Confirma tu invitación".
+  - Repetirlo forzando el cierre de la app antes de iniciar sesión.
+  - Cerrar sesión con la invitación pendiente y entrar con otra cuenta: no debe ofrecerse.
+- **Perfil:** privacidad al final; "Salir de la organización" y "Eliminar mi cuenta" solo tras "Mostrar opciones de cuenta".
+- **Mensajes de "todavía no disponible":** el login con celular muestra "Esta opción todavía no está disponible", porque la API desplegada no lo admite.
 
-Deep link a una invitación: `adb shell am start -W -a android.intent.action.VIEW -d "afilianetmobile://join/<organizationId>/<code>" com.afilianet.mobile`.
+### B. Cubierto solo con pruebas simuladas (Jest con `fetch` simulado, sin dispositivo)
+Usan las formas confirmadas de API #50 (`03c6b8b`); no se ejecutan contra un servidor real:
+- **Registro directo:** con correo, con celular, con ambos y sin ninguno.
+- **Login con celular por `identifier`.**
+- **Código SMS:** enviar y reenviar con espera; código vencido, inválido y demasiados intentos; límite de solicitudes con `Retry-After`; el celular solo cuenta como verificado cuando lo dice `/me`.
+- **Recuperación solo por celular,** de punta a punta.
+- **`invitation_recipient_mismatch`.**
+- **Carreras de sesión:** cierre o cambio de sesión mientras `refreshUser` o la escritura del perfil offline están pendientes.
+- **Vencimiento del referido** con la app abierta más de 7 días: al leerlo, al volver a primer plano y por temporizador.
+
+### C. Bloqueado por API (no se puede probar en dispositivo todavía)
+- **Requiere API #50 desplegada en staging:**
+  - **Registro directo, también solo con correo,** porque depende de `/auth/register`.
+  - Login con celular.
+  - Envío y verificación del código.
+  - Recuperación por celular.
+- **Requiere además el proveedor de SMS activo** (`SMS_PROVIDER_ENABLED` y credenciales de AWS SNS): recibir cualquier código SMS, ya sea de verificación del celular o de recuperación por celular. Sin eso, la app muestra el error del servidor.
+- **Cuando ambos estén listos:**
+  - registro solo con correo: verificar el correo y llegar al Inicio sin organización;
+  - registro solo con celular: enviar el código, ver la cuenta regresiva y verificar;
+  - probar también un código vencido (dejar pasar 10 minutos) y 5 intentos fallidos;
+  - registro con ambos;
+  - login con celular;
+  - recuperación solo por celular de punta a punta.
 
 El enlace HTTPS de staging (`https://staging-admin.afilianet.mx/join/...`) abre la web: la app no tiene App Links configurados.

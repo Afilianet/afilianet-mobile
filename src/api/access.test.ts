@@ -37,14 +37,20 @@ afterAll(() => {
 });
 
 describe("sign-in and registration", () => {
-  it("signs in with a phone identifier, anonymously and without organization", async () => {
+  it("signs in with the canonical {identifier, password} contract, anonymously and without organization", async () => {
     fetchMock.mockResolvedValueOnce(json({ token: "t", user: USER }));
-    await signInWith({ phone: "+525512345678" }, "secret123");
+    await signInWith("+525512345678", "secret123");
     const call = lastCall();
     expect(call.url).toBe("https://api.test/api/v1/auth/login");
-    expect(call.body).toEqual({ phone: "+525512345678", password: "secret123" });
+    expect(call.body).toEqual({ identifier: "+525512345678", password: "secret123" });
     expect(call.headers.Authorization).toBeUndefined();
     expect(call.headers["X-Organization-ID"]).toBeUndefined();
+  });
+
+  it("sends an email as the identifier plus the compatible email alias, so it works before and after API #50", async () => {
+    fetchMock.mockResolvedValueOnce(json({ token: "t", user: USER }));
+    await signInWith("ana@example.com", "secret123");
+    expect(lastCall().body).toEqual({ identifier: "ana@example.com", email: "ana@example.com", password: "secret123" });
   });
 
   it("registers directly with no referral and no organization header", async () => {

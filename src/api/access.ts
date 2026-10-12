@@ -16,11 +16,12 @@ import { ApiError, friendlyMessage, isApiError } from "./errors";
  *   the referral's organization with the current account (token: null, no
  *   second account).
  *
- * NEW in afilianet-api PR #50 (feat/unified-account-access @ b1d4269, built on
- * #45, not merged yet; contract: docs/auth/ACCOUNT_ACCESS_CONTRACT.md):
+ * NEW in afilianet-api PR #50 (feat/unified-account-access @ 03c6b8b, built on
+ * #45, not merged yet; contract: docs/auth/ACCOUNT_ACCESS_CONTRACT.md). The API
+ * session confirmed these shapes as final for this round at 03c6b8b:
  * - POST /api/v1/auth/register -- direct sign-up, no referral/organization
  * - POST /api/v1/auth/phone-verification, POST /api/v1/auth/verify-phone -- SMS OTP
- * - POST /api/v1/auth/login with {phone, password}
+ * - POST /api/v1/auth/login with {identifier, password} (email/phone also accepted as aliases)
  * - POST /api/v1/auth/forgot-password with {phone}; POST /api/v1/auth/reset-password
  *   with {phone, code, password, password_confirmation}
  * Proposed conventions: a top-level `reason` code on 422/429 and
@@ -55,9 +56,20 @@ export interface CodeDelivery {
 const PUBLIC = { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true } as const;
 const DEFAULT_RESEND_SECONDS = 60;
 
-export async function signInWith(identifier: AccessIdentifier, password: string): Promise<LoginResponse> {
+/**
+ * Login contract (API #50 @ 03c6b8b): {identifier, password}. `identifier` is
+ * the canonical field -- an email or a phone, detected by the server; `email`
+ * remains only as a compatibility alias on the API side. Mobile always sends
+ * `identifier`, already normalized (lower-case email or E.164 phone).
+ *
+ * For an email it ALSO sends the `email` alias: the API deployed today (main)
+ * only reads `email`, and API #50 resolves `identifier` first, so email
+ * sign-in keeps working whichever is deployed. Phones go only as `identifier`.
+ */
+export async function signInWith(identifier: string, password: string): Promise<LoginResponse> {
+  const body = identifier.includes("@") ? { identifier, email: identifier, password } : { identifier, password };
   // Flat {token, user}, not {data}: see LoginResponse in types/api.ts.
-  return apiRequest<LoginResponse>("/api/v1/auth/login", { method: "POST", body: { ...identifier, password }, ...PUBLIC });
+  return apiRequest<LoginResponse>("/api/v1/auth/login", { method: "POST", body, ...PUBLIC });
 }
 
 /** PROPOSED. Direct registration without referral or organization. */

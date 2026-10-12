@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { AccessIdentifier, AccountRegistration } from "../api/access";
+import type { AccountRegistration } from "../api/access";
 import type { ApiError } from "../api/errors";
 import type { User } from "../types/api";
 import type { ReferralRegistration } from "../api/endpoints";
@@ -10,8 +10,8 @@ export interface AuthContextValue {
   status: AuthStatus;
   user: User | null;
   error: ApiError | null;
-  /** A bare string is an email (the original contract); phone sign-in passes {phone} in E.164. */
-  signIn: (identifier: AccessIdentifier | string, password: string) => Promise<void>;
+  /** `identifier`: a lower-case email or an E.164 phone; sent as the login contract's canonical `identifier`. */
+  signIn: (identifier: string, password: string) => Promise<void>;
   /** Direct sign-up: no referral, no organization. Leads to channel verification. */
   register: (registration: AccountRegistration) => Promise<void>;
   registerFromReferral: (invitationToken: string, registration: ReferralRegistration) => Promise<void>;
