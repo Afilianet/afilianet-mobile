@@ -161,6 +161,7 @@ export const en = {
       emailRejected: "Check the email. It may already be registered; if it's yours, sign in.",
       phoneRejected: "Check the mobile number. It may already be registered; if it's yours, sign in.",
       passwordRejected: "The password must be at least 8 characters and match the confirmation.",
+      invitationRecipientMismatch: "This invitation is addressed to another email or mobile number. Sign in with the account you were invited with.",
     },
   },
   surveys: {

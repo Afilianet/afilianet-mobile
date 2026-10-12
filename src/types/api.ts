@@ -30,6 +30,9 @@ export interface User {
   // null for a mobile-only account (access MVP): at least one of email/phone exists.
   email: string | null;
   phone: string | null;
+  // A new email/phone awaiting confirmation; the verified value above stays usable until then.
+  pending_email?: string | null;
+  pending_phone?: string | null;
   status: string;
   email_verified_at: string | null;
   phone_verified_at: string | null;

@@ -181,6 +181,7 @@ export const es = {
       emailRejected: "Revisa el correo. Puede que ya esté registrado; si es tuyo, inicia sesión.",
       phoneRejected: "Revisa el celular. Puede que ya esté registrado; si es tuyo, inicia sesión.",
       passwordRejected: "La contraseña debe tener al menos 8 caracteres y coincidir con la confirmación.",
+      invitationRecipientMismatch: "Esta invitación está dirigida a otro correo o celular. Entra con la cuenta a la que te invitaron.",
     },
   },
   surveys: {

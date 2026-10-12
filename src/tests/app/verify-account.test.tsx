@@ -142,6 +142,8 @@ describe("Verify account", () => {
 
     expect(screen.getByText("Espera 30 segundos antes de intentarlo de nuevo.")).toBeTruthy();
     expect(screen.getByText("Podrás pedir otro código en 30 s")).toBeTruthy();
+    // Registration already sent a code (one per minute): the person can type it right away.
+    expect(screen.getByLabelText("Código de verificación")).toBeTruthy();
   });
 
   it("re-reads the server before claiming the email is confirmed", async () => {

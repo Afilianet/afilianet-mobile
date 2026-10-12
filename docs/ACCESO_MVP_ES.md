@@ -36,18 +36,22 @@ Este documento describe cómo funciona en Mobile el acceso con correo o celular 
   - sin sesión: registro con `email` y/o `phone`;
   - con sesión: afiliación con la cuenta actual (`token: null`).
 
-**Propuesto y pendiente en API.** Está aislado en `src/api/access.ts`. Mientras no exista, el API responde 404 o 405 y Mobile muestra "Esta opción todavía no está disponible".
-- `POST /api/v1/auth/register`: `{first_name, last_name, email?, phone?, password, password_confirmation}` → `201 {token, user}`.
-- `POST /api/v1/auth/phone-verification` (con sesión) → `202 {data: {retry_after, expires_in}}`.
-- `POST /api/v1/auth/verify-phone` (con sesión): `{code}` → `{data: {user}}`.
-- `POST /api/v1/auth/login` con `{phone, password}`.
-- `POST /api/v1/auth/forgot-password` con `{phone}` → `{message, retry_after}`.
-- `POST /api/v1/auth/reset-password` con `{phone, code, password, password_confirmation}`.
+**Nuevo en afilianet-api PR #50** (`feat/unified-account-access` @ `b1d4269`). Está construido sobre API #45 y todavía sin merge. El contrato está en `docs/auth/ACCOUNT_ACCESS_CONTRACT.md` y Mobile lo consume en `src/api/access.ts`:
+- `POST /api/v1/auth/register`: `{first_name, last_name, email?, phone?, password, password_confirmation}` → `201 {token, user}`. Si el registro trae celular, la API envía el código SMS automáticamente.
+- `POST /api/v1/auth/phone-verification` (con sesión) → `202 {retry_after, expires_in}`, sin envoltorio `data`.
+- `POST /api/v1/auth/verify-phone` (con sesión): `{code}` → `200 {user}`, sin envoltorio `data`.
+- `POST /api/v1/auth/login`: acepta `identifier`, `email` o `phone`.
+- `POST /api/v1/auth/forgot-password` con `{phone}` → `{message, retry_after}`. `POST /api/v1/auth/reset-password` con `{phone, code, password, password_confirmation}`, que revoca todas las sesiones.
+- `POST /api/v1/invitations/{token}/accept` con sesión: si la invitación va dirigida a otro correo o celular, responde 422 con `reason: "invitation_recipient_mismatch"`. Las invitaciones de referido sin destinatario se siguen aceptando igual.
 
-Convenciones que Mobile necesita del API:
-- `reason` en las respuestas 422 y 429. Valores: `otp_invalid`, `otp_expired`, `otp_attempts_exceeded`, `phone_missing`, `phone_already_verified`.
-- `retry_after` en segundos en las respuestas 202 y 429. Mobile también lee el header `Retry-After`.
-- `UserResource.email` puede ser `null` en cuentas que solo tienen celular.
+Convenciones del contrato que Mobile usa:
+- `reason` en las respuestas 422 y 429: `otp_invalid`, `otp_expired`, `otp_attempts_exceeded`, `phone_missing`, `phone_already_verified` e `invitation_recipient_mismatch`.
+- `retry_after` en segundos en las respuestas 202 y 429, además del header `Retry-After`.
+- `UserResource` incluye `email` (puede ser `null`), `pending_email` y `pending_phone`.
+
+**Pendiente en API:**
+- Nunca se ha enviado un SMS real: `SMS_PROVIDER_ENABLED=false` y no hay credenciales de AWS SNS. Mientras eso no cambie, staging responde con error en lugar de enviar.
+- El cambio de correo o celular (`PATCH /me/email` y `PATCH /me/phone`) existe en el API, pero todavía no está en Mobile.
 
 ## Pruebas físicas
 
