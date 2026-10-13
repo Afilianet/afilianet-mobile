@@ -2,7 +2,7 @@
 
 ## Contrato
 
-- **Fuente del contrato:** afilianet-api, rama `feat/survey-module` @ `c390e46`, archivo `docs/surveys/SURVEY_CONTRACT.md`. **Sin merge ni despliegue.** Se reconcilió con los tipos provisionales de Admin #37 y de este PR; la comparación detallada está más abajo.
+- **Fuente del contrato:** afilianet-api, rama `feat/survey-module` @ `aa94798`, archivo `docs/surveys/SURVEY_CONTRACT.md`. **Sin merge ni despliegue.** Se reconcilió con los tipos provisionales de Admin #37 y de este PR; la comparación detallada está más abajo.
 - **Dónde lo usa Mobile:** `src/features/surveys/` (`types.ts`, `source.ts`, `apiSource.ts`).
 - **Fuentes de datos:** detrás de la misma interfaz (`SurveySource`) hay dos.
   - **`apiSource`, la API real.** Se activa con `EXPO_PUBLIC_SURVEYS_SOURCE=api` una vez que el módulo esté desplegado en el entorno.
@@ -56,7 +56,7 @@
 
 ## Comparación con la vista previa anterior (antes de conectar)
 
-| Tema | Vista previa anterior de Mobile | Contrato `c390e46`, adoptado |
+| Tema | Vista previa anterior de Mobile | Contrato `aa94798`, adoptado |
 |---|---|---|
 | Tipos de pregunta | `open_text`; sin `number`; `scale{min,max}`; ids de texto | `text`; `number` decimal (2 cifras); `scale_min`/`scale_max` enteros; ids enteros, con `uuid` y `position` |
 | Respuestas | `value` genérico | `value_choice_ids` / `value_text` / `value_number` / `skipped` |
@@ -72,7 +72,7 @@
 
 - **Despliegue:** el módulo de encuestas de la API no tiene merge ni despliegue. Hasta entonces Mobile usa la vista previa.
 - **Push:** el envío de `survey_id` y `version_id` al teléfono ya está corregido en API `fix/notifications-search-concurrency` @ `e1ce99a`, todavía sin merge ni despliegue. Mientras no se despliegue, abrir una encuesta desde la push no funcionará.
-- **Números decimales:** `number_min` y `number_max` llegan como texto (`"0.00"`) porque son columnas decimales de PostgreSQL sin cast. Mobile los normaliza al descargar la versión (`normalizeVersion`).
+- **Números decimales:** resuelto en API `aa94798`. `number_min`, `number_max` y `value_number` ahora llegan como números JSON (un valor entero como `0` llega sin decimales). Antes llegaban como texto (`"0.00"`). Mobile conserva `normalizeVersion`, que acepta ambas formas, como protección.
 - **Proveedores de IA:** no hay proveedor real de transcripción ni de análisis de calidad; la API responde `provider_unavailable`.
 
 ## Requiere un APK nuevo

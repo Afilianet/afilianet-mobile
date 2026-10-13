@@ -3,7 +3,7 @@ import { configureApiClient } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { createApiSurveySource } from "./apiSource";
 
-// Contract: afilianet-api feat/survey-module @ c390e46 (docs/surveys/SURVEY_CONTRACT.md).
+// Contract: afilianet-api feat/survey-module @ aa94798 (docs/surveys/SURVEY_CONTRACT.md).
 // These check Mobile speaks that contract; they are NOT an end-to-end validation.
 
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 5000 } }));
@@ -35,7 +35,7 @@ afterAll(() => {
 
 const source = createApiSurveySource();
 
-describe("API surveys source (contract c390e46)", () => {
+describe("API surveys source (contract aa94798)", () => {
   it("lists the member inbox from /surveys/available, authenticated and scoped to the organization", async () => {
     fetchMock.mockResolvedValueOnce(json({ data: [{ survey_id: "s-1", id: "v-1", version_number: 1, title: "T", status: "published", closes_at: null, allows_self_response: true, allows_interview_response: false, is_assigned_surveyor: false }] }));
     const list = await source.listAvailable("org-a");
@@ -58,6 +58,14 @@ describe("API surveys source (contract c390e46)", () => {
     const version = await source.getVersion("org-a", "v-1");
     expect(version.questions[0]).toMatchObject({ number_min: 0, number_max: 80.5, options: [] });
     expect(version.questions[1]).toMatchObject({ scale_min: 1, scale_max: 10 });
+  });
+
+  it("keeps the JSON numbers the API sends since aa94798, including whole numbers without a fraction", async () => {
+    fetchMock.mockResolvedValueOnce(json({ data: { id: "v-1", questions: [
+      { id: 1, uuid: "q", position: 0, type: "number", prompt: "Años", required: true, scale_min: null, scale_max: null, number_min: 0, number_max: 80.5, options: [] },
+    ] } }));
+    const version = await source.getVersion("org-a", "v-1");
+    expect(version.questions[0]).toMatchObject({ number_min: 0, number_max: 80.5 });
   });
 
   it("submits to /surveys/versions/{version}/responses with the client idempotency key and typed answers", async () => {

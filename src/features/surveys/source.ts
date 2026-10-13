@@ -2,7 +2,7 @@ import type { AudioConfig, AvailableSurvey, ResponseReceipt, ResponseSubmission,
 
 /**
  * Everything Mobile needs from the server for surveys (contract: API
- * feat/survey-module @ c390e46). Every call names the organization; callers
+ * feat/survey-module @ aa94798). Every call names the organization; callers
  * bind it to the session it started in (captureApiSessionGuard), so nothing
  * is fetched or sent under another account or organization.
  *

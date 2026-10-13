@@ -16,7 +16,7 @@ import type { SurveySource } from "./source";
 import { hasItem, sealBytes, type SurveyScope } from "./vault";
 
 // NOTE: these exercise the device queue against the contract's rules (API
-// feat/survey-module @ c390e46) through the sample source. They do NOT
+// feat/survey-module @ aa94798) through the sample source. They do NOT
 // validate the surveys MVP end to end against a real server.
 
 jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"));

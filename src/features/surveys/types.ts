@@ -1,6 +1,6 @@
 /**
  * Survey shapes mirroring afilianet-api's contract field by field:
- * feat/survey-module @ c390e46, docs/surveys/SURVEY_CONTRACT.md (reconciled
+ * feat/survey-module @ aa94798, docs/surveys/SURVEY_CONTRACT.md (reconciled
  * with Admin #37 and this Mobile PR). Not merged or deployed on the API side
  * yet. Success bodies are wrapped in {data}; errors are flat {message, reason}.
  */

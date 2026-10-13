@@ -4,7 +4,7 @@ import { ApiError } from "../../api/errors";
 import type { SurveySource } from "./source";
 import type { AudioConfig, AudioUploadSession, AvailableSurvey, ResponseReceipt, SurveyQuestion, SurveyVersion } from "./types";
 
-/** Decimal columns arrive as strings ("0.00") from PostgreSQL; never trust either form. */
+/** The API casts decimals to JSON numbers since aa94798 (before that they came as strings like "0.00"); accept either form. */
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
@@ -29,7 +29,7 @@ export function normalizeVersion(raw: SurveyVersion): SurveyVersion {
 }
 
 /**
- * afilianet-api surveys (feat/survey-module @ c390e46). Authenticated, with
+ * afilianet-api surveys (feat/survey-module @ aa94798). Authenticated, with
  * the active organization's X-Organization-ID from the API client; callers
  * guard that it is still the organization they started with.
  */
