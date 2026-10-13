@@ -6,6 +6,7 @@ import { fetchPublicReferral, startReferralInvitation, type PublicReferral } fro
 import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useAuth } from "../../../auth/AuthContext";
 import { clearPendingReferral, savePendingReferral } from "../../../auth/pendingReferral";
+import { useSafeSignOut } from "../../../features/surveys/signOut";
 import { PhoneField } from "../../../components/account/PhoneField";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -95,7 +96,8 @@ function BackHome() {
 
 function JoinWithAccount({ organizationId, code, referral }: { organizationId: string; code: string; referral: PublicReferral }) {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const signOut = useSafeSignOut();
   const { refresh, organizations } = useOrganization();
   const copy = strings.access.joinWithAccount;
   const [submitting, setSubmitting] = useState(false);

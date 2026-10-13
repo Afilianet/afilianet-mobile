@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
+import { useSafeSignOut } from "../../features/surveys/signOut";
 import { SectionCard } from "../../components/SectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Avatar } from "../../components/ui/Avatar";
@@ -23,7 +24,9 @@ import { formatDate } from "../../utils/date";
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  // Checks for unsent surveys first; never drops them silently.
+  const signOut = useSafeSignOut();
   const { organizations, activeOrganization, selectOrganization } = useOrganization();
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();

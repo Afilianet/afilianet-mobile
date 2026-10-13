@@ -25,6 +25,7 @@ import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from 
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import { canShareReferral } from "../../utils/referral";
+import { surveysPreviewEnabled } from "../../features/surveys/flags";
 import { recaptureRequest } from "../../components/compliance/recaptureRequest";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
@@ -151,6 +152,9 @@ function Header() {
       ) : (
         <Text style={styles.orgName}>{orgLabel}</Text>
       )}
+      {surveysPreviewEnabled ? (
+        <Button label={strings.surveys.homeEntry} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
+      ) : null}
     </View>
   );
 }

@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { useSafeSignOut } from "../features/surveys/signOut";
 import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
 import { InvitationFinder } from "../components/account/InvitationFinder";
 import { Button } from "../components/ui/Button";
@@ -23,7 +24,8 @@ import { analytics } from "../services/analytics";
  */
 export default function NoOrganizationScreen() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
+  const signOut = useSafeSignOut();
   const pendingReferral = usePendingReferral();
   // Server state only: a channel counts as verified when the API says so.
   const hasUnverifiedChannel = Boolean(user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)));
