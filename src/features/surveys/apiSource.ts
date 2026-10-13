@@ -2,10 +2,34 @@ import { fetch as expoFetch } from "expo/fetch";
 import { apiRequest } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import type { SurveySource } from "./source";
-import type { AudioConfig, AudioUploadSession, AvailableSurvey, ResponseReceipt, SurveyVersion } from "./types";
+import type { AudioConfig, AudioUploadSession, AvailableSurvey, ResponseReceipt, SurveyQuestion, SurveyVersion } from "./types";
+
+/** Decimal columns arrive as strings ("0.00") from PostgreSQL; never trust either form. */
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Normalizes a downloaded version so validation never depends on the database's number encoding. */
+export function normalizeVersion(raw: SurveyVersion): SurveyVersion {
+  return {
+    ...raw,
+    questions: (raw.questions ?? []).map(
+      (question): SurveyQuestion => ({
+        ...question,
+        scale_min: toNumber(question.scale_min),
+        scale_max: toNumber(question.scale_max),
+        number_min: toNumber(question.number_min),
+        number_max: toNumber(question.number_max),
+        options: question.options ?? [],
+      }),
+    ),
+  };
+}
 
 /**
- * afilianet-api surveys (feat/survey-module @ 5d5642e). Authenticated, with
+ * afilianet-api surveys (feat/survey-module @ c390e46). Authenticated, with
  * the active organization's X-Organization-ID from the API client; callers
  * guard that it is still the organization they started with.
  */
@@ -21,7 +45,7 @@ export function createApiSurveySource(): SurveySource {
     },
 
     async getVersion(_organizationId, versionId) {
-      return (await apiRequest<{ data: SurveyVersion }>(`${base}/versions/${id(versionId)}`)).data;
+      return normalizeVersion((await apiRequest<{ data: SurveyVersion }>(`${base}/versions/${id(versionId)}`)).data);
     },
 
     async submitResponse(_organizationId, versionId, submission) {

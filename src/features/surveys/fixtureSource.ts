@@ -7,7 +7,7 @@ import type { AudioConfig, AvailableSurvey, ResponseReceipt, SurveyQuestion, Sur
 
 /**
  * SAMPLE DATA, NOT A SERVER. Used while afilianet-api's surveys module
- * (feat/survey-module @ 5d5642e) is not deployed; the UI always says so
+ * (feat/survey-module @ c390e46) is not deployed; the UI always says so
  * (SurveysPreviewNotice). It follows that contract's shapes and rules
  * exactly, so the preview exercises what the real API will do -- but nothing
  * sent here leaves the phone, and passing tests against it does NOT validate

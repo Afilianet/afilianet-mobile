@@ -2,7 +2,7 @@
 
 ## Contrato
 
-- **Fuente del contrato:** afilianet-api, rama `feat/survey-module` @ `f5d8a5b`, archivo `docs/surveys/SURVEY_CONTRACT.md`. **Sin merge ni despliegue.** Se reconcilió con los tipos provisionales de Admin #37 y de este PR; la comparación detallada está más abajo.
+- **Fuente del contrato:** afilianet-api, rama `feat/survey-module` @ `c390e46`, archivo `docs/surveys/SURVEY_CONTRACT.md`. **Sin merge ni despliegue.** Se reconcilió con los tipos provisionales de Admin #37 y de este PR; la comparación detallada está más abajo.
 - **Dónde lo usa Mobile:** `src/features/surveys/` (`types.ts`, `source.ts`, `apiSource.ts`).
 - **Fuentes de datos:** detrás de la misma interfaz (`SurveySource`) hay dos.
   - **`apiSource`, la API real.** Se activa con `EXPO_PUBLIC_SURVEYS_SOURCE=api` una vez que el módulo esté desplegado en el entorno.
@@ -51,12 +51,12 @@
 
   Lo bloqueado nunca se reenvía automáticamente; se conserva hasta que la persona lo descarta.
 - **Cierre de sesión con pendientes:** se informa y se ofrece sincronizar, conservar (solo para esta misma cuenta) o borrar, con confirmación.
-- **Push:** `{screen: "surveys", organization_id, survey_id, version_id, title}` abre la encuesta en su organización, con las protecciones de sesión de #47. Los avisos solo llegan con internet.
+- **Push:** `{screen: "surveys", organization_id, survey_id, version_id}` (sin `title`) abre la encuesta en su organización, con las protecciones de sesión de #47. Los avisos solo llegan con internet. API ya envía ese payload al teléfono en `fix/notifications-search-concurrency` @ `e1ce99a`, todavía sin merge.
 - **Transcripción y análisis de calidad:** ocurren en el servidor después de recibir el audio.
 
 ## Comparación con la vista previa anterior (antes de conectar)
 
-| Tema | Vista previa anterior de Mobile | Contrato `f5d8a5b`, adoptado |
+| Tema | Vista previa anterior de Mobile | Contrato `c390e46`, adoptado |
 |---|---|---|
 | Tipos de pregunta | `open_text`; sin `number`; `scale{min,max}`; ids de texto | `text`; `number` decimal (2 cifras); `scale_min`/`scale_max` enteros; ids enteros, con `uuid` y `position` |
 | Respuestas | `value` genérico | `value_choice_ids` / `value_text` / `value_number` / `skipped` |
@@ -71,7 +71,8 @@
 ## Pendientes fuera de Mobile
 
 - **Despliegue:** el módulo de encuestas de la API no tiene merge ni despliegue. Hasta entonces Mobile usa la vista previa.
-- **Push:** el job compartido `SendNotificationPush` todavía envía al teléfono un payload genérico, sin `survey_id`. Abrir una encuesta desde la push no funcionará hasta que API lo corrija en su rama de notificaciones.
+- **Push:** el envío de `survey_id` y `version_id` al teléfono ya está corregido en API `fix/notifications-search-concurrency` @ `e1ce99a`, todavía sin merge ni despliegue. Mientras no se despliegue, abrir una encuesta desde la push no funcionará.
+- **Números decimales:** `number_min` y `number_max` llegan como texto (`"0.00"`) porque son columnas decimales de PostgreSQL sin cast. Mobile los normaliza al descargar la versión (`normalizeVersion`).
 - **Proveedores de IA:** no hay proveedor real de transcripción ni de análisis de calidad; la API responde `provider_unavailable`.
 
 ## Requiere un APK nuevo
@@ -105,4 +106,4 @@ Lo demás funciona con Metro sobre el APK actual.
 - Cerrar una versión archivándola o publicando una nueva mientras el teléfono está sin conexión.
 - Un encuestador no asignado debe recibir el bloqueo `not_assigned_surveyor`.
 - Un audio mayor que `max_bytes` debe aparecer como "Audio no aceptado".
-- La apertura desde push solo se puede probar cuando la push lleve `survey_id`.
+- Abrir una encuesta desde la push requiere también desplegar `e1ce99a`.

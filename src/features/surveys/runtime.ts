@@ -9,7 +9,7 @@ import type { SurveyScope } from "./vault";
 export { surveysPreviewEnabled } from "./flags";
 
 /**
- * afilianet-api's surveys module (feat/survey-module @ 5d5642e) is not deployed
+ * afilianet-api's surveys module (feat/survey-module @ c390e46) is not deployed
  * yet, so the default stays the sample-data preview. Set
  * EXPO_PUBLIC_SURVEYS_SOURCE=api once the API is deployed in the target
  * environment; both sources follow the same contract.

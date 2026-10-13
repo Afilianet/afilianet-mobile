@@ -7,7 +7,7 @@ import { listScopes, openBytes, openJson, removeItem, sealJson, type SurveyScope
 
 /**
  * Persistent outbox for completed survey responses, per account+organization
- * (contract: API feat/survey-module @ f5d8a5b).
+ * (contract: API feat/survey-module @ c390e46).
  *
  * - Answers first, audio second: a pass submits every pending answer set,
  *   then a pass uploads audio (it needs the server's response id and an
@@ -281,7 +281,7 @@ export async function syncOutbox(
           respondent_type: snapshot.respondentType,
           submitted_at: snapshot.completedAt,
           consent_audio: snapshot.consentAudio,
-          // Contract rule (API f5d8a5b): the version's own id identifies the consent text that was read.
+          // Contract rule (API c390e46): the version's own id identifies the consent text that was read.
           consent_version: snapshot.consentAudio ? snapshot.versionId : null,
           answers,
         });

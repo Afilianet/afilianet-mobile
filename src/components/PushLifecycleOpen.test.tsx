@@ -192,7 +192,9 @@ describe("PushLifecycle: survey pushes", () => {
   function surveyTap(identifier: string, surveyId: unknown): Notifications.NotificationResponse {
     return {
       actionIdentifier: "expo.modules.notifications.actions.DEFAULT",
-      notification: { request: { identifier, content: { data: { screen: "surveys", organization_id: "org-a", survey_id: surveyId } } } },
+      notification: { request: { identifier,
+      // The real device payload (API e1ce99a): no title.
+      content: { data: { screen: "surveys", organization_id: "org-a", survey_id: surveyId, version_id: "v-1" } } } },
     } as unknown as Notifications.NotificationResponse;
   }
 
