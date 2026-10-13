@@ -1,124 +1,108 @@
-# Encuestas en Mobile (MVP, vista previa)
+# Encuestas en Mobile (MVP)
 
-## Estado del contrato
+## Contrato
 
-**afilianet-api no tiene ni planea por ahora un contrato de encuestas** (lo confirmó la sesión de API el 12 de octubre de 2026). Por eso:
+- **Fuente del contrato:** afilianet-api, rama `feat/survey-module` @ `f5d8a5b`, archivo `docs/surveys/SURVEY_CONTRACT.md`. **Sin merge ni despliegue.** Se reconcilió con los tipos provisionales de Admin #37 y de este PR; la comparación detallada está más abajo.
+- **Dónde lo usa Mobile:** `src/features/surveys/` (`types.ts`, `source.ts`, `apiSource.ts`).
+- **Fuentes de datos:** detrás de la misma interfaz (`SurveySource`) hay dos.
+  - **`apiSource`, la API real.** Se activa con `EXPO_PUBLIC_SURVEYS_SOURCE=api` una vez que el módulo esté desplegado en el entorno.
+  - **`fixtureSource`, datos de ejemplo** (opción por defecto mientras la API no esté desplegada). Sigue las formas y reglas del contrato. La UI muestra siempre "Vista previa con datos de ejemplo".
+  - La conexión sí es real: el modo avión y la red intermitente se comportan como con el servidor. La idempotencia también persiste aunque se reinicie la app.
+- **Activación de la función:** desactivada en producción, activa en development, internal y staging, o con `EXPO_PUBLIC_SURVEYS_PREVIEW=1`.
 
-- Mobile funciona contra datos de ejemplo (`src/features/surveys/fixtureSource.ts`), igual que afilianet-admin (`feat/admin-surveys` @ `265f3e5`).
-- Los tipos (`types.ts`) siguen los tipos provisionales de Admin para que ambos converjan en un solo contrato.
-- Las pantallas siempre muestran un aviso: "Vista previa con datos de ejemplo… Lo que respondas no sale del teléfono".
-- En la fuente de ejemplo hay dos cosas reales, para que la prueba física tenga sentido:
-  - **La conexión:** antes de cada llamada se intenta alcanzar el host real de la API. En modo avión o con red intermitente falla igual que fallaría el servidor de verdad.
-  - **La idempotencia:** el servidor simulado recuerda `client_response_id` y `client_audio_id` aunque se reinicie la app.
-- **Activación:** está desactivado en producción y activo en development, internal y staging (`features/surveys/flags.ts`). También se activa con `EXPO_PUBLIC_SURVEYS_PREVIEW=1`.
-
-El motor es independiente del transporte (`SurveySource`): almacenamiento cifrado, cola, audio, estados y protecciones de sesión. Cuando exista el contrato, se agrega una fuente HTTP y se cambia una línea en `runtime.ts`.
+**Las pruebas con datos de ejemplo no validan el MVP completo.** Solo prueban el motor del dispositivo contra las reglas del contrato. La validación real necesita la API desplegada.
 
 ## Qué hace Mobile
 
-- **Bandeja** (`/surveys`, desde Inicio y desde push):
-  - Con conexión actualiza la lista y la guarda cifrada.
-  - Sin conexión muestra la última lista e indica de qué fecha es.
-- **Descarga explícita:** "Descargar para usar sin conexión" guarda la versión del cuestionario.
-  - La bandeja indica "Disponible sin conexión (descargada el …)" o que la descarga está desactualizada.
-  - **Sin descarga previa no se puede responder sin conexión:** nada se descarga a mitad de una encuesta.
+- **Bandeja:** `GET /surveys/available`. Muestra solo las versiones abiertas; una encuesta que cerró desaparece en la siguiente actualización. Sin conexión se muestra la última lista guardada, con su fecha.
+- **Descarga explícita:** `GET /surveys/versions/{version}` guarda el cuestionario completo cifrado, y la app indica "Disponible sin conexión". **Sin descarga previa no se puede responder sin conexión.**
 - **Modalidades:**
-  - **Respuesta propia.**
-  - **Entrevista:** solo si el servidor indica `interviewer_authorized`. Incluye una referencia opcional de la persona entrevistada, sin datos sensibles.
-- **Formulario:** opción única, opción múltiple, escala y texto. Valida al guardar, autoguarda el borrador y permite reanudarlo (también después de reiniciar la app) o descartarlo.
-- **Audio** (solo en entrevistas con grabación habilitada):
-  - **Consentimiento primero:** el botón del micrófono no existe hasta que se acepta.
-  - **Indicador visible:** "● Grabando · m:ss" con botón Detener.
-  - **Sin grabación en segundo plano:** si llega una llamada, se bloquea la pantalla o la app pasa a segundo plano, la grabación se detiene y se conserva lo grabado, marcado como interrumpido.
-  - **Permiso denegado:** se explica y se ofrece "Abrir configuración". La entrevista puede seguir sin audio.
-  - **Límites:** 30 minutos como máximo, AAC mono a 64 kbps (unos 0.5 MB por minuto).
-- **Almacenamiento protegido:**
-  - Cada respuesta, audio, borrador y cuestionario se cifra con AES y su propia clave en Keychain/Keystore.
-  - Todo queda en el directorio privado de la app, en `afn-surveys/{cuenta}/{organización}/`.
-  - **Límites de espacio:** 300 MB por cuenta y organización, y nunca se deja el teléfono con menos de 200 MB libres. Si no cabe, se avisa antes de grabar o guardar.
-- **Cola persistente** (`outbox.ts`):
-  - Primero se envían todas las respuestas; después, los audios.
-  - Cada envío lleva un identificador generado una sola vez en el teléfono.
-  - Reintenta con espera creciente; "Sincronizar ahora" fuerza el envío.
-  - La copia local se borra **solo cuando el servidor confirma**.
-  - Si cambia la sesión o la organización, se detiene antes de la siguiente petición y nunca envía ni atribuye pendientes de una cuenta u organización a otra.
-- **Estados distintos:**
-  - "Guardado en el dispositivo";
-  - "Pendiente de sincronizar";
-  - "Audio pendiente";
-  - "Recibido";
-  - "No se puede enviar: la encuesta cerró": se conserva hasta que la persona decide descartarlo.
-- **Cierre de sesión con pendientes:** se informa por organización y se ofrece:
-  - sincronizar;
-  - conservar (cifrado, y solo se envía al volver a entrar con la misma cuenta);
-  - borrar, con confirmación;
-  - cancelar.
+  - "Responder yo" (`self`) si la versión lo permite.
+  - "Iniciar entrevista" (`interviewed_external`) solo si la versión lo permite **y** el servidor dice que este usuario es encuestador asignado (`is_assigned_surveyor`).
+  - No se guarda ninguna identidad de la persona entrevistada.
+- **Preguntas:** opción única y múltiple (`value_choice_ids`), texto, número decimal con hasta 2 cifras y escala de enteros. Los rangos son inclusivos y se validan en el teléfono; el servidor no los impone.
+- **Completitud** (decisión de producto):
+  - la respuesta propia exige todas las obligatorias;
+  - una entrevista puede guardarse incompleta después de un aviso explícito, y lo que falta se envía como `skipped`.
+  - Una respuesta mal formada (por ejemplo, un número fuera de rango) no se guarda en ningún caso.
+- **Borradores:** se guardan solos y se pueden retomar, también después de reiniciar la app.
+- **Consentimiento y audio** (solo entrevistas de versiones con `audio_mode` distinto de `none`):
+  - Se muestra `consent_text`; si falta, se indica qué explicar.
+  - La decisión es irreversible: `consent_audio` es `accepted` o `declined`, y `consent_version` es el id de la versión (regla del contrato).
+  - El botón del micrófono no existe hasta que se acepta.
+  - Mientras graba se ve el indicador con un botón para detener. No graba en segundo plano: una llamada o el paso a segundo plano detienen la grabación y conservan lo grabado, marcado como `interrupted`.
+  - Si se niega el permiso, se ofrece "Abrir configuración".
+  - Máximo 30 minutos, en AAC mono a 64 kbps.
+  - **Si se rechaza el consentimiento, el audio nunca se envía.**
+- **Almacenamiento protegido:** cada archivo se cifra con AES y su propia clave en Keychain/Keystore, por cuenta y organización. Límites locales: 300 MB por alcance y al menos 200 MB libres en el teléfono.
+- **Cola** (`outbox.ts`):
+  - Primero las respuestas y después el audio.
+  - `client_response_id` se genera en el teléfono; el servidor devuelve la respuesta original ante un reenvío.
+  - La copia local se borra solo tras la confirmación.
+  - Reintentos con espera creciente.
+  - Si cambia la sesión o la organización, se detiene antes de la siguiente petición.
+  - **Audio en 3 pasos:** sesión de subida, PUT prefirmado y `complete` con `duration_seconds` e `interrupted`. Un fallo reinicia con una sesión nueva.
+  - **Los límites de audio se leen del servidor** (`GET /surveys/audio-config`), nunca se fijan en el código.
+- **Estados distintos:** "Guardado en el dispositivo", "Pendiente de sincronizar", "Audio pendiente", "Audio no aceptado", "Recibido" y bloqueado por alguno de estos motivos:
+  - `survey_version_closed`: "No se pudo contar…";
+  - `not_assigned_surveyor`;
+  - `respondent_type_not_allowed`;
+  - un 403 por no tener perfil de afiliado en la organización.
 
-  Nunca se pierde nada en silencio. Un cierre forzado (sesión vencida) conserva los datos.
-- **Push:** las push de encuesta abren la encuesta dentro de su organización, con las mismas protecciones de sesión que las notificaciones (#47). La app dice explícitamente que **los avisos solo llegan con internet**.
-- **Transcripción y análisis:** ocurren en el servidor después de sincronizar. El teléfono no transcribe.
+  Lo bloqueado nunca se reenvía automáticamente; se conserva hasta que la persona lo descarta.
+- **Cierre de sesión con pendientes:** se informa y se ofrece sincronizar, conservar (solo para esta misma cuenta) o borrar, con confirmación.
+- **Push:** `{screen: "surveys", organization_id, survey_id, version_id, title}` abre la encuesta en su organización, con las protecciones de sesión de #47. Los avisos solo llegan con internet.
+- **Transcripción y análisis de calidad:** ocurren en el servidor después de recibir el audio.
 
-## Contrato que Mobile necesita de afilianet-api
+## Comparación con la vista previa anterior (antes de conectar)
 
-1. `GET /api/v1/surveys/assignments` (con sesión y `X-Organization-ID`) → `{data: SurveyAssignment[]}`:
-   - `survey_id`, `title`, `current_version_id`, `current_version`, `modality`;
-   - `status` (`open` o `closed`), `closes_at`, `interviewer_authorized`.
-2. `GET /api/v1/surveys/{survey}/versions/{version}` → una versión inmutable y publicada:
-   - `questions[]` con `id`, `type`, `prompt`, `required`, `options[]` y `scale{min,max}`;
-   - `modality` y `recording{enabled, consent_text}`.
-3. `POST /api/v1/surveys/{survey}/responses`:
-   - Recibe `client_response_id`, `version_id`, `modality`, `respondent_label`, `answers[]`, `completed_at`, `recording_consent` y `audio_expected`.
-   - **Es idempotente por `client_response_id`:** repetir devuelve el mismo `response_id`.
-   - Responde `{response_id, received_at}`.
-   - Si la encuesta está cerrada, responde 409 con `reason: "survey_closed"`.
-4. Audio de una respuesta: `POST /api/v1/surveys/responses/{response}/audio`, preferentemente con URL prefirmada, como la evidencia.
-   - **Es idempotente por `client_audio_id`.**
-   - Solo responde con éxito cuando el archivo está guardado de forma duradera.
-   - Incluye `duration_ms` e `interrupted`.
-5. Push de encuesta: `data` con `screen: "surveys"`, `organization_id` y, opcionalmente, `survey_id`.
-6. La transcripción y el análisis los dispara el servidor al recibir el audio.
+| Tema | Vista previa anterior de Mobile | Contrato `f5d8a5b`, adoptado |
+|---|---|---|
+| Tipos de pregunta | `open_text`; sin `number`; `scale{min,max}`; ids de texto | `text`; `number` decimal (2 cifras); `scale_min`/`scale_max` enteros; ids enteros, con `uuid` y `position` |
+| Respuestas | `value` genérico | `value_choice_ids` / `value_text` / `value_number` / `skipped` |
+| Modalidad | una sola modalidad | `allows_self_response` + `allows_interview_response`; `respondent_type` |
+| Persona entrevistada | etiqueta opcional | sin identidad (se eliminó) |
+| Encuesta cerrada | 409 `survey_closed` | 422 `survey_version_closed`, guardada como `rejected_closed` |
+| Audio | un solo paso, `client_audio_id`, `duration_ms` | 3 pasos, sesión por intento, `duration_seconds`, `interrupted` |
+| Consentimiento | booleano | `consent_audio` + `consent_version` (= id de la versión); `consent_text` en la versión |
+| Bandeja | lista de asignaciones | `GET /surveys/available` con `is_assigned_surveyor` |
+| Límites de audio | 16 MB fijos | `GET /surveys/audio-config` (por defecto 15 MB) |
+
+## Pendientes fuera de Mobile
+
+- **Despliegue:** el módulo de encuestas de la API no tiene merge ni despliegue. Hasta entonces Mobile usa la vista previa.
+- **Push:** el job compartido `SendNotificationPush` todavía envía al teléfono un payload genérico, sin `survey_id`. Abrir una encuesta desde la push no funcionará hasta que API lo corrija en su rama de notificaciones.
+- **Proveedores de IA:** no hay proveedor real de transcripción ni de análisis de calidad; la API responde `provider_unavailable`.
 
 ## Requiere un APK nuevo
 
-Metro no reemplaza cambios nativos. Para grabar audio hace falta un nuevo development-staging APK (`eas build -p android --profile staging` o el perfil de development-staging), porque:
+Metro no reemplaza cambios nativos. Grabar audio requiere un nuevo development-staging APK por tres cambios:
+- se agregó `expo-audio@~57.0.5`;
+- `app.json` incluye el plugin `expo-audio`;
+- `expo-image-picker` ya no bloquea `RECORD_AUDIO`. Antes tenía `microphonePermission: false`, que eliminaba ese permiso del manifiesto de Android.
 
-- Se agregó `expo-audio@~57.0.5`, un módulo nativo. Es la única dependencia nueva y se instaló con `npx expo install`.
-- `app.json` cambió en tres puntos:
-  - Se agregó el plugin `expo-audio`: `RECORD_AUDIO` en Android y `NSMicrophoneUsageDescription` en iOS, sin grabación ni reproducción en segundo plano.
-  - **`expo-image-picker` dejó de bloquear el micrófono.** Antes tenía `microphonePermission: false`, que en Android **elimina** `RECORD_AUDIO` del manifiesto, así que ningún APK anterior puede grabar.
-  - Permisos resultantes nuevos: `RECORD_AUDIO` y `MODIFY_AUDIO_SETTINGS`. No se agregan servicios en primer plano.
-- El almacenamiento usa `expo-file-system`, `expo-crypto` y `expo-secure-store`, que ya están en el APK actual. Las encuestas sin audio funcionan con Metro sobre el APK actual.
+Lo demás funciona con Metro sobre el APK actual.
 
-## Guion de prueba física (Android)
+## Guion de prueba física
 
-**Requisitos:**
-- APK nuevo instalado.
-- Sesión con una cuenta que pertenezca a dos organizaciones (A y B).
-- Inicio → "Encuestas".
+**A. Con la vista previa** (APK nuevo, sesión con dos organizaciones). Prueba el motor del dispositivo, no el MVP:
+1. **Descarga y modo avión:** "Descargar para usar sin conexión" muestra "Disponible sin conexión". En modo avión, la bandeja muestra la lista guardada. Responder con "Responder yo" y guardar: aparece "Guardado en el dispositivo" y luego "Pendiente de sincronizar".
+2. **Sin descarga no hay captura offline:** sin descargar, "Iniciar entrevista" queda deshabilitado.
+3. **Reinicio de la app:** forzar la detención con un pendiente; sigue ahí y el borrador se puede retomar.
+4. **Red intermitente y envío duplicado:** alternar el modo avión durante "Sincronizar ahora". Debe quedar un solo recibo por respuesta.
+5. **Encuesta cerrada:** responder en modo avión y tocar "Simular cierre de esta encuesta (ejemplo)". Al sincronizar debe mostrar "No se pudo contar: la encuesta cerró…"; la respuesta se conserva y se descarta solo con confirmación.
+6. **Entrevista incompleta:** dejar sin responder una pregunta obligatoria y tocar "Guardar respuestas". Debe aparecer el aviso; "Guardar incompleta" la guarda. En una respuesta propia, en cambio, no deja guardar.
+7. **Consentimiento y grabación:** no hay micrófono antes de "La persona acepta que se grabe". Debe verse el indicador y funcionar "Detener". Con "Continuar sin grabar" no hay audio.
+8. **Audio interrumpido:** una llamada o el botón Inicio detiene la grabación y conserva lo grabado. Al sincronizar aparece "Audio pendiente" y luego "Recibido".
+9. **Permiso denegado:** aparece el mensaje y "Abrir configuración"; la entrevista sigue sin audio.
+10. **Poco almacenamiento** (menos de 200 MB libres): el aviso aparece antes de grabar o guardar.
+11. **Cambio de organización:** la otra organización no ve ni envía nada de la primera.
+12. **Logout con pendientes:** aparece "Tienes encuestas sin enviar". Si se conservan y se entra con otra cuenta, no se ven ni se envían.
 
-1. **Descarga y modo avión:**
-   - Con conexión, abrir "Satisfacción con el servicio (ejemplo)" → "Descargar para usar sin conexión". Debe mostrar "Disponible sin conexión (descargada el …)".
-   - Activar modo avión y volver a la bandeja: debe mostrar "Sin conexión. Mostrando la lista guardada el …".
-   - Responder con "Responder yo" y guardar. En Envíos debe aparecer "Guardado en el dispositivo" y, tras el primer intento, "Pendiente de sincronizar".
-2. **Sin descarga no hay captura offline:** en modo avión, abrir "Entrevista vecinal (ejemplo)" sin haberla descargado. "Iniciar entrevista" debe estar deshabilitado y debe verse "Descárgala antes de responder…".
-3. **Reinicio de la app:** con un pendiente en modo avión, forzar la detención de la app y abrirla de nuevo. Envíos debe seguir mostrando el pendiente, y el borrador a medio contestar debe poder reanudarse con "Continuar borrador".
-4. **Red intermitente:** quitar el modo avión. Al volver a la app o con "Sincronizar ahora" debe cambiar a "Recibido". Alternar modo avión durante "Sincronizar ahora": lo que no se confirmó sigue pendiente y se reintenta.
-5. **Envío duplicado:** tocar "Sincronizar ahora" varias veces seguidas; solo debe haber un recibo por respuesta. Para simular una respuesta perdida, activar modo avión justo después de tocar Sincronizar: al reintentar, el servidor devuelve la misma respuesta y no crea una nueva.
-6. **Encuesta cerrada:** descargar "Satisfacción" y responder en modo avión. Todavía sin conexión, tocar "Simular cierre de esta encuesta (ejemplo)" en el detalle (el control de ejemplo no usa la red). Después quitar el modo avión y sincronizar.
-   - Debe mostrar "No se puede enviar: la encuesta cerró" y conservarse.
-   - "Descartar del teléfono" pide confirmación.
-   - "Reabrir esta encuesta (ejemplo)" deshace el cierre.
-7. **Grabación y consentimiento:** descargar "Entrevista vecinal" → "Iniciar entrevista".
-   - No debe haber botón de micrófono hasta tocar "La persona acepta que se grabe".
-   - "Iniciar grabación" pide el permiso del sistema y luego muestra "● Grabando · m:ss".
-   - "Detener grabación" muestra "Audio guardado en el teléfono".
-8. **Audio interrumpido:** mientras se graba, recibir una llamada o pulsar Inicio. Al volver debe decir "La grabación se detuvo por una interrupción… Se conservó lo grabado".
-   - Guardar respuestas y sincronizar con conexión: primero "Audio pendiente", luego "Recibido".
-9. **Permiso denegado:** en Ajustes, negar el micrófono a Afilianet e intentar grabar. Debe aparecer el mensaje, "Abrir configuración", y la entrevista debe poder continuar sin audio.
-10. **Poco almacenamiento:** llenar el teléfono hasta que queden menos de 200 MB libres e intentar grabar o guardar. Debe avisar "Tu teléfono tiene poco espacio libre…" sin pedir el micrófono ni perder lo ya guardado.
-11. **Cambio de organización:** con pendientes en A, cambiar a B. La bandeja y Envíos de B no deben mostrar ni enviar nada de A. Al volver a A, los pendientes siguen ahí.
-12. **Logout con pendientes:** con pendientes, Perfil → "Cerrar sesión" debe abrir "Tienes encuestas sin enviar", con el detalle por organización.
-    - "Cerrar sesión y conservarlas": al entrar con **otra** cuenta no se ven ni se envían.
-    - Al volver a la cuenta original, siguen y se sincronizan.
-    - "Cerrar sesión y borrarlas" pide confirmación.
-13. **Push:** con una push de encuesta (cuando exista el envío real desde Admin/API), tocarla abre la encuesta en su organización. Sin internet no llega ninguna push: es el comportamiento esperado y la app lo indica.
+**B. Con la API desplegada** (`EXPO_PUBLIC_SURVEYS_SOURCE=api`). Esto sí valida el MVP:
+- Repetir A1–A12 contra el servidor.
+- Verificar en Admin las respuestas, `rejected_closed`, `skipped`, `consent_audio` e `interrupted`.
+- Cerrar una versión archivándola o publicando una nueva mientras el teléfono está sin conexión.
+- Un encuestador no asignado debe recibir el bloqueo `not_assigned_surveyor`.
+- Un audio mayor que `max_bytes` debe aparecer como "Audio no aceptado".
+- La apertura desde push solo se puede probar cuando la push lleve `survey_id`.

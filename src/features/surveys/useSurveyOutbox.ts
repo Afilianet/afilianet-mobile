@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { strings } from "../../i18n";
-import { discardResponse, listOutbox, listReceipts, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
+import { discardRejectedAudio, discardResponse, listOutbox, listReceipts, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
 import { scopeId, type SurveyScope } from "./vault";
 
@@ -68,6 +68,15 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
     [scope, reload],
   );
 
+  const discardAudio = useCallback(
+    async (itemId: string) => {
+      if (!scope) return;
+      await discardRejectedAudio(scope, itemId);
+      await reload();
+    },
+    [scope, reload],
+  );
+
   useEffect(() => {
     void Promise.resolve().then(reload).then(() => sync(false));
     const subscription = AppState.addEventListener("change", (state) => {
@@ -86,5 +95,5 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
     return () => clearInterval(timer);
   }, [hasPending, sync]);
 
-  return { items, receipts, syncing, progress, message, sync, discard, reload };
+  return { items, receipts, syncing, progress, message, sync, discard, discardAudio, reload };
 }

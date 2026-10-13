@@ -1,87 +1,118 @@
 /**
- * PROVISIONAL survey shapes -- NOT an afilianet-api contract. No surveys
- * API exists or is planned yet (confirmed with the API session, Oct 12
- * 2026). Question/version/settings shapes mirror afilianet-admin's own
- * provisional types (feat/admin-surveys @ 265f3e5, src/lib/surveys/types.ts)
- * so both apps converge on one contract. When the real contract lands,
- * replace these field by field and delete what it does not define.
+ * Survey shapes mirroring afilianet-api's contract field by field:
+ * feat/survey-module @ 5d5642e, docs/surveys/SURVEY_CONTRACT.md (reconciled
+ * with Admin #37 and this Mobile PR). Not merged or deployed on the API side
+ * yet. Success bodies are wrapped in {data}; errors are flat {message, reason}.
  */
 
-export type QuestionType = "single_choice" | "multiple_choice" | "open_text" | "scale";
+export type QuestionType = "single_choice" | "multiple_choice" | "text" | "number" | "scale";
 
 export interface QuestionOption {
-  id: string;
+  id: number;
+  position: number;
   label: string;
 }
 
 export interface SurveyQuestion {
-  id: string;
+  id: number;
+  uuid: string;
+  position: number;
   type: QuestionType;
   prompt: string;
   required: boolean;
-  /** Only meaningful for single_choice/multiple_choice; empty otherwise. */
+  /** scale: integer, inclusive. Client-side rendering/validation only; the server never rejects out-of-range. */
+  scale_min: number | null;
+  scale_max: number | null;
+  /** number: decimal (2 places), inclusive. Same: client-side only. */
+  number_min: number | null;
+  number_max: number | null;
   options: QuestionOption[];
-  /** Only for "scale": inclusive bounds. */
-  scale?: { min: number; max: number };
 }
 
-/** Self-administered is answered by the affiliate; interviewer is captured in person by an authorized interviewer. */
-export type SurveyModality = "self_administered" | "interviewer";
+/** Only meaningful for interviewed_external responses; a self response never has audio. */
+export type AudioMode = "none" | "optional" | "required";
 
-/** One immutable, published questionnaire version -- what is downloaded for offline use. */
+export type VersionStatus = "draft" | "published" | "superseded" | "archived";
+
+/** SurveyVersionResource -- the full questionnaire, downloaded for offline capture. */
 export interface SurveyVersion {
   id: string;
   survey_id: string;
-  version: number;
+  version_number: number;
   title: string;
+  instructions: string | null;
+  allows_self_response: boolean;
+  allows_interview_response: boolean;
+  audio_mode: AudioMode;
+  /** The exact text a surveyor reads aloud before recording. */
+  consent_text: string | null;
+  opens_at: string | null;
+  closes_at: string | null;
+  status: VersionStatus;
   questions: SurveyQuestion[];
-  modality: SurveyModality;
-  recording: { enabled: boolean; consent_text: string };
-  closes_at: string | null;
 }
 
-/** What the inbox lists for the current account in the current organization. */
-export interface SurveyAssignment {
+/** GET /surveys/available -- versions open for responses right now; closed ones simply disappear. */
+export interface AvailableSurvey {
   survey_id: string;
-  organization_id: string;
+  /** The version id. */
+  id: string;
+  version_number: number;
   title: string;
-  current_version_id: string;
-  current_version: number;
-  modality: SurveyModality;
-  status: "open" | "closed";
+  status: VersionStatus;
   closes_at: string | null;
-  /** Server decision: this account may run in-person interviews for this survey. */
-  interviewer_authorized: boolean;
+  allows_self_response: boolean;
+  allows_interview_response: boolean;
+  /** For the CALLING user: may they capture interviews? */
+  is_assigned_surveyor: boolean;
 }
 
-export type AnswerValue = string | string[] | number | null;
+export type RespondentType = "self" | "interviewed_external";
+export type ConsentAudio = "accepted" | "declined";
 
+/** Exactly one value field per answer, by question type; or skipped. */
 export interface SurveyAnswer {
-  question_id: string;
-  value: AnswerValue;
+  question_id: number;
+  value_choice_ids?: number[];
+  value_text?: string;
+  value_number?: number;
+  skipped?: true;
 }
 
 export interface ResponseSubmission {
-  /** Generated on the device once; the server must treat repeats as the same response. */
+  /** Generated once on the device when the respondent finishes; the idempotency key. */
   client_response_id: string;
-  survey_id: string;
-  version_id: string;
-  modality: SurveyModality;
-  /** Only for interviews: a label the interviewer typed, never required to be a real name. */
-  respondent_label: string | null;
+  respondent_type: RespondentType;
+  /** Capture time on the device (may be long before sync). */
+  submitted_at: string;
+  consent_audio: ConsentAudio | null;
+  consent_version: string | null;
   answers: SurveyAnswer[];
-  /** When the answers were completed on the device (not when they were sent). */
-  completed_at: string;
-  recording_consent: boolean;
-  /** Whether an audio file will follow for this response. */
-  audio_expected: boolean;
 }
 
+/** 201 SurveyResponseResource (minimal shape). A duplicate client_response_id returns the original, 201 too. */
 export interface ResponseReceipt {
-  response_id: string;
+  id: string;
+  survey_version_id: string;
+  client_response_id: string;
+  respondent_type: RespondentType;
+  status: string;
+  submitted_at: string;
   received_at: string;
+  consent_audio: ConsentAudio | "not_applicable";
 }
 
-export interface AudioReceipt {
-  received_at: string;
+/** GET /surveys/audio-config -- read live, never hardcoded. */
+export interface AudioConfig {
+  max_bytes: number;
+  allowed_mime_types: string[];
+  upload_url_expiry_seconds: number;
+}
+
+export interface AudioUploadSession {
+  id: string;
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  expires_at: string;
 }

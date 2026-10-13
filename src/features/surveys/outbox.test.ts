@@ -2,6 +2,7 @@ import { captureApiSessionGuard } from "../../api/client";
 import { ApiError } from "../../api/errors";
 import { createFixtureSurveySource } from "./fixtureSource";
 import {
+  discardRejectedAudio,
   discardResponse,
   displayState,
   enqueueResponse,
@@ -13,6 +14,10 @@ import {
 } from "./outbox";
 import type { SurveySource } from "./source";
 import { hasItem, sealBytes, type SurveyScope } from "./vault";
+
+// NOTE: these exercise the device queue against the contract's rules (API
+// feat/survey-module @ f5d8a5b) through the sample source. They do NOT
+// validate the surveys MVP end to end against a real server.
 
 jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual("@react-native-async-storage/async-storage/jest/async-storage-mock"));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test" } }));
@@ -55,37 +60,38 @@ const guard = captureApiSessionGuard as jest.Mock;
 const ORG_A: SurveyScope = { userId: "user-1", organizationId: "org-a" };
 const ORG_B: SurveyScope = { userId: "user-1", organizationId: "org-b" };
 const OTHER_USER: SurveyScope = { userId: "user-2", organizationId: "org-a" };
+const SELF_VERSION = "fx-v-servicio-2";
+const INTERVIEW_VERSION = "fx-v-vecinal-1";
 
 let online = true;
 let source: ReturnType<typeof createFixtureSurveySource>;
 
-function item(id: string, overrides: Partial<Omit<OutboxItem, "attempts">> = {}): Omit<OutboxItem, "attempts"> {
+function selfItem(id: string, overrides: Partial<Omit<OutboxItem, "attempts">> = {}): Omit<OutboxItem, "attempts"> {
   return {
     id,
     surveyId: "fx-servicio",
-    versionId: "fx-v-servicio-2",
+    versionId: SELF_VERSION,
     surveyTitle: "Satisfacción",
-    modality: "self_administered",
-    respondentLabel: null,
+    respondentType: "self",
+    consentAudio: null,
     completedAt: "2026-10-12T10:00:00Z",
-    recordingConsent: false,
     audio: null,
     ...overrides,
   };
 }
 
-async function withAudio(scope: SurveyScope, id: string, clientAudioId: string) {
+async function interviewWithAudio(scope: SurveyScope, id: string, clientAudioId: string, overrides: { bytes?: number; consent?: "accepted" | "declined" } = {}) {
   await sealBytes(scope, `audio-${clientAudioId}`, new Uint8Array([1, 2, 3, 4]));
   return enqueueResponse(
     scope,
-    item(id, {
+    selfItem(id, {
       surveyId: "fx-vecinal",
-      versionId: "fx-v-vecinal-1",
-      modality: "interviewer",
-      recordingConsent: true,
-      audio: { clientAudioId, mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 4 },
+      versionId: INTERVIEW_VERSION,
+      respondentType: "interviewed_external",
+      consentAudio: overrides.consent ?? "accepted",
+      audio: { clientAudioId, mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: overrides.bytes ?? 4 },
     }),
-    [{ question_id: "q1", value: "a" }],
+    [{ question_id: 1, value_choice_ids: [1] }],
   );
 }
 
@@ -103,7 +109,7 @@ beforeEach(async () => {
 
 describe("survey outbox", () => {
   it("shows distinct states: saved on device, pending sync, audio pending, and a separate receipt once received", async () => {
-    const saved = await enqueueResponse(ORG_A, item("r-1"), [{ question_id: "q1", value: "a" }]);
+    const saved = await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
     expect(displayState(saved)).toBe("saved");
 
     online = false;
@@ -111,7 +117,7 @@ describe("survey outbox", () => {
     expect(displayState((await listOutbox(ORG_A))[0])).toBe("pending_sync");
 
     online = true;
-    await withAudio(ORG_A, "r-2", "aud-2");
+    await interviewWithAudio(ORG_A, "r-2", "aud-2");
     jest.spyOn(source, "uploadAudio").mockRejectedValueOnce(new ApiError("server", "boom", 500));
     await syncOutbox(ORG_A, source, { force: true });
 
@@ -120,43 +126,46 @@ describe("survey outbox", () => {
     expect((await listReceipts(ORG_A)).map((receipt) => receipt.id)).toEqual(["r-1"]);
   });
 
-  it("sends every answer set before any audio", async () => {
+  it("sends every answer set before any audio, with the contract's fields", async () => {
     const calls: string[] = [];
+    const submit = source.submitResponse.bind(source);
+    const upload = source.uploadAudio.bind(source);
     const tracked: SurveySource = {
       ...source,
-      submitResponse: async (org, submission) => {
+      submitResponse: async (org, versionId, submission) => {
         calls.push(`answers:${submission.client_response_id}`);
-        return source.submitResponse(org, submission);
+        expect(submission).toMatchObject({ respondent_type: "interviewed_external", consent_audio: "accepted", consent_version: versionId });
+        return submit(org, versionId, submission);
       },
       uploadAudio: async (org, input) => {
-        calls.push(`audio:${input.client_audio_id}`);
-        return source.uploadAudio(org, input);
+        calls.push(`audio:${input.responseId.slice(0, 5)}`);
+        expect(input).toMatchObject({ mimeType: "audio/mp4", durationSeconds: 4, interrupted: false });
+        return upload(org, input);
       },
     };
-    await withAudio(ORG_A, "r-1", "aud-1");
-    await withAudio(ORG_A, "r-2", "aud-2");
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    await interviewWithAudio(ORG_A, "r-2", "aud-2");
     await syncOutbox(ORG_A, tracked);
 
-    expect(calls).toEqual(["answers:r-1", "answers:r-2", "audio:aud-1", "audio:aud-2"]);
+    expect(calls).toEqual(["answers:r-1", "answers:r-2", "audio:fx-r-", "audio:fx-r-"]);
     expect(await listOutbox(ORG_A)).toEqual([]);
   });
 
-  it("is idempotent when a reply is lost: the resend gets the same server response and no duplicate", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), [{ question_id: "q1", value: "a" }]);
+  it("is idempotent when a reply is lost: the resend gets the original response, never a duplicate", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
     const submit = source.submitResponse.bind(source);
     const ids: string[] = [];
-    jest.spyOn(source, "submitResponse").mockImplementationOnce(async (org, submission) => {
-      ids.push((await submit(org, submission)).response_id);
+    jest.spyOn(source, "submitResponse").mockImplementationOnce(async (org, versionId, submission) => {
+      ids.push((await submit(org, versionId, submission)).id);
       throw new ApiError("timeout", "lost reply");
     });
     await syncOutbox(ORG_A, source);
     expect(await listOutbox(ORG_A)).toHaveLength(1);
     expect(hasItem(ORG_A, "answers-r-1")).toBe(true);
 
-    const spy = jest.spyOn(source, "submitResponse");
-    spy.mockImplementation(async (org, submission) => {
-      const receipt = await submit(org, submission);
-      ids.push(receipt.response_id);
+    jest.spyOn(source, "submitResponse").mockImplementation(async (org, versionId, submission) => {
+      const receipt = await submit(org, versionId, submission);
+      ids.push(receipt.id);
       return receipt;
     });
     await syncOutbox(ORG_A, source, { force: true });
@@ -167,7 +176,7 @@ describe("survey outbox", () => {
   });
 
   it("keeps the local copy until the server confirms it", async () => {
-    await withAudio(ORG_A, "r-1", "aud-1");
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
     jest.spyOn(source, "uploadAudio").mockRejectedValueOnce(new ApiError("server", "boom", 500));
     await syncOutbox(ORG_A, source);
 
@@ -177,9 +186,35 @@ describe("survey outbox", () => {
     expect(hasItem(ORG_A, "audio-aud-1")).toBe(false);
   });
 
+  it("never uploads audio when the consent was declined, and deletes the local recording", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1", { consent: "declined" });
+    const upload = jest.spyOn(source, "uploadAudio");
+    await syncOutbox(ORG_A, source);
+    expect(upload).not.toHaveBeenCalled();
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(false);
+    expect((await listReceipts(ORG_A))[0]).toMatchObject({ id: "r-1", withAudio: false });
+  });
+
+  it("reads the audio limits from the server and keeps a too-large audio until the person discards it", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1", { bytes: 16 * 1024 * 1024 });
+    const upload = jest.spyOn(source, "uploadAudio");
+    await syncOutbox(ORG_A, source);
+
+    const [item] = await listOutbox(ORG_A);
+    expect(displayState(item)).toBe("audio_rejected");
+    expect(item.audio?.rejected).toBe("object_too_large");
+    expect(upload).not.toHaveBeenCalled();
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+
+    await discardRejectedAudio(ORG_A, "r-1");
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(false);
+    expect((await listReceipts(ORG_A))[0]).toMatchObject({ id: "r-1", withAudio: false });
+  });
+
   it("stops in airplane mode, backs off, and retries on demand", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), []);
-    await enqueueResponse(ORG_A, item("r-2"), []);
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
+    await enqueueResponse(ORG_A, selfItem("r-2"), []);
     online = false;
     const spy = jest.spyOn(source, "submitResponse");
     const result = await syncOutbox(ORG_A, source, { now: () => 1_000 });
@@ -197,48 +232,59 @@ describe("survey outbox", () => {
     expect(await listOutbox(ORG_A)).toEqual([]);
   });
 
-  it("keeps a response whose survey closed, and only discards it when the person decides", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), [{ question_id: "q1", value: "a" }]);
-    await source.setClosed("fx-servicio", true);
+  it("closed while offline: 422 survey_version_closed blocks and KEEPS it, never retried, discarded only on request", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    await source.setClosed(SELF_VERSION, true);
     await syncOutbox(ORG_A, source);
 
     const [blocked] = await listOutbox(ORG_A);
     expect(displayState(blocked)).toBe("blocked");
+    expect(blocked.blocked).toBe("survey_version_closed");
     expect(hasItem(ORG_A, "answers-r-1")).toBe(true);
+
+    const spy = jest.spyOn(source, "submitResponse");
     await syncOutbox(ORG_A, source, { force: true });
-    expect(await listOutbox(ORG_A)).toHaveLength(1);
+    expect(spy).not.toHaveBeenCalled();
 
     await discardResponse(ORG_A, "r-1");
     expect(await listOutbox(ORG_A)).toEqual([]);
     expect(hasItem(ORG_A, "answers-r-1")).toBe(false);
   });
 
+  it("blocks an interview from someone who is no longer an assigned surveyor", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "x", 403, undefined, { reason: "not_assigned_surveyor" }));
+    await syncOutbox(ORG_A, source);
+    const [item] = await listOutbox(ORG_A);
+    expect(item.blocked).toBe("not_assigned_surveyor");
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+  });
+
   it("stops before the next request when the session or organization changes mid-sync", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), []);
-    await enqueueResponse(ORG_A, item("r-2"), []);
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
+    await enqueueResponse(ORG_A, selfItem("r-2"), []);
     let current = true;
     guard.mockReturnValue(() => current);
-    const spy = jest.spyOn(source, "submitResponse").mockImplementation(async (org, submission) => {
+    const spy = jest.spyOn(source, "submitResponse").mockImplementation(async (org, versionId, submission) => {
       current = false; // signed out / switched while the first request was in flight
-      return createFixtureSurveySource(async () => undefined).submitResponse(org, submission);
+      return createFixtureSurveySource(async () => undefined).submitResponse(org, versionId, submission);
     });
     const result = await syncOutbox(ORG_A, source);
 
     expect(result.stoppedReason).toBe("session_changed");
     expect(spy).toHaveBeenCalledTimes(1);
-    const remaining = await listOutbox(ORG_A);
-    expect(remaining.map((value) => value.id)).toEqual(["r-1", "r-2"]); // reply not trusted under the new session
+    expect((await listOutbox(ORG_A)).map((value) => value.id)).toEqual(["r-1", "r-2"]); // reply not trusted under the new session
     expect(guard).toHaveBeenCalledWith("org-a");
   });
 
   it("never lists, sends or reports one account's or organization's pending items for another", async () => {
-    await enqueueResponse(ORG_A, item("a-1"), []);
-    await enqueueResponse(ORG_B, item("b-1"), []);
-    await enqueueResponse(OTHER_USER, item("u2-1"), []);
+    await enqueueResponse(ORG_A, selfItem("a-1"), []);
+    await enqueueResponse(ORG_B, selfItem("b-1"), []);
+    await enqueueResponse(OTHER_USER, selfItem("u2-1"), []);
     const spy = jest.spyOn(source, "submitResponse");
 
     await syncOutbox(ORG_B, source);
-    expect(spy.mock.calls.map(([org, submission]) => [org, submission.client_response_id])).toEqual([["org-b", "b-1"]]);
+    expect(spy.mock.calls.map(([org, , submission]) => [org, submission.client_response_id])).toEqual([["org-b", "b-1"]]);
     expect((await listOutbox(ORG_A)).map((value) => value.id)).toEqual(["a-1"]);
 
     const pending = await pendingForAccount("user-1");
@@ -247,15 +293,15 @@ describe("survey outbox", () => {
   });
 
   it("does not double-send when a second sync starts while one is running", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), []);
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
     const spy = jest.spyOn(source, "submitResponse");
     await Promise.all([syncOutbox(ORG_A, source), syncOutbox(ORG_A, source)]);
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("does not create a second outbox entry when the same response is saved twice (double tap)", async () => {
-    await enqueueResponse(ORG_A, item("r-1"), []);
-    await enqueueResponse(ORG_A, item("r-1"), []);
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
     expect(await listOutbox(ORG_A)).toHaveLength(1);
   });
 });

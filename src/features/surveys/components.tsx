@@ -22,6 +22,7 @@ const STATE_COPY: Record<OutboxDisplayState, { label: string; tone: BadgeTone }>
   saved: { label: strings.surveys.outbox.saved, tone: "neutral" },
   pending_sync: { label: strings.surveys.outbox.pendingSync, tone: "warning" },
   audio_pending: { label: strings.surveys.outbox.audioPending, tone: "warning" },
+  audio_rejected: { label: strings.surveys.outbox.audioRejected, tone: "danger" },
   blocked: { label: strings.surveys.outbox.blocked, tone: "danger" },
 };
 
@@ -38,6 +39,7 @@ export function OutboxPanel({
   message,
   onSync,
   onDiscard,
+  onDiscardAudio,
 }: {
   items: OutboxItem[];
   receipts: OutboxReceipt[];
@@ -46,6 +48,7 @@ export function OutboxPanel({
   message: string | null;
   onSync: () => void;
   onDiscard: (id: string) => void;
+  onDiscardAudio: (id: string) => void;
 }) {
   const copy = strings.surveys.outbox;
 
@@ -69,8 +72,15 @@ export function OutboxPanel({
           <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.withAudio}` : ""}</Text>
           {item.blocked ? (
             <>
+              <Text style={styles.body}>{copy.blockedReason[item.blocked]}</Text>
               <Text style={styles.body}>{copy.blockedHelp}</Text>
               <Button label={copy.discard} variant="ghost" size="sm" onPress={() => confirmDiscard(item.id)} />
+            </>
+          ) : null}
+          {!item.blocked && item.audio?.rejected ? (
+            <>
+              <Text style={styles.body}>{copy.audioRejectedHelp}</Text>
+              <Button label={copy.discardAudio} variant="ghost" size="sm" onPress={() => onDiscardAudio(item.id)} />
             </>
           ) : null}
         </View>

@@ -1,14 +1,21 @@
 import { useMemo } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
+import { createApiSurveySource } from "./apiSource";
 import { createFixtureSurveySource } from "./fixtureSource";
 import type { SurveySource } from "./source";
 import type { SurveyScope } from "./vault";
 
 export { surveysPreviewEnabled } from "./flags";
 
-/** The only source today is sample data; an API-backed one replaces it when the contract exists. */
-export const surveySource: SurveySource = createFixtureSurveySource();
+/**
+ * afilianet-api's surveys module (feat/survey-module @ 5d5642e) is not deployed
+ * yet, so the default stays the sample-data preview. Set
+ * EXPO_PUBLIC_SURVEYS_SOURCE=api once the API is deployed in the target
+ * environment; both sources follow the same contract.
+ */
+export const surveySource: SurveySource =
+  process.env.EXPO_PUBLIC_SURVEYS_SOURCE === "api" ? createApiSurveySource() : createFixtureSurveySource();
 
 /**
  * The current account+organization, or null. Every surveys read/write goes

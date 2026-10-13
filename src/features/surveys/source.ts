@@ -1,30 +1,32 @@
-import type { AudioReceipt, ResponseReceipt, ResponseSubmission, SurveyAssignment, SurveyVersion } from "./types";
+import type { AudioConfig, AvailableSurvey, ResponseReceipt, ResponseSubmission, SurveyVersion } from "./types";
 
 /**
- * Everything Mobile needs from the server for surveys, with no HTTP shape
- * baked in. Every call names the organization explicitly; the caller binds
- * it to the session it started in (captureApiSessionGuard), so nothing can
- * be fetched or sent under another account or organization.
+ * Everything Mobile needs from the server for surveys (contract: API
+ * feat/survey-module @ 5d5642e). Every call names the organization; callers
+ * bind it to the session it started in (captureApiSessionGuard), so nothing
+ * is fetched or sent under another account or organization.
  *
- * Contract requirements this interface encodes (to hand to afilianet-api):
- * - submitResponse is idempotent on client_response_id: a repeat returns the
- *   SAME response_id and never creates a second response.
- * - uploadAudio is idempotent on client_audio_id and only resolves once the
- *   server has durably stored the file; the device deletes its copy only then.
- * - Answers first, audio second: uploadAudio needs the response_id.
- * - A closed survey rejects with reason "survey_closed" (ApiError kind
- *   "conflict"); the device keeps the data and asks the person what to do.
- * - Transcription and analysis run on the server after the audio arrives;
- *   nothing on the device transcribes.
+ * Contract rules the device relies on:
+ * - submitResponse is idempotent on (version, client_response_id): a repeat
+ *   returns the ORIGINAL response, 201 both times.
+ * - Closed version (archived, superseded, or outside opens_at/closes_at):
+ *   422 reason "survey_version_closed"; stored server-side as rejected_closed;
+ *   never retried automatically.
+ * - Audio needs an accepted consent and an existing response (answers first):
+ *   upload session -> PUT to the presigned URL -> complete (idempotent). An
+ *   interrupted upload restarts from a NEW session; there is no byte-range resume.
+ * - Transcription and quality analysis run on the server after the audio lands.
  */
 export interface SurveySource {
-  /** "fixture" until afilianet-api publishes the contract; the UI says so visibly. */
+  /** "fixture" = sample data shown as a preview; "api" = afilianet-api. */
   readonly kind: "fixture" | "api";
-  listAssignments(organizationId: string): Promise<SurveyAssignment[]>;
-  getVersion(organizationId: string, surveyId: string, versionId: string): Promise<SurveyVersion>;
-  submitResponse(organizationId: string, submission: ResponseSubmission): Promise<ResponseReceipt>;
+  listAvailable(organizationId: string): Promise<AvailableSurvey[]>;
+  getVersion(organizationId: string, versionId: string): Promise<SurveyVersion>;
+  submitResponse(organizationId: string, versionId: string, submission: ResponseSubmission): Promise<ResponseReceipt>;
+  getAudioConfig(organizationId: string): Promise<AudioConfig>;
+  /** Session -> upload -> complete. Resolves only once the server confirmed the object. */
   uploadAudio(
     organizationId: string,
-    input: { response_id: string; client_audio_id: string; mime_type: string; bytes: Uint8Array; duration_ms: number; interrupted: boolean },
-  ): Promise<AudioReceipt>;
+    input: { responseId: string; mimeType: string; bytes: Uint8Array; durationSeconds: number; interrupted: boolean },
+  ): Promise<void>;
 }

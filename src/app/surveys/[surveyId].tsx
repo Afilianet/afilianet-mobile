@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { accessErrorMessage } from "../../api/access";
 import { EmptyState } from "../../components/EmptyState";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Badge } from "../../components/ui/Badge";
@@ -16,6 +17,7 @@ import {
   downloadVersion,
   getDownloaded,
   listDrafts,
+  refreshInbox,
   removeDownloaded,
   saveDraft,
   type DownloadedVersion,
@@ -23,21 +25,27 @@ import {
 } from "../../features/surveys/library";
 import { audioName, newClientId } from "../../features/surveys/outbox";
 import { surveySource, useSurveyScope } from "../../features/surveys/runtime";
-import type { SurveyAssignment } from "../../features/surveys/types";
+import type { AvailableSurvey, RespondentType } from "../../features/surveys/types";
 import { removeItem, scopeId, StorageFullError } from "../../features/surveys/vault";
-import { accessErrorMessage } from "../../api/access";
 import { strings } from "../../i18n";
 import { surveyResponse } from "../../navigation/routes";
 import { formatDateTime } from "../../utils/date";
+
+interface Loaded {
+  key: string;
+  /** null when the last inbox no longer lists it (closed, superseded or archived). */
+  available: AvailableSurvey | null;
+  inboxKnown: boolean;
+  downloaded: DownloadedVersion | null;
+  drafts: SurveyDraft[];
+}
 
 export default function SurveyDetailScreen() {
   const router = useRouter();
   const { surveyId } = useLocalSearchParams<{ surveyId: string }>();
   const scope = useSurveyScope();
   const copy = strings.surveys;
-  const [assignment, setAssignment] = useState<SurveyAssignment | null | undefined>(undefined);
-  const [downloaded, setDownloaded] = useState<DownloadedVersion | null>(null);
-  const [drafts, setDrafts] = useState<SurveyDraft[]>([]);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scopeKey = scope ? scopeId(scope) : null;
@@ -49,23 +57,41 @@ export default function SurveyDetailScreen() {
   const load = useCallback(async () => {
     if (!scope || !surveyId) return;
     const key = scopeId(scope);
-    const [inbox, version, allDrafts] = await Promise.all([cachedInbox(scope), getDownloaded(scope, surveyId), listDrafts(scope)]);
+    const [inbox, downloaded, allDrafts] = await Promise.all([cachedInbox(scope), getDownloaded(scope, surveyId), listDrafts(scope)]);
     if (key !== currentScope.current) return;
-    setAssignment(inbox?.assignments.find((value) => value.survey_id === surveyId) ?? null);
-    setDownloaded(version);
-    setDrafts(allDrafts.filter((draft) => draft.surveyId === surveyId));
+    setLoaded({
+      key,
+      available: inbox?.surveys.find((value) => value.survey_id === surveyId) ?? null,
+      inboxKnown: Boolean(inbox),
+      downloaded,
+      drafts: allDrafts.filter((draft) => draft.surveyId === surveyId),
+    });
   }, [scope, surveyId]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load, scopeKey]);
 
+  // Keyed by scope: another account's or organization's data is never rendered.
+  const current = loaded && loaded.key === scopeKey ? loaded : null;
+  if (!current) return <SkeletonGroup lines={4} />;
+  const { available, inboxKnown, downloaded, drafts } = current;
+  if (!available && !downloaded) return <EmptyState title={copy.title} description={inboxKnown ? copy.notAvailableAnymore : copy.noCachedInbox} />;
+
+  const version = downloaded?.version ?? null;
+  const outdated = Boolean(available && downloaded && downloaded.version.id !== available.id);
+  const open = Boolean(available) && !outdated;
+  const allowsSelf = version?.allows_self_response ?? available?.allows_self_response ?? false;
+  const allowsInterview = version?.allows_interview_response ?? available?.allows_interview_response ?? false;
+  const assigned = available?.is_assigned_surveyor ?? false;
+  const title = available?.title ?? version?.title ?? copy.title;
+
   async function download() {
-    if (!scope || !assignment) return;
+    if (!scope || !available) return;
     setBusy(true);
     setError(null);
     try {
-      await downloadVersion(scope, surveySource, assignment);
+      await downloadVersion(scope, surveySource, available);
       await load();
     } catch (cause) {
       setError(cause instanceof StorageFullError ? cause.message : accessErrorMessage(cause));
@@ -74,17 +100,16 @@ export default function SurveyDetailScreen() {
     }
   }
 
-  async function start() {
-    if (!scope || !downloaded || !assignment) return;
+  async function start(respondentType: RespondentType) {
+    if (!scope || !version) return;
     const draft: SurveyDraft = {
       id: newClientId(),
-      surveyId: downloaded.version.survey_id,
-      versionId: downloaded.version.id,
-      surveyTitle: downloaded.version.title,
-      modality: downloaded.version.modality,
-      respondentLabel: null,
+      surveyId: version.survey_id,
+      versionId: version.id,
+      surveyTitle: version.title,
+      respondentType,
       answers: {},
-      recordingConsent: downloaded.version.recording.enabled && downloaded.version.modality === "interviewer" ? null : false,
+      consentAudio: null,
       audio: null,
       updatedAt: new Date().toISOString(),
     };
@@ -99,7 +124,7 @@ export default function SurveyDetailScreen() {
   function discard(draft: SurveyDraft) {
     if (!scope) return;
     Alert.alert(copy.discardDraft, copy.discardDraftConfirm, [
-      { text: strings.surveys.signOut.cancel, style: "cancel" },
+      { text: copy.signOut.cancel, style: "cancel" },
       {
         text: copy.discardDraft,
         style: "destructive",
@@ -114,60 +139,65 @@ export default function SurveyDetailScreen() {
   }
 
   async function setFixtureClosed(closed: boolean) {
-    if (surveySource.kind !== "fixture" || !assignment) return;
-    await (surveySource as unknown as { setClosed(id: string, closed: boolean): Promise<void> }).setClosed(assignment.survey_id, closed);
-    setAssignment({ ...assignment, status: closed ? "closed" : "open" });
+    const versionId = available?.id ?? version?.id;
+    if (surveySource.kind !== "fixture" || !versionId) return;
+    await (surveySource as unknown as { setClosed(id: string, closed: boolean): Promise<void> }).setClosed(versionId, closed);
+    // Online the inbox reflects it; offline the phone keeps not knowing ("closed while offline").
+    if (scope) await refreshInbox(scope, surveySource).catch(() => null);
+    await load();
   }
-
-  if (assignment === undefined) return <SkeletonGroup lines={4} />;
-  if (assignment === null) return <EmptyState title={copy.title} description={copy.noCachedInbox} />;
-
-  const closed = assignment.status === "closed";
-  const outdated = downloaded && downloaded.version.id !== assignment.current_version_id;
-  const interview = assignment.modality === "interviewer";
-  const canStart = Boolean(downloaded) && !closed && (!interview || assignment.interviewer_authorized);
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} testID="survey-detail-scroll">
         <View style={styles.header}>
-          <Text style={styles.heading} accessibilityRole="header">{assignment.title}</Text>
+          <Text style={styles.heading} accessibilityRole="header">{title}</Text>
           <IconButton label={strings.common.close} onPress={() => router.back()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
         <SurveysPreviewNotice />
         <View style={styles.row}>
-          <Badge label={copy.status[assignment.status]} tone={closed ? "neutral" : "success"} />
-          <Text style={styles.meta}>{`${copy.modality[assignment.modality]} · ${copy.version(assignment.current_version)}`}</Text>
+          <Badge label={open ? copy.status.open : copy.status.closed} tone={open ? "success" : "neutral"} />
+          {version ? <Text style={styles.meta}>{copy.version(version.version_number)}</Text> : null}
         </View>
+        {!available && inboxKnown ? <Text style={styles.body}>{copy.notAvailableAnymore}</Text> : null}
 
         <Card style={styles.card}>
           {downloaded && !outdated ? <Text style={styles.offline}>{copy.availableOffline(formatDateTime(downloaded.downloadedAt))}</Text> : null}
-          {outdated ? <Text style={styles.body}>{copy.outdatedDownload(downloaded.version.version, assignment.current_version)}</Text> : null}
+          {outdated && downloaded && available ? (
+            <Text style={styles.body}>{copy.outdatedDownload(downloaded.version.version_number, available.version_number)}</Text>
+          ) : null}
           {!downloaded ? <Text style={styles.body}>{copy.notDownloaded}</Text> : null}
-          {!closed && (!downloaded || outdated) ? <Button label={copy.download} variant="secondary" loading={busy} onPress={() => void download()} /> : null}
+          {available && (!downloaded || outdated) ? <Button label={copy.download} variant="secondary" loading={busy} onPress={() => void download()} /> : null}
           {downloaded && drafts.length === 0 ? (
             <Button
               label={copy.removeDownload}
               variant="ghost"
               size="sm"
-              onPress={() => void (scope ? removeDownloaded(scope, assignment.survey_id).then(load) : undefined)}
+              onPress={() => void (scope ? removeDownloaded(scope, downloaded.version.survey_id).then(load) : undefined)}
             />
           ) : null}
         </Card>
 
-        {closed ? <Text style={styles.body}>{copy.closedCannotStart}</Text> : null}
-        {interview && !assignment.interviewer_authorized ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
+        {allowsInterview && !assigned ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        <Button label={interview ? copy.startInterview : copy.answerMyself} disabled={!canStart} onPress={() => void start()} />
+        {allowsSelf ? <Button label={copy.answerMyself} disabled={!open || !version} onPress={() => void start("self")} /> : null}
+        {allowsInterview && assigned ? (
+          <Button label={copy.startInterview} variant={allowsSelf ? "secondary" : "primary"} disabled={!open || !version} onPress={() => void start("interviewed_external")} />
+        ) : null}
 
         {drafts.length ? (
           <Card style={styles.card}>
             <Text style={styles.cardTitle}>{copy.drafts}</Text>
             {drafts.map((draft) => (
               <View key={draft.id} style={styles.draft}>
-                <Button label={copy.resumeDraft(formatDateTime(draft.updatedAt))} variant="secondary" size="sm" onPress={() => router.push(surveyResponse(draft.id) as never)} />
+                <Button
+                  label={`${copy.resumeDraft(formatDateTime(draft.updatedAt))} · ${draft.respondentType === "self" ? copy.availability.self : copy.availability.interview}`}
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => router.push(surveyResponse(draft.id) as never)}
+                />
                 <Button label={copy.discardDraft} variant="ghost" size="sm" onPress={() => discard(draft)} />
               </View>
             ))}
@@ -176,10 +206,10 @@ export default function SurveyDetailScreen() {
 
         {surveySource.kind === "fixture" ? (
           <Button
-            label={closed ? copy.fixture.reopenSurvey : copy.fixture.closeSurvey}
+            label={available ? copy.fixture.closeSurvey : copy.fixture.reopenSurvey}
             variant="ghost"
             size="sm"
-            onPress={() => void setFixtureClosed(!closed)}
+            onPress={() => void setFixtureClosed(Boolean(available))}
           />
         ) : null}
       </ScrollView>

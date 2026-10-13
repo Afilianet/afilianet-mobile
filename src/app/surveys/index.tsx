@@ -13,7 +13,7 @@ import { Icon } from "../../design-system/icons/Icon";
 import { OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
 import { cachedInbox, getDownloaded, refreshInbox, type DownloadedVersion } from "../../features/surveys/library";
 import { surveySource, surveysPreviewEnabled, useSurveyScope } from "../../features/surveys/runtime";
-import type { SurveyAssignment } from "../../features/surveys/types";
+import type { AvailableSurvey } from "../../features/surveys/types";
 import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import { scopeId } from "../../features/surveys/vault";
 import { strings } from "../../i18n";
@@ -22,8 +22,8 @@ import { formatDateTime } from "../../utils/date";
 
 type InboxState =
   | { kind: "loading" }
-  | { kind: "online"; assignments: SurveyAssignment[] }
-  | { kind: "offline"; assignments: SurveyAssignment[]; fetchedAt: string }
+  | { kind: "online"; surveys: AvailableSurvey[] }
+  | { kind: "offline"; surveys: AvailableSurvey[]; fetchedAt: string }
   | { kind: "offline_empty" }
   | { kind: "error"; message: string };
 
@@ -45,18 +45,18 @@ export default function SurveysInboxScreen() {
     const key = scopeId(scope);
     let next: InboxState;
     try {
-      next = { kind: "online", assignments: (await refreshInbox(scope, surveySource)).assignments };
+      next = { kind: "online", surveys: (await refreshInbox(scope, surveySource)).surveys };
     } catch (error) {
       const offline = isApiError(error) && (error.kind === "offline" || error.kind === "timeout");
       const cached = await cachedInbox(scope);
       next = cached
-        ? { kind: "offline", assignments: cached.assignments, fetchedAt: cached.fetchedAt }
+        ? { kind: "offline", surveys: cached.surveys, fetchedAt: cached.fetchedAt }
         : offline
           ? { kind: "offline_empty" }
           : { kind: "error", message: strings.shared.genericError };
     }
-    const assignments = "assignments" in next ? next.assignments : [];
-    const entries = await Promise.all(assignments.map(async (assignment) => [assignment.survey_id, await getDownloaded(scope, assignment.survey_id)] as const));
+    const listed = "surveys" in next ? next.surveys : [];
+    const entries = await Promise.all(listed.map(async (survey) => [survey.survey_id, await getDownloaded(scope, survey.survey_id)] as const));
     // A switch of account/organization while loading must not show the previous one's list.
     if (key !== currentScope.current) return;
     setLoadedInbox({ key, inbox: next, downloads: Object.fromEntries(entries) });
@@ -83,7 +83,7 @@ export default function SurveysInboxScreen() {
     return <EmptyState title={copy.title} description={copy.inboxEmpty} />;
   }
 
-  const assignments = inbox.kind === "online" || inbox.kind === "offline" ? inbox.assignments : [];
+  const surveys = inbox.kind === "online" || inbox.kind === "offline" ? inbox.surveys : [];
 
   return (
     <View style={styles.screen}>
@@ -109,28 +109,33 @@ export default function SurveysInboxScreen() {
           message={outbox.message}
           onSync={() => void outbox.sync(true)}
           onDiscard={(id) => void outbox.discard(id)}
+          onDiscardAudio={(id) => void outbox.discardAudio(id)}
         />
 
         {inbox.kind === "loading" ? <SkeletonGroup lines={3} /> : null}
         {inbox.kind === "offline" ? <Text style={styles.notice}>{copy.offlineInbox(formatDateTime(inbox.fetchedAt))}</Text> : null}
         {inbox.kind === "offline_empty" ? <Text style={styles.notice}>{copy.noCachedInbox}</Text> : null}
         {inbox.kind === "error" ? <Text accessibilityRole="alert" style={styles.error}>{inbox.message}</Text> : null}
-        {(inbox.kind === "online" || inbox.kind === "offline") && assignments.length === 0 ? <Text style={styles.body}>{copy.inboxEmpty}</Text> : null}
+        {(inbox.kind === "online" || inbox.kind === "offline") && surveys.length === 0 ? <Text style={styles.body}>{copy.inboxEmpty}</Text> : null}
 
-        {assignments.map((assignment) => {
-          const downloaded = downloads[assignment.survey_id];
-          const outdated = downloaded && downloaded.version.id !== assignment.current_version_id;
-          const destination = surveyDetail(assignment.survey_id);
+        {surveys.map((survey) => {
+          const downloaded = downloads[survey.survey_id];
+          const outdated = downloaded && downloaded.version.id !== survey.id;
+          const destination = surveyDetail(survey.survey_id);
+          const modes = [
+            survey.allows_self_response ? copy.availability.self : null,
+            survey.allows_interview_response && survey.is_assigned_surveyor ? copy.availability.interview : null,
+          ].filter(Boolean).join(" · ");
           return (
-            <Card key={assignment.survey_id} style={styles.card} testID={`survey-${assignment.survey_id}`}>
+            <Card key={survey.survey_id} style={styles.card} testID={`survey-${survey.survey_id}`}>
               <View style={styles.row}>
-                <Text style={styles.cardTitle}>{assignment.title}</Text>
-                <Badge label={copy.status[assignment.status]} tone={assignment.status === "open" ? "success" : "neutral"} />
+                <Text style={styles.cardTitle}>{survey.title}</Text>
+                <Badge label={copy.status.open} tone="success" />
               </View>
-              <Text style={styles.meta}>{`${copy.modality[assignment.modality]} · ${copy.version(assignment.current_version)}`}</Text>
+              <Text style={styles.meta}>{[modes, copy.version(survey.version_number)].filter(Boolean).join(" · ")}</Text>
               {downloaded && !outdated ? <Text style={styles.offline}>{copy.availableOffline(formatDateTime(downloaded.downloadedAt))}</Text> : null}
-              {outdated ? <Text style={styles.notice}>{copy.outdatedDownload(downloaded.version.version, assignment.current_version)}</Text> : null}
-              {!downloaded && assignment.status === "open" ? <Text style={styles.meta}>{copy.notDownloaded}</Text> : null}
+              {outdated ? <Text style={styles.notice}>{copy.outdatedDownload(downloaded.version.version_number, survey.version_number)}</Text> : null}
+              {!downloaded ? <Text style={styles.meta}>{copy.notDownloaded}</Text> : null}
               {destination ? <Button label={copy.open} variant="secondary" size="sm" onPress={() => router.push(destination as never)} /> : null}
             </Card>
           );

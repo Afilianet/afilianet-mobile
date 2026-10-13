@@ -1,7 +1,7 @@
 import { act, render } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
 import { cachedInbox, getDownloaded, refreshInbox } from "../../features/surveys/library";
-import type { SurveyAssignment } from "../../features/surveys/types";
+import type { AvailableSurvey } from "../../features/surveys/types";
 import SurveysInboxScreen from "../../app/surveys/index";
 
 jest.setTimeout(30_000);
@@ -15,23 +15,23 @@ jest.mock("../../features/surveys/runtime", () => ({
   surveysPreviewEnabled: true,
 }));
 jest.mock("../../features/surveys/useSurveyOutbox", () => ({
-  useSurveyOutbox: () => ({ items: [], receipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn() }),
+  useSurveyOutbox: () => ({ items: [], receipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn(), discardAudio: jest.fn() }),
 }));
 jest.mock("../../features/surveys/library", () => ({ refreshInbox: jest.fn(), cachedInbox: jest.fn(), getDownloaded: jest.fn() }));
 jest.mock("../../features/surveys/vault", () => ({
   scopeId: (scope: { userId: string; organizationId: string }) => `${scope.userId}.${scope.organizationId}`,
 }));
 
-const assignment = (overrides: Partial<SurveyAssignment>): SurveyAssignment => ({
+const available = (overrides: Partial<AvailableSurvey>): AvailableSurvey => ({
   survey_id: "s-1",
-  organization_id: "org-a",
+  id: "v-2",
+  version_number: 2,
   title: "Satisfacción",
-  current_version_id: "v-2",
-  current_version: 2,
-  modality: "self_administered",
-  status: "open",
+  status: "published",
   closes_at: null,
-  interviewer_authorized: false,
+  allows_self_response: true,
+  allows_interview_response: false,
+  is_assigned_surveyor: false,
   ...overrides,
 });
 
@@ -52,9 +52,9 @@ beforeEach(() => {
 describe("Surveys inbox", () => {
   it("offline, shows the saved list with its date and which surveys are available offline", async () => {
     (refreshInbox as jest.Mock).mockRejectedValue(new ApiError("offline", "Sin conexión."));
-    (cachedInbox as jest.Mock).mockResolvedValue({ assignments: [assignment({}), assignment({ survey_id: "s-2", title: "Vecinal" })], fetchedAt: "2026-10-11T18:00:00Z" });
+    (cachedInbox as jest.Mock).mockResolvedValue({ surveys: [available({}), available({ survey_id: "s-2", id: "v-9", title: "Vecinal" })], fetchedAt: "2026-10-11T18:00:00Z" });
     (getDownloaded as jest.Mock).mockImplementation(async (_scope, surveyId: string) =>
-      surveyId === "s-1" ? { version: { id: "v-2", version: 2 }, downloadedAt: "2026-10-11T18:05:00Z" } : null,
+      surveyId === "s-1" ? { version: { id: "v-2", version_number: 2 }, downloadedAt: "2026-10-11T18:05:00Z" } : null,
     );
     const screen = await renderInbox();
 
@@ -72,15 +72,28 @@ describe("Surveys inbox", () => {
     expect(screen.getByText("Sin conexión y sin una lista guardada. Conéctate para ver tus encuestas.")).toBeTruthy();
   });
 
+  it("offers the interview mode only to an assigned surveyor", async () => {
+    (refreshInbox as jest.Mock).mockResolvedValue({
+      surveys: [
+        available({ survey_id: "s-a", title: "Asignado", allows_self_response: false, allows_interview_response: true, is_assigned_surveyor: true }),
+        available({ survey_id: "s-b", title: "No asignado", allows_self_response: true, allows_interview_response: true, is_assigned_surveyor: false }),
+      ],
+      fetchedAt: "x",
+    });
+    const screen = await renderInbox();
+    expect(screen.getByText("Entrevista · Versión 2")).toBeTruthy();
+    expect(screen.getByText("Respuesta propia · Versión 2")).toBeTruthy();
+  });
+
   it("flags a download that is older than the current version", async () => {
-    (refreshInbox as jest.Mock).mockResolvedValue({ assignments: [assignment({ current_version_id: "v-3", current_version: 3 })], fetchedAt: "x" });
-    (getDownloaded as jest.Mock).mockResolvedValue({ version: { id: "v-2", version: 2 }, downloadedAt: "2026-10-11T18:05:00Z" });
+    (refreshInbox as jest.Mock).mockResolvedValue({ surveys: [available({ id: "v-3", version_number: 3 })], fetchedAt: "x" });
+    (getDownloaded as jest.Mock).mockResolvedValue({ version: { id: "v-2", version_number: 2 }, downloadedAt: "2026-10-11T18:05:00Z" });
     const screen = await renderInbox();
     expect(screen.getByText("Tienes la versión 2; ya existe la versión 3. Descárgala de nuevo.")).toBeTruthy();
   });
 
   it("never shows the previous organization's list after switching", async () => {
-    (refreshInbox as jest.Mock).mockResolvedValueOnce({ assignments: [assignment({ title: "Solo de org A" })], fetchedAt: "x" });
+    (refreshInbox as jest.Mock).mockResolvedValueOnce({ surveys: [available({ title: "Solo de org A" })], fetchedAt: "x" });
     const screen = await renderInbox();
     expect(screen.getByText("Solo de org A")).toBeTruthy();
 
@@ -93,7 +106,7 @@ describe("Surveys inbox", () => {
     expect(screen.queryByText("Solo de org A")).toBeNull();
 
     await act(async () => {
-      resolveB({ assignments: [assignment({ organization_id: "org-b", title: "De org B" })], fetchedAt: "x" });
+      resolveB({ surveys: [available({ title: "De org B" })], fetchedAt: "x" });
     });
     expect(screen.getByText("De org B")).toBeTruthy();
     expect((refreshInbox as jest.Mock).mock.calls[1][0]).toEqual({ userId: "user-1", organizationId: "org-b" });
