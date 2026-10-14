@@ -82,7 +82,7 @@ Metro no reemplaza cambios nativos. Grabar audio requiere un nuevo development-s
 - `app.json` incluye el plugin `expo-audio`;
 - `expo-image-picker` ya no bloquea `RECORD_AUDIO`. Antes tenía `microphonePermission: false`, que eliminaba ese permiso del manifiesto de Android.
 
-Lo demás funciona con Metro sobre el APK actual.
+Lo demás funciona con Metro sobre el APK actual. En ese APK la app abre normalmente: `expo-audio` se carga solo si existe su módulo nativo. Si no existe, la entrevista muestra "Esta versión de la app no puede grabar audio…" y continúa sin audio.
 
 ## Guion de prueba física
 
