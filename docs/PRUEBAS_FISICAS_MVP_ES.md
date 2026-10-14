@@ -26,7 +26,7 @@ Los números de PR de esta tabla son de **afilianet-api**, no de Mobile. SHA del
 | Borrado real de audio (retención de 1 año) | API #52 `feat/survey-audio-hard-delete` (base: API #51) | `93161a38720e12068bf82f30bb0cd322c06dee1a` | No afecta a Mobile |
 | Push que abre una encuesta | Sin PR: rama `fix/notifications-search-concurrency` (también en `feat/notification-campaign-history`) | `e1ce99a948501e5ac9b87f13fb9e40c8af6885a0` | Payload `{screen, organization_id, survey_id, version_id}` |
 | Extracción del INE en el primer intento (orden de lectura del OCR, el resultado `Completed` no se revierte, respaldo de IA acotado) | API #46 `fix/identity-first-extraction` | `e590dfc28cf733715b367021f0567f1a30815c44` | Solo cambia el servidor: el resultado que lee Mobile (`DocumentProcessingResult`, con `attempt_number` y `extracted_fields`) no cambia |
-| Integración API del MVP (#45/#50, #46, #48, #47, #51/#52, #55/#56, #57) | API #58 `integration/api-mvp` (rama de revisión, «no fusionar») | `ee0c34cf49ddb8e5919faa2d374823c4095e1fe1` | Es la combinación que debe estar en staging para los pasos que dicen «API #58». Su propio PR indica que falta CI real de la combinación y la prueba de migraciones |
+| Integración API del MVP (#45/#50, #46, #48, #47, #51/#52, #55/#56, #57) | API #58 `integration/api-mvp` (rama de revisión, «no fusionar») | `edfeab435453c1ebf59b03bdb82b515a4658962c` (verificado el 2026-10-14) | Es la combinación que debe estar en staging para los pasos que dicen «API #58». **No está desplegada ni validada en migraciones.** CI 38651731451: Composer, Pint, Docker y Pest pasaron. `migration-check` falló porque, según el reporte de revisión, usó SQLite en vez de PostgreSQL; la corrección está solicitada a API. Antes de las pruebas físicas se confirma el SHA que realmente se despliegue |
 | Recaptura de prueba de vida | `POST /compliance/cases/{case}/retry-liveness` | — | Sin verificar en esta entrega |
 | Código SMS | `SMS_PROVIDER_ENABLED=true` y credenciales de AWS SNS | — | Según la documentación de API #50, apagado y sin credenciales |
 
@@ -132,7 +132,7 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **API #45 sin despliegue confirmado:** notificaciones de plataforma (paso 11).
 - **API #51 sin despliegue confirmado:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
 - **`e1ce99a` sin merge:** push a una encuesta (pasos 17 y 22).
-- **API #58 sin despliegue confirmado:** extracción del INE en el primer intento y resultados de los pasos 5a y 5c; recaptura (paso 6). Según su propio PR, a la combinación aún le faltan CI real y la prueba de migraciones.
+- **API #58 sin despliegue confirmado:** extracción del INE en el primer intento y resultados de los pasos 5a y 5c; recaptura (paso 6). La referencia es `edfeab4`, pero no está desplegada y la validación de migraciones está pendiente: `migration-check` falló con SQLite y debe correr con PostgreSQL. Antes de los pasos 5a, 5c y 6 se confirma con Infraestructura o API el SHA desplegado en staging; si no es `edfeab4`, se revisa la diferencia antes de probar.
 - **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d).
 - **Proveedores de IA:** no hay transcripción ni análisis de calidad (`provider_unavailable`).
 
