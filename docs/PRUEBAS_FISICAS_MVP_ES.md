@@ -1,11 +1,12 @@
 # Guion de pruebas físicas del MVP (Mobile integrado)
 
-**Rama:** `integration/mvp-physical-tests`. Contiene, en este orden:
+**Rama:** `integration/mvp-identity-processing`, apilada sobre Mobile #51 (`integration/mvp-physical-tests`). Contiene, en este orden:
 - #47 (`dba4076`);
 - Mobile #43 (`51c70b1`), integrado en #49;
 - #49 (`f48b98f`);
 - #50 (`c5e6cbc`);
-- tres correcciones de integración (ver al final).
+- las correcciones de integración de #51 (ver al final);
+- Mobile #45 (`029f761` y `386994a`), procesamiento de identificación, incorporado con `cherry-pick -x`.
 
 No se mezcla nada en `main`.
 
@@ -24,6 +25,8 @@ Los números de PR de esta tabla son de **afilianet-api**, no de Mobile. SHA del
 | Encuestas | API #51 `feat/survey-module` | `4741dbb820771adcf1eae251ecbe3e1e21f459eb` | `docs/surveys/SURVEY_CONTRACT.md` en `93161a3` (API #52, que incluye #51). Respecto de `aa94798`, que es la versión con la que Mobile se conectó, solo se agregaron endpoints de staff, retención y procesamiento; nada de lo que Mobile llama cambió |
 | Borrado real de audio (retención de 1 año) | API #52 `feat/survey-audio-hard-delete` (base: API #51) | `93161a38720e12068bf82f30bb0cd322c06dee1a` | No afecta a Mobile |
 | Push que abre una encuesta | Sin PR: rama `fix/notifications-search-concurrency` (también en `feat/notification-campaign-history`) | `e1ce99a948501e5ac9b87f13fb9e40c8af6885a0` | Payload `{screen, organization_id, survey_id, version_id}` |
+| Extracción del INE en el primer intento (orden de lectura del OCR, el resultado `Completed` no se revierte, respaldo de IA acotado) | API #46 `fix/identity-first-extraction` | `e590dfc28cf733715b367021f0567f1a30815c44` | Solo cambia el servidor: el resultado que lee Mobile (`DocumentProcessingResult`, con `attempt_number` y `extracted_fields`) no cambia |
+| Integración API del MVP (#45/#50, #46, #48, #47, #51/#52, #55/#56, #57) | API #58 `integration/api-mvp` (rama de revisión, «no fusionar») | `edfeab435453c1ebf59b03bdb82b515a4658962c` (verificado el 2026-10-14) | Es la combinación que debe estar en staging para los pasos que dicen «API #58». **No está desplegada ni validada en migraciones.** CI 38651731451: Composer, Pint, Docker y Pest pasaron. `migration-check` falló porque, según el reporte de revisión, usó SQLite en vez de PostgreSQL; la corrección está solicitada a API. Antes de las pruebas físicas se confirma el SHA que realmente se despliegue |
 | Recaptura de prueba de vida | `POST /compliance/cases/{case}/retry-liveness` | — | Sin verificar en esta entrega |
 | Código SMS | `SMS_PROVIDER_ENABLED=true` y credenciales de AWS SNS | — | Según la documentación de API #50, apagado y sin credenciales |
 
@@ -59,6 +62,9 @@ Nunca usar personas reales. Los correos son alias `+` de un buzón del equipo.
 | **U2** (solo celular) | Requiere API de acceso y SMS |
 | **U3** (correo y celular) | Sin organización; invitación pendiente a QA-A |
 | **U4** (correo) | Miembro solo de QA-B |
+| **U5** (correo), afiliado de QA-A | Expediente de cumplimiento **nuevo y sintético** para los pasos 5a a 5d. Se usa una identificación de muestra que el equipo autorice, nunca la de una persona real ajena a la prueba |
+
+**El expediente real PERE9728 no se usa, no se reinicia y no se modifica.** Ningún paso de este guion lo toca. Los reintentos se prueban solo con el expediente de U5, y su historial se conserva: no se borran intentos ni se reinicia el caso entre pasos.
 
 ### Evidencia de cada paso
 
@@ -79,8 +85,11 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 | 2 | Iniciar sesión con correo (U1) | Llega al Inicio de QA-A | Hoy |
 | 3 | Campana → bandeja → tocar una notificación | Abre solo la bandeja y su detalle, sin configuración. La notificación queda leída una sola vez | Hoy |
 | 4 | Perfil | La configuración de notificaciones está aquí, el tema es claro, "Salir de…" y "Eliminar mi cuenta" aparecen solo tras "Mostrar opciones de cuenta", y el Aviso de privacidad es lo último | Hoy |
-| 5 | Prueba de vida | Textos de la app en español; los del componente AWS, en español solo con el APK nuevo | Hoy / APK nuevo |
-| 6 | Admin solicita recaptura → abrir Cumplimiento | Aviso de recaptura de prueba de vida | Endpoint de recaptura |
+| 5a | U5 → Cumplimiento → INE → fotografiar frente y reverso → enviar (intento 1) | "Estamos procesando tu identificación", con "Continuar" para salir sin cancelar. Al terminar, en el **primer** intento y sin re-extracción manual en Admin, los campos del INE (nombre, CURP, clave de elector, etc.) aparecen con sus etiquetas y estados en español | API #58 (incluye #46) |
+| 5b | Con el intento 1 procesándose: tocar "Continuar", salir de Cumplimiento y volver a abrirlo; luego cerrar la app y reabrirla | Muestra el mismo intento en proceso y converge a su resultado sin pedir otra subida. Si tarda más de un minuto, "Verificar estado" consulta sin crear otro intento | Hoy (el resultado de extracción requiere API #58) |
+| 5c | Segunda captura (intento 2) con el intento anterior aún sin asentar. Mobile no ofrece capturar mientras un intento está "procesando", así que se reproduce así: con un intento terminado en "Necesita corrección", tocar "Volver a tomar" y enviar otra vez | Desde el envío se ve el intento 2 "procesando". El resultado anterior ("Necesita corrección") **nunca reaparece** encima del intento nuevo, ni siquiera un instante. Grabar la pantalla desde el envío hasta el resultado. En Admin, el historial conserva los dos intentos (`attempt_number` 1 y 2) | Hoy en Mobile; que el intento 1 termine en corrección y el resultado del 2 requieren API #58 |
+| 5d | Prueba de vida | Textos de la app en español; los del componente AWS, en español solo con el APK nuevo | Hoy / APK nuevo |
+| 6 | Admin solicita recaptura de prueba de vida **para U5** → abrir Cumplimiento | Aviso de recaptura de prueba de vida. La comparación facial sigue bloqueada hasta completar la nueva sesión; los intentos anteriores siguen en el historial | Endpoint de recaptura (API #58) |
 | 7 | Sin sesión: `adb shell am start -W -a android.intent.action.VIEW -d "afilianetmobile://join/<orgId>/<code>" com.afilianet.mobile` → "Ya tengo cuenta" → U3 | Vuelve sola a "Confirma tu invitación" | Hoy |
 | 8 | U3: "Unirme con mi cuenta" | Aparece QA-A sin crear otra cuenta | Hoy |
 | 9 | Cerrar sesión con una invitación pendiente y entrar con U4 | No se ofrece la invitación | Hoy |
@@ -113,6 +122,7 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **Push:** de otra organización, de otro usuario, toques duplicados y toques nuevos durante otra apertura.
 - **Idempotencia** de respuestas (reenvío y doble toque) y cola sin envíos duplicados en paralelo.
 - **Formas de la API de acceso** (contrastadas en `03c6b8b`) y **de encuestas** (contrastadas en `aa94798` y revisadas contra `93161a3`), incluidos los decimales.
+- **Procesamiento de identificación (Mobile #45):** una respuesta tardía de un intento anterior nunca reemplaza al intento nuevo (`compliance-document-capture.test.tsx`). "Verificar estado" recupera sin otra subida ni otro intento, y una falla de conexión se distingue de la lentitud. La carrera exacta del paso 5c depende de los tiempos del servidor y en teléfono puede no presentarse; la prueba automatizada sí la fuerza.
 - **`audio_mode: required`:** con el módulo ausente, el permiso denegado, la grabación fallida o el audio borrado, una entrevista aceptada no se envía y se conserva como borrador. El rechazo y la falta de decisión también están cubiertos.
 
 ## 4. Bloqueado por infraestructura o proveedor
@@ -122,7 +132,8 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **API #45 sin despliegue confirmado:** notificaciones de plataforma (paso 11).
 - **API #51 sin despliegue confirmado:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
 - **`e1ce99a` sin merge:** push a una encuesta (pasos 17 y 22).
-- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5).
+- **API #58 sin despliegue confirmado:** extracción del INE en el primer intento y resultados de los pasos 5a y 5c; recaptura (paso 6). La referencia es `edfeab4`, pero no está desplegada y la validación de migraciones está pendiente: `migration-check` falló con SQLite y debe correr con PostgreSQL. Antes de los pasos 5a, 5c y 6 se confirma con Infraestructura o API el SHA desplegado en staging; si no es `edfeab4`, se revisa la diferencia antes de probar.
+- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d).
 - **Proveedores de IA:** no hay transcripción ni análisis de calidad (`provider_unavailable`).
 
 ## Iniciar Metro con tunnel (PowerShell, staging)
@@ -130,15 +141,15 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 Se ejecuta desde el worktree de integración, no desde la copia principal (que está en `main`). `.env.staging` no está en git: se copia de la copia principal. Se usa `npx.cmd`, porque la política de ejecución de PowerShell puede bloquear `npx.ps1`. Se limpia `EXPO_OFFLINE`: si quedó activo de otra sesión, la CLI de Expo omite sus peticiones de red, y el arranque con tunnel no debe depender de eso. El tunnel usa el `@expo/ngrok` global que ya funcionó; no se cambia su configuración.
 
 ```powershell
-Set-Location "C:UsersandreHerdAfilianetafilianet-mobile.claudeworktreesmvp-integration"
+Set-Location "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.claude\worktrees\mvp-identity"
 git fetch origin
-git status -sb                      # debe decir: integration/mvp-physical-tests...origin/integration/mvp-physical-tests
-git rev-parse HEAD                  # debe coincidir con la cabeza de Mobile #51
+git status -sb                      # debe decir: integration/mvp-identity-processing...origin/integration/mvp-identity-processing
+git rev-parse HEAD                  # debe coincidir con la cabeza del PR de esta rama
 Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
 Remove-Item Env:EXPO_PUBLIC_SURVEYS_SOURCE -ErrorAction SilentlyContinue   # vista previa de encuestas
-Copy-Item "C:UsersandreHerdAfilianetafilianet-mobile.env.staging" "..env.staging" -Force
-node .scriptsselect-env.js staging
-Select-String -Path ..env -Pattern "EXPO_PUBLIC_APP_ENV|EXPO_PUBLIC_API_BASE_URL"   # staging / https://staging-api.afilianet.mx
+Copy-Item "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.env.staging" ".\.env.staging" -Force
+node .\scripts\select-env.js staging
+Select-String -Path .\.env -Pattern "EXPO_PUBLIC_APP_ENV|EXPO_PUBLIC_API_BASE_URL"   # staging / https://staging-api.afilianet.mx
 npx.cmd expo start --dev-client --tunnel --clear
 ```
 
@@ -158,3 +169,9 @@ Para volver a la vista previa con datos de ejemplo: `Remove-Item Env:EXPO_PUBLIC
 2. **La subida de audio no comprobaba la sesión entre pasos.** Ahora se comprueba antes de cada paso. Antes, un cambio de cuenta durante el PUT confirmaba el audio con el token nuevo.
 3. **Perfil de una cuenta solo con celular:** muestra el celular en lugar de una línea vacía.
 4. **`audio_mode: required` (revisión de #51):** una entrevista con el consentimiento aceptado y sin grabación ya no se envía como completa ni se trata como `optional`; se conserva como borrador. Pasa con el módulo ausente, el permiso denegado, la grabación fallida o el audio borrado. Con el módulo ausente, se explica que hace falta una versión de la app que pueda grabar. El rechazo se sigue enviando sin audio, como indica el contrato, y la falta de decisión ya no cuenta como rechazo.
+5. **Procesamiento de identificación (Mobile #45, en `integration/mvp-identity-processing`):** se incorporó con `cherry-pick -x` sin conflictos de texto.
+   - `useDocumentResult` descarta una respuesta de un intento anterior (`attempt_number` menor) que llegue después del intento nuevo.
+   - Corrige el mock de subida de evidencia y los fixtures de bloqueo de pasos.
+   - Agrega `compliance-document-capture.test.tsx` y `compliance.test.tsx` al gate de CI.
+   - Se conservan la recaptura de prueba de vida (su gate sigue igual) y los textos de identificación en español.
+6. **Ruta del primer bloque de PowerShell:** en #51 la ruta quedó sin barras invertidas (`C:UsersandreHerd…`). Aquí se corrigió, y el bloque apunta al worktree `mvp-identity`.
