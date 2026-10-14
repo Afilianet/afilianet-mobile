@@ -26,7 +26,8 @@ jobs:
       # (a stale expo-file-system/expo-fetch upload mock, and step-card test
       # fixtures not updated for the current_step step-locking feature /
       # retryNeeded copy) and added to the gate.
-      - run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-document-capture.test.tsx src/tests/app/compliance.test.tsx
+      - name: Verify identity document processing (an older attempt never replaces a newer one; recovery without a new upload) (Mobile #45)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-document-capture.test.tsx src/tests/app/compliance.test.tsx
       - name: Verify public registration and account creation
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/register.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/join.test.tsx
       - name: Verify account email and recovery
