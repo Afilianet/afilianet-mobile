@@ -106,6 +106,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockScope = { ...SCOPE };
   mockRecorder.phase = "idle";
+  mockRecorder.message = null;
+  mockRecorder.canOpenSettings = false;
   (loadDraft as jest.Mock).mockResolvedValue(draft());
   (getDownloaded as jest.Mock).mockResolvedValue({ version: INTERVIEW, downloadedAt: "2026-10-11T10:00:00Z" });
 });
@@ -148,6 +150,18 @@ describe("Survey response: consent and recording (interviews only)", () => {
     expect(mockRecorder.stop).toHaveBeenCalled();
   });
 
+  it("optional audio on an APK without the microphone module: explains it, offers no record button, and sends the interview without audio", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1], 2: "3" } }));
+    mockRecorder.phase = "unavailable";
+    mockRecorder.message = "Esta versión de la app no puede grabar audio.";
+    const screen = await renderScreen();
+    expect(screen.getByText("Esta versión de la app no puede grabar audio.")).toBeTruthy();
+    expect(screen.getByText("Puedes continuar la entrevista sin audio.")).toBeTruthy();
+    expect(screen.queryByText("Iniciar grabación")).toBeNull();
+    await press(screen, "Guardar respuestas");
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: null }), expect.any(Array));
+  });
+
   it("a declined consent never sends audio and drops any local recording", async () => {
     const audio = { clientAudioId: "aud-1", mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 10 };
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", audio, answers: { 1: [1], 2: "3" } }));
@@ -155,6 +169,100 @@ describe("Survey response: consent and recording (interviews only)", () => {
     await press(screen, "Guardar respuestas");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "declined", audio: null }), expect.any(Array));
     expect(removeItem).toHaveBeenCalledWith(SCOPE, "audio-aud-1");
+  });
+});
+
+describe("Survey response: audio_mode required (contract: a decline is allowed; an accepted consent needs its recording)", () => {
+  const REQUIRED: SurveyVersion = { ...INTERVIEW, audio_mode: "required" };
+  const ANSWERED = { 1: [1], 2: "3" };
+  const AUDIO = { clientAudioId: "aud-1", mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 10 };
+
+  beforeEach(() => {
+    (getDownloaded as jest.Mock).mockResolvedValue({ version: REQUIRED, downloadedAt: "2026-10-11T10:00:00Z" });
+  });
+
+  async function expectKeptAsDraft(screen: Awaited<ReturnType<typeof render>>, message: string) {
+    await press(screen, "Guardar respuestas");
+    expect(screen.getAllByText(message).length).toBeGreaterThan(0);
+    expect(enqueueResponse).not.toHaveBeenCalled();
+    expect(deleteDraft).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+  }
+
+  const REQUIRED_UNAVAILABLE =
+    "Esta encuesta requiere la grabación y la persona la aceptó, pero esta versión de la app no puede grabar audio. Las respuestas se conservan como borrador: instala una versión de la app que pueda grabar para terminarla y enviarla.";
+  const REQUIRED_MISSING =
+    "Esta encuesta requiere la grabación y la persona la aceptó: graba el audio para poder enviarla. Mientras tanto, las respuestas se conservan como borrador.";
+
+  it("module absent, before consent: says recording is required, that accepting keeps it a draft, and still offers declining", async () => {
+    mockRecorder.phase = "unavailable";
+    const screen = await renderScreen();
+    expect(screen.getByText(/Esta encuesta requiere grabar la entrevista/)).toBeTruthy();
+    expect(screen.getByText(/se conservarán como borrador hasta que instales una versión de la app que pueda grabar/)).toBeTruthy();
+    expect(screen.getByText("Continuar sin grabar")).toBeTruthy();
+  });
+
+  it("module absent + accepted: keeps the draft, never sends it as complete, and explains a compatible APK is needed", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: ANSWERED }));
+    mockRecorder.phase = "unavailable";
+    const screen = await renderScreen();
+    expect(screen.queryByText("Iniciar grabación")).toBeNull();
+    expect(screen.queryByText("Puedes continuar la entrevista sin audio.")).toBeNull();
+    await expectKeptAsDraft(screen, REQUIRED_UNAVAILABLE);
+  });
+
+  it("permission denied + accepted: keeps the draft and offers settings, not \"continue without audio\"", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: ANSWERED }));
+    mockRecorder.phase = "denied";
+    mockRecorder.message = "Sin permiso de micrófono no se puede grabar.";
+    mockRecorder.canOpenSettings = true;
+    const screen = await renderScreen();
+    expect(screen.getByText("Abrir configuración")).toBeTruthy();
+    expect(screen.queryByText("Puedes continuar la entrevista sin audio.")).toBeNull();
+    await expectKeptAsDraft(screen, REQUIRED_MISSING);
+  });
+
+  it("failed recording + accepted: keeps the draft and lets the surveyor try again", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: ANSWERED }));
+    mockRecorder.phase = "failed";
+    mockRecorder.message = "No se pudo grabar.";
+    const screen = await renderScreen();
+    expect(screen.getByText("Iniciar grabación")).toBeTruthy();
+    await expectKeptAsDraft(screen, REQUIRED_MISSING);
+  });
+
+  it("deleted audio + accepted: once the recording is deleted, the interview is a draft again", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", audio: AUDIO, answers: ANSWERED }));
+    const alert = jest.spyOn(Alert, "alert").mockImplementation((_title, _body, buttons) => {
+      buttons?.find((button) => button.style === "destructive")?.onPress?.();
+    });
+    const screen = await renderScreen();
+    await press(screen, "Borrar audio");
+    expect(removeItem).toHaveBeenCalledWith(SCOPE, "audio-aud-1");
+    await expectKeptAsDraft(screen, REQUIRED_MISSING);
+    alert.mockRestore();
+  });
+
+  it("declined: sends the interview without audio, as the contract allows (flagged for staff, never coerced)", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: ANSWERED }));
+    mockRecorder.phase = "unavailable";
+    const screen = await renderScreen();
+    await press(screen, "Guardar respuestas");
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "declined", audio: null }), expect.any(Array));
+  });
+
+  it("no consent decision yet: asks for one instead of reading silence as a decline", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: null, answers: ANSWERED }));
+    const screen = await renderScreen();
+    await expectKeptAsDraft(screen, "Registra si la persona acepta o no la grabación antes de guardar.");
+  });
+
+  it("accepted with its recording: sends the interview with the audio", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", audio: AUDIO, answers: ANSWERED }));
+    mockRecorder.phase = "saved";
+    const screen = await renderScreen();
+    await press(screen, "Guardar respuestas");
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: AUDIO }), expect.any(Array));
   });
 });
 

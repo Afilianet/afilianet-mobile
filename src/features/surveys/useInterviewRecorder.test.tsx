@@ -13,6 +13,9 @@ const mockRecorder = {
   currentTime: 12.4,
 };
 
+// The native module is present (a binary built with expo-audio).
+jest.mock("./audioSupport", () => ({ audioRecordingSupported: true }));
+
 jest.mock("expo-audio", () => ({
   RecordingPresets: { HIGH_QUALITY: { extension: ".m4a", sampleRate: 44100, numberOfChannels: 2, bitRate: 128000 } },
   useAudioRecorder: (_options: unknown, listener: typeof mockStatusListener) => {

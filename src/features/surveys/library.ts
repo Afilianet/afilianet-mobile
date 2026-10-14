@@ -104,6 +104,21 @@ export function audioApplies(version: SurveyVersion, respondentType: RespondentT
   return respondentType === "interviewed_external" && version.audio_mode !== "none";
 }
 
+/**
+ * Contract (API #51): audio_mode "required" never overrides a declined consent
+ * -- that interview is sent without audio and flagged for staff. But once the
+ * person ACCEPTED, a required interview is not complete without its audio:
+ * it stays a draft (never sent as complete, never downgraded to optional).
+ */
+export function requiredAudioMissing(version: SurveyVersion, draft: Pick<SurveyDraft, "respondentType" | "consentAudio" | "audio">): boolean {
+  return audioApplies(version, draft.respondentType) && version.audio_mode === "required" && draft.consentAudio === "accepted" && !draft.audio;
+}
+
+/** A required-audio interview needs an explicit consent decision; no answer is never read as a decline. */
+export function consentDecisionMissing(version: SurveyVersion, draft: Pick<SurveyDraft, "respondentType" | "consentAudio">): boolean {
+  return audioApplies(version, draft.respondentType) && version.audio_mode === "required" && draft.consentAudio === null;
+}
+
 function isEmpty(value: DraftValue | undefined): boolean {
   return value === null || value === undefined || (typeof value === "string" && value.trim() === "") || (Array.isArray(value) && value.length === 0);
 }

@@ -24,9 +24,14 @@ export interface SurveySource {
   getVersion(organizationId: string, versionId: string): Promise<SurveyVersion>;
   submitResponse(organizationId: string, versionId: string, submission: ResponseSubmission): Promise<ResponseReceipt>;
   getAudioConfig(organizationId: string): Promise<AudioConfig>;
-  /** Session -> upload -> complete. Resolves only once the server confirmed the object. */
+  /**
+   * Session -> upload -> complete. Resolves only once the server confirmed the object.
+   * `assertCurrent` throws once the session or organization changed; it runs
+   * before every step, so a confirmation never goes out under another account.
+   */
   uploadAudio(
     organizationId: string,
     input: { responseId: string; mimeType: string; bytes: Uint8Array; durationSeconds: number; interrupted: boolean },
+    assertCurrent: () => void,
   ): Promise<void>;
 }

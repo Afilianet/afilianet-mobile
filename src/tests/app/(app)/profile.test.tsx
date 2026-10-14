@@ -150,6 +150,13 @@ describe("Profile: real affiliate data", () => {
     expect(await findByText("PLAC001")).toBeTruthy();
   });
 
+  it("shows the phone of a phone-only account instead of an empty email line", async () => {
+    const { findByText, queryByText } = await renderProfile({ auth: { user: { ...USER, email: null, phone: "+525512345678" } } });
+    expect(await findByText("Jordan Lee")).toBeTruthy();
+    expect(await findByText("+52 55 1234 5678")).toBeTruthy();
+    expect(queryByText("jordan@example.com")).toBeNull();
+  });
+
   it("shows the active organization's name", async () => {
     const { findByText } = await renderProfile();
     expect(await findByText("Acme")).toBeTruthy();

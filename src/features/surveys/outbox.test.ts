@@ -137,10 +137,10 @@ describe("survey outbox", () => {
         expect(submission).toMatchObject({ respondent_type: "interviewed_external", consent_audio: "accepted", consent_version: versionId });
         return submit(org, versionId, submission);
       },
-      uploadAudio: async (org, input) => {
+      uploadAudio: async (org, input, assertCurrent) => {
         calls.push(`audio:${input.responseId.slice(0, 5)}`);
         expect(input).toMatchObject({ mimeType: "audio/mp4", durationSeconds: 4, interrupted: false });
-        return upload(org, input);
+        return upload(org, input, assertCurrent);
       },
     };
     await interviewWithAudio(ORG_A, "r-1", "aud-1");
@@ -275,6 +275,34 @@ describe("survey outbox", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     expect((await listOutbox(ORG_A)).map((value) => value.id)).toEqual(["r-1", "r-2"]); // reply not trusted under the new session
     expect(guard).toHaveBeenCalledWith("org-a");
+  });
+
+  it("sign-out during an audio upload: nothing is confirmed afterwards, the recording stays, and the retry neither duplicates the answers nor the audio", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    let current = true;
+    guard.mockReturnValue(() => current);
+    const submit = jest.spyOn(source, "submitResponse");
+    const realUpload = source.uploadAudio.bind(source);
+    const upload = jest.spyOn(source, "uploadAudio").mockImplementationOnce(async (org, input, assertCurrent) => {
+      assertCurrent(); // upload session opened under the original account...
+      current = false; // ...then signed out while the bytes were going up
+      assertCurrent(); // the confirmation step must not go out
+    });
+
+    const stopped = await syncOutbox(ORG_A, source);
+    expect(stopped.stoppedReason).toBe("session_changed");
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+    expect((await listOutbox(ORG_A)).map((value) => [value.id, displayState(value)])).toEqual([["r-1", "audio_pending"]]);
+    expect(await listReceipts(ORG_A)).toEqual([]);
+
+    // Back in the same account: only the audio is retried, from a new upload session.
+    current = true;
+    upload.mockImplementation(realUpload);
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(false);
+    expect((await listReceipts(ORG_A)).map((receipt) => [receipt.id, receipt.withAudio])).toEqual([["r-1", true]]);
   });
 
   it("never lists, sends or reports one account's or organization's pending items for another", async () => {

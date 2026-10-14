@@ -21,6 +21,7 @@ import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
 import type { AffiliateProfile } from "../../types/api";
 import { formatDate } from "../../utils/date";
+import { formatPhoneForDisplay } from "../../utils/phone";
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -44,7 +45,9 @@ export default function ProfileScreen() {
           <Text style={styles.name}>
             {user?.first_name} {user?.last_name}
           </Text>
-          <Text style={styles.email}>{user?.email}</Text>
+          {/* Accounts may have only a phone (#49); show whichever identifiers exist. */}
+          {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
+          {user?.phone ? <Text style={styles.email}>{formatPhoneForDisplay(user.phone)}</Text> : null}
         </View>
       </Card>
 

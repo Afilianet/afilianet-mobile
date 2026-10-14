@@ -104,7 +104,7 @@ describe("API surveys source (contract aa94798)", () => {
       .mockResolvedValueOnce(json({ data: { id: "a-1", status: "uploaded" } }));
     putMock.mockResolvedValueOnce({ ok: true, status: 200 });
 
-    await source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1, 2, 3]), durationSeconds: 42, interrupted: true });
+    await source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1, 2, 3]), durationSeconds: 42, interrupted: true }, () => undefined);
 
     expect(call(0).url).toBe("https://api.test/api/v1/surveys/responses/r-1/audio/uploads");
     expect(call(0).body).toEqual({ mime_type: "audio/mp4", size: 3 });
@@ -120,8 +120,37 @@ describe("API surveys source (contract aa94798)", () => {
     fetchMock.mockResolvedValueOnce(json({ data: { id: "a-1", url: "https://bucket.test/put", method: "PUT", headers: {}, expires_at: "x" } }));
     putMock.mockResolvedValueOnce({ ok: false, status: 403 });
     await expect(
-      source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1]), durationSeconds: 1, interrupted: false }),
+      source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1]), durationSeconds: 1, interrupted: false }, () => undefined),
     ).rejects.toMatchObject({ kind: "server" });
     expect(fetchMock).toHaveBeenCalledTimes(1); // no complete call
+  });
+
+  it("never confirms an upload under another account when the session changes while the bytes are uploading", async () => {
+    let current = true;
+    const sessionChanged = new Error("session changed");
+    fetchMock.mockResolvedValueOnce(json({ data: { id: "a-1", url: "https://bucket.test/put", method: "PUT", headers: {}, expires_at: "x" } }));
+    putMock.mockImplementationOnce(async () => {
+      // Signed out and into another account while the PUT was in flight.
+      current = false;
+      configureApiClient({ getToken: () => "other-account-token", getOrganizationId: () => "org-b" });
+      return { ok: true, status: 200 };
+    });
+    await expect(
+      source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1]), durationSeconds: 1, interrupted: false }, () => {
+        if (!current) throw sessionChanged;
+      }),
+    ).rejects.toBe(sessionChanged);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // only the session request, under the original account; no complete
+    expect(call(0).headers).toMatchObject({ Authorization: "Bearer session-token", "X-Organization-ID": "org-a" });
+  });
+
+  it("does not even open an upload session once the session has changed", async () => {
+    await expect(
+      source.uploadAudio("org-a", { responseId: "r-1", mimeType: "audio/mp4", bytes: new Uint8Array([1]), durationSeconds: 1, interrupted: false }, () => {
+        throw new Error("session changed");
+      }),
+    ).rejects.toThrow("session changed");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(putMock).not.toHaveBeenCalled();
   });
 });
