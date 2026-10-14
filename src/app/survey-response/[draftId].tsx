@@ -241,7 +241,7 @@ export default function SurveyResponseScreen() {
                 <Text style={styles.body}>{copy.recording.saved(formatDuration(draft.audio.durationMs))}</Text>
                 <Button label={copy.recording.deleteAudio} variant="ghost" size="sm" onPress={deleteAudio} />
               </>
-            ) : (
+            ) : recorder.phase === "unavailable" ? null : (
               <Button label={copy.recording.start} variant="secondary" loading={recorder.phase === "starting" || recorder.phase === "saving"} onPress={() => void recorder.start()} />
             )}
           </Card>

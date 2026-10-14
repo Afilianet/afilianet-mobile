@@ -346,7 +346,7 @@ export async function syncOutbox(
           bytes,
           durationSeconds: Math.max(1, Math.round(audio.durationMs / 1000)),
           interrupted: audio.interrupted,
-        });
+        }, requireCurrent);
         requireCurrent();
         await removeItem(scope, audioName(audio.clientAudioId));
         await complete(snapshot, snapshot.receivedAt ?? new Date().toISOString(), true);

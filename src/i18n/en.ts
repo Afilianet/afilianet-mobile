@@ -245,6 +245,7 @@ export const en = {
       stopBeforeSubmit: "Stop recording before saving the answers.",
       deleteAudio: "Delete audio",
       deleteAudioConfirm: "Delete this interview's audio? The answers are kept.",
+      unavailable: "This version of the app can't record audio. Update it to record; you can continue the interview without audio.",
     },
     outbox: {
       title: "Submissions",

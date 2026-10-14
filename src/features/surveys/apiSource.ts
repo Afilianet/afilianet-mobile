@@ -60,12 +60,14 @@ export function createApiSurveySource(): SurveySource {
       return (await apiRequest<{ data: AudioConfig }>(`${base}/audio-config`)).data;
     },
 
-    async uploadAudio(_organizationId, input) {
+    async uploadAudio(_organizationId, input, assertCurrent) {
+      assertCurrent();
       // A NEW session on every attempt: the server reuses a still-fresh pending one.
       const { data: session } = await apiRequest<{ data: AudioUploadSession }>(`${base}/responses/${id(input.responseId)}/audio/uploads`, {
         method: "POST",
         body: { mime_type: input.mimeType, size: input.bytes.byteLength },
       });
+      assertCurrent();
       let response: Response;
       try {
         response = await expoFetch(session.url, {
@@ -78,6 +80,7 @@ export function createApiSurveySource(): SurveySource {
       }
       if (!response.ok) throw new ApiError("server", "No se pudo subir el audio.", response.status);
       // Idempotent: confirming twice is a 200. The server verifies size and type itself.
+      assertCurrent();
       await apiRequest(`${base}/responses/${id(input.responseId)}/audio/${id(session.id)}/complete`, {
         method: "POST",
         body: { duration_seconds: input.durationSeconds, interrupted: input.interrupted },

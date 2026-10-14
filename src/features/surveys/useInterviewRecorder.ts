@@ -1,32 +1,37 @@
-import {
-  getRecordingPermissionsAsync,
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-  type RecordingOptions,
-  type RecordingStatus,
-} from "expo-audio";
+import type { RecordingOptions, RecordingStatus } from "expo-audio";
 import { File } from "expo-file-system";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking } from "react-native";
 import { strings } from "../../i18n";
+import { audioRecordingSupported } from "./audioSupport";
 import type { DraftAudio } from "./library";
 import { audioName, newClientId } from "./outbox";
 import { ensureSpace, sealBytes, StorageFullError, type SurveyScope } from "./vault";
 
+// Loaded lazily: an APK without the native module must still open (see audioSupport.ts).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const expoAudio: typeof import("expo-audio") | null = audioRecordingSupported ? require("expo-audio") : null;
+
 /** Speech, not music: AAC in .m4a, mono, 64 kbps (~0.5 MB per minute). */
-export const SPEECH_RECORDING: RecordingOptions = {
-  ...RecordingPresets.HIGH_QUALITY,
-  numberOfChannels: 1,
-  bitRate: 64000,
-};
+export const SPEECH_RECORDING: RecordingOptions | null = expoAudio
+  ? { ...expoAudio.RecordingPresets.HIGH_QUALITY, numberOfChannels: 1, bitRate: 64000 }
+  : null;
 export const MAX_RECORDING_SECONDS = 30 * 60;
 /** Reserve before starting: the full 30 minutes at 64 kbps, plus margin. */
 const RECORDING_RESERVE_BYTES = 16 * 1024 * 1024;
 
-export type RecorderPhase = "idle" | "starting" | "recording" | "saving" | "saved" | "denied" | "failed";
+/** "unavailable": this binary has no microphone module; the interview continues without audio. */
+export type RecorderPhase = "idle" | "starting" | "recording" | "saving" | "saved" | "denied" | "failed" | "unavailable";
+
+export interface InterviewRecorder {
+  phase: RecorderPhase;
+  elapsedMs: number;
+  message: string | null;
+  canOpenSettings: boolean;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  openSettings: () => void;
+}
 
 type StopReason = "user" | "interrupted" | "max";
 
@@ -43,14 +48,14 @@ type StopReason = "user" | "interrupted" | "max";
  * - The raw file is sealed into the per-account/organization vault right
  *   after stopping and the unencrypted original is deleted.
  */
-export function useInterviewRecorder(scope: SurveyScope | null, onSaved: (audio: DraftAudio) => void) {
+function useNativeRecorder(scope: SurveyScope | null, onSaved: (audio: DraftAudio) => void): InterviewRecorder {
   const stopRef = useRef<(reason: StopReason) => Promise<void>>(async () => undefined);
   const phaseRef = useRef<RecorderPhase>("idle");
-  const recorder = useAudioRecorder(SPEECH_RECORDING, (status: RecordingStatus) => {
+  const recorder = expoAudio!.useAudioRecorder(SPEECH_RECORDING!, (status: RecordingStatus) => {
     if (status.hasError) void stopRef.current("interrupted");
     else if (status.isFinished && phaseRef.current === "recording") void stopRef.current("max");
   });
-  const recorderState = useAudioRecorderState(recorder, 500);
+  const recorderState = expoAudio!.useAudioRecorderState(recorder, 500);
   const [phase, setPhase] = useState<RecorderPhase>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [canOpenSettings, setCanOpenSettings] = useState(false);
@@ -97,7 +102,7 @@ export function useInterviewRecorder(scope: SurveyScope | null, onSaved: (audio:
         setPhaseBoth("failed");
       } finally {
         stopping.current = false;
-        await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+        await expoAudio!.setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
       }
     },
     [recorder, recorderState.durationMillis, scope, onSaved, setPhaseBoth],
@@ -119,22 +124,22 @@ export function useInterviewRecorder(scope: SurveyScope | null, onSaved: (audio:
     }
     setPhaseBoth("starting");
     try {
-      let permission = await getRecordingPermissionsAsync();
-      if (!permission.granted && permission.canAskAgain) permission = await requestRecordingPermissionsAsync();
+      let permission = await expoAudio!.getRecordingPermissionsAsync();
+      if (!permission.granted && permission.canAskAgain) permission = await expoAudio!.requestRecordingPermissionsAsync();
       if (!permission.granted) {
         setMessage(strings.surveys.recording.permissionDenied);
         setCanOpenSettings(!permission.canAskAgain);
         setPhaseBoth("denied");
         return;
       }
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, interruptionMode: "doNotMix", allowsBackgroundRecording: false });
+      await expoAudio!.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, interruptionMode: "doNotMix", allowsBackgroundRecording: false });
       await recorder.prepareToRecordAsync();
       recorder.record({ forDuration: MAX_RECORDING_SECONDS });
       setPhaseBoth("recording");
     } catch {
       setMessage(strings.surveys.recording.failed);
       setPhaseBoth("failed");
-      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      await expoAudio!.setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
     }
   }, [recorder, scope, setPhaseBoth]);
 
@@ -165,6 +170,22 @@ export function useInterviewRecorder(scope: SurveyScope | null, onSaved: (audio:
     openSettings: () => void Linking.openSettings(),
   };
 }
+
+function useUnavailableRecorder(): InterviewRecorder {
+  return {
+    phase: "unavailable",
+    elapsedMs: 0,
+    message: strings.surveys.recording.unavailable,
+    canOpenSettings: false,
+    start: async () => undefined,
+    stop: async () => undefined,
+    openSettings: () => undefined,
+  };
+}
+
+/** Chosen once per binary, so hook order never changes between renders. */
+export const useInterviewRecorder: (scope: SurveyScope | null, onSaved: (audio: DraftAudio) => void) => InterviewRecorder =
+  expoAudio ? useNativeRecorder : useUnavailableRecorder;
 
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000));

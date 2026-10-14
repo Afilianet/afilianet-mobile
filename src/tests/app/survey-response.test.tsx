@@ -148,6 +148,18 @@ describe("Survey response: consent and recording (interviews only)", () => {
     expect(mockRecorder.stop).toHaveBeenCalled();
   });
 
+  it("on an APK without the microphone module: explains it, offers no record button, and still saves the interview without audio", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1], 2: "3" } }));
+    mockRecorder.phase = "unavailable";
+    mockRecorder.message = "Esta versión de la app no puede grabar audio. Actualízala para grabar; puedes continuar la entrevista sin audio.";
+    const screen = await renderScreen();
+    expect(screen.getByText(/no puede grabar audio/)).toBeTruthy();
+    expect(screen.queryByText("Iniciar grabación")).toBeNull();
+    await press(screen, "Guardar respuestas");
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ audio: null }), expect.any(Array));
+    mockRecorder.message = null;
+  });
+
   it("a declined consent never sends audio and drops any local recording", async () => {
     const audio = { clientAudioId: "aud-1", mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 10 };
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", audio, answers: { 1: [1], 2: "3" } }));

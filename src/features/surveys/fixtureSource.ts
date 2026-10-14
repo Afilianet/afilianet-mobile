@@ -206,8 +206,10 @@ export function createFixtureSurveySource(reach: () => Promise<void> = () => rea
       return AUDIO_CONFIG;
     },
 
-    async uploadAudio(_organizationId, input) {
+    async uploadAudio(_organizationId, input, assertCurrent) {
+      assertCurrent();
       await reach();
+      assertCurrent();
       const state = await loadState();
       const stored = Object.values(state.responses).find((value) => value.receipt.id === input.responseId);
       if (!stored) throw new ApiError("not_found", "La respuesta de este audio no existe.", 404);

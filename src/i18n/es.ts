@@ -265,6 +265,7 @@ export const es = {
       stopBeforeSubmit: "Detén la grabación antes de guardar las respuestas.",
       deleteAudio: "Borrar audio",
       deleteAudioConfirm: "¿Borrar el audio de esta entrevista? Las respuestas se conservan.",
+      unavailable: "Esta versión de la app no puede grabar audio. Actualízala para grabar; puedes continuar la entrevista sin audio.",
     },
     outbox: {
       title: "Envíos",
