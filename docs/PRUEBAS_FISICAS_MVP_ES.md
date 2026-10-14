@@ -2,7 +2,7 @@
 
 **Rama:** `integration/mvp-physical-tests`. Contiene, en este orden:
 - #47 (`dba4076`);
-- #43 (`51c70b1`), integrado en #49;
+- Mobile #43 (`51c70b1`), integrado en #49;
 - #49 (`f48b98f`);
 - #50 (`c5e6cbc`);
 - tres correcciones de integración (ver al final).
@@ -13,18 +13,31 @@ No se mezcla nada en `main`.
 
 ## 1. Requisitos
 
-### API en staging
+### API: dependencias y contrato contrastado
 
-Estado del 2026-10-13, comprobado con peticiones sin credenciales: 404 significa que la ruta no existe.
+Los números de PR de esta tabla son de **afilianet-api**, no de Mobile. SHA del 2026-10-14.
 
-| Necesario para | Rama de API | Staging hoy |
+| Necesario para | PR de API | SHA actual | Contrato contrastado por Mobile |
+|---|---|---|---|
+| Login con `identifier` y celular, registro directo, código SMS, recuperación por celular | API #50 `feat/unified-account-access` (base: API #45) | `598219b2d4e02c090fb0037ac26fa6cef84911ef` | `03c6b8b`. Hasta `598219b` solo cambió una línea de `docs/auth/ACCOUNT_ACCESS_CONTRACT.md` (`errors.code` del OTP) |
+| Notificaciones de plataforma (cuentas sin organización) | API #45 `feat/platform-users-notifications` | `53b1086e697ddfd61040bde76ca02db06fdf0d6c` | El de Mobile #43, integrado en #49 |
+| Encuestas | API #51 `feat/survey-module` | `4741dbb820771adcf1eae251ecbe3e1e21f459eb` | `docs/surveys/SURVEY_CONTRACT.md` en `93161a3` (API #52, que incluye #51). Respecto de `aa94798`, que es la versión con la que Mobile se conectó, solo se agregaron endpoints de staff, retención y procesamiento; nada de lo que Mobile llama cambió |
+| Borrado real de audio (retención de 1 año) | API #52 `feat/survey-audio-hard-delete` (base: API #51) | `93161a38720e12068bf82f30bb0cd322c06dee1a` | No afecta a Mobile |
+| Push que abre una encuesta | Sin PR: rama `fix/notifications-search-concurrency` (también en `feat/notification-campaign-history`) | `e1ce99a948501e5ac9b87f13fb9e40c8af6885a0` | Payload `{screen, organization_id, survey_id, version_id}` |
+| Recaptura de prueba de vida | `POST /compliance/cases/{case}/retry-liveness` | — | Sin verificar en esta entrega |
+| Código SMS | `SMS_PROVIDER_ENABLED=true` y credenciales de AWS SNS | — | Según la documentación de API #50, apagado y sin credenciales |
+
+### API en staging: lo observado, no lo confirmado
+
+El 2026-10-13 se hicieron peticiones sin credenciales a `https://staging-api.afilianet.mx/api/v1`. **Esto no confirma qué está desplegado.** Un 404 sin credenciales puede deberse a que la ruta no existe, a otro método o prefijo, o a un middleware que oculta la ruta. El despliegue se confirma con Infraestructura o API (SHA desplegado), o con una petición autenticada antes de cada bloque de pasos.
+
+| Ruta | Respuesta observada | Despliegue |
 |---|---|---|
-| Login con `identifier` y celular, registro directo, código SMS, recuperación por celular | `feat/unified-account-access` @ `03c6b8b` | **No desplegado**: `/auth/register` y `/auth/phone-verification` dan 404; el login exige `email` |
-| Notificaciones de plataforma (cuentas sin organización) | API de #43 | **No desplegado**: `/platform/notifications` da 404 |
-| Encuestas | `feat/survey-module` @ `aa94798` | **No desplegado**: `/surveys/*` da 404 |
-| Push que abre una encuesta | `fix/notifications-search-concurrency` @ `e1ce99a` | **Sin merge** |
-| Recaptura de prueba de vida | `POST /compliance/cases/{case}/retry-liveness` | Sin verificar en esta entrega |
-| Código SMS | `SMS_PROVIDER_ENABLED=true` y credenciales de AWS SNS | **Apagado**, sin credenciales |
+| `GET /auth/register`, `/auth/phone-verification`, `/auth/verify-phone` | 404 | Sin confirmar |
+| `POST /auth/login` con cuerpo vacío | 422 que exige `email` y `password` (no menciona `identifier`) | Sugiere el contrato anterior; sin confirmar |
+| `GET /platform/notifications` | 404 | Sin confirmar |
+| `GET /surveys/available`, `/surveys/audio-config` | 404 | Sin confirmar |
+| `GET /me`, `GET /notifications` | 401 | La ruta responde y pide sesión |
 
 ### APK
 
@@ -72,11 +85,12 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 | 8 | U3: "Unirme con mi cuenta" | Aparece QA-A sin crear otra cuenta | Hoy |
 | 9 | Cerrar sesión con una invitación pendiente y entrar con U4 | No se ofrece la invitación | Hoy |
 | 10 | Registro directo con correo, con celular y con ambos; código, reenvío con espera, código vencido y 5 intentos fallidos; login y recuperación con celular (U2) | Lo que la app muestra como verificado sale de `/me` | API de acceso + SMS |
-| 11 | Cuenta sin organización → "Ver notificaciones" | Bandeja de plataforma | API de #43 |
+| 11 | Cuenta sin organización → "Ver notificaciones" | Bandeja de plataforma | API #45 |
 | 12 | Encuestas con `EXPO_PUBLIC_SURVEYS_SOURCE=api`: descargar, modo avión, responder "QA autoaplicada" y luego sincronizar | "Guardado en el dispositivo" → "Pendiente de sincronizar" → "Recibido". Una sola respuesta en Admin | API de encuestas |
 | 13 | "QA entrevista": dejar sin responder una obligatoria → "Guardar incompleta" | En Admin, las preguntas que faltan aparecen como `skipped` | API de encuestas |
 | 14 | Consentimiento → grabar → recibir una llamada | La grabación se detiene, se conserva y se marca `interrupted`; "Audio pendiente" → "Recibido" | API de encuestas + APK nuevo |
 | 15 | Rechazar el consentimiento | No hay micrófono y nunca se sube audio | API de encuestas |
+| 15b | Versión con `audio_mode: required`: aceptar el consentimiento sin poder grabar (APK actual, permiso denegado o audio borrado) y tocar "Guardar respuestas" | No se envía: aparece el aviso de que se requiere la grabación (con el APK actual, que hace falta una versión que pueda grabar) y el borrador se conserva. Si la persona rechaza, sí se envía sin audio | API de encuestas |
 | 16 | Responder sin conexión, cerrar la versión en Admin y sincronizar | "No se pudo contar: la encuesta cerró…"; se conserva hasta descartarla | API de encuestas |
 | 17 | Push de una encuesta de QA-A tocada por U1 | Abre esa encuesta en QA-A | API de encuestas + `e1ce99a` |
 
@@ -98,20 +112,49 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **Cierre o cambio de sesión durante peticiones:** detalle de notificación, `refreshUser`, perfil offline y cola de encuestas.
 - **Push:** de otra organización, de otro usuario, toques duplicados y toques nuevos durante otra apertura.
 - **Idempotencia** de respuestas (reenvío y doble toque) y cola sin envíos duplicados en paralelo.
-- **Formas de la API de acceso** (`03c6b8b`) y **de encuestas** (`aa94798`), incluidos los decimales.
+- **Formas de la API de acceso** (contrastadas en `03c6b8b`) y **de encuestas** (contrastadas en `aa94798` y revisadas contra `93161a3`), incluidos los decimales.
+- **`audio_mode: required`:** con el módulo ausente, el permiso denegado, la grabación fallida o el audio borrado, una entrevista aceptada no se envía y se conserva como borrador. El rechazo y la falta de decisión también están cubiertos.
 
 ## 4. Bloqueado por infraestructura o proveedor
 
-- **API de acceso sin desplegar:** registro directo, login con celular, código SMS y recuperación por celular (paso 10).
-- **SMS apagado:** recibir cualquier código, aun con la API desplegada.
-- **API de #43 sin desplegar:** notificaciones de plataforma (paso 11).
-- **Módulo de encuestas sin desplegar:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
+- **API #50 sin despliegue confirmado:** registro directo, login con celular, código SMS y recuperación por celular (paso 10).
+- **SMS apagado según API #50:** recibir cualquier código, aun con la API desplegada.
+- **API #45 sin despliegue confirmado:** notificaciones de plataforma (paso 11).
+- **API #51 sin despliegue confirmado:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
 - **`e1ce99a` sin merge:** push a una encuesta (pasos 17 y 22).
 - **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5).
 - **Proveedores de IA:** no hay transcripción ni análisis de calidad (`provider_unavailable`).
 
-## Correcciones de esta integración (`017d340`)
+## Iniciar Metro con tunnel (PowerShell, staging)
+
+Se ejecuta desde el worktree de integración, no desde la copia principal (que está en `main`). `.env.staging` no está en git: se copia de la copia principal. Se usa `npx.cmd`, porque la política de ejecución de PowerShell puede bloquear `npx.ps1`. Se limpia `EXPO_OFFLINE`: si quedó activo de otra sesión, la CLI de Expo omite sus peticiones de red, y el arranque con tunnel no debe depender de eso. El tunnel usa el `@expo/ngrok` global que ya funcionó; no se cambia su configuración.
+
+```powershell
+Set-Location "C:UsersandreHerdAfilianetafilianet-mobile.claudeworktreesmvp-integration"
+git fetch origin
+git status -sb                      # debe decir: integration/mvp-physical-tests...origin/integration/mvp-physical-tests
+git rev-parse HEAD                  # debe coincidir con la cabeza de Mobile #51
+Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+Remove-Item Env:EXPO_PUBLIC_SURVEYS_SOURCE -ErrorAction SilentlyContinue   # vista previa de encuestas
+Copy-Item "C:UsersandreHerdAfilianetafilianet-mobile.env.staging" "..env.staging" -Force
+node .scriptsselect-env.js staging
+Select-String -Path ..env -Pattern "EXPO_PUBLIC_APP_ENV|EXPO_PUBLIC_API_BASE_URL"   # staging / https://staging-api.afilianet.mx
+npx.cmd expo start --dev-client --tunnel --clear
+```
+
+Para los pasos 12 a 23, solo cuando el despliegue de API #51 en staging esté confirmado, se detiene Metro (Ctrl+C) y se inicia con la fuente real:
+
+```powershell
+Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+$env:EXPO_PUBLIC_SURVEYS_SOURCE = "api"
+npx.cmd expo start --dev-client --tunnel --clear
+```
+
+Para volver a la vista previa con datos de ejemplo: `Remove-Item Env:EXPO_PUBLIC_SURVEYS_SOURCE`, y se reinicia con el primer bloque.
+
+## Correcciones de esta integración
 
 1. **El APK anterior no abría.** Con Metro, el APK anterior no abría la app: expo-router evalúa todas las rutas al iniciar, y la de respuesta importaba `expo-audio`. Ahora `expo-audio` se carga solo si el módulo nativo existe.
 2. **La subida de audio no comprobaba la sesión entre pasos.** Ahora se comprueba antes de cada paso. Antes, un cambio de cuenta durante el PUT confirmaba el audio con el token nuevo.
 3. **Perfil de una cuenta solo con celular:** muestra el celular en lugar de una línea vacía.
+4. **`audio_mode: required` (revisión de #51):** una entrevista con el consentimiento aceptado y sin grabación ya no se envía como completa ni se trata como `optional`; se conserva como borrador. Pasa con el módulo ausente, el permiso denegado, la grabación fallida o el audio borrado. Con el módulo ausente, se explica que hace falta una versión de la app que pueda grabar. El rechazo se sigue enviando sin audio, como indica el contrato, y la falta de decisión ya no cuenta como rechazo.

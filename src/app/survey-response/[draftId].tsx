@@ -10,10 +10,12 @@ import { colors, measures, radius, spacing, typography } from "../../components/
 import { SurveysPreviewNotice } from "../../features/surveys/components";
 import {
   audioApplies,
+  consentDecisionMissing,
   deleteDraft,
   getDownloaded,
   loadDraft,
   missingRequired,
+  requiredAudioMissing,
   saveDraft,
   toSubmissionAnswers,
   validateAll,
@@ -117,6 +119,8 @@ export default function SurveyResponseScreen() {
   const { version } = loaded;
   const interview = draft.respondentType === "interviewed_external";
   const withAudio = audioApplies(version, draft.respondentType);
+  const audioRequired = withAudio && version.audio_mode === "required";
+  const cannotRecord = recorder.phase === "unavailable" || recorder.phase === "denied" || recorder.phase === "failed";
 
   function setAnswer(questionId: number, value: DraftValue) {
     if (!draft) return;
@@ -176,6 +180,16 @@ export default function SurveyResponseScreen() {
       setMessage(copy.recording.stopBeforeSubmit);
       return;
     }
+    // Required audio (contract): a decline is a valid, sendable choice, but no decision is not a
+    // decline, and an accepted consent without its recording stays a draft -- never sent as complete.
+    if (consentDecisionMissing(version, draft)) {
+      setMessage(copy.consent.decisionRequired);
+      return;
+    }
+    if (requiredAudioMissing(version, draft)) {
+      setMessage(recorder.phase === "unavailable" ? copy.recording.requiredUnavailable : copy.recording.requiredMissing);
+      return;
+    }
     // Self responses must be complete; interviews may be saved with omissions.
     const found = validateAll(version, draft.answers, !interview);
     setErrors(found);
@@ -214,6 +228,12 @@ export default function SurveyResponseScreen() {
             {version.consent_text ? <Text style={styles.consent}>{version.consent_text}</Text> : null}
             <Text style={styles.meta}>{copy.consent.note}</Text>
             <Text style={styles.meta}>{copy.consent.final}</Text>
+            {audioRequired ? <Text style={styles.body}>{copy.consent.required}</Text> : null}
+            {recorder.phase === "unavailable" ? (
+              <Text accessibilityLiveRegion="polite" style={styles.body}>
+                {audioRequired ? copy.consent.unavailableRequired : copy.consent.unavailableOptional}
+              </Text>
+            ) : null}
             <Button label={copy.consent.accept} onPress={() => persist({ ...draft, consentAudio: "accepted" })} />
             <Button label={copy.consent.decline} variant="ghost" onPress={() => persist({ ...draft, consentAudio: "declined" })} />
           </Card>
@@ -233,6 +253,11 @@ export default function SurveyResponseScreen() {
               </View>
             ) : null}
             {recorder.message ? <Text accessibilityLiveRegion="polite" style={styles.body}>{recorder.message}</Text> : null}
+            {cannotRecord && !draft.audio ? (
+              <Text accessibilityLiveRegion="polite" style={styles.body} testID="recording-mode-note">
+                {!audioRequired ? copy.recording.continueWithout : recorder.phase === "unavailable" ? copy.recording.requiredUnavailable : copy.recording.requiredMissing}
+              </Text>
+            ) : null}
             {recorder.canOpenSettings ? <Button label={copy.recording.openSettings} variant="ghost" size="sm" onPress={recorder.openSettings} /> : null}
             {recorder.phase === "recording" ? (
               <Button label={copy.recording.stop} variant="danger" onPress={() => void recorder.stop()} />
