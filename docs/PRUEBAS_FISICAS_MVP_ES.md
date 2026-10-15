@@ -48,7 +48,8 @@ El 2026-10-13 se hicieron peticiones sin credenciales a `https://staging-api.afi
   - **Grabación de audio:** la app abre y la entrevista funciona, pero muestra "Esta versión de la app no puede grabar audio…" y no ofrece grabar.
   - **Textos del componente AWS de prueba de vida:** siguen en inglés. Los textos propios de la app sí salen en español.
   - **Permiso de micrófono:** no existe en ese manifiesto.
-- **APK nuevo** (development-staging construido desde esta rama, **no incluido en esta entrega**): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo".
+- **APK nuevo** (development-staging construido desde la rama `build/dev-staging-audio-liveness`, **aún no construido**): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo". Cómo construirlo e instalarlo: sección «Construir e instalar el APK development-staging».
+- **Candidatos que no se dan por desplegados:** API #60 (`9839ad37c9f60ec8fac6a58aa4b727e5a6ee30f4`) y Admin #44 (`92b0ff16c248e6482e45f7b932c3b398806a82cf`), cabezas observadas el 2026-10-14 con `git ls-remote`. La cabeza de API #58 también se observó en `93811e3c4f75f6e166063d51e22894e5f59ec255`, posterior a la `edfeab4` verificada arriba. Antes de probar se confirma qué SHA está realmente desplegado.
 
 ### Datos sintéticos
 
@@ -133,8 +134,67 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **API #51 sin despliegue confirmado:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
 - **`e1ce99a` sin merge:** push a una encuesta (pasos 17 y 22).
 - **API #58 sin despliegue confirmado:** extracción del INE en el primer intento y resultados de los pasos 5a y 5c; recaptura (paso 6). La referencia es `edfeab4`, pero no está desplegada y la validación de migraciones está pendiente: `migration-check` falló con SQLite y debe correr con PostgreSQL. Antes de los pasos 5a, 5c y 6 se confirma con Infraestructura o API el SHA desplegado en staging; si no es `edfeab4`, se revisa la diferencia antes de probar.
-- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d).
+- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d). La compilación de Gradle y el manifiesto final no se verificaron localmente (no hay Android SDK ni JDK); la primera compilación real será la de EAS.
 - **Proveedores de IA:** no hay transcripción ni análisis de calidad (`provider_unavailable`).
+
+## Construir e instalar el APK development-staging (preparado, no ejecutado)
+
+### Qué incorpora (revisado el 2026-10-14 sobre `f8f1192`)
+
+| Necesidad | Dónde queda | Cómo se comprobó |
+|---|---|---|
+| Módulo nativo de grabación | `expo-audio` 57.0.5 en `package.json` y lockfile; plugin `expo-audio` en `app.json` (`recordAudioAndroid: true`, sin grabación ni reproducción en segundo plano) | Versión esperada por SDK 57 (`expo install --check` no la marca); prebuild local en un worktree desechable |
+| Permiso de micrófono | `RECORD_AUDIO` y `MODIFY_AUDIO_SETTINGS` en el manifiesto; ningún `tools:node="remove"` lo quita | Manifiesto generado por el prebuild desechable. `expo-image-picker` ya no bloquea el micrófono |
+| Consentimiento explícito antes de grabar | JavaScript: no hay botón de micrófono hasta "La persona acepta que se grabe"; el permiso del sistema se pide al tocar "Iniciar grabación"; rechazar sigue permitido | Pruebas de `survey-response` y `useInterviewRecorder` (Jest) |
+| Textos nativos de prueba de vida en español | `modules/aws-face-liveness/android/src/main/res/values/strings.xml` | Mismas 17 claves que el AAR público `com.amplifyframework.ui:liveness:1.11.0` (Maven Central; el AAR solo trae inglés y no tiene `values-*`) |
+| API HTTPS de staging | `eas.json`, perfil `staging` (heredado): `EXPO_PUBLIC_API_BASE_URL=https://staging-api.afilianet.mx`, `EXPO_NO_DOTENV=1` | `scripts/check-build-env.mjs`, que EAS ejecuta antes de instalar, pasa con `EAS_BUILD_PROFILE=development-staging` y rechaza otra URL |
+| Arranque y conexión por tunnel | `developmentClient: true`, `expo-dev-client` 57.0.18, esquema `exp+afilianet-mobile` en el manifiesto | Prebuild desechable. El tunnel usa el `@expo/ngrok` global, como con el APK de #44 |
+| El APK anterior sigue arrancando | `expo-audio` se carga solo si existe su módulo nativo (`audioSupport.ts`) | `old-apk-startup.test.ts` (Jest y CI) |
+
+**No se comprobó localmente:** la compilación de Gradle y el manifiesto final combinado, porque esta máquina no tiene Android SDK ni JDK. La primera compilación real será la de EAS. CAMERA llega por el manifiesto de `expo-image-picker`. Los textos que la librería de AWS tenga escritos directamente en su código no se pueden reemplazar con `strings.xml`; si alguno sale en inglés en el teléfono, se anota.
+
+### Orden
+
+1. Con el **APK actual (#44)**, hacer antes el paso 1 del guion: la app abre con Metro sin el módulo de audio. Al instalar el APK nuevo, esa prueba ya no se puede repetir en ese teléfono.
+2. Sincronizar o confirmar que no quedan encuestas pendientes en el teléfono.
+3. Construir, instalar y hacer las comprobaciones de abajo.
+
+### Comando (no ejecutado en esta entrega)
+
+```powershell
+Set-Location "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.claude\worktrees\apk-dev-staging"
+git fetch origin
+git status -sb          # limpio: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
+git rev-parse HEAD      # anotar el SHA del que sale el APK
+Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+npm ci                  # solo desde el lockfile; eas build evalúa los plugins de app.json con estas dependencias
+npx.cmd eas-cli whoami  # cuenta de Expo de Afilianet; si no hay sesión: npx.cmd eas-cli login
+npx.cmd eas-cli build --platform android --profile development-staging
+```
+
+- `npx.cmd eas-cli` descarga la CLI de EAS, no otra versión de Expo. EAS instala las dependencias con `npm ci` desde el lockfile.
+- El perfil hereda de `staging`:
+  - `autoIncrement` sube el `versionCode`;
+  - las variables del entorno «preview» de EAS se aplican, incluido `GOOGLE_SERVICES_JSON` para push, como en el APK de #44;
+  - el `.env` local no se usa (`EXPO_NO_DOTENV=1`).
+- Se anotan el enlace o id del build, el `versionCode` y el SHA.
+
+### Instalar
+
+- Abrir en el teléfono el enlace del build de EAS, descargar el APK e instalarlo **encima** del anterior. Con la misma firma de EAS, Android conserva los datos.
+- Si Android pide desinstalar por una firma distinta, **no desinstalar** sin antes sincronizar o confirmar que no hay pendientes: desinstalar borra los borradores y la cola de encuestas.
+
+### Comprobaciones físicas del APK nuevo
+
+1. **Arranque:** abrir la app sin Metro → aparece el lanzador del cliente de desarrollo. Iniciar Metro con tunnel (sección siguiente) y abrir su URL → carga la app en tema claro.
+2. **Permiso declarado:** Ajustes de Android → Apps → Afilianet → Permisos: aparece Micrófono, sin conceder.
+3. **Consentimiento antes del micrófono:** en «QA entrevista», antes de "La persona acepta que se grabe" no hay control de micrófono. Después, "Iniciar grabación" pide el permiso del sistema la primera vez.
+4. **Permiso denegado:** aparece el mensaje y "Abrir configuración". Con audio opcional se puede continuar sin audio; con audio requerido queda como borrador (paso 15b).
+5. **Grabar:** grabar 30 s y detener → "Audio guardado en el teléfono". Repetir y recibir una llamada a mitad → se detiene, se conserva y se marca como interrumpida.
+6. **Rechazo:** con "Continuar sin grabar" no hay micrófono y la respuesta se envía sin audio.
+7. **Aislamiento y borradores:** dejar un borrador con audio, activar el modo avión y reiniciar la app → el borrador sigue. Cambiar a otra cuenta → no lo ve.
+8. **Prueba de vida en español (U5):** las pantallas del componente AWS muestran, entre otros, "Comenzar verificación con video", "Advertencia de fotosensibilidad", "Acércate", "Aléjate", "No te muevas" y "Verificando". Anotar con captura cualquier texto que siga en inglés.
+9. **Staging HTTPS:** iniciar sesión con correo contra staging, sin error de red.
 
 ## Iniciar Metro con tunnel (PowerShell, staging)
 
