@@ -169,6 +169,21 @@ describe("drafts", () => {
     await deleteDraft(SCOPE, "d-1");
     expect(await listDrafts(SCOPE)).toEqual([]);
   });
+
+  it("keeps an open text answer per account, organization and survey", async () => {
+    const otherAccountSameOrg: SurveyScope = { userId: "user-2", organizationId: SCOPE.organizationId };
+    const otherSurvey: SurveyDraft = { ...draft, id: "d-2", surveyId: "fx-vecinal", versionId: "fx-v-vecinal-1", answers: { 2: "Baches" } };
+    await saveDraft(SCOPE, { ...draft, answers: { 1: [1], 5: "Buen servicio" } });
+    await saveDraft(SCOPE, otherSurvey);
+
+    expect((await loadDraft(SCOPE, "d-1"))?.answers[5]).toBe("Buen servicio");
+    expect((await loadDraft(SCOPE, "d-2"))?.answers).toEqual({ 2: "Baches" });
+    // OTHER: same account, another organization.
+    expect(await loadDraft(OTHER, "d-1")).toBeNull();
+    expect(await loadDraft(otherAccountSameOrg, "d-1")).toBeNull();
+    expect(await listDrafts(OTHER)).toEqual([]);
+    expect(await listDrafts(otherAccountSameOrg)).toEqual([]);
+  });
 });
 
 describe("sample source follows the contract's server rules", () => {

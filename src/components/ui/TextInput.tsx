@@ -11,6 +11,7 @@ interface TextInputProps extends RNTextInputProps {
 }
 
 export function TextInput({ label, helperText, error, mono = false, style, onFocus, onBlur, ...inputProps }: TextInputProps) {
+  const multiline = Boolean(inputProps.multiline);
   const [focused, setFocused] = useState(false);
   const isEmphasized = focused || Boolean(error);
 
@@ -20,6 +21,9 @@ export function TextInput({ label, helperText, error, mono = false, style, onFoc
       <RNTextInput
         style={[
           styles.input,
+          // A multi-line field in a single-line 44 pt box clips what is typed
+          // (Android top padding + font scale); let it grow from several lines.
+          multiline ? styles.inputMultiline : styles.inputSingleLine,
           mono ? styles.inputMono : null,
           {
             borderWidth: isEmphasized ? 2 : 1,
@@ -64,13 +68,20 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   input: {
-    height: 44,
     borderRadius: radius.md,
     paddingHorizontal: spacing[4],
     fontFamily: typography.body.fontFamily,
     fontSize: typography.body.fontSize,
     color: colors.textPrimary,
     backgroundColor: colors.surface,
+  },
+  inputSingleLine: {
+    height: 44,
+  },
+  inputMultiline: {
+    minHeight: 96,
+    paddingVertical: spacing[3],
+    textAlignVertical: "top",
   },
   inputMono: {
     fontFamily: typography.numeric.fontFamily,

@@ -54,6 +54,9 @@ export default function SurveyResponseScreen() {
   const [saving, setSaving] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The edit still waiting for the autosave delay, with the scope it belongs
+  // to. Leaving the screen saves it instead of dropping it.
+  const pendingSave = useRef<{ scope: SurveyScope; draft: SurveyDraft } | null>(null);
 
   // The draft belongs to the account+organization it was loaded under; if
   // the session switches away, this screen stops reading or writing it.
@@ -85,7 +88,9 @@ export default function SurveyResponseScreen() {
       setDraftSaved(false);
       if (!loaded || !sameScope) return;
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      pendingSave.current = { scope: loaded.scope, draft: next };
       autosaveTimer.current = setTimeout(() => {
+        pendingSave.current = null;
         void saveDraft(loaded.scope, next)
           .then(() => setDraftSaved(true))
           .catch((error) => setMessage(error instanceof StorageFullError ? error.message : copy.storageFull));
@@ -96,6 +101,11 @@ export default function SurveyResponseScreen() {
 
   useEffect(() => () => {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    // Back, home or a route change within the delay: keep what was typed,
+    // always in the account+organization the draft was loaded under.
+    const pending = pendingSave.current;
+    pendingSave.current = null;
+    if (pending) void saveDraft(pending.scope, pending.draft).catch(() => undefined);
   }, []);
 
   const onAudioSaved = useCallback(
@@ -147,6 +157,9 @@ export default function SurveyResponseScreen() {
     setMessage(null);
     try {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      // The outbox takes the answers below; a pending autosave must never
+      // recreate the draft after it is deleted.
+      pendingSave.current = null;
       const consentAudio = withAudio ? draft.consentAudio ?? "declined" : null;
       await enqueueResponse(
         loaded.scope,

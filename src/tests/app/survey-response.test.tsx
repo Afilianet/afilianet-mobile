@@ -1,5 +1,5 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
-import { Alert } from "react-native";
+import { Alert, StyleSheet } from "react-native";
 import { deleteDraft, getDownloaded, loadDraft, saveDraft, type SurveyDraft } from "../../features/surveys/library";
 import { enqueueResponse } from "../../features/surveys/outbox";
 import type { SurveyQuestion, SurveyVersion } from "../../features/surveys/types";
@@ -335,5 +335,121 @@ describe("Survey response: session safety", () => {
     expect(screen.getByText("Este borrador ya no está en el teléfono.")).toBeTruthy();
     expect(saveDraft).not.toHaveBeenCalledWith({ userId: "user-1", organizationId: "org-b" }, expect.anything());
     expect(enqueueResponse).not.toHaveBeenCalled();
+  });
+});
+
+describe("Survey response: open text answer", () => {
+  // Tablet finding: the keyboard opened on the open question but the text was
+  // not kept. The draft store below behaves like the real one: what is saved
+  // is what a later visit to the screen loads.
+  function useDraftStore(initial: SurveyDraft) {
+    const store = new Map<string, SurveyDraft>([["user-1.org-a/d-1", initial]]);
+    (loadDraft as jest.Mock).mockImplementation(async (scope: { userId: string; organizationId: string }, id: string) => store.get(`${scope.userId}.${scope.organizationId}/${id}`) ?? null);
+    (saveDraft as jest.Mock).mockImplementation(async (scope: { userId: string; organizationId: string }, value: SurveyDraft) => {
+      store.set(`${scope.userId}.${scope.organizationId}/${value.id}`, value);
+    });
+    return store;
+  }
+
+  async function typeEachCharacter(screen: Awaited<ReturnType<typeof render>>, text: string) {
+    for (let length = 1; length <= text.length; length += 1) {
+      await act(async () => {
+        fireEvent.changeText(screen.getByLabelText("Tu respuesta"), text.slice(0, length));
+      });
+    }
+  }
+
+  it("keeps every typed character in the field and autosaves it to the draft", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = useDraftStore(draft());
+      const screen = await renderScreen();
+      await typeEachCharacter(screen, "Buen servicio");
+      expect(screen.getByLabelText("Tu respuesta").props.value).toBe("Buen servicio");
+      await act(async () => {
+        jest.advanceTimersByTime(700);
+      });
+      expect(store.get("user-1.org-a/d-1")?.answers[3]).toBe("Buen servicio");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps what was typed when leaving the screen before the autosave delay, and shows it again on return", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = useDraftStore(draft());
+      const screen = await renderScreen();
+      await typeEachCharacter(screen, "Hola");
+      // Back within the 600 ms debounce: the visit ends (the old instance
+      // unmounts) and a new visit mounts and loads the stored draft.
+      await act(async () => {
+        screen.rerender(<SurveyResponseScreen key="second-visit" />);
+      });
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      expect(store.get("user-1.org-a/d-1")?.answers[3]).toBe("Hola");
+      expect(screen.getByLabelText("Tu respuesta").props.value).toBe("Hola");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("never writes the typed text into another account or organization when the session changes", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = useDraftStore(draft());
+      const screen = await renderScreen();
+      await typeEachCharacter(screen, "Privado");
+      mockScope = { userId: "user-2", organizationId: "org-b" };
+      await act(async () => {
+        screen.rerender(<SurveyResponseScreen key="other-session" />);
+      });
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      // The other session never sees it either.
+      expect(screen.queryByLabelText("Tu respuesta")).toBeNull();
+      expect([...store.keys()]).toEqual(["user-1.org-a/d-1"]);
+      for (const [, [scope]] of (saveDraft as jest.Mock).mock.calls.entries()) {
+        expect(scope).toEqual(SCOPE);
+      }
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("never recreates the draft after the response is submitted, even with an autosave still pending", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = useDraftStore(draft({ consentAudio: "declined", answers: { 1: [2], 2: "7" } }));
+      (deleteDraft as jest.Mock).mockImplementation(async (scope: { userId: string; organizationId: string }, id: string) => {
+        store.delete(`${scope.userId}.${scope.organizationId}/${id}`);
+      });
+      const screen = await renderScreen();
+      await typeEachCharacter(screen, "Último comentario");
+      await press(screen, "Guardar respuestas");
+      expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ id: "d-1" }), expect.arrayContaining([{ question_id: 3, value_text: "Último comentario" }]));
+      await act(async () => {
+        screen.rerender(<SurveyResponseScreen key="after-submit" />);
+      });
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      expect(store.has("user-1.org-a/d-1")).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("is a multi-line area tall enough to show the typed lines, not a single-line box", async () => {
+    const screen = await renderScreen();
+    const style = StyleSheet.flatten(screen.getByLabelText("Tu respuesta").props.style);
+    expect(style.height).toBeUndefined();
+    expect(style.minHeight).toBeGreaterThanOrEqual(88);
+    expect(style.textAlignVertical).toBe("top");
+    // Single-line fields keep their 44 pt height.
+    expect(StyleSheet.flatten(screen.getByLabelText("Tu respuesta (número)").props.style).height).toBe(44);
   });
 });

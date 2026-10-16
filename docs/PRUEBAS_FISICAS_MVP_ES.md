@@ -147,7 +147,9 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 git log -1 --format=%H -- modules/aws-face-liveness/android/src/main/res/values/strings.xml
 ```
 
-Sustituye a `d62fa00` (código `da7de80`) y a `9bac121`, que ya no son candidatos. El APK se construye desde la cabeza del PR #53; antes de construirlo hay que confirmar que `git diff --stat <candidato> HEAD` solo muestra `docs/`.
+Sustituye a `d62fa00` (código `da7de80`) y a `9bac121`, que ya no son candidatos. El APK se construye desde la cabeza del PR #53. Antes de construirlo hay que confirmar que `git diff --stat <candidato> HEAD` no toca archivos nativos (`android/`, `modules/*/android`, `plugins/`, `app.json`, `app.config.js`, `eas.json`, `package.json`, `package-lock.json`). Los cambios solo de JavaScript (`src/`) los sirve Metro al APK ya construido.
+
+**APK construido:** EAS `35bc0d4e-c498-40c0-b1bb-1cd11f778bcd` desde `284dd69`, `versionCode` 11, `FINISHED` el 2026-10-16. Los commits posteriores que solo cambian JavaScript no requieren otro APK.
 
 **Build fallido de `d62fa00`:** EAS `39cd9486-5de3-4387-b1da-800af359a811` (perfil `development-staging`, 2026-10-16), `ERRORED` / `EAS_BUILD_UNKNOWN_GRADLE_ERROR`.
 - **Error:** la tarea `:aws-face-liveness:packageDebugResources` falló en `strings.xml:14:27` con «The string "--" is not permitted within comments».
@@ -215,7 +217,7 @@ git fetch origin build/dev-staging-audio-liveness
 git status -sb          # limpio: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
 git rev-parse HEAD      # anotar el SHA del que sale el APK; debe ser la cabeza del PR #53
 C=$(git log -1 --format=%H -- modules/aws-face-liveness/android/src/main/res/values/strings.xml)
-git diff --stat "$C" HEAD   # solo docs/: el código es el del candidato
+git diff --stat "$C" HEAD -- android modules plugins app.json app.config.js eas.json package.json package-lock.json   # vacío: lo nativo es el del candidato
 unset EXPO_OFFLINE
 npm ci                  # solo desde el lockfile; eas build evalúa los plugins de app.json con estas dependencias
 eas --version           # eas-cli 24.8.0, instalado en ~/.local; eas.json exige >= 16
@@ -292,3 +294,8 @@ El paso 7 usa `adb`, que esta máquina no tiene. Hay dos opciones: instalar las 
    - Agrega `compliance-document-capture.test.tsx` y `compliance.test.tsx` al gate de CI.
    - Se conservan la recaptura de prueba de vida (su gate sigue igual) y los textos de identificación en español.
 6. **Ruta del primer bloque de PowerShell:** en #51 la ruta quedó sin barras invertidas (`C:UsersandreHerd…`). Aquí se corrigió, y el bloque apunta al worktree `mvp-identity`.
+7. **Pregunta abierta de la encuesta (hallazgo en tablet, APK anterior + Metro de `284dd69`):** al tocar «¿Algo más que quieras contarnos?» aparecía el teclado, pero el campo no conservaba el texto.
+   - **Defecto demostrado:** al salir de la pantalla dentro de los 600 ms del autoguardado, el temporizador se cancelaba y se perdía lo último escrito; al volver, se mostraba el borrador anterior. Ahora el guardado pendiente se completa al salir, siempre en la cuenta y organización del borrador, y nunca después de enviar la respuesta.
+   - **Defecto de presentación:** el área multilínea tenía la altura fija de 44 de un campo de una línea, lo que puede recortar el texto en Android (relleno superior y tamaño de fuente del sistema). Ahora mide al menos 96, crece con el texto y alinea arriba.
+   - **No reproducido en pruebas:** con el valor controlado y `onChangeText`, el texto escrito carácter a carácter se conserva y se autoguarda. No hay recarga del borrador mientras se escribe. Si en la tablet sigue fallando, hace falta una grabación de pantalla para distinguir si las letras aparecen y desaparecen o nunca se ven, el teclado usado, el tamaño de fuente y de pantalla de Android, y si en el campo numérico de la misma encuesta sí se puede escribir. Metro no recibe los logs de consola del dispositivo.
+   - **Audio en el APK anterior:** sin el módulo nativo, la app muestra «Esta versión de la app no puede grabar audio», que atribuye el problema a la versión del APK y no al micrófono del dispositivo. «Sin permiso de micrófono» solo aparece con el permiso denegado.
