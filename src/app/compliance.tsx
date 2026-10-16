@@ -188,7 +188,7 @@ function StepsCard({
         ) : null}
         {steps.map((step) => (
           <View key={step.id}>
-            <ComplianceStepCard step={step} currentStep={currentStep} />
+            <ComplianceStepCard step={step} currentStep={currentStep} steps={steps} />
             {step.step_type === "identity_document" && identityDataStatus ? (
               <View style={styles.identityDataRow} accessible
                 accessibilityLabel={`${strings.compliance.identityData.title}: ${strings.compliance.identityData.status[identityDataStatus]}`}>
