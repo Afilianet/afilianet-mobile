@@ -262,7 +262,12 @@ describe("Compliance: required steps", () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "passed", completed_at: "2026-01-03T00:00:00Z" })]);
     const { findByText, queryByText } = await renderCompliance();
     expect(await findByText("Completado")).toBeTruthy();
-    expect(await findByText(/verificado/i)).toBeTruthy();
+    // No document-processing result is cached in this file's default mocks
+    // (fetchDocumentResult rejects not_found), so IdentityDocumentStep shows
+    // its generic "captured, nothing more to verify locally" copy rather
+    // than a verdict-specific sentence -- see document-pass-details.test.tsx
+    // for the real-result-present case.
+    expect(await findByText("Fotos de identificación guardadas")).toBeTruthy();
     expect(await findByText(/Completado el/)).toBeTruthy();
     expect(queryByText("Aprobado")).toBeNull();
   });
@@ -270,7 +275,11 @@ describe("Compliance: required steps", () => {
   it("shows a failed identity_document step with a real way to try again, not a non-functional retry action", async () => {
     mockedFetchComplianceSteps.mockResolvedValue([step({ status: "failed", attempt_count: 1 })]);
     const { findByText, queryByText } = await renderCompliance();
-    expect(await findByText("Rechazado")).toBeTruthy();
+    // A failed Afilianet document step remains retryable -- "Rechazado"
+    // would read like a final case decision even when OCR was inconclusive
+    // (see ComplianceStepCard.tsx's own retryNeeded special case).
+    expect(await findByText("Otro intento necesario")).toBeTruthy();
+    expect(queryByText("Rechazado")).toBeNull();
     // No prior document-processing result exists in this file's default mocks,
     // so document_type can't be recovered -- the real capture flow asks again.
     expect(await findByText("¿Qué documento vas a proporcionar?")).toBeTruthy();
@@ -412,6 +421,10 @@ describe("Compliance: analytics", () => {
 
 describe("Compliance: terms acceptance", () => {
   it("requires confirmation, then calls the real attempt endpoint with { accepted: true }", async () => {
+    // ComplianceStepCard now locks any step that is neither resolved nor the
+    // case's own current_step -- match it here so the real "Aceptar
+    // términos" action actually renders instead of the locked placeholder.
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const alertSpy = jest.spyOn(Alert, "alert").mockImplementation(() => {});
     mockedAttemptComplianceStep.mockResolvedValue(complianceCase({ status: "in_progress" }));
@@ -432,12 +445,14 @@ describe("Compliance: terms acceptance", () => {
   });
 
   it("discloses that no real terms document exists, without inventing legal text", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     const { findByText } = await renderCompliance();
     expect(await findByText(/no se ha publicado un documento de términos/i)).toBeTruthy();
   });
 
   it("submits accepted:true and refreshes compliance, steps, and affiliate profile", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     mockedAttemptComplianceStep.mockResolvedValue(
       complianceCase({ status: "approved", current_step: null, approved_at: "2026-01-06T00:00:00Z" }),
@@ -548,6 +563,7 @@ describe("Compliance: retry to manual_review", () => {
 
 describe("Compliance: approval refreshes affiliate profile", () => {
   it("refetches the affiliate profile after backend returns approved", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     mockedAttemptComplianceStep.mockResolvedValue(
       complianceCase({ status: "approved", current_step: null, approved_at: "2026-01-06T00:00:00Z" }),
@@ -631,6 +647,7 @@ describe("Compliance: step attempt error handling", () => {
 
 describe("Compliance: step attempt analytics and privacy", () => {
   it("fires compliance_step_opened and compliance_step_submitted with no properties for terms acceptance", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
     mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
     mockedAttemptComplianceStep.mockResolvedValue(complianceCase({ status: "in_progress" }));
     const alertSpy = autoConfirmTermsAlert();

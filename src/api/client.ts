@@ -54,6 +54,24 @@ function extractMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
+function extractReason(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "reason" in payload) {
+    const reason = (payload as { reason?: unknown }).reason;
+    if (typeof reason === "string") return reason;
+  }
+  return undefined;
+}
+
+/** Seconds from the JSON body's `retry_after`, else the Retry-After header (seconds form only). */
+export function extractRetryAfter(payload: unknown, header: string | null): number | undefined {
+  if (payload && typeof payload === "object" && "retry_after" in payload) {
+    const value = Number((payload as { retry_after?: unknown }).retry_after);
+    if (Number.isFinite(value) && value >= 0) return Math.ceil(value);
+  }
+  if (header && /^\d+$/.test(header.trim())) return Number(header.trim());
+  return undefined;
+}
+
 function extractDetails(payload: unknown): ApiErrorDetails | undefined {
   if (payload && typeof payload === "object" && "errors" in payload) {
     const errors = (payload as { errors?: unknown }).errors;
@@ -117,7 +135,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!response.ok) {
     const kind = kindForStatus(response.status);
-    const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload));
+    const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload), {
+      reason: extractReason(payload),
+      retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
+    });
     if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
     throw error;
   }

@@ -21,6 +21,20 @@ interface SectionCardProps<T> {
   /** Overrides the plain title/description empty rendering with custom content (e.g. a CTA button). */
   emptyContent?: ReactNode;
   children: (data: T) => ReactNode;
+  /**
+   * Pass the SAME value given to the underlying useQuery's own `enabled`
+   * option (e.g. `Boolean(activeOrganization)`). React Query reports
+   * `isPending: true` for a disabled query exactly the same as a query
+   * that's genuinely still loading -- without this, a card gating on "no
+   * active organization" renders a permanent skeleton instead of an honest
+   * empty state. Defaults to true (every existing caller that doesn't pass
+   * this behaves exactly as before).
+   */
+  enabled?: boolean;
+  /** Overrides the empty-state copy specifically for `enabled={false}` --
+   * falls back to emptyTitle/emptyDescription if omitted. */
+  disabledTitle?: string;
+  disabledDescription?: string;
 }
 
 /**
@@ -38,6 +52,9 @@ export function SectionCard<T>({
   emptyDescription,
   emptyContent,
   children,
+  enabled = true,
+  disabledTitle,
+  disabledDescription,
 }: SectionCardProps<T>) {
   const apiError = isApiError(query.error) ? query.error : null;
   const notFound = apiError?.kind === "not_found";
@@ -45,7 +62,14 @@ export function SectionCard<T>({
   const showEmpty = notFound || (query.data !== undefined && (isEmpty?.(query.data) ?? false));
 
   let body: ReactNode = null;
-  if (query.isPending) {
+  if (!enabled) {
+    body = (
+      <View style={styles.stateGroup}>
+        <Text style={styles.empty}>{disabledTitle ?? emptyTitle ?? strings.shared.nothingHereYet}</Text>
+        {disabledDescription ? <Text style={styles.emptyDescription}>{disabledDescription}</Text> : null}
+      </View>
+    );
+  } else if (query.isPending) {
     // Covers the first fetch and the "waiting on a prerequisite" case (a
     // disabled query has no data/error yet either) -- but not a background
     // refetch of already-successful data, so pull-to-refresh doesn't reset
