@@ -242,7 +242,7 @@ describe("organization switching and tenant query isolation", () => {
       await orgValue.selectOrganization("org-b");
     });
 
-    expect(invalidateSpy).toHaveBeenCalledTimes(7);
+    expect(invalidateSpy).toHaveBeenCalledTimes(10);
 
     type Predicate = (query: { queryKey: unknown[] }) => boolean;
     const predicates = invalidateSpy.mock.calls.map(
@@ -257,6 +257,9 @@ describe("organization switching and tenant query isolation", () => {
       "payouts",
       "payout-destinations",
       "notifications",
+      "assisted-enrollment",
+      "assisted-enrollments",
+      "assisted-local",
     ]) {
       // Every domain's cached data for the org we just left (org-a) should be
       // matched by exactly one of the invalidation calls...

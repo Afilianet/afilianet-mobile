@@ -43,9 +43,11 @@ jobs:
 
       - name: Verify notification inbox, detail (incl. session/organization isolation), settings, push opening and native liveness copy
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/notifications.test.tsx src/tests/app/notification-detail.test.tsx src/tests/app/notification-settings.test.tsx src/components/PushLifecycleOpen.test.tsx src/components/compliance/recaptureRequest.test.ts src/tests/native/livenessNativeStrings.test.ts
-      # compliance-liveness.test.tsx has a failure reproduced on unchanged main; gate only the recapture block.
-      - name: Verify staff-requested liveness recapture notice
-        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-liveness.test.tsx --testNamePattern "Staff-requested liveness recapture"
+      # Stale fixtures fixed: a review verdict is a passed step (#24 recapture
+      # semantics), terms must be the case's current_step (enforced order, #2)
+      # and the assisted-enrollment tenant domains are invalidated too.
+      - name: Verify liveness (incl. staff-requested recapture), production safety and tenant query isolation
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-liveness.test.tsx src/tests/app/compliance-production-safety.test.tsx src/state/OrganizationProvider.test.tsx
       - name: Verify access by email or mobile, verification, recovery, later affiliation and session races
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/utils/phone.test.ts src/api/access.test.ts src/auth/pendingReferral.test.ts src/auth/AuthProvider.test.tsx src/services/offlineSession.test.ts src/tests/navigation/rootNavigationGuard.test.ts src/tests/app/register.test.tsx src/tests/app/invitation.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/verify-account.test.tsx src/tests/app/forgot-password.test.tsx src/tests/app/join.test.tsx src/tests/app/no-organization.test.tsx src/tests/app/notification-settings.test.tsx src/tests/app/platform-notifications.test.tsx src/components/PushLifecycle.test.tsx
       - name: Verify surveys against the API contract (offline queue, protected storage, recording, sign-out with pending data, push)

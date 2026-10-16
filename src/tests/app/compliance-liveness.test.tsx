@@ -673,6 +673,10 @@ describe("Liveness: result UX", () => {
   });
 
   it("shows a review message, no retry action, and never converts review to pass or fail", async () => {
+    // The API resolves a `review` verdict as a passed step (the case routes
+    // to manual_review). A pending step with a completed review session is
+    // a staff-requested recapture instead (see the recapture block above).
+    mockedFetchComplianceSteps.mockResolvedValue([livenessStep({ status: "passed", attempt_count: 1 })]);
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
 

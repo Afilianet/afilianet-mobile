@@ -150,9 +150,21 @@ Repetición en Ubuntu/WSL (Node 24.22.0, npm 11.19.1, `npm ci` sin cambiar el lo
 - las suites del gate de CI de audio, consentimiento, permisos, borradores, aislamiento, arranque del APK anterior y textos de prueba de vida: 17 suites, 134 pruebas;
 - prebuild de Android en un directorio desechable, fuera del worktree. **No es una compilación de Gradle.**
 
-La suite completa tiene 4 suites con fallas, todas fuera del gate (69 de 73 suites pasan; fallan 23 de 733 pruebas):
-- `compliance-liveness`, `compliance-production-safety` y `OrganizationProvider` también fallan en `main` (`c95faeb`).
-- `compliance-face-match` en `main` ni siquiera arranca, porque no resuelve `aws-face-liveness`. Por eso no se pudo comparar.
+La suite completa tenía 23 fallas, todas fuera del gate. Las mismas 23 fallan con idéntico mensaje en `main` (`c95faeb`), cada revisión con su propio `npm ci`. Ninguna es una regresión del candidato. Cada una se atribuyó al commit de `main` que la introdujo:
+
+| Falla | Desde | Causa | Clasificación |
+|---|---|---|---|
+| 14 de `compliance-face-match` (subida de selfie, 409, 503, privacidad, aislamiento) | `c13e00d` | La subida pasó a `arrayBuffer()` + `expo/fetch`; el mock seguía con `File.upload()` | Prueba desactualizada: mismo mock que ya corrigió `3a49dbd` en `compliance-document-capture` |
+| 3 de `compliance-face-match` (`match` sobre paso `pending`) | `e288bc5` (#24) | Un `match` en un paso `pending` es una recaptura y se oculta; la API pasa el paso al completar | Fixture desactualizada: el paso queda `passed` |
+| 2 de `compliance-face-match` (insignia en paso `passed`) | `6109768` (#33) | Insignias de verificación uniformes | Texto desactualizado |
+| 1 de `compliance-face-match` (falla técnica) | `8e2b7e4` (#23) | Nuevo texto «Verificación temporalmente no disponible» | Texto desactualizado |
+| `compliance-liveness` (veredicto `review`) | `e288bc5` (#24) | Un `review` en paso `pending` es recaptura; la API resuelve `review` como paso `passed` | Fixture desactualizada |
+| `compliance-production-safety` (términos) | `3f69adb` (#2) | Orden obligatorio: se bloquea el paso que no es `current_step` | Fixture desactualizada |
+| `OrganizationProvider` (invalidaciones) | `c7eeadb` | 3 dominios de inquilino nuevos (`assisted-*`) | Prueba desactualizada; ahora verifica los 10 |
+| `compliance-face-match` «current_step never gates…» | `3f69adb` (#2) | La prueba exige que el cliente nunca bloquee por `current_step`; #2 lo hace a propósito | **Conflicto de diseño, pendiente de decisión** |
+| `compliance-face-match` «never logs … any upload header» | `3835a45` | El diagnóstico `__DEV__` registra los nombres (no los valores) de las cabeceras firmadas | **Conflicto de diseño, pendiente de decisión** |
+
+Tras las correcciones: `compliance-liveness`, `compliance-production-safety` y `OrganizationProvider` pasan completas y entran al gate de CI; `compliance-face-match` queda en 51/53 hasta decidir los dos conflictos. En la copia principal, face-match no arrancaba por su `node_modules` (no resolvía `aws-face-liveness`); con `npm ci` limpio sí arranca.
 
 | Necesidad | Dónde queda | Cómo se comprobó |
 |---|---|---|
@@ -161,7 +173,7 @@ La suite completa tiene 4 suites con fallas, todas fuera del gate (69 de 73 suit
 | Consentimiento explícito antes de grabar | JavaScript: no hay botón de micrófono hasta "La persona acepta que se grabe"; el permiso del sistema se pide al tocar "Iniciar grabación"; rechazar sigue permitido | Pruebas de `survey-response` y `useInterviewRecorder` (Jest) |
 | Textos nativos de prueba de vida en español | `modules/aws-face-liveness/android/src/main/res/values/strings.xml` | Mismas 17 claves que el AAR público `com.amplifyframework.ui:liveness:1.11.0` (Maven Central; el AAR solo trae inglés y no tiene `values-*`) |
 | API HTTPS de staging | `eas.json`, perfil `staging` (heredado): `EXPO_PUBLIC_API_BASE_URL=https://staging-api.afilianet.mx`, `EXPO_NO_DOTENV=1` | `scripts/check-build-env.mjs`, que EAS ejecuta antes de instalar, pasa con `EAS_BUILD_PROFILE=development-staging` y rechaza otra URL |
-| Arranque y conexión por tunnel | `developmentClient: true`, `expo-dev-client` 57.0.18, esquema `exp+afilianet-mobile` en el manifiesto | Prebuild desechable. El tunnel usa `@expo/ngrok` global, como con el APK de #44; en Ubuntu/WSL aún no está instalado (ver «Iniciar Metro con tunnel») |
+| Arranque y conexión por tunnel | `developmentClient: true`, `expo-dev-client` 57.0.18, esquema `exp+afilianet-mobile` en el manifiesto | Prebuild desechable. El tunnel usa `@expo/ngrok` global, como con el APK de #44; en Ubuntu/WSL está instalado `@expo/ngrok` 4.1.3 (ver «Iniciar Metro con tunnel») |
 | El APK anterior sigue arrancando | `expo-audio` se carga solo si existe su módulo nativo (`audioSupport.ts`) | `old-apk-startup.test.ts` (Jest y CI) |
 
 **No se comprobó localmente:** la compilación de Gradle y el manifiesto final combinado, porque la máquina de Ubuntu/WSL no tiene Android SDK ni JDK. La primera compilación real será la de EAS. CAMERA llega por el manifiesto de `expo-image-picker`. Los textos que la librería de AWS tenga escritos directamente en su código no se pueden reemplazar con `strings.xml`; si alguno sale en inglés en el teléfono, se anota.
@@ -218,7 +230,7 @@ Se ejecuta desde el worktree de esta rama, no desde la copia principal (que est�
 - **`.env.staging`** no está en git: se copia de la copia principal.
 - **`EXPO_OFFLINE`:** se limpia. Si quedó activo de otra sesión (el lanzador local lo define), la CLI de Expo omite sus peticiones de red, y el arranque con tunnel no debe depender de eso.
 - **Puerto:** el lanzador `migracion-config/bin/afilianet-mobile.sh` puede tener otro Metro en 127.0.0.1:8081, apuntando a la API local. Ese Metro **no se detiene**: este usa el 8082. Con tunnel, el teléfono entra por la URL de ngrok, no por el puerto.
-- **Tunnel:** la CLI de Expo 57 usa ngrok y requiere `@expo/ngrok@^4.1.0` **global**. En Windows ya estaba instalado; en Ubuntu/WSL no. La primera vez, la CLI pregunta si instalarlo; hay que aprobarlo de forma explícita (equivale a `npm install -g @expo/ngrok@^4.1.0`). No se cambia su configuración.
+- **Tunnel:** la CLI de Expo 57 usa ngrok y requiere `@expo/ngrok@^4.1.0` **global**. En Ubuntu/WSL está instalado `@expo/ngrok@4.1.3` en el prefijo de Node del usuario (`~/.local/opt/node-v24.22.0-linux-x64`), fuera de `package.json` y del lockfile; el resolvedor de la CLI lo encuentra sin preguntar. No se cambia su configuración.
 
 ```bash
 cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/apk-dev-staging
