@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
@@ -10,14 +10,14 @@ import { Card } from "../../components/ui/Card";
 import { IconButton } from "../../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
-import { OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
-import { cachedInbox, getDownloaded, refreshInbox, type DownloadedVersion } from "../../features/surveys/library";
+import { DraftRow, OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
+import { cachedInbox, getDownloaded, listDrafts, refreshInbox, type DownloadedVersion, type SurveyDraft } from "../../features/surveys/library";
 import { surveySource, surveysPreviewEnabled, useSurveyScope } from "../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../features/surveys/types";
 import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import { scopeId } from "../../features/surveys/vault";
 import { strings } from "../../i18n";
-import { surveyDetail } from "../../navigation/routes";
+import { surveyDetail, surveyResponse } from "../../navigation/routes";
 import { formatDateTime } from "../../utils/date";
 
 type InboxState =
@@ -34,6 +34,7 @@ export default function SurveysInboxScreen() {
   const copy = strings.surveys;
   const [loadedInbox, setLoadedInbox] = useState<{ key: string; inbox: InboxState; downloads: Record<string, DownloadedVersion | null> } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadedDrafts, setLoadedDrafts] = useState<{ key: string; drafts: { draft: SurveyDraft; version: DownloadedVersion["version"] | null }[] } | null>(null);
   const scopeKey = scope ? scopeId(scope) : null;
   const currentScope = useRef(scopeKey);
   useEffect(() => {
@@ -65,6 +66,31 @@ export default function SurveysInboxScreen() {
   useEffect(() => {
     void load();
   }, [load, scopeKey]);
+
+  // Drafts never leave the phone: listed from local storage only, so coming
+  // back from a response (the stack keeps this screen mounted) shows them.
+  const loadDrafts = useCallback(async () => {
+    if (!scope) return;
+    const key = scopeId(scope);
+    const drafts = await listDrafts(scope);
+    const withVersion = await Promise.all(
+      drafts.map(async (draft) => {
+        const downloaded = await getDownloaded(scope, draft.surveyId);
+        return { draft, version: downloaded && downloaded.version.id === draft.versionId ? downloaded.version : null };
+      }),
+    );
+    if (key !== currentScope.current) return;
+    setLoadedDrafts({ key, drafts: withVersion });
+  }, [scope]);
+
+  const reloadOutbox = outbox.reload;
+  useFocusEffect(
+    useCallback(() => {
+      void Promise.resolve().then(loadDrafts);
+      void reloadOutbox();
+    }, [loadDrafts, reloadOutbox]),
+  );
+  const drafts = loadedDrafts && loadedDrafts.key === scopeKey ? loadedDrafts.drafts : [];
 
   // Keyed by scope: another account's or organization's list is never rendered, not even briefly.
   const inbox: InboxState = loadedInbox && loadedInbox.key === scopeKey ? loadedInbox.inbox : { kind: "loading" };
@@ -100,6 +126,15 @@ export default function SurveysInboxScreen() {
         </View>
         <SurveysPreviewNotice />
         <Text style={styles.meta}>{copy.pushNote}</Text>
+
+        {drafts.length ? (
+          <Card style={styles.card} testID="survey-drafts">
+            <Text style={styles.cardTitle}>{copy.drafts}</Text>
+            {drafts.map(({ draft, version }) => (
+              <DraftRow key={draft.id} draft={draft} version={version} onContinue={() => router.push(surveyResponse(draft.id) as never)} />
+            ))}
+          </Card>
+        ) : null}
 
         <OutboxPanel
           items={outbox.items}

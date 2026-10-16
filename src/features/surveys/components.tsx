@@ -6,8 +6,46 @@ import { colors, spacing, typography } from "../../components/ui/theme";
 import type { BadgeTone } from "../../design-system/theme";
 import { strings } from "../../i18n";
 import { formatDateTime } from "../../utils/date";
+import type { SurveyDraft } from "./library";
 import { displayState, type OutboxDisplayState, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
+import type { SurveyVersion } from "./types";
+
+/**
+ * A draft on this phone: never sent, always editable. Labelled «Borrador»
+ * with an explicit «Continuar» action so it is never mistaken for a saved
+ * (sent) response, which lives in the outbox and is not editable.
+ */
+export function DraftRow({
+  draft,
+  version,
+  onContinue,
+  onDiscard,
+}: {
+  draft: SurveyDraft;
+  /** The downloaded version, when known, to show how far the draft got. */
+  version?: SurveyVersion | null;
+  onContinue: () => void;
+  onDiscard?: () => void;
+}) {
+  const copy = strings.surveys;
+  const answered = Object.values(draft.answers).filter((value) => value !== null && value !== "" && !(Array.isArray(value) && value.length === 0)).length;
+  const modality = draft.respondentType === "self" ? copy.availability.self : copy.availability.interview;
+  return (
+    <View style={styles.row} testID={`draft-${draft.id}`}>
+      <View style={styles.rowHeader}>
+        <Text style={styles.rowTitle}>{draft.surveyTitle}</Text>
+        <Badge label={copy.draftBadge} tone="warning" />
+      </View>
+      <Text style={styles.meta}>
+        {`${copy.draftUpdated(formatDateTime(draft.updatedAt))} · ${modality}`}
+        {version ? ` · ${copy.draftProgress(answered, version.questions.length)}` : ""}
+      </Text>
+      <Button label={copy.continueDraft} variant="secondary" size="sm" onPress={onContinue} />
+      {onDiscard ? <Button label={copy.discardDraft} variant="ghost" size="sm" onPress={onDiscard} /> : null}
+    </View>
+  );
+}
 
 export function SurveysPreviewNotice() {
   if (surveySource.kind !== "fixture") return null;
@@ -70,6 +108,8 @@ export function OutboxPanel({
             <OutboxStateBadge item={item} />
           </View>
           <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.withAudio}` : ""}</Text>
+          {item.missingRequired ? <Text style={styles.body}>{copy.incomplete(item.missingRequired)}</Text> : null}
+          <Text style={styles.meta}>{copy.notEditable}</Text>
           {item.blocked ? (
             <>
               <Text style={styles.body}>{copy.blockedReason[item.blocked]}</Text>

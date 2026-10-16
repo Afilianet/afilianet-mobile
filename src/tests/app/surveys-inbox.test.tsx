@@ -6,7 +6,11 @@ import SurveysInboxScreen from "../../app/surveys/index";
 
 jest.setTimeout(30_000);
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn(), back: jest.fn() }) }));
+jest.mock("expo-router", () => ({
+  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  // The inbox is the focused screen here.
+  useFocusEffect: (effect: () => void) => jest.requireActual("react").useEffect(effect, [effect]),
+}));
 
 let mockScope: { userId: string; organizationId: string } | null = { userId: "user-1", organizationId: "org-a" };
 jest.mock("../../features/surveys/runtime", () => ({
@@ -14,10 +18,11 @@ jest.mock("../../features/surveys/runtime", () => ({
   surveySource: { kind: "fixture" },
   surveysPreviewEnabled: true,
 }));
-jest.mock("../../features/surveys/useSurveyOutbox", () => ({
-  useSurveyOutbox: () => ({ items: [], receipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn(), discardAudio: jest.fn() }),
-}));
-jest.mock("../../features/surveys/library", () => ({ refreshInbox: jest.fn(), cachedInbox: jest.fn(), getDownloaded: jest.fn() }));
+jest.mock("../../features/surveys/useSurveyOutbox", () => {
+  const outbox = { items: [], receipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn(), discardAudio: jest.fn(), reload: jest.fn(async () => undefined) };
+  return { useSurveyOutbox: () => outbox };
+});
+jest.mock("../../features/surveys/library", () => ({ refreshInbox: jest.fn(), cachedInbox: jest.fn(), getDownloaded: jest.fn(), listDrafts: jest.fn(async () => []) }));
 jest.mock("../../features/surveys/vault", () => ({
   scopeId: (scope: { userId: string; organizationId: string }) => `${scope.userId}.${scope.organizationId}`,
 }));

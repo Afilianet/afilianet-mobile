@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { accessErrorMessage } from "../../api/access";
@@ -10,7 +10,7 @@ import { Card } from "../../components/ui/Card";
 import { IconButton } from "../../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
-import { SurveysPreviewNotice } from "../../features/surveys/components";
+import { DraftRow, SurveysPreviewNotice } from "../../features/surveys/components";
 import {
   cachedInbox,
   deleteDraft,
@@ -71,6 +71,13 @@ export default function SurveyDetailScreen() {
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load, scopeKey]);
+  // The stack keeps this screen mounted under the response screen: coming
+  // back must show the draft just created, edited or sent.
+  useFocusEffect(
+    useCallback(() => {
+      void Promise.resolve().then(load);
+    }, [load]),
+  );
 
   // Keyed by scope: another account's or organization's data is never rendered.
   const current = loaded && loaded.key === scopeKey ? loaded : null;
@@ -191,15 +198,13 @@ export default function SurveyDetailScreen() {
           <Card style={styles.card}>
             <Text style={styles.cardTitle}>{copy.drafts}</Text>
             {drafts.map((draft) => (
-              <View key={draft.id} style={styles.draft}>
-                <Button
-                  label={`${copy.resumeDraft(formatDateTime(draft.updatedAt))} · ${draft.respondentType === "self" ? copy.availability.self : copy.availability.interview}`}
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => router.push(surveyResponse(draft.id) as never)}
-                />
-                <Button label={copy.discardDraft} variant="ghost" size="sm" onPress={() => discard(draft)} />
-              </View>
+              <DraftRow
+                key={draft.id}
+                draft={draft}
+                version={downloaded && downloaded.version.id === draft.versionId ? downloaded.version : null}
+                onContinue={() => router.push(surveyResponse(draft.id) as never)}
+                onDiscard={() => discard(draft)}
+              />
             ))}
           </Card>
         ) : null}
@@ -225,7 +230,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   card: { gap: spacing.sm },
   cardTitle: { ...typography.bodyStrong, color: colors.textPrimary },
-  draft: { gap: spacing.xs },
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },
   offline: { ...typography.body, color: colors.success },

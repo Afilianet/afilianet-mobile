@@ -52,6 +52,8 @@ export interface OutboxItem {
   respondentType: RespondentType;
   consentAudio: ConsentAudio | null;
   completedAt: string;
+  /** Required questions left unanswered (an interview saved incomplete); absent on older items. */
+  missingRequired?: number;
   audio: OutboxAudio | null;
   responseId?: string;
   receivedAt?: string;

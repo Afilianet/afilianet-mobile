@@ -161,6 +161,7 @@ export default function SurveyResponseScreen() {
       // recreate the draft after it is deleted.
       pendingSave.current = null;
       const consentAudio = withAudio ? draft.consentAudio ?? "declined" : null;
+      const answers = toSubmissionAnswers(version, draft.answers);
       await enqueueResponse(
         loaded.scope,
         {
@@ -171,10 +172,11 @@ export default function SurveyResponseScreen() {
           respondentType: draft.respondentType,
           consentAudio,
           completedAt: new Date().toISOString(),
+          missingRequired: missingRequired(version, draft.answers).length,
           // Never send audio without an accepted consent.
           audio: consentAudio === "accepted" ? draft.audio : null,
         },
-        toSubmissionAnswers(version, draft.answers),
+        answers,
       );
       if (draft.audio && consentAudio !== "accepted") await removeItem(loaded.scope, audioName(draft.audio.clientAudioId));
       // The outbox now owns the answers and the audio; only the draft record goes.
