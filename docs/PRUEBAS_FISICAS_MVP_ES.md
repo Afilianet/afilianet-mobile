@@ -48,7 +48,7 @@ El 2026-10-13 se hicieron peticiones sin credenciales a `https://staging-api.afi
   - **Grabación de audio:** la app abre y la entrevista funciona, pero muestra "Esta versión de la app no puede grabar audio…" y no ofrece grabar.
   - **Textos del componente AWS de prueba de vida:** siguen en inglés. Los textos propios de la app sí salen en español.
   - **Permiso de micrófono:** no existe en ese manifiesto.
-- **APK nuevo** (development-staging construido desde la rama `build/dev-staging-audio-liveness`, **aún no construido**): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo". Cómo construirlo e instalarlo: sección «Construir e instalar el APK development-staging».
+- **APK nuevo** (development-staging construido desde la rama `build/dev-staging-audio-liveness`, **aún no construido**; candidato: código de `da7de8037748a36d53d8fedc84e75a665f6a9754`, ver «Candidato del APK»): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo". Cómo construirlo e instalarlo: sección «Construir e instalar el APK development-staging».
 - **Candidatos que no se dan por desplegados:** API #60 (`9839ad37c9f60ec8fac6a58aa4b727e5a6ee30f4`) y Admin #44 (`92b0ff16c248e6482e45f7b932c3b398806a82cf`). Admin #45 agrega aislamiento KYC y API #61 continúa la corrección facial; sus resultados deben consultarse antes de escoger un candidato. API #58 `93811e3` ya pasó ambos escenarios de migraciones PostgreSQL; no usar el fallo anterior de SQLite como estado vigente. Antes de probar se confirma qué SHA está realmente desplegado.
 
 ### Datos sintéticos
@@ -139,6 +139,14 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 
 ## Construir e instalar el APK development-staging (preparado, no ejecutado)
 
+### Candidato del APK
+
+**Código candidato: `da7de8037748a36d53d8fedc84e75a665f6a9754`.** Sustituye a `9bac121`, que ya no es candidato. Los commits posteriores en la rama que solo cambian este guion no alteran el código. El APK se construye desde la cabeza del PR #53; antes de construirlo hay que confirmar que `git diff --stat da7de80 HEAD` solo muestra `docs/`. Si la cabeza cambia código, el candidato pasa a ser esa cabeza y se actualiza esta línea.
+
+Respecto de `9bac121`, `da7de80` cambia:
+- **Face match antes de `current_step`:** la tarjeta ya no queda bloqueada cuando el documento está listo y `current_step` sigue en `biometric_liveness`. Solo se ofrecen la subida de selfie y el procesamiento; el `attempt` genérico y el simulador de desarrollo siguen fuera. Se mantiene bloqueada si el proveedor no está disponible, si falta el documento o durante una recaptura de liveness. Corresponde a API #61 (`548e6a9`), que permite procesar face match antes de completar liveness pero aplica el resultado solo cuando face match pasa a ser el paso actual. **Esto depende de que API #61 esté desplegada.** Con una API que todavía exija `current_step`, el disparo responde con error y la app muestra el mensaje del servidor.
+- **Pruebas:** `compliance-face-match` completa entra al gate de CI, y la prueba de logs de subida usa valores centinela.
+
 ### Qué incorpora (revisado el 2026-10-14 sobre `f8f1192`; repetido el 2026-10-15 en Ubuntu/WSL sobre `42418a6`)
 
 Respecto de `f8f1192`, `42418a6` solo cambia este guion: el código, `package.json`, el lockfile, `app.json` y `eas.json` son los mismos.
@@ -161,10 +169,10 @@ La suite completa tenía 23 fallas, todas fuera del gate. Las mismas 23 fallan c
 | `compliance-liveness` (veredicto `review`) | `e288bc5` (#24) | Un `review` en paso `pending` es recaptura; la API resuelve `review` como paso `passed` | Fixture desactualizada |
 | `compliance-production-safety` (términos) | `3f69adb` (#2) | Orden obligatorio: se bloquea el paso que no es `current_step` | Fixture desactualizada |
 | `OrganizationProvider` (invalidaciones) | `c7eeadb` | 3 dominios de inquilino nuevos (`assisted-*`) | Prueba desactualizada; ahora verifica los 10 |
-| `compliance-face-match` «current_step never gates…» | `3f69adb` (#2) | La prueba exige que el cliente nunca bloquee por `current_step`; #2 lo hace a propósito | **Conflicto de diseño, pendiente de decisión** |
-| `compliance-face-match` «never logs … any upload header» | `3835a45` | El diagnóstico `__DEV__` registra los nombres (no los valores) de las cabeceras firmadas | **Conflicto de diseño, pendiente de decisión** |
+| `compliance-face-match` «current_step never gates…» | `3f69adb` (#2) | La prueba usaba un `current_step` imposible; #2 bloqueaba también face match | Resuelto en `da7de80`: excepción de procesamiento según API #61 y cuatro escenarios reales |
+| `compliance-face-match` «never logs … any upload header» | `3835a45` | El diagnóstico `__DEV__` registra los nombres (no los valores) de las cabeceras firmadas, como está permitido | Resuelto en `da7de80`: centinelas de valores, URL firmada, URI y bytes; diagnóstico positivo; nada fuera de `__DEV__` |
 
-Tras las correcciones: `compliance-liveness`, `compliance-production-safety` y `OrganizationProvider` pasan completas y entran al gate de CI; `compliance-face-match` queda en 51/53 hasta decidir los dos conflictos. En la copia principal, face-match no arrancaba por su `node_modules` (no resolvía `aws-face-liveness`); con `npm ci` limpio sí arranca.
+Tras las correcciones, `compliance-liveness`, `compliance-production-safety`, `OrganizationProvider` y `compliance-face-match` (58/58) pasan completas y están en el gate de CI. Suite completa en `da7de80`: 73/73 suites y 738/738 pruebas. En la copia principal, face-match no arrancaba por su `node_modules` (no resolvía `aws-face-liveness`), un problema del entorno; con `npm ci` limpio sí arranca.
 
 | Necesidad | Dónde queda | Cómo se comprobó |
 |---|---|---|
@@ -192,6 +200,7 @@ cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/apk-d
 git fetch origin build/dev-staging-audio-liveness
 git status -sb          # limpio: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
 git rev-parse HEAD      # anotar el SHA del que sale el APK; debe ser la cabeza del PR #53
+git diff --stat da7de80 HEAD   # solo docs/: el código es el del candidato da7de80
 unset EXPO_OFFLINE
 npm ci                  # solo desde el lockfile; eas build evalúa los plugins de app.json con estas dependencias
 eas --version           # eas-cli 24.8.0, instalado en ~/.local; eas.json exige >= 16
