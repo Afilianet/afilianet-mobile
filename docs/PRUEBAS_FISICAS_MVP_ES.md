@@ -134,12 +134,25 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 - **API #51 sin despliegue confirmado:** pasos 12 a 23. La vista previa con datos de ejemplo solo prueba el motor del teléfono, no el MVP.
 - **`e1ce99a` sin merge:** push a una encuesta (pasos 17 y 22).
 - **API sin despliegue confirmado:** extracción inicial de INE (5a/5c) y recaptura (6) requieren el código del candidato correspondiente realmente desplegado. API #58 `93811e3` ya pasó migraciones PostgreSQL y está incorporada en #60 `9839ad3`; #61 sigue en revisión con su último CI verificado fallido. Antes de estos pasos, confirmar el SHA y digest vivos con API/Infra y revisar cualquier diferencia. No confundir CI con despliegue ni usar `edfeab4` como referencia actual.
-- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d). La compilación de Gradle y el manifiesto final no se verificaron localmente (no hay Android SDK ni JDK); la primera compilación real será la de EAS.
+- **APK nuevo sin construir:** audio (14 y 19) y textos AWS en español (5d). La compilación de Gradle y el manifiesto final combinado no se verificaron localmente (la máquina de Ubuntu/WSL no tiene Android SDK, JDK ni `adb`); la primera compilación real será la de EAS.
 - **Proveedores de IA:** no hay transcripción ni análisis de calidad (`provider_unavailable`).
 
 ## Construir e instalar el APK development-staging (preparado, no ejecutado)
 
-### Qué incorpora (revisado el 2026-10-14 sobre `f8f1192`)
+### Qué incorpora (revisado el 2026-10-14 sobre `f8f1192`; repetido el 2026-10-15 en Ubuntu/WSL sobre `42418a6`)
+
+Respecto de `f8f1192`, `42418a6` solo cambia este guion: el código, `package.json`, el lockfile, `app.json` y `eas.json` son los mismos.
+
+Repetición en Ubuntu/WSL (Node 24.22.0, npm 11.19.1, `npm ci` sin cambiar el lockfile):
+- typecheck y lint sin errores;
+- `test:build-env` 5/5;
+- `check-build-env.mjs` acepta `development-staging` con staging HTTPS y rechaza una URL local;
+- las suites del gate de CI de audio, consentimiento, permisos, borradores, aislamiento, arranque del APK anterior y textos de prueba de vida: 17 suites, 134 pruebas;
+- prebuild de Android en un directorio desechable, fuera del worktree. **No es una compilación de Gradle.**
+
+La suite completa tiene 4 suites con fallas, todas fuera del gate (69 de 73 suites pasan; fallan 23 de 733 pruebas):
+- `compliance-liveness`, `compliance-production-safety` y `OrganizationProvider` también fallan en `main` (`c95faeb`).
+- `compliance-face-match` en `main` ni siquiera arranca, porque no resuelve `aws-face-liveness`. Por eso no se pudo comparar.
 
 | Necesidad | Dónde queda | Cómo se comprobó |
 |---|---|---|
@@ -148,31 +161,33 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 | Consentimiento explícito antes de grabar | JavaScript: no hay botón de micrófono hasta "La persona acepta que se grabe"; el permiso del sistema se pide al tocar "Iniciar grabación"; rechazar sigue permitido | Pruebas de `survey-response` y `useInterviewRecorder` (Jest) |
 | Textos nativos de prueba de vida en español | `modules/aws-face-liveness/android/src/main/res/values/strings.xml` | Mismas 17 claves que el AAR público `com.amplifyframework.ui:liveness:1.11.0` (Maven Central; el AAR solo trae inglés y no tiene `values-*`) |
 | API HTTPS de staging | `eas.json`, perfil `staging` (heredado): `EXPO_PUBLIC_API_BASE_URL=https://staging-api.afilianet.mx`, `EXPO_NO_DOTENV=1` | `scripts/check-build-env.mjs`, que EAS ejecuta antes de instalar, pasa con `EAS_BUILD_PROFILE=development-staging` y rechaza otra URL |
-| Arranque y conexión por tunnel | `developmentClient: true`, `expo-dev-client` 57.0.18, esquema `exp+afilianet-mobile` en el manifiesto | Prebuild desechable. El tunnel usa el `@expo/ngrok` global, como con el APK de #44 |
+| Arranque y conexión por tunnel | `developmentClient: true`, `expo-dev-client` 57.0.18, esquema `exp+afilianet-mobile` en el manifiesto | Prebuild desechable. El tunnel usa `@expo/ngrok` global, como con el APK de #44; en Ubuntu/WSL aún no está instalado (ver «Iniciar Metro con tunnel») |
 | El APK anterior sigue arrancando | `expo-audio` se carga solo si existe su módulo nativo (`audioSupport.ts`) | `old-apk-startup.test.ts` (Jest y CI) |
 
-**No se comprobó localmente:** la compilación de Gradle y el manifiesto final combinado, porque esta máquina no tiene Android SDK ni JDK. La primera compilación real será la de EAS. CAMERA llega por el manifiesto de `expo-image-picker`. Los textos que la librería de AWS tenga escritos directamente en su código no se pueden reemplazar con `strings.xml`; si alguno sale en inglés en el teléfono, se anota.
+**No se comprobó localmente:** la compilación de Gradle y el manifiesto final combinado, porque la máquina de Ubuntu/WSL no tiene Android SDK ni JDK. La primera compilación real será la de EAS. CAMERA llega por el manifiesto de `expo-image-picker`. Los textos que la librería de AWS tenga escritos directamente en su código no se pueden reemplazar con `strings.xml`; si alguno sale en inglés en el teléfono, se anota.
 
 ### Orden
 
 1. Con el **APK actual (#44)**, hacer antes el paso 1 del guion: la app abre con Metro sin el módulo de audio. Al instalar el APK nuevo, esa prueba ya no se puede repetir en ese teléfono.
 2. Sincronizar o confirmar que no quedan encuestas pendientes en el teléfono.
 3. Construir, instalar y hacer las comprobaciones de abajo.
+4. Antes de los pasos que dependen del backend, registrar el SHA y el digest de API realmente desplegados en staging. No dar por desplegados API #60 ni #61.
 
-### Comando (no ejecutado en esta entrega)
+### Comando (Ubuntu/WSL; no ejecutado en esta entrega)
 
-```powershell
-Set-Location "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.claude\worktrees\apk-dev-staging"
-git fetch origin
+```bash
+cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/apk-dev-staging
+git fetch origin build/dev-staging-audio-liveness
 git status -sb          # limpio: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
-git rev-parse HEAD      # anotar el SHA del que sale el APK
-Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
+git rev-parse HEAD      # anotar el SHA del que sale el APK; debe ser la cabeza del PR #53
+unset EXPO_OFFLINE
 npm ci                  # solo desde el lockfile; eas build evalúa los plugins de app.json con estas dependencias
-npx.cmd eas-cli whoami  # cuenta de Expo de Afilianet; si no hay sesión: npx.cmd eas-cli login
-npx.cmd eas-cli build --platform android --profile development-staging
+eas --version           # eas-cli 24.8.0, instalado en ~/.local; eas.json exige >= 16
+eas whoami              # debe listar la cuenta afilianet; si no hay sesión: eas login
+eas build --platform android --profile development-staging
 ```
 
-- `npx.cmd eas-cli` descarga la CLI de EAS, no otra versión de Expo. EAS instala las dependencias con `npm ci` desde el lockfile.
+- Se usa el `eas-cli` instalado en la máquina, no otra versión de Expo. Si avisa de una versión nueva, no se actualiza por rutina. EAS instala las dependencias con `npm ci` desde el lockfile.
 - El perfil hereda de `staging`:
   - `autoIncrement` sube el `versionCode`;
   - las variables del entorno «preview» de EAS se aplican, incluido `GOOGLE_SERVICES_JSON` para push, como en el APK de #44;
@@ -196,32 +211,38 @@ npx.cmd eas-cli build --platform android --profile development-staging
 8. **Prueba de vida en español (U5):** las pantallas del componente AWS muestran, entre otros, "Comenzar verificación con video", "Advertencia de fotosensibilidad", "Acércate", "Aléjate", "No te muevas" y "Verificando". Anotar con captura cualquier texto que siga en inglés.
 9. **Staging HTTPS:** iniciar sesión con correo contra staging, sin error de red.
 
-## Iniciar Metro con tunnel (PowerShell, staging)
+## Iniciar Metro con tunnel (Ubuntu/WSL, staging)
 
-Se ejecuta desde el worktree de integración, no desde la copia principal (que está en `main`). `.env.staging` no está en git: se copia de la copia principal. Se usa `npx.cmd`, porque la política de ejecución de PowerShell puede bloquear `npx.ps1`. Se limpia `EXPO_OFFLINE`: si quedó activo de otra sesión, la CLI de Expo omite sus peticiones de red, y el arranque con tunnel no debe depender de eso. El tunnel usa el `@expo/ngrok` global que ya funcionó; no se cambia su configuración.
+Se ejecuta desde el worktree de esta rama, no desde la copia principal (que está en `main` y cuyo `node_modules` no incluye `expo-audio`). El código es el mismo que el de `mvp-identity` (`f8f1192`); solo cambia este guion.
 
-```powershell
-Set-Location "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.claude\worktrees\mvp-identity"
-git fetch origin
-git status -sb                      # debe decir: integration/mvp-identity-processing...origin/integration/mvp-identity-processing
-git rev-parse HEAD                  # debe coincidir con la cabeza del PR de esta rama
-Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
-Remove-Item Env:EXPO_PUBLIC_SURVEYS_SOURCE -ErrorAction SilentlyContinue   # vista previa de encuestas
-Copy-Item "C:\Users\andre\Herd\Afilianet\afilianet-mobile\.env.staging" ".\.env.staging" -Force
-node .\scripts\select-env.js staging
-Select-String -Path .\.env -Pattern "EXPO_PUBLIC_APP_ENV|EXPO_PUBLIC_API_BASE_URL"   # staging / https://staging-api.afilianet.mx
-npx.cmd expo start --dev-client --tunnel --clear
+- **`.env.staging`** no está en git: se copia de la copia principal.
+- **`EXPO_OFFLINE`:** se limpia. Si quedó activo de otra sesión (el lanzador local lo define), la CLI de Expo omite sus peticiones de red, y el arranque con tunnel no debe depender de eso.
+- **Puerto:** el lanzador `migracion-config/bin/afilianet-mobile.sh` puede tener otro Metro en 127.0.0.1:8081, apuntando a la API local. Ese Metro **no se detiene**: este usa el 8082. Con tunnel, el teléfono entra por la URL de ngrok, no por el puerto.
+- **Tunnel:** la CLI de Expo 57 usa ngrok y requiere `@expo/ngrok@^4.1.0` **global**. En Windows ya estaba instalado; en Ubuntu/WSL no. La primera vez, la CLI pregunta si instalarlo; hay que aprobarlo de forma explícita (equivale a `npm install -g @expo/ngrok@^4.1.0`). No se cambia su configuración.
+
+```bash
+cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/apk-dev-staging
+git fetch origin build/dev-staging-audio-liveness
+git status -sb                      # debe decir: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
+git rev-parse HEAD                  # debe coincidir con la cabeza del PR #53 y con el SHA del APK
+unset EXPO_OFFLINE
+unset EXPO_PUBLIC_SURVEYS_SOURCE    # vista previa de encuestas
+cp /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.env.staging ./.env.staging
+node ./scripts/select-env.js staging
+grep -E '^EXPO_PUBLIC_(APP_ENV|API_BASE_URL)=' .env   # staging / https://staging-api.afilianet.mx
+npx expo start --dev-client --tunnel --clear --port 8082
 ```
 
-Para los pasos 12 a 23, solo cuando el despliegue de API #51 en staging esté confirmado, se detiene Metro (Ctrl+C) y se inicia con la fuente real:
+Para los pasos 12 a 23, solo cuando el despliegue de API #51 en staging esté confirmado, se detiene **este** Metro (Ctrl+C en su terminal) y se inicia con la fuente real:
 
-```powershell
-Remove-Item Env:EXPO_OFFLINE -ErrorAction SilentlyContinue
-$env:EXPO_PUBLIC_SURVEYS_SOURCE = "api"
-npx.cmd expo start --dev-client --tunnel --clear
+```bash
+unset EXPO_OFFLINE
+EXPO_PUBLIC_SURVEYS_SOURCE=api npx expo start --dev-client --tunnel --clear --port 8082
 ```
 
-Para volver a la vista previa con datos de ejemplo: `Remove-Item Env:EXPO_PUBLIC_SURVEYS_SOURCE`, y se reinicia con el primer bloque.
+Para volver a la vista previa con datos de ejemplo, se reinicia con el primer bloque (sin `EXPO_PUBLIC_SURVEYS_SOURCE`).
+
+El paso 7 usa `adb`, que esta máquina no tiene. Hay dos opciones: instalar las platform-tools de Android, o abrir el enlace `afilianetmobile://join/<orgId>/<code>` desde el propio teléfono.
 
 ## Correcciones de esta integración
 
