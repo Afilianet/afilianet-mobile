@@ -11,7 +11,7 @@
   AWS screens must be too.
 
   The key set is EXACTLY the 17 <string> resources in that AAR's
-  res/values/values.xml -- re-diff against the new AAR whenever the
+  res/values/values.xml; re-diff against the new AAR whenever the
   liveness dependency in build.gradle is bumped. This is native code:
   Metro never reloads it, a new development/staging APK is required.
 -->

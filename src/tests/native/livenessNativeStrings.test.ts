@@ -1,11 +1,26 @@
-import { readFileSync } from "fs";
-import { join } from "path";
+import { XML } from "expo/config-plugins";
+import { readdirSync, readFileSync } from "fs";
+import { join, relative } from "path";
 
 // Exact keys shipped by the AWS liveness UI SDKs this app links:
 // com.amplifyframework.ui:liveness:1.11.0 (res/values/values.xml) and
 // amplify-ui-swift-liveness 1.5.0 (Base.lproj/Localizable.strings). Neither
 // ships Spanish. Re-diff these lists whenever either dependency is bumped.
 const ROOT = join(__dirname, "..", "..", "..");
+const MODULE_DIR = join(ROOT, "modules/aws-face-liveness");
+const ANDROID_STRINGS = join(MODULE_DIR, "android/src/main/res/values/strings.xml");
+
+// Every XML file the module itself ships (generated build output excluded).
+function moduleXmlFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.isDirectory()) {
+      return ["build", ".gradle", ".cxx", "node_modules"].includes(entry.name) ? [] : moduleXmlFiles(join(dir, entry.name));
+    }
+    return entry.name.endsWith(".xml") ? [join(dir, entry.name)] : [];
+  });
+}
+
+type ParsedStrings = { resources: { string?: { $: { name: string }; _?: string }[] } };
 const ANDROID_KEYS = [
   "amplify_ui_liveness_challenge_a11y_cancel_content_description",
   "amplify_ui_liveness_challenge_connecting",
@@ -72,11 +87,22 @@ const IOS_KEYS = [
 const ENGLISH_DEFAULTS = /\b(Hold still|Move closer|Move back|Verifying|Connecting|Start video check|Photosensitivity|Got it|Cancel Challenge|Center your face|Not Now)\b/;
 
 describe("Spanish copy for the native AWS liveness screens", () => {
-  it("overrides every Android string resource of the AWS liveness AAR", () => {
-    const xml = readFileSync(join(ROOT, "modules/aws-face-liveness/android/src/main/res/values/strings.xml"), "utf8");
-    const entries = [...xml.matchAll(/<string name="([^"]+)">([^<]*)<\/string>/g)];
-    expect(entries.map(([, name]) => name).sort()).toEqual([...ANDROID_KEYS].sort());
-    for (const [, , value] of entries) {
+  // Gradle's resource merger (aapt2) rejects XML that is not well-formed,
+  // e.g. "--" inside a comment (EAS build 39cd9486). A regex never noticed.
+  // Expo's own Android resource parser (xml2js/sax, strict) fails the same.
+  it("ships only well-formed XML in the native module", async () => {
+    const files = moduleXmlFiles(MODULE_DIR).map((file) => relative(MODULE_DIR, file)).sort();
+    expect(files).toEqual(["android/src/main/AndroidManifest.xml", "android/src/main/res/values/strings.xml"]);
+    for (const file of files) {
+      await expect(XML.parseXMLAsync(readFileSync(join(MODULE_DIR, file), "utf8"))).resolves.toBeTruthy();
+    }
+  });
+
+  it("overrides every Android string resource of the AWS liveness AAR", async () => {
+    const parsed = (await XML.parseXMLAsync(readFileSync(ANDROID_STRINGS, "utf8"))) as unknown as ParsedStrings;
+    const entries = (parsed.resources.string ?? []).map((entry) => [entry.$.name, entry._ ?? ""] as const);
+    expect(entries.map(([name]) => name).sort()).toEqual([...ANDROID_KEYS].sort());
+    for (const [, value] of entries) {
       expect(value.trim()).not.toBe("");
       expect(value).not.toMatch(ENGLISH_DEFAULTS);
     }

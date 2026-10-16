@@ -48,7 +48,7 @@ El 2026-10-13 se hicieron peticiones sin credenciales a `https://staging-api.afi
   - **Grabación de audio:** la app abre y la entrevista funciona, pero muestra "Esta versión de la app no puede grabar audio…" y no ofrece grabar.
   - **Textos del componente AWS de prueba de vida:** siguen en inglés. Los textos propios de la app sí salen en español.
   - **Permiso de micrófono:** no existe en ese manifiesto.
-- **APK nuevo** (development-staging construido desde la rama `build/dev-staging-audio-liveness`, **aún no construido**; candidato: código de `da7de8037748a36d53d8fedc84e75a665f6a9754`, ver «Candidato del APK»): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo". Cómo construirlo e instalarlo: sección «Construir e instalar el APK development-staging».
+- **APK nuevo** (development-staging construido desde la rama `build/dev-staging-audio-liveness`, **aún no construido**; el primer intento, EAS `39cd9486`, falló en Gradle; ver «Candidato del APK»): agrega `expo-audio` (grabación, sin reproducción en Mobile), el permiso `RECORD_AUDIO` y los textos en español del componente AWS. Sin él no se prueban los pasos marcados como "APK nuevo". Cómo construirlo e instalarlo: sección «Construir e instalar el APK development-staging».
 - **Candidatos que no se dan por desplegados:** API #60 (`9839ad37c9f60ec8fac6a58aa4b727e5a6ee30f4`) y Admin #44 (`92b0ff16c248e6482e45f7b932c3b398806a82cf`). Admin #45 agrega aislamiento KYC y API #61 continúa la corrección facial; sus resultados deben consultarse antes de escoger un candidato. API #58 `93811e3` ya pasó ambos escenarios de migraciones PostgreSQL; no usar el fallo anterior de SQLite como estado vigente. Antes de probar se confirma qué SHA está realmente desplegado.
 
 ### Datos sintéticos
@@ -141,7 +141,21 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 
 ### Candidato del APK
 
-**Código candidato: `da7de8037748a36d53d8fedc84e75a665f6a9754`.** Sustituye a `9bac121`, que ya no es candidato. Los commits posteriores en la rama que solo cambian este guion no alteran el código. El APK se construye desde la cabeza del PR #53; antes de construirlo hay que confirmar que `git diff --stat da7de80 HEAD` solo muestra `docs/`. Si la cabeza cambia código, el candidato pasa a ser esa cabeza y se actualiza esta línea.
+**Código candidato: el commit que corrige el comentario XML de `strings.xml`.** Es el commit que contiene esta versión del guion; su SHA se obtiene así:
+
+```bash
+git log -1 --format=%H -- modules/aws-face-liveness/android/src/main/res/values/strings.xml
+```
+
+Sustituye a `d62fa00` (código `da7de80`) y a `9bac121`, que ya no son candidatos. El APK se construye desde la cabeza del PR #53; antes de construirlo hay que confirmar que `git diff --stat <candidato> HEAD` solo muestra `docs/`.
+
+**Build fallido de `d62fa00`:** EAS `39cd9486-5de3-4387-b1da-800af359a811` (perfil `development-staging`, 2026-10-16), `ERRORED` / `EAS_BUILD_UNKNOWN_GRADLE_ERROR`.
+- **Error:** la tarea `:aws-face-liveness:packageDebugResources` falló en `strings.xml:14:27` con «The string "--" is not permitted within comments».
+- **Causa:** el comentario de cabecera decía `values.xml -- re-diff`, y XML no admite `--` dentro de un comentario. Venía de `f23ae20` (#47).
+- **Por qué no se detectó antes:** la prueba de textos nativos leía el archivo con una expresión regular, y el prebuild local no compila recursos.
+- **Corrección:** el comentario dice ahora `values.xml; re-diff`; los 17 textos no cambian. `livenessNativeStrings.test.ts`, que ya está en el gate de CI, valida todos los XML del módulo (`AndroidManifest.xml` y `strings.xml`) con el parser estricto de Expo (`XML.parseXMLAsync` de `expo/config-plugins`) y lee las 17 traducciones desde el XML ya analizado.
+- **Comprobación:** con el comentario original, la prueba falla con «Malformed comment»; con la corrección, pasa.
+- **versionCode:** ese intento consumió el `versionCode` 10 (incremento remoto), que no se revierte. El siguiente build usará el 11.
 
 Respecto de `9bac121`, `da7de80` cambia:
 - **Face match antes de `current_step`:** la tarjeta ya no queda bloqueada cuando el documento está listo y `current_step` sigue en `biometric_liveness`. Solo se ofrecen la subida de selfie y el procesamiento; el `attempt` genérico y el simulador de desarrollo siguen fuera. Se mantiene bloqueada si el proveedor no está disponible, si falta el documento o durante una recaptura de liveness. Corresponde a API #61 (`548e6a9`), que permite procesar face match antes de completar liveness pero aplica el resultado solo cuando face match pasa a ser el paso actual. **Esto depende de que API #61 esté desplegada.** Con una API que todavía exija `current_step`, el disparo responde con error y la app muestra el mensaje del servidor.
@@ -200,7 +214,8 @@ cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/apk-d
 git fetch origin build/dev-staging-audio-liveness
 git status -sb          # limpio: build/dev-staging-audio-liveness...origin/build/dev-staging-audio-liveness
 git rev-parse HEAD      # anotar el SHA del que sale el APK; debe ser la cabeza del PR #53
-git diff --stat da7de80 HEAD   # solo docs/: el código es el del candidato da7de80
+C=$(git log -1 --format=%H -- modules/aws-face-liveness/android/src/main/res/values/strings.xml)
+git diff --stat "$C" HEAD   # solo docs/: el código es el del candidato
 unset EXPO_OFFLINE
 npm ci                  # solo desde el lockfile; eas build evalúa los plugins de app.json con estas dependencias
 eas --version           # eas-cli 24.8.0, instalado en ~/.local; eas.json exige >= 16
