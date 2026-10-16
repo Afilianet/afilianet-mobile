@@ -5,8 +5,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { IconButton } from "../../components/ui/IconButton";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, radius, spacing, typography } from "../../components/ui/theme";
+import { Icon } from "../../design-system/icons/Icon";
 import { SurveysPreviewNotice } from "../../features/surveys/components";
 import {
   audioApplies,
@@ -181,12 +183,39 @@ export default function SurveyResponseScreen() {
       if (draft.audio && consentAudio !== "accepted") await removeItem(loaded.scope, audioName(draft.audio.clientAudioId));
       // The outbox now owns the answers and the audio; only the draft record goes.
       await deleteDraft(loaded.scope, draft.id);
-      router.replace(routes.surveys as never);
+      leave();
     } catch (error) {
       setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
     } finally {
       setSaving(false);
     }
+  }
+
+  // Back to whatever opened this response (the survey or the list): never
+  // stacks another copy of the list, so «Cerrar» leads home without repeats.
+  function leave() {
+    if (router.canGoBack()) router.back();
+    else router.replace(routes.surveys as never);
+  }
+
+  /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
+  async function saveDraftAndExit() {
+    if (!draft || !loaded || saving) return;
+    if (recorder.phase === "recording" || recorder.phase === "saving") {
+      setMessage(copy.recording.stopBeforeExit);
+      return;
+    }
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    pendingSave.current = null;
+    if (sameScope) {
+      try {
+        await saveDraft(loaded.scope, draft);
+      } catch (error) {
+        setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
+        return;
+      }
+    }
+    leave();
   }
 
   function submit() {
@@ -216,7 +245,8 @@ export default function SurveyResponseScreen() {
     if (missing.length) {
       Alert.alert(copy.form.incompleteTitle, copy.form.incompleteBody(missing.length), [
         { text: copy.form.keepAnswering, style: "cancel" },
-        { text: copy.form.saveIncomplete, onPress: () => void save() },
+        { text: copy.form.saveDraftAndExit, onPress: () => void saveDraftAndExit() },
+        { text: copy.form.saveIncomplete, style: "destructive", onPress: () => void save() },
       ]);
       return;
     }
@@ -226,7 +256,12 @@ export default function SurveyResponseScreen() {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="survey-response-scroll">
-        <Text style={styles.heading} accessibilityRole="header">{version.title}</Text>
+        <View style={styles.header}>
+          <Text style={styles.heading} accessibilityRole="header">{version.title}</Text>
+          <IconButton label={strings.common.close} onPress={() => void saveDraftAndExit()}>
+            <Icon name="cerrar" size={18} color={colors.textPrimary} />
+          </IconButton>
+        </View>
         <Text style={styles.meta}>{interview ? copy.availability.interview : copy.availability.self}</Text>
         <SurveysPreviewNotice />
         {version.instructions ? (
@@ -300,7 +335,9 @@ export default function SurveyResponseScreen() {
 
         {draftSaved ? <Text style={styles.meta}>{copy.form.draftSaved}</Text> : null}
         {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
+        <Text style={styles.meta}>{copy.form.submitNote}</Text>
         <Button label={copy.form.submit} size="lg" fullWidth loading={saving} onPress={submit} />
+        <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving} onPress={() => void saveDraftAndExit()} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -404,7 +441,8 @@ function range(min: number, max: number): number[] {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { padding: measures.mobileGutter, gap: spacing.md },
-  heading: { ...typography.title, color: colors.textPrimary },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  heading: { ...typography.title, color: colors.textPrimary, flexShrink: 1 },
   card: { gap: spacing.sm },
   cardTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   body: { ...typography.body, color: colors.textSecondary },

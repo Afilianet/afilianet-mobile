@@ -10,8 +10,9 @@ import SurveyResponseScreen from "../../app/survey-response/[draftId]";
 jest.setTimeout(30_000);
 
 const mockReplace = jest.fn();
+const mockBack = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ replace: mockReplace, push: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ replace: mockReplace, push: jest.fn(), back: mockBack, canGoBack: () => true }),
   useLocalSearchParams: () => ({ draftId: "d-1" }),
 }));
 
@@ -143,9 +144,13 @@ describe("Survey response: consent and recording (interviews only)", () => {
     const screen = await renderScreen();
     expect(screen.getByTestId("recording-indicator")).toBeTruthy();
     expect(screen.getByText("● Grabando · 65s")).toBeTruthy();
-    await press(screen, "Guardar respuestas");
-    expect(screen.getByText("Detén la grabación antes de guardar las respuestas.")).toBeTruthy();
+    await press(screen, "Enviar respuesta");
+    expect(screen.getByText("Detén la grabación antes de enviar las respuestas.")).toBeTruthy();
     expect(enqueueResponse).not.toHaveBeenCalled();
+    // Leaving is blocked too: the recording must finish into the draft first.
+    await press(screen, "Guardar borrador y salir");
+    expect(screen.getByText("Detén la grabación antes de salir. Lo grabado se conservará en el borrador.")).toBeTruthy();
+    expect(mockBack).not.toHaveBeenCalled();
     await press(screen, "Detener grabación");
     expect(mockRecorder.stop).toHaveBeenCalled();
   });
@@ -158,7 +163,7 @@ describe("Survey response: consent and recording (interviews only)", () => {
     expect(screen.getByText("Esta versión de la app no puede grabar audio.")).toBeTruthy();
     expect(screen.getByText("Puedes continuar la entrevista sin audio.")).toBeTruthy();
     expect(screen.queryByText("Iniciar grabación")).toBeNull();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: null }), expect.any(Array));
   });
 
@@ -166,7 +171,7 @@ describe("Survey response: consent and recording (interviews only)", () => {
     const audio = { clientAudioId: "aud-1", mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 10 };
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", audio, answers: { 1: [1], 2: "3" } }));
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "declined", audio: null }), expect.any(Array));
     expect(removeItem).toHaveBeenCalledWith(SCOPE, "audio-aud-1");
   });
@@ -182,11 +187,12 @@ describe("Survey response: audio_mode required (contract: a decline is allowed; 
   });
 
   async function expectKeptAsDraft(screen: Awaited<ReturnType<typeof render>>, message: string) {
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(screen.getAllByText(message).length).toBeGreaterThan(0);
     expect(enqueueResponse).not.toHaveBeenCalled();
     expect(deleteDraft).not.toHaveBeenCalled();
     expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
   }
 
   const REQUIRED_UNAVAILABLE =
@@ -247,7 +253,7 @@ describe("Survey response: audio_mode required (contract: a decline is allowed; 
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: ANSWERED }));
     mockRecorder.phase = "unavailable";
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "declined", audio: null }), expect.any(Array));
   });
 
@@ -261,7 +267,7 @@ describe("Survey response: audio_mode required (contract: a decline is allowed; 
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", audio: AUDIO, answers: ANSWERED }));
     mockRecorder.phase = "saved";
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: AUDIO }), expect.any(Array));
   });
 });
@@ -270,7 +276,7 @@ describe("Survey response: completeness", () => {
   it("a self response must answer every required question", async () => {
     (loadDraft as jest.Mock).mockResolvedValue(draft({ respondentType: "self" }));
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(screen.getAllByText("Esta pregunta es obligatoria.")).toHaveLength(2);
     expect(enqueueResponse).not.toHaveBeenCalled();
   });
@@ -279,14 +285,14 @@ describe("Survey response: completeness", () => {
     const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: { 1: [2] } }));
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).not.toHaveBeenCalled();
     expect(alert.mock.calls[0][0]).toBe("Hay preguntas obligatorias sin responder");
     expect(alert.mock.calls[0][1]).toMatch(/Falta 1 pregunta obligatoria/);
 
     const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
     await act(async () => {
-      buttons.find((button) => button.text === "Guardar incompleta")?.onPress?.();
+      buttons.find((button) => button.text === "Enviar incompleta")?.onPress?.();
     });
     expect(enqueueResponse).toHaveBeenCalledWith(
       SCOPE,
@@ -294,13 +300,15 @@ describe("Survey response: completeness", () => {
       [{ question_id: 1, value_choice_ids: [2] }, { question_id: 2, skipped: true }, { question_id: 3, skipped: true }],
     );
     expect(deleteDraft).toHaveBeenCalledWith(SCOPE, "d-1");
-    expect(mockReplace).toHaveBeenCalledWith("/surveys");
+    // Back to what opened it: never a second copy of the list on the stack.
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 
   it("still rejects a malformed answer in an interview (incomplete is allowed, wrong is not)", async () => {
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: { 1: [1], 2: "999" } }));
     const screen = await renderScreen();
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     // Shown as the field's hint and, now, as an alert-role error.
     const alerts = screen.getAllByRole("alert").map((node) => node.props.children);
     expect(alerts).toContain("Escribe un número del 0 al 80.");
@@ -315,7 +323,7 @@ describe("Survey response: completeness", () => {
     await act(async () => {
       fireEvent.changeText(screen.getByLabelText("Tu respuesta (número)"), "7,5");
     });
-    await press(screen, "Guardar respuestas");
+    await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(
       SCOPE,
       expect.objectContaining({ consentAudio: "accepted", audio }),
@@ -429,7 +437,7 @@ describe("Survey response: open text answer", () => {
       });
       const screen = await renderScreen();
       await typeEachCharacter(screen, "Último comentario");
-      await press(screen, "Guardar respuestas");
+      await press(screen, "Enviar respuesta");
       expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ id: "d-1" }), expect.arrayContaining([{ question_id: 3, value_text: "Último comentario" }]));
       await act(async () => {
         screen.rerender(<SurveyResponseScreen key="after-submit" />);

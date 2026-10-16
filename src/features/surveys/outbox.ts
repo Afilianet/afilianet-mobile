@@ -68,6 +68,8 @@ export interface OutboxReceipt {
   surveyTitle: string;
   receivedAt: string;
   withAudio: boolean;
+  /** Carried from the sent item; absent on receipts recorded before it existed (shown as unknown, never guessed). */
+  missingRequired?: number;
 }
 
 /**
@@ -135,7 +137,13 @@ export async function enqueueResponse(scope: SurveyScope, item: Omit<OutboxItem,
 async function recordReceipt(scope: SurveyScope, item: OutboxItem, receivedAt: string, withAudio: boolean) {
   const receipts = await listReceipts(scope);
   await sealJson(scope, RECEIPTS, [
-    { id: item.id, surveyTitle: item.surveyTitle, receivedAt, withAudio },
+    {
+      id: item.id,
+      surveyTitle: item.surveyTitle,
+      receivedAt,
+      withAudio,
+      ...(item.missingRequired === undefined ? {} : { missingRequired: item.missingRequired }),
+    },
     ...receipts.filter((receipt) => receipt.id !== item.id),
   ].slice(0, MAX_RECEIPTS));
 }

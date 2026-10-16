@@ -69,6 +69,21 @@ export function OutboxStateBadge({ item }: { item: OutboxItem }) {
   return <Badge label={copy.label} tone={copy.tone} />;
 }
 
+/**
+ * Complete/incomplete, shown apart from the sync badge and kept after the
+ * server's receipt. Records saved before this was tracked show nothing:
+ * the condition is unknown, never assumed.
+ */
+function Completeness({ missingRequired }: { missingRequired?: number }) {
+  if (missingRequired === undefined) return null;
+  const copy = strings.surveys.outbox;
+  return missingRequired > 0 ? (
+    <Text style={styles.body}>{copy.incomplete(missingRequired)}</Text>
+  ) : (
+    <Text style={styles.meta}>{copy.complete}</Text>
+  );
+}
+
 export function OutboxPanel({
   items,
   receipts,
@@ -108,7 +123,7 @@ export function OutboxPanel({
             <OutboxStateBadge item={item} />
           </View>
           <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.withAudio}` : ""}</Text>
-          {item.missingRequired ? <Text style={styles.body}>{copy.incomplete(item.missingRequired)}</Text> : null}
+          <Completeness missingRequired={item.missingRequired} />
           <Text style={styles.meta}>{copy.notEditable}</Text>
           {item.blocked ? (
             <>
@@ -135,6 +150,7 @@ export function OutboxPanel({
             <Badge label={copy.received} tone="success" />
           </View>
           <Text style={styles.meta}>{copy.receivedAt(formatDateTime(receipt.receivedAt))}{receipt.withAudio ? ` · ${copy.withAudio}` : ""}</Text>
+          <Completeness missingRequired={receipt.missingRequired} />
         </View>
       ))}
       {receipts.some((receipt) => receipt.withAudio) ? <Text style={styles.meta}>{copy.serverProcessing}</Text> : null}

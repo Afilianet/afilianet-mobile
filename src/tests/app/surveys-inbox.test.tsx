@@ -65,7 +65,7 @@ describe("Surveys inbox", () => {
 
     expect(screen.getByText(/Sin conexión. Mostrando la lista guardada el/)).toBeTruthy();
     expect(screen.getByText(/Disponible sin conexión \(descargada el/)).toBeTruthy();
-    expect(screen.getByText(/Descárgala antes de responder/)).toBeTruthy();
+    expect(screen.getByText(/la encuesta se prepara sola/)).toBeTruthy();
     expect(screen.getByText(/Los avisos de encuestas nuevas solo llegan con internet/)).toBeTruthy();
     expect(screen.getByText(/Vista previa con datos de ejemplo/)).toBeTruthy();
   });

@@ -97,10 +97,10 @@ En la columna **Requiere**, "Hoy" significa que funciona con el APK actual, Metr
 | 10 | Registro directo con correo, con celular y con ambos; código, reenvío con espera, código vencido y 5 intentos fallidos; login y recuperación con celular (U2) | Lo que la app muestra como verificado sale de `/me` | API de acceso + SMS |
 | 11 | Cuenta sin organización → "Ver notificaciones" | Bandeja de plataforma | API #45 |
 | 12 | Encuestas con `EXPO_PUBLIC_SURVEYS_SOURCE=api`: descargar, modo avión, responder "QA autoaplicada" y luego sincronizar | "Guardado en el dispositivo" → "Pendiente de sincronizar" → "Recibido". Una sola respuesta en Admin | API de encuestas |
-| 13 | "QA entrevista": dejar sin responder una obligatoria → "Guardar incompleta" | En Admin, las preguntas que faltan aparecen como `skipped` | API de encuestas |
+| 13 | "QA entrevista": dejar sin responder una obligatoria → "Enviar respuesta" → "Enviar incompleta" | En Admin, las preguntas que faltan aparecen como `skipped` | API de encuestas |
 | 14 | Consentimiento → grabar → recibir una llamada | La grabación se detiene, se conserva y se marca `interrupted`; "Audio pendiente" → "Recibido" | API de encuestas + APK nuevo |
 | 15 | Rechazar el consentimiento | No hay micrófono y nunca se sube audio | API de encuestas |
-| 15b | Versión con `audio_mode: required`: aceptar el consentimiento sin poder grabar (APK actual, permiso denegado o audio borrado) y tocar "Guardar respuestas" | No se envía: aparece el aviso de que se requiere la grabación (con el APK actual, que hace falta una versión que pueda grabar) y el borrador se conserva. Si la persona rechaza, sí se envía sin audio | API de encuestas |
+| 15b | Versión con `audio_mode: required`: aceptar el consentimiento sin poder grabar (APK actual, permiso denegado o audio borrado) y tocar "Enviar respuesta" | No se envía: aparece el aviso de que se requiere la grabación (con el APK actual, que hace falta una versión que pueda grabar) y el borrador se conserva. Si la persona rechaza, sí se envía sin audio | API de encuestas |
 | 16 | Responder sin conexión, cerrar la versión en Admin y sincronizar | "No se pudo contar: la encuesta cerró…"; se conserva hasta descartarla | API de encuestas |
 | 17 | Push de una encuesta de QA-A tocada por U1 | Abre esa encuesta en QA-A | API de encuestas + `e1ce99a` |
 
@@ -282,6 +282,27 @@ Para volver a la vista previa con datos de ejemplo, se reinicia con el primer bl
 
 El paso 7 usa `adb`, que esta máquina no tiene. Hay dos opciones: instalar las platform-tools de Android, o abrir el enlace `afilianetmobile://join/<orgId>/<code>` desde el propio teléfono.
 
+## Ronda física única: recorrido de encuestas (tablet, APK `35bc0d4e` + Metro de esta rama)
+
+Datos de ejemplo (aviso «Vista previa»), sin enviar nada real. No se borran borradores ni envíos previos de la tablet. Anotar hora y captura en cada paso.
+
+| # | Paso | Resultado esperado |
+|---|---|---|
+| R1 | Inicio → Encuestas → «Satisfacción con el servicio (ejemplo)» → «Abrir» | Cada pantalla tiene un botón «Cerrar» visible |
+| R2 | Con conexión, en una encuesta sin descargar: «Responder yo» | Abre la respuesta sin tocar antes «Descargar para usar sin conexión». Ese botón sigue disponible. Si la encuesta ya estaba descargada, tocar antes «Quitar descarga del teléfono»: solo aparece cuando no hay borradores, y no borra respuestas ni envíos |
+| R3 | Escribir un número y texto libre → «Guardar borrador y salir» | Vuelve a la encuesta. En «Borradores en este teléfono» aparece la insignia «Borrador», «Sin enviar · guardado …», «N de M respondidas» y «Continuar» |
+| R4 | «Continuar» → comprobar los valores → «Cerrar» (X) arriba | Los valores están. «Cerrar» guarda el borrador y vuelve a la encuesta |
+| R5 | «Continuar» → completar las obligatorias → «Enviar respuesta» | Antes se lee que, al enviar, ya no se puede editar. Vuelve a la encuesta y ya no hay borrador |
+| R6 | «Cerrar» → «Cerrar» | Primero la lista de encuestas, donde en «Envíos» aparece la insignia de sincronización, «Completa» y «Enviada desde este teléfono; ya no se puede editar.». Después Inicio. Ninguna pantalla se repite |
+| R7 | Repetir R1–R6 una vez | Mismo número de «Cerrar» hasta Inicio (2 desde la encuesta) |
+| R8 | «Entrevista vecinal (ejemplo)» → «Iniciar entrevista» → «Continuar sin grabar» → responder solo la pregunta abierta → «Enviar respuesta» | El aviso dice que ya no podrá editarse y ofrece «Seguir respondiendo», «Guardar borrador y salir» y «Enviar incompleta» |
+| R9 | «Guardar borrador y salir» | Queda como «Borrador», con «Continuar» |
+| R10 | «Continuar» → «Enviar respuesta» → «Enviar incompleta» → «Cerrar» | En «Envíos»: la insignia de sincronización y, en otra línea, «Incompleta: 2 preguntas obligatorias sin responder». No ofrece «Continuar» |
+| R11 | «Sincronizar ahora» (con conexión) | Pasa a «Recibido» y sigue indicando «Incompleta: …». Los recibos anteriores a este cambio no indican la condición, porque no se registró |
+| R12 | Modo avión, encuesta sin descargar → «Responder yo» | «Sin conexión, y esta encuesta no está en el teléfono…». No abre una respuesta vacía |
+
+Si algo falla, anotar el número de paso, una captura y si la pantalla se repitió al cerrar.
+
 ## Correcciones de esta integración
 
 1. **El APK anterior no abría.** Con Metro, el APK anterior no abría la app: expo-router evalúa todas las rutas al iniciar, y la de respuesta importaba `expo-audio`. Ahora `expo-audio` se carga solo si el módulo nativo existe.
@@ -300,7 +321,14 @@ El paso 7 usa `adb`, que esta máquina no tiene. Hay dos opciones: instalar las 
    - **No reproducido en pruebas:** con el valor controlado y `onChangeText`, el texto escrito carácter a carácter se conserva y se autoguarda. No hay recarga del borrador mientras se escribe. Si en la tablet sigue fallando, hace falta una grabación de pantalla para distinguir si las letras aparecen y desaparecen o nunca se ven, el teclado usado, el tamaño de fuente y de pantalla de Android, y si en el campo numérico de la misma encuesta sí se puede escribir. Metro no recibe los logs de consola del dispositivo.
    - **Audio en el APK anterior:** sin el módulo nativo, la app muestra «Esta versión de la app no puede grabar audio», que atribuye el problema a la versión del APK y no al micrófono del dispositivo. «Sin permiso de micrófono» solo aparece con el permiso denegado.
 8. **Reabrir una respuesta (hallazgo en tablet tras `3bc75f6`):** ya se podía escribir y guardar, pero la respuesta no se podía reabrir: solo se identificaba por la hora y al tocarla no ocurría nada.
-   - **Dos estados distintos:** un *borrador* (sin enviar) se autoguarda y es editable. Una *respuesta guardada* («Guardar respuestas» o «Guardar incompleta») pasa a «Envíos» y, a propósito, ya no es editable.
+   - **Dos estados distintos:** un *borrador* (sin enviar) se autoguarda y es editable. Una *respuesta guardada* («Guardar respuestas» o «Guardar incompleta»; desde la corrección 9: «Enviar respuesta» o «Enviar incompleta») pasa a «Envíos» y, a propósito, ya no es editable.
    - **Defecto demostrado:** la pila nativa mantiene montada la lista bajo la respuesta, y esa lista solo se cargaba al montarse. Al volver, el borrador recién creado o editado no aparecía hasta salir y entrar de nuevo. Además, la lista principal no mostraba borradores.
    - **Corrección:** el detalle de la encuesta y la lista principal recargan los borradores al recuperar el foco. Cada borrador se muestra con la insignia «Borrador», «Sin enviar · guardado …», el progreso («N de M respondidas») y el botón «Continuar». Las respuestas guardadas en «Envíos» indican «Guardada para enviar; ya no se puede editar.» y, si quedaron incompletas, «Incompleta: N preguntas obligatorias sin responder».
    - **Prueba de integración:** `survey-draft-resume.test.tsx` usa la librería real con la pila simulada. Cubre crear un borrador incompleto con texto y número, salir, verlo como «Borrador» en ambas listas, «Continuar», recuperar los valores y seguir editando. También comprueba que una respuesta guardada (completa o incompleta) no se ofrece para continuar, y el aislamiento por organización. Sin la corrección fallan las 4 pruebas.
+9. **Recorrido de encuestas (hallazgos en tablet tras `92fe5fd`):**
+   - **Bucle al cerrar (demostrado):** la raíz usa `<Slot />`, que en `expo-router` 57 guarda el historial como una pila pero solo muestra la pantalla de arriba. Tras guardar, la respuesta hacía `replace("/surveys")` y la pila quedaba `["/","/surveys","/surveys/fx-servicio","/surveys"]`: tres «Cerrar» que repetían lista → encuesta → lista. Ahora, al salir o enviar, se vuelve a la pantalla que abrió la respuesta (`back`; `replace` solo si no hay historial). La pila queda `["/","/surveys","/surveys/fx-servicio"]` y bastan dos «Cerrar» hasta Inicio.
+   - **Salida y borrador:** la respuesta tiene «Cerrar» arriba y «Guardar borrador y salir», y las dos conservan el borrador. Mientras se graba, salir pide detener antes la grabación.
+   - **Borrador frente a envío:** «Enviar respuesta», con la nota de que después no se puede editar. Para una entrevista con obligatorias sin responder, el aviso ofrece «Seguir respondiendo», «Guardar borrador y salir» y «Enviar incompleta».
+   - **Sincronización y condición:** en «Envíos» y en «Recibido», la condición («Completa» o «Incompleta: N…») va en una línea aparte de la insignia, y el recibo la conserva. Los registros antiguos sin ese dato no muestran condición.
+   - **Responder sin descargar:** con conexión, «Responder yo» o «Iniciar entrevista» descargan solos la versión. Sin conexión y sin copia local, se explica qué falta. «Descargar para usar sin conexión» sigue disponible. Una descarga desactualizada sigue pidiendo descarga explícita, para no dejar huérfanos los borradores de la versión anterior.
+   - **Pruebas:** `survey-draft-resume.test.tsx` recorre lista → encuesta → respuesta → borrador → continuar → cerrar → enviar → cerrar → Inicio dos veces, con la navegación `slot` real y con una pila que mantiene montadas las pantallas. Comprueba que la pila vuelve a `["/"]` con profundidad máxima 4. También cubre el envío incompleto (y la condición tras «Recibido»), el borrador desde el aviso, el recibo antiguo, la descarga automática con y sin conexión y el aislamiento por organización. Sin la corrección fallan 7 de 8; la restante es la del recibo antiguo, que es preventiva.

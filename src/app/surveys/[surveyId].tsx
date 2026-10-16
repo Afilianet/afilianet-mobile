@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { accessErrorMessage } from "../../api/access";
+import { isApiError } from "../../api/errors";
 import { EmptyState } from "../../components/EmptyState";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Badge } from "../../components/ui/Badge";
@@ -108,7 +109,25 @@ export default function SurveyDetailScreen() {
   }
 
   async function start(respondentType: RespondentType) {
-    if (!scope || !version) return;
+    if (!scope || busy) return;
+    let version = downloaded && !outdated ? downloaded.version : null;
+    if (!version) {
+      // Online, «Responder» prepares the download itself; offline without a
+      // local copy there is nothing to answer from, and the screen says why.
+      if (!available) return;
+      setBusy(true);
+      setError(null);
+      try {
+        version = (await downloadVersion(scope, surveySource, available)).version;
+        await load();
+      } catch (cause) {
+        const offline = isApiError(cause) && (cause.kind === "offline" || cause.kind === "timeout");
+        setError(cause instanceof StorageFullError ? cause.message : offline ? copy.notDownloadedOffline : accessErrorMessage(cause));
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
     const draft: SurveyDraft = {
       id: newClientId(),
       surveyId: version.survey_id,
@@ -189,9 +208,9 @@ export default function SurveyDetailScreen() {
 
         {allowsInterview && !assigned ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        {allowsSelf ? <Button label={copy.answerMyself} disabled={!open || !version} onPress={() => void start("self")} /> : null}
+        {allowsSelf ? <Button label={copy.answerMyself} disabled={!open} loading={busy} onPress={() => void start("self")} /> : null}
         {allowsInterview && assigned ? (
-          <Button label={copy.startInterview} variant={allowsSelf ? "secondary" : "primary"} disabled={!open || !version} onPress={() => void start("interviewed_external")} />
+          <Button label={copy.startInterview} variant={allowsSelf ? "secondary" : "primary"} disabled={!open} loading={busy} onPress={() => void start("interviewed_external")} />
         ) : null}
 
         {drafts.length ? (
