@@ -26,6 +26,10 @@ interface PaginatedSectionCardProps<T extends { id: string }> {
    * a permanent skeleton. Defaults to true. */
   enabled?: boolean;
   disabledTitle?: string;
+  /** Rendered under the title/help text (e.g. a search field). */
+  header?: ReactNode;
+  /** Replaces the list body entirely (e.g. "search not available"). */
+  override?: ReactNode;
 }
 
 /**
@@ -47,6 +51,8 @@ export function PaginatedSectionCard<T extends { id: string }>({
   onLoadMorePress,
   enabled = true,
   disabledTitle,
+  header,
+  override,
 }: PaginatedSectionCardProps<T>) {
   const apiError = isApiError(query.error) ? query.error : null;
   const forbidden = apiError?.kind === "forbidden";
@@ -67,7 +73,9 @@ export function PaginatedSectionCard<T extends { id: string }>({
   }
 
   let body: ReactNode = null;
-  if (!enabled) {
+  if (override) {
+    body = override;
+  } else if (!enabled) {
     body = <Text style={styles.empty}>{disabledTitle ?? emptyTitle ?? strings.shared.nothingHereYet}</Text>;
   } else if (query.isPending) {
     body = <SkeletonGroup />;
@@ -115,6 +123,7 @@ export function PaginatedSectionCard<T extends { id: string }>({
     <Card style={styles.card}>
       <Text style={styles.title}>{title}</Text>
       {helpText ? <Text style={styles.helpText}>{helpText}</Text> : null}
+      {header}
       {body}
     </Card>
   );

@@ -358,22 +358,34 @@ export async function fetchMyPlacementParent(): Promise<AffiliateProfile | null>
   return data;
 }
 
+/**
+ * `search` (name only, trimmed) is the network-search contract in
+ * docs/BUSQUEDA_RED_CONTRATO_ES.md: same direct scope and permissions, the
+ * server echoes it in `meta.search`. Omitted, the request is unchanged, so
+ * servers without search keep working for the plain list.
+ */
 export async function fetchMySponsored(
   page = 1,
   perPage = 20,
+  search?: string,
 ): Promise<PaginatedResponse<AffiliateProfile>> {
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
-    `/api/v1/affiliates/me/sponsored?per_page=${perPage}&page=${page}`,
+    `/api/v1/affiliates/me/sponsored?per_page=${perPage}&page=${page}${searchParam(search)}`,
   );
 }
 
 export async function fetchMyPlacementChildren(
   page = 1,
   perPage = 20,
+  search?: string,
 ): Promise<PaginatedResponse<AffiliateProfile>> {
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
-    `/api/v1/affiliates/me/placement-children?per_page=${perPage}&page=${page}`,
+    `/api/v1/affiliates/me/placement-children?per_page=${perPage}&page=${page}${searchParam(search)}`,
   );
+}
+
+function searchParam(search: string | undefined): string {
+  return search ? `&search=${encodeURIComponent(search)}` : "";
 }
 
 /**

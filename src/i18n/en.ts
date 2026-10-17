@@ -426,6 +426,14 @@ export const en = {
       helpText: "Affiliates positioned under you in the network structure -- not necessarily people you recruited.",
       emptyTitle: "No one is placed under you yet",
     },
+    search: {
+      label: "Search by name",
+      a11y: (section: string) => `Search by name in ${section}`,
+      clear: "Clear search",
+      minChars: "Type at least 2 letters to search.",
+      noResults: (term: string) => `No one in this list matches “${term}”.`,
+      unsupported: "Search isn't available with the current server version. Clear the search to see the full list.",
+    },
     myInvitations: {
       title: "My invitations",
       emptyTitle: "No invitations sent yet",

@@ -12,7 +12,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
 import { ForbiddenState } from "../../components/ForbiddenState";
 import { InvitationRow } from "../../components/InvitationRow";
-import { PaginatedSectionCard } from "../../components/PaginatedSectionCard";
+import { NetworkSearchSection } from "../../components/network/NetworkSearchSection";
 import { SectionCard } from "../../components/SectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Badge } from "../../components/ui/Badge";
@@ -216,22 +216,27 @@ export default function NetworkScreen() {
             {(parent) => (parent ? <AffiliateRow affiliate={parent} /> : null)}
           </SectionCard>
 
-          <PaginatedSectionCard
+          {/* Keyed by account+organization: switching either clears the search text and its results. */}
+          <NetworkSearchSection
+            key={`sponsored:${user?.id}:${activeOrganization?.id}`}
+            scope="sponsored"
             title={strings.network.directSponsored.title}
             helpText={strings.network.directSponsored.helpText}
-            query={sponsoredQuery}
+            listQuery={sponsoredQuery}
             emptyTitle={strings.network.directSponsored.emptyTitle}
             onLoadMorePress={() => analytics.capture("network_load_more", { section: "sponsored" })}
-            renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} onPress={() => openAffiliate(affiliate)} />}
+            onOpen={openAffiliate}
           />
 
-          <PaginatedSectionCard
+          <NetworkSearchSection
+            key={`placement-children:${user?.id}:${activeOrganization?.id}`}
+            scope="placement-children"
             title={strings.network.placementChildren.title}
             helpText={strings.network.placementChildren.helpText}
-            query={placementChildrenQuery}
+            listQuery={placementChildrenQuery}
             emptyTitle={strings.network.placementChildren.emptyTitle}
             onLoadMorePress={() => analytics.capture("network_load_more", { section: "placement_children" })}
-            renderItem={(affiliate) => <AffiliateRow affiliate={affiliate} onPress={() => openAffiliate(affiliate)} />}
+            onOpen={openAffiliate}
           />
 
           <SectionCard
