@@ -447,6 +447,14 @@ export const es = {
       helpText: "Afiliados posicionados debajo de ti en la estructura de la red -- no necesariamente personas que reclutaste.",
       emptyTitle: "Aún nadie está colocado debajo de ti",
     },
+    search: {
+      label: "Buscar por nombre",
+      a11y: (section: string) => `Buscar por nombre en ${section}`,
+      clear: "Limpiar búsqueda",
+      minChars: "Escribe al menos 2 letras para buscar.",
+      noResults: (term: string) => `Nadie en esta lista coincide con «${term}».`,
+      unsupported: "La búsqueda no está disponible con la versión actual del servidor. Limpia la búsqueda para ver la lista completa.",
+    },
     myInvitations: {
       title: "Mis invitaciones",
       emptyTitle: "Aún no has enviado invitaciones",

@@ -20,6 +20,8 @@ export interface PaginatedResponse<T> {
     last_page?: number;
     per_page?: number;
     total?: number;
+    /** Echo of the applied `search` filter (network lists); absent on servers without search. */
+    search?: string | null;
   };
 }
 
