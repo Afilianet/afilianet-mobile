@@ -1,9 +1,17 @@
 import { apiRequest } from "./client";
 
+/**
+ * POST /api/v1/affiliates/me/assisted-enrollments (API contract
+ * docs/auth/ACCOUNT_ACCESS_CONTRACT.md §7): email, phone or both, at least
+ * one -- the same rule as direct registration. `phone` is always E.164
+ * (utils/phone.ts). Drafts queued before phone support only carry `email`
+ * and remain valid as they are.
+ */
 export interface AssistedEnrollmentInput {
   first_name: string;
   last_name: string;
-  email: string;
+  email?: string;
+  phone?: string;
   client_request_id: string;
   consent_confirmed: true;
 }
