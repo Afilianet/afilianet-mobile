@@ -20,13 +20,25 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status: number | null;
   readonly details?: ApiErrorDetails;
+  /** Machine-readable cause from the payload's top-level `reason` (e.g. "otp_expired"), when the API sends one. */
+  readonly reason?: string;
+  /** Seconds to wait before retrying, from the payload's `retry_after` or the Retry-After header. */
+  readonly retryAfterSeconds?: number;
 
-  constructor(kind: ApiErrorKind, message: string, status: number | null = null, details?: ApiErrorDetails) {
+  constructor(
+    kind: ApiErrorKind,
+    message: string,
+    status: number | null = null,
+    details?: ApiErrorDetails,
+    extra: { reason?: string; retryAfterSeconds?: number } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
     this.details = details;
+    this.reason = extra.reason;
+    this.retryAfterSeconds = extra.retryAfterSeconds;
   }
 }
 

@@ -351,6 +351,16 @@ src/
 - In-app notifications (feed, unread badge, mark read/read-all, whitelisted deep links)
 - Profile (identity, affiliate status, compliance access, organization switching, sign out)
 
+### Spanish copy inside AWS's native liveness screens
+
+AWS's liveness UI SDKs ship English-only strings. The app overrides them with Spanish through each platform's supported mechanism:
+
+- **Android**: `modules/aws-face-liveness/android/src/main/res/values/strings.xml` redefines the 17 string resources of `com.amplifyframework.ui:liveness:1.11.0` (a library's own resources take precedence over its dependencies' in Android's resource merge). Declared in default `values/`, so it applies whatever the device language.
+- **iOS**: `app.json → expo.locales.es` points to `locales/es.json`, whose `ios["Localizable.strings"]` covers the 40 keys of `amplify-ui-swift-liveness` 1.5.0 (the SDK reads `Bundle.main` first). Applies only when the device language is Spanish.
+- `src/tests/native/livenessNativeStrings.test.ts` pins both key sets; re-diff them whenever either SDK is bumped.
+
+This is native: Metro never reloads it, a new development/staging build is required. **Status: not yet verified on a physical device** -- the Android override is checked against the AAR's key list only (no local Android build), and iOS against Expo's locales resolver only (no iOS build).
+
 ## Deferred / not yet integrated
 
 These are known gaps, not implemented in this app version:

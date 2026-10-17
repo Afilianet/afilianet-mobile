@@ -26,7 +26,7 @@ import type { StepDetailProps } from "./types";
  * -- no sibling `biometric_liveness` step needs to be resolved for this
  * flow to work.
  */
-export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
+export function FaceMatchStep({ step, attempt, isPending, processingOnly }: StepDetailProps) {
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const isAfilianetActionable = step.configured_provider === "afilianet" && step.provider_actionable;
@@ -47,7 +47,7 @@ export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
   return (
     <View>
       {renderBody(step, isAfilianetActionable, result, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
-      <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
+      {processingOnly ? null : <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />}
     </View>
   );
 }

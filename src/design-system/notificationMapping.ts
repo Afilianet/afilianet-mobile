@@ -19,6 +19,8 @@ const FALLBACK: NotificationTypeMeta = { category: "Notification", icon: "campan
  * rejected/reversed/failed -> danger, cancelled -> neutral).
  */
 const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMeta> = {
+  announcement: { category: "Afilianet", icon: "campana", tone: "neutral" },
+  promotion: { category: "Afilianet", icon: "campana", tone: "brand" },
   compliance_started: { category: "Compliance", icon: "cumplimiento", tone: "neutral" },
   compliance_action_required: { category: "Compliance", icon: "cumplimiento", tone: "warning" },
   compliance_manual_review: { category: "Compliance", icon: "cumplimiento", tone: "warning" },

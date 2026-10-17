@@ -13,6 +13,7 @@ import { BiometricLivenessStep } from "./steps/BiometricLivenessStep";
 import { FaceMatchStep } from "./steps/FaceMatchStep";
 import { IdentityDocumentStep } from "./steps/IdentityDocumentStep";
 import { IdentityInformationStep } from "./steps/IdentityInformationStep";
+import { stepAccess } from "./stepOrder";
 import { TermsAcceptanceStep } from "./steps/TermsAcceptanceStep";
 import type { StepDetailProps } from "./steps/types";
 import { VerbalConsentStep } from "./steps/VerbalConsentStep";
@@ -35,14 +36,20 @@ const STEP_COMPONENTS: Record<ComplianceStepType, ComponentType<StepDetailProps>
 export function ComplianceStepCard({
   step,
   currentStep,
+  steps = [],
 }: {
   step: ComplianceStep;
   currentStep: string | null;
+  /** The case's steps from the same snapshot, for stepOrder.ts's face_match exception. */
+  steps?: readonly ComplianceStep[];
 }) {
   const mutation = useAttemptComplianceStep();
   const [error, setError] = useState<string | null>(null);
 
   async function attempt(payload: AttemptStepPayload) {
+    // The generic attempt endpoint resolves the step and is strictly
+    // sequential; never call it for a step reachable only for processing.
+    if (access === "processing-only") return;
     setError(null);
     try {
       await mutation.mutateAsync({ stepId: step.id, payload });
@@ -59,9 +66,8 @@ export function ComplianceStepCard({
   const label = STEP_LABELS[step.step_type] ?? step.step_type.replace(/_/g, " ");
   const StepDetail = STEP_COMPONENTS[step.step_type];
   const completedOn = step.completed_at ? formatDate(step.completed_at) : null;
-  const isResolved = ["passed", "skipped"].includes(step.status);
-  const isCurrent = currentStep === step.step_type;
-  const isLocked = !isResolved && !isCurrent;
+  const access = stepAccess(step, currentStep, steps);
+  const isLocked = access === "locked";
 
   return (
     <View style={styles.row} accessible accessibilityLabel={strings.compliance.stepA11y(label, status.label, completedOn)}>
@@ -72,7 +78,12 @@ export function ComplianceStepCard({
       {isLocked ? (
         <Text style={styles.locked}>{strings.compliance.completePreviousStep}</Text>
       ) : StepDetail ? (
-        <StepDetail step={step} attempt={(payload) => void attempt(payload)} isPending={mutation.isPending} />
+        <StepDetail
+          step={step}
+          attempt={(payload) => void attempt(payload)}
+          isPending={mutation.isPending}
+          processingOnly={access === "processing-only"}
+        />
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {completedOn ? <Text style={styles.meta}>{strings.compliance.completedOn(completedOn)}</Text> : null}
