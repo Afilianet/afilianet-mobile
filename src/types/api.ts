@@ -20,6 +20,8 @@ export interface PaginatedResponse<T> {
     last_page?: number;
     per_page?: number;
     total?: number;
+    /** Echo of the applied `search` filter (network lists); absent on servers without search. */
+    search?: string | null;
   };
 }
 
@@ -27,8 +29,12 @@ export interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
+  // null for a mobile-only account (access MVP): at least one of email/phone exists.
+  email: string | null;
   phone: string | null;
+  // A new email/phone awaiting confirmation; the verified value above stays usable until then.
+  pending_email?: string | null;
+  pending_phone?: string | null;
   status: string;
   email_verified_at: string | null;
   phone_verified_at: string | null;
@@ -620,6 +626,8 @@ export interface LivenessCredentials {
 // creates it). Never assume a 15th type; an unrecognized value must fail
 // safely (no icon/label/navigation) rather than guessed at.
 export type NotificationType =
+  | "announcement"
+  | "promotion"
   | "compliance_started"
   | "compliance_action_required"
   | "compliance_manual_review"

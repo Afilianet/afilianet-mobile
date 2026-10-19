@@ -104,3 +104,14 @@ it("retains location after a failed sync and sends its original date to the assi
   expect(submitComplianceGeolocation).toHaveBeenLastCalledWith("document-a", location, "enrollment-a");
   expect(triggerDocumentProcessing).not.toHaveBeenCalled();
 });
+
+it("syncs a phone-only draft unchanged, with its original request id", async () => {
+  const phoneOnly = {
+    sponsorUserId: "sponsor-a", organizationId: "org-a",
+    input: { first_name: "Ana", last_name: "López", phone: "+525512345678", client_request_id: "request-phone", consent_confirmed: true as const },
+  };
+  await savePendingAssisted(phoneOnly);
+  const result = await syncPendingAssisted("sponsor-a", "org-a");
+  expect(createAssistedEnrollment).toHaveBeenCalledWith(phoneOnly.input);
+  expect(result).toEqual({ completed: [enrollment], remaining: 0, error: undefined });
+});

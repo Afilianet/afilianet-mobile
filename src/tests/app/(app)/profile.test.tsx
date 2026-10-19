@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../../api/errors";
 import { fetchMyAffiliateProfile, fetchMyCompliance } from "../../../api/endpoints";
 import { AuthContext, type AuthContextValue } from "../../../auth/AuthContext";
@@ -63,7 +63,7 @@ const mockSignOut = jest.fn();
 const mockSelectOrganization = jest.fn();
 
 function authValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
-  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: mockSignOut, ...overrides };
+  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: mockSignOut, ...overrides };
 }
 
 function orgValue(overrides: Partial<OrganizationContextValue> = {}): OrganizationContextValue {
@@ -150,6 +150,13 @@ describe("Profile: real affiliate data", () => {
     expect(await findByText("PLAC001")).toBeTruthy();
   });
 
+  it("shows the phone of a phone-only account instead of an empty email line", async () => {
+    const { findByText, queryByText } = await renderProfile({ auth: { user: { ...USER, email: null, phone: "+525512345678" } } });
+    expect(await findByText("Jordan Lee")).toBeTruthy();
+    expect(await findByText("+52 55 1234 5678")).toBeTruthy();
+    expect(queryByText("jordan@example.com")).toBeNull();
+  });
+
   it("shows the active organization's name", async () => {
     const { findByText } = await renderProfile();
     expect(await findByText("Acme")).toBeTruthy();
@@ -196,6 +203,32 @@ describe("Profile: loading and error states", () => {
   });
 });
 
+describe("Profile: notification settings", () => {
+  it("opens notification settings, not the inbox", async () => {
+    const { findByText } = await renderProfile();
+
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+    expect(mockPush).not.toHaveBeenCalledWith("/notifications");
+  });
+});
+
+describe("Profile: account actions order", () => {
+  it("keeps the privacy notice as the very last action, after sign out and the protected account options", async () => {
+    const { findByText, getAllByRole, queryByText } = await renderProfile();
+    await findByText("Aviso de privacidad");
+
+    const buttons = getAllByRole("button");
+    expect(within(buttons[buttons.length - 1]).getByText("Aviso de privacidad")).toBeTruthy();
+    expect(within(buttons[buttons.length - 2]).getByText("Mostrar opciones de cuenta")).toBeTruthy();
+    expect(within(buttons[buttons.length - 3]).getByText(/cerrar sesión/i)).toBeTruthy();
+    // Leaving an organization and deleting the account stay hidden until explicitly expanded.
+    expect(queryByText("Eliminar mi cuenta")).toBeNull();
+  });
+});
+
 describe("Profile: compliance summary", () => {
   it("shows the current compliance status and links to the full screen", async () => {
     mockedFetchMyCompliance.mockResolvedValue(complianceCase({ status: "in_progress", approved_at: null }));
@@ -236,6 +269,27 @@ describe("Profile: organizations and sign out", () => {
       fireEvent.press(await findByText("Cerrar sesión"));
     });
     expect(mockSignOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Profile: notifications settings link", () => {
+  // The settings screen itself picks organization or platform preferences;
+  // Profile never sends the user to an inbox from here.
+  it("routes to notification settings when an organization is active", async () => {
+    const { findByText } = await renderProfile();
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+  });
+
+  it("routes to the same settings screen when there is no active organization", async () => {
+    const { findByText } = await renderProfile({ org: { organizations: [], activeOrganization: null } });
+    await act(async () => {
+      fireEvent.press(await findByText("Configurar notificaciones"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/notification-settings");
+    expect(mockPush).not.toHaveBeenCalledWith("/platform-notifications");
   });
 });
 

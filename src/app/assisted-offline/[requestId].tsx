@@ -13,6 +13,7 @@ import { useDocumentCamera } from "../../hooks/useDocumentCamera";
 import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
 import { useOrganization } from "../../state/OrganizationContext";
+import { assistedAccessInstructions } from "../../utils/assistedAccess";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
 
 import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
@@ -125,7 +126,7 @@ export default function AssistedOfflineScreen() {
         void replaceAssistedGeolocation(user!.id, activeOrganization!.id, requestId, undefined).then(() => query.refetch()).catch(() => setError("No se pudo quitar la ubicación."));
       }} />}
     </Card>
-    <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. El afiliado recibirá un correo para crear su contraseña y completar la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
+    <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. {assistedAccessInstructions(item.input)} Después completará la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />
     <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />

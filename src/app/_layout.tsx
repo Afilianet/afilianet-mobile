@@ -9,12 +9,13 @@ import { useEffect } from "react";
 import { queryClient } from "../api/queryClient";
 import { strings } from "../i18n";
 import { AuthProvider } from "../auth/AuthProvider";
+import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
 import { useAuth } from "../auth/AuthContext";
 import { PushLifecycle } from "../components/PushLifecycle";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
-import { routes } from "../navigation/routes";
+import { isExemptRoute, resolveRedirect } from "../navigation/rootNavigationGuard";
 import { initSentry } from "../services/sentry";
 import { OrganizationProvider } from "../state/OrganizationProvider";
 import { useOrganization } from "../state/OrganizationContext";
@@ -67,33 +68,27 @@ export default function RootLayout() {
 }
 
 function RootNavigation() {
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, onboardingRoute } = useAuth();
+  const pendingReferral = usePendingReferral();
+  const pendingPath = pendingReferral ? pendingReferralPath(pendingReferral) : null;
   const { status: orgStatus, organizations, activeOrganization, error: orgError, refresh: refreshOrganizations } = useOrganization();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (authStatus === "loading") return;
-
-    const inAuthGroup = segments[0] === "(auth)";
-    const inJoin = segments[0] === "join";
-    const inOrganizationPicker = segments[0] === "organization-picker";
-
-    if (authStatus === "signedOut") {
-      if (!inAuthGroup && !inJoin && segments[0] !== "privacy") router.replace(routes.login as never);
-      return;
+    const target = resolveRedirect({
+      authStatus,
+      orgStatus,
+      hasActiveOrganization: Boolean(activeOrganization),
+      organizationsCount: organizations.length,
+      segments,
+      pendingReferralPath: pendingPath,
+      onboardingRoute,
+    });
+    if (target) {
+      router.replace(target as never);
     }
-
-    if (inAuthGroup || inJoin) {
-      router.replace(routes.home as never);
-      return;
-    }
-
-    const needsOrganizationChoice = orgStatus === "ready" && !activeOrganization && organizations.length > 1;
-    if (needsOrganizationChoice && !inOrganizationPicker && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
-      router.replace(routes.organizationPicker as never);
-    }
-  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
+  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute]);
 
   if (authStatus === "loading") {
     return <LoadingState message={strings.app.startingUp} />;
@@ -103,7 +98,7 @@ function RootNavigation() {
   // query disabled (they all gate on activeOrganization) with no way to
   // recover -- every screen would sit in permanent, silent loading. This is
   // the one place that state is visible regardless of which screen is active.
-  if (authStatus === "signedIn" && orgStatus === "error" && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
+  if (authStatus === "signedIn" && orgStatus === "error" && !isExemptRoute(segments)) {
     return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 

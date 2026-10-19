@@ -20,6 +20,16 @@ interface PaginatedSectionCardProps<T extends { id: string }> {
   renderItem: (item: T) => ReactNode;
   /** Fired right before fetchNextPage() -- callers use this for analytics; this component has no analytics of its own. */
   onLoadMorePress?: () => void;
+  /** Same reasoning as SectionCard's own `enabled` prop -- pass the value
+   * given to the underlying query's `enabled` option so a disabled query
+   * (e.g. no active organization) renders an honest empty state instead of
+   * a permanent skeleton. Defaults to true. */
+  enabled?: boolean;
+  disabledTitle?: string;
+  /** Rendered under the title/help text (e.g. a search field). */
+  header?: ReactNode;
+  /** Replaces the list body entirely (e.g. "search not available"). */
+  override?: ReactNode;
 }
 
 /**
@@ -39,6 +49,10 @@ export function PaginatedSectionCard<T extends { id: string }>({
   emptyTitle,
   renderItem,
   onLoadMorePress,
+  enabled = true,
+  disabledTitle,
+  header,
+  override,
 }: PaginatedSectionCardProps<T>) {
   const apiError = isApiError(query.error) ? query.error : null;
   const forbidden = apiError?.kind === "forbidden";
@@ -59,7 +73,11 @@ export function PaginatedSectionCard<T extends { id: string }>({
   }
 
   let body: ReactNode = null;
-  if (query.isPending) {
+  if (override) {
+    body = override;
+  } else if (!enabled) {
+    body = <Text style={styles.empty}>{disabledTitle ?? emptyTitle ?? strings.shared.nothingHereYet}</Text>;
+  } else if (query.isPending) {
     body = <SkeletonGroup />;
   } else if (forbidden) {
     body = <ForbiddenState compact area={title.toLowerCase()} />;
@@ -105,6 +123,7 @@ export function PaginatedSectionCard<T extends { id: string }>({
     <Card style={styles.card}>
       <Text style={styles.title}>{title}</Text>
       {helpText ? <Text style={styles.helpText}>{helpText}</Text> : null}
+      {header}
       {body}
     </Card>
   );
