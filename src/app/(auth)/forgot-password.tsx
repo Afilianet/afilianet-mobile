@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { accessErrorMessage, requestPasswordRecovery, resetPasswordWithPhoneCode } from "../../api/access";
+import { accessErrorMessage, isSmsUnavailable, requestPasswordRecovery, resetPasswordWithPhoneCode } from "../../api/access";
 import { friendlyMessage, isApiError } from "../../api/errors";
 import { ChannelToggle, type AccessChannel } from "../../components/account/ChannelToggle";
 import { PhoneField } from "../../components/account/PhoneField";
@@ -29,7 +29,7 @@ export default function ForgotPasswordScreen() {
       <Text style={styles.heading}>{copy.title}</Text>
       <Text style={styles.body}>{copy.description}</Text>
       <ChannelToggle value={channel} onChange={setChannel} />
-      {channel === "email" ? <EmailRecovery /> : <PhoneRecovery />}
+      {channel === "email" ? <EmailRecovery /> : <PhoneRecovery onUseEmail={() => setChannel("email")} />}
     </ScrollView>
   </KeyboardAvoidingView>;
 }
@@ -74,7 +74,7 @@ function EmailRecovery() {
   </>;
 }
 
-function PhoneRecovery() {
+function PhoneRecovery({ onUseEmail }: { onUseEmail: () => void }) {
   const router = useRouter();
   const copy = strings.access.recovery;
   const countdown = useCountdown();
@@ -87,6 +87,7 @@ function PhoneRecovery() {
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [smsUnavailable, setSmsUnavailable] = useState(false);
 
   async function sendCode(target = sentTo ?? normalizePhone(country, phone)) {
     if (pending || countdown.active) return;
@@ -96,13 +97,17 @@ function PhoneRecovery() {
     }
     setPending(true);
     setError(null);
+    setSmsUnavailable(false);
     try {
+      // `delivery: "queued"` only means accepted: the copy never claims it arrived.
       const delivery = await requestPasswordRecovery({ phone: target });
       setSentTo(target);
       setCode("");
       countdown.start(delivery.retryAfterSeconds);
     } catch (cause) {
+      // Rejected (e.g. 503 sms_unavailable): stay on this step with the number kept.
       setError(accessErrorMessage(cause));
+      setSmsUnavailable(isSmsUnavailable(cause));
       if (isApiError(cause) && cause.kind === "rate_limited") countdown.start(cause.retryAfterSeconds ?? 60);
     } finally { setPending(false); }
   }
@@ -115,11 +120,14 @@ function PhoneRecovery() {
     if (password !== confirmation) return setError(strings.access.register.passwordMismatch);
     setPending(true);
     setError(null);
+    setSmsUnavailable(false);
     try {
       await resetPasswordWithPhoneCode({ phone: sentTo, code: digits, password, password_confirmation: confirmation });
       setDone(true);
     } catch (cause) {
+      // On 503 the password and code are untouched server-side; keep them typed.
       setError(accessErrorMessage(cause));
+      setSmsUnavailable(isSmsUnavailable(cause));
       if (isApiError(cause) && (cause.reason === "otp_expired" || cause.reason === "otp_attempts_exceeded")) setCode("");
     } finally { setPending(false); }
   }
@@ -138,6 +146,10 @@ function PhoneRecovery() {
       <TextInput label={copy.newPasswordLabel} value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" />
       <TextInput label={strings.access.confirmPasswordLabel} value={confirmation} onChangeText={setConfirmation} secureTextEntry textContentType="newPassword" />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      {smsUnavailable ? <>
+        <Text style={styles.body}>{copy.smsUnavailableEmailHint}</Text>
+        <Button label={copy.useEmail} variant="secondary" disabled={pending} onPress={onUseEmail} />
+      </> : null}
       <Button label={copy.submit} loading={pending} disabled={!code.trim() || !password} onPress={() => void reset()} />
       {countdown.active ? <Text style={styles.meta}>{strings.access.verify.resendIn(countdown.remaining)}</Text> : null}
       <Button label={strings.access.verify.resendCode} variant="ghost" disabled={countdown.active || pending} onPress={() => void sendCode(sentTo)} />
@@ -145,6 +157,10 @@ function PhoneRecovery() {
     </> : <>
       <PhoneField country={country} onCountryChange={setCountry} value={phone} onChangeText={setPhone} />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      {smsUnavailable ? <>
+        <Text style={styles.body}>{copy.smsUnavailableEmailHint}</Text>
+        <Button label={copy.useEmail} variant="secondary" disabled={pending} onPress={onUseEmail} />
+      </> : null}
       {countdown.active ? <Text style={styles.meta}>{strings.access.verify.resendIn(countdown.remaining)}</Text> : null}
       <Button label={copy.sendCode} loading={pending} disabled={!phone.trim() || countdown.active} onPress={() => void sendCode()} />
     </>}

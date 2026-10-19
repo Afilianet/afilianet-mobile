@@ -87,7 +87,8 @@ describe("Verify account", () => {
       fireEvent.press(screen.getByText("Enviar código por SMS"));
     });
 
-    expect(screen.getByText("Enviamos un código por SMS al •••• 5678.")).toBeTruthy();
+    // Accepted ("queued") is not delivered: the copy never claims it arrived.
+    expect(screen.getByText("Pedimos el envío de un código por SMS al •••• 5678. Si no llega en unos minutos, pide otro.")).toBeTruthy();
     expect(screen.getByText("El código vence en 10 min.")).toBeTruthy();
     expect(screen.getByText("Podrás pedir otro código en 60 s")).toBeTruthy();
     await act(async () => {

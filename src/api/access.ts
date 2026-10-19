@@ -138,6 +138,11 @@ export async function acceptReferralAsCurrentUser(invitationToken: string): Prom
   });
 }
 
+/** The server cannot send SMS at all right now (503 `sms_unavailable`). */
+export function isSmsUnavailable(error: unknown): boolean {
+  return isApiError(error) && error.reason === "sms_unavailable";
+}
+
 /** Spanish copy for every access failure; OTP reasons map to their own message. */
 export function accessErrorMessage(error: unknown): string {
   const copy = strings.access.errors;
@@ -153,6 +158,11 @@ export function accessErrorMessage(error: unknown): string {
       return copy.phoneAlreadyVerified;
     case "phone_missing":
       return copy.phoneMissing;
+    case "sms_unavailable":
+      // API 503 (#63): SMS is disabled by server configuration, known before
+      // any code is created; retrying right away does not help. Each screen
+      // adds the email alternative only where its flow really allows it.
+      return copy.smsUnavailable;
     case "invitation_recipient_mismatch":
       return copy.invitationRecipientMismatch;
   }

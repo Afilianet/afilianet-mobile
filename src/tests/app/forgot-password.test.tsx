@@ -70,7 +70,7 @@ describe("phone-only recovery", () => {
       body: JSON.stringify({ phone: "+525512345678" }),
       headers: { Accept: "application/json", "Content-Type": "application/json" },
     })));
-    await waitFor(() => expect(screen.getByText(/enviamos un código por SMS al •••• 5678/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/pedimos el envío de un código por SMS al •••• 5678\. Si no llega en unos minutos, pide otro\./)).toBeTruthy());
     expect(screen.getByText("Podrás pedir otro código en 60 s")).toBeTruthy();
 
     fetchMock.mockResolvedValueOnce(json({ message: "ok" }));

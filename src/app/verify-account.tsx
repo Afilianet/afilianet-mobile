@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { accessErrorMessage, requestEmailVerification, requestPhoneVerification, verifyPhone } from "../api/access";
+import { accessErrorMessage, isSmsUnavailable, requestEmailVerification, requestPhoneVerification, verifyPhone } from "../api/access";
 import { isApiError } from "../api/errors";
 import { useAuth } from "../auth/AuthContext";
 import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
@@ -52,7 +52,7 @@ export default function VerifyAccountScreen() {
           <EmailChannel key={`email-${user.id}`} email={user.email} verified={emailVerified} refreshUser={refreshUser} />
         ) : null}
         {user.phone ? (
-          <PhoneChannel key={`phone-${user.id}`} phone={user.phone} verified={phoneVerified} refreshUser={refreshUser} />
+          <PhoneChannel key={`phone-${user.id}`} phone={user.phone} hasEmail={Boolean(user.email)} verified={phoneVerified} refreshUser={refreshUser} />
         ) : null}
         <Button label={allVerified ? copy.continue : copy.later} variant={allVerified ? "primary" : "ghost"} onPress={next} />
       </ScrollView>
@@ -135,7 +135,7 @@ function EmailChannel({ email, verified, refreshUser }: { email: string; verifie
   );
 }
 
-function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verified: boolean; refreshUser: RefreshUser }) {
+function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: string; hasEmail: boolean; verified: boolean; refreshUser: RefreshUser }) {
   const copy = strings.access.verify;
   const mounted = useMounted();
   const countdown = useCountdown();
@@ -146,11 +146,13 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [smsUnavailable, setSmsUnavailable] = useState(false);
 
   async function send() {
     if (sending || countdown.active) return;
     setSending(true);
     setError(null);
+    setSmsUnavailable(false);
     try {
       const delivery = await requestPhoneVerification();
       if (!mounted.current) return;
@@ -161,6 +163,8 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
     } catch (cause) {
       if (!mounted.current) return;
       setError(accessErrorMessage(cause));
+      // Rejected before any code exists: never move to "type the code".
+      setSmsUnavailable(isSmsUnavailable(cause));
       if (isApiError(cause) && cause.kind === "rate_limited") {
         countdown.start(cause.retryAfterSeconds ?? DEFAULT_RESEND_SECONDS);
         // Registration already sent a code a moment ago (the API allows one per minute): let them type it.
@@ -180,6 +184,7 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
     }
     setVerifying(true);
     setError(null);
+    setSmsUnavailable(false);
     try {
       await verifyPhone(digits);
       // The server's user is the only proof the phone is verified.
@@ -189,6 +194,8 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
     } catch (cause) {
       if (!mounted.current) return;
       setError(accessErrorMessage(cause));
+      // On 503 the code is neither consumed nor counted: it stays typed.
+      setSmsUnavailable(isSmsUnavailable(cause));
       if (isApiError(cause) && (cause.reason === "otp_expired" || cause.reason === "otp_attempts_exceeded")) {
         // The code is dead: let them request a fresh one right away.
         setCode("");
@@ -228,6 +235,7 @@ function PhoneChannel({ phone, verified, refreshUser }: { phone: string; verifie
             </>
           ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+          {smsUnavailable && hasEmail ? <Text style={styles.description}>{copy.smsUnavailableWithEmail}</Text> : null}
           {countdown.active ? <Text style={styles.meta}>{copy.resendIn(countdown.remaining)}</Text> : null}
           <Button
             label={sent ? copy.resendCode : copy.sendCode}

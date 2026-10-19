@@ -9,8 +9,11 @@
 | Mobile #55, búsqueda en «Mi red» | `be5a8d78be68b84ef8f66939dfb841cd8479fee9` | Base de la rama. Ya contiene Mobile #53 hasta `f09199c` (encuestas: salida sin bucle, borrador, envío definitivo, condición; audio y liveness) |
 | Mobile #54, registro con teléfono o correo | `bf311431faf9a04b004f2fc440cc4089209c4d67` (un commit sobre `92fe5fd`) | `cherry-pick -x` sin conflictos. Solo coincidía en `.github/workflows/ci.yml`, y conserva los pasos de ambos |
 | Integración | — | Regresión «API anterior a #63 rechaza solo teléfono», más este guion |
+| Integración: SMS no disponible (API #63 `ad663a0`) | — | 503 `sms_unavailable` con mensaje propio y sin avanzar al código; `delivery: "queued"` sin prometer el envío; el correo se ofrece solo donde el flujo lo permite |
 
 **APK:** `35bc0d4e-c498-40c0-b1bb-1cd11f778bcd`, `versionCode` 11, construido desde `284dd69`. Entre `284dd69` y esta rama no cambia **nada nativo** (`android`, `modules`, `plugins`, `app.json`, `app.config.js`, `eas.json`, `package.json`, `package-lock.json`). Todo llega como JavaScript por Metro, sin APK nuevo.
+
+**SMS:** con API #63, registrar solo con celular **sí es posible** (no requiere SMS). Pero **reclamar** una cuenta asistida sin correo (recuperación por celular → código SMS → contraseña) **requiere SMS operativo**. Hoy staging no tiene SMS (sin credenciales de SNS y con la bandera apagada), así que esas cuentas no se pueden reclamar hasta que se habilite. Mientras tanto, cualquier flujo con código SMS responde «Por ahora no podemos enviar mensajes SMS…».
 
 **API:**
 - **Staging:** el SHA desplegado no está confirmado. Antes de cualquier bloque que dependa del backend, registrar el SHA y el digest desplegados.
@@ -82,11 +85,24 @@ No probar «solo celular» sin conexión antes de #63: quedaría en cola y la AP
 | R9 | Celular ya registrado | El error aparece en el campo de celular y el formulario se conserva |
 | R10 | Solo celular sin conexión → recuperar la conexión → sincronizar | Queda «Guardado en este teléfono» sin decir que se envió un mensaje; se sincroniza con el mismo identificador |
 
+### B2. SMS con API #63 (hoy sin SMS en staging: se espera el estado «no disponible»)
+
+| # | Paso | Resultado esperado |
+|---|---|---|
+| M1 | Cuenta con correo y celular → Verifica tu cuenta → «Enviar código por SMS» | «Por ahora no podemos enviar mensajes SMS. Inténtalo más tarde.» y «Mientras tanto puedes seguir entrando con tu correo.». No aparece el campo del código ni la espera de reenvío |
+| M2 | Cuenta solo con celular (p. ej. la de R7) → iniciar sesión con celular y contraseña → Verifica tu cuenta → «Enviar código por SMS» | El mismo aviso de SMS, **sin** mencionar el correo |
+| M3 | Sin sesión: «¿Olvidaste tu contraseña?» → «Celular» → número → «Enviar código por SMS» | El aviso, más «Si tu cuenta también tiene correo, puedes recuperarla por correo. Si solo tiene celular, inténtalo más tarde.». El número se conserva y no pasa al paso del código. «Recuperar con correo» abre el formulario de correo |
+| M4 | Reclamar la cuenta solo con celular de R7 | **No es posible mientras no haya SMS**: M3 no avanza. Anotarlo como bloqueado por SMS, no como fallo de la app |
+| M5 | Cuando SMS esté operativo: repetir M1 y M3 | El texto dice «Pedimos el envío de un código por SMS…», nunca «enviamos». Aparece el campo del código y la espera de reenvío. Anotar si el SMS llega y cuánto tarda: «en cola» no garantiza la entrega |
+
+El cambio de celular de una cuenta (`PATCH /me/phone`, que también responde 503 sin SMS) **no tiene pantalla en Mobile**, así que no se prueba en la tablet.
+
 ## C. Solo cubierto por pruebas automatizadas (no marcar como probado en la tablet)
 
 - **Búsqueda con HTTP simulado** (`network-search.test.tsx`): API antigua; `meta.search` distinto del pedido; respuesta tardía de un texto anterior; página posterior sin confirmación (la búsqueda pasa a no disponible, sin mezclar); cambio de organización con una petición en curso y cambio de cuenta; nunca se llama al endpoint administrativo `GET /affiliates`.
 - **Encuestas** (`survey-draft-resume.test.tsx`): el recorrido completo, dos veces, con la navegación real (`Slot`) y con una pila que mantiene las pantallas montadas. La pila vuelve a Inicio con profundidad máxima 4.
 - **Registro asistido** (`assisted-enrollment.test.tsx`, `assistedQueue.test.ts`): normalización (`+52…`, correo en minúsculas), mismo `client_request_id` al reintentar y aislamiento de la cola por patrocinador y organización.
+- **SMS** (`sms-availability.test.tsx`, HTTP simulado): 503 al pedir y al confirmar el código, en la verificación y en la recuperación, sin pérdida de datos; `queued` con la espera de reenvío; la alternativa de correo solo para cuentas con correo y el flujo de correo intacto.
 - **Límite de #63:** más de 10 palabras devuelve 422. Mobile lo muestra como error de la búsqueda, nunca como resultados.
 
 ## Metro para esta ronda (no ejecutado; requiere autorización)
