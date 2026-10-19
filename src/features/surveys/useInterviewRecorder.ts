@@ -23,13 +23,24 @@ const RECORDING_RESERVE_BYTES = 16 * 1024 * 1024;
 /** "unavailable": this binary has no microphone module; the interview continues without audio. */
 export type RecorderPhase = "idle" | "starting" | "recording" | "saving" | "saved" | "denied" | "failed" | "unavailable";
 
+/** Outcome of finishing a recording: the sealed audio (null if nothing was recording), or a failure to retry. */
+export type FinishResult = { ok: true; audio: DraftAudio | null } | { ok: false };
+
 export interface InterviewRecorder {
   phase: RecorderPhase;
   elapsedMs: number;
   message: string | null;
   canOpenSettings: boolean;
+  /** A stopped recording could not be sealed yet; `finish()` retries it. The raw file is kept meanwhile. */
+  pendingFinalize: boolean;
   start: () => Promise<void>;
   stop: () => Promise<void>;
+  /**
+   * Stops an active recording (or waits for one already stopping, or retries
+   * a pending one) and resolves once the file is sealed. Concurrent calls
+   * share the same promise, so repeated taps never stop or seal twice.
+   */
+  finish: () => Promise<FinishResult>;
   openSettings: () => void;
 }
 
@@ -49,7 +60,7 @@ type StopReason = "user" | "interrupted" | "max";
  *   after stopping and the unencrypted original is deleted.
  */
 function useNativeRecorder(scope: SurveyScope | null, onSaved: (audio: DraftAudio) => void): InterviewRecorder {
-  const stopRef = useRef<(reason: StopReason) => Promise<void>>(async () => undefined);
+  const stopRef = useRef<(reason: StopReason) => Promise<FinishResult>>(async () => ({ ok: true, audio: null }));
   const phaseRef = useRef<RecorderPhase>("idle");
   const recorder = expoAudio!.useAudioRecorder(SPEECH_RECORDING!, (status: RecordingStatus) => {
     if (status.hasError) void stopRef.current("interrupted");
@@ -59,60 +70,109 @@ function useNativeRecorder(scope: SurveyScope | null, onSaved: (audio: DraftAudi
   const [phase, setPhase] = useState<RecorderPhase>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [canOpenSettings, setCanOpenSettings] = useState(false);
-  const stopping = useRef(false);
+  // The one finalization in flight (stop + seal): every caller awaits it.
+  const inFlight = useRef<Promise<FinishResult> | null>(null);
+  // Stopped but not sealed yet: what a retry needs. The raw file stays on disk until sealed.
+  const pending = useRef<{ uri: string | null; durationMs: number; reason: StopReason } | null>(null);
+  const [pendingFinalize, setPendingFinalize] = useState(false);
 
   const setPhaseBoth = useCallback((next: RecorderPhase) => {
     phaseRef.current = next;
     setPhase(next);
   }, []);
 
-  const stop = useCallback(
-    async (reason: StopReason) => {
-      if (phaseRef.current !== "recording" || stopping.current || !scope) return;
-      stopping.current = true;
-      setPhaseBoth("saving");
-      const durationMs = recorder.currentTime ? Math.round(recorder.currentTime * 1000) : recorderState.durationMillis;
-      try {
-        await recorder.stop();
-        const uri = recorder.uri;
-        if (!uri) throw new Error("no recording file");
-        const raw = new File(uri);
-        const bytes = await raw.bytes();
-        const clientAudioId = newClientId();
-        await sealBytes(scope, audioName(clientAudioId), bytes);
-        if (raw.exists) raw.delete();
-        const audio: DraftAudio = {
-          clientAudioId,
-          mimeType: "audio/mp4",
-          durationMs,
-          interrupted: reason === "interrupted",
-          bytes: bytes.byteLength,
-        };
-        onSaved(audio);
-        setMessage(
-          reason === "interrupted"
-            ? strings.surveys.recording.interrupted(formatDuration(durationMs))
-            : reason === "max"
-              ? strings.surveys.recording.maxReached
-              : strings.surveys.recording.saved(formatDuration(durationMs)),
-        );
-        setPhaseBoth("saved");
-      } catch (error) {
-        setMessage(error instanceof StorageFullError ? error.message : strings.surveys.recording.failed);
-        setPhaseBoth("failed");
-      } finally {
-        stopping.current = false;
-        await expoAudio!.setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+  /** Seals the stopped recording's raw file; on failure it stays pending (and on disk) for a retry. */
+  const seal = useCallback(async (): Promise<FinishResult> => {
+    const current = pending.current;
+    if (!current || !scope) return { ok: false };
+    setPhaseBoth("saving");
+    try {
+      if (!current.uri) {
+        // The recorder never confirmed the stop: try again before reading the file.
+        await recorder.stop().catch(() => undefined);
+        current.uri = recorder.uri;
       }
+      if (!current.uri) throw new Error("no recording file");
+      const raw = new File(current.uri);
+      const bytes = await raw.bytes();
+      const clientAudioId = newClientId();
+      await sealBytes(scope, audioName(clientAudioId), bytes);
+      if (raw.exists) raw.delete();
+      const audio: DraftAudio = {
+        clientAudioId,
+        mimeType: "audio/mp4",
+        durationMs: current.durationMs,
+        interrupted: current.reason === "interrupted",
+        bytes: bytes.byteLength,
+      };
+      pending.current = null;
+      setPendingFinalize(false);
+      onSaved(audio);
+      setMessage(
+        current.reason === "interrupted"
+          ? strings.surveys.recording.interrupted(formatDuration(current.durationMs))
+          : current.reason === "max"
+            ? strings.surveys.recording.maxReached
+            : strings.surveys.recording.saved(formatDuration(current.durationMs)),
+      );
+      setPhaseBoth("saved");
+      return { ok: true, audio };
+    } catch (error) {
+      setPendingFinalize(true);
+      setMessage(error instanceof StorageFullError ? error.message : strings.surveys.recording.finalizeFailed);
+      setPhaseBoth("failed");
+      return { ok: false };
+    } finally {
+      await expoAudio!.setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    }
+  }, [recorder, scope, onSaved, setPhaseBoth]);
+
+  const runOnce = useCallback((work: () => Promise<FinishResult>): Promise<FinishResult> => {
+    if (inFlight.current) return inFlight.current;
+    const promise = work().finally(() => {
+      inFlight.current = null;
+    });
+    inFlight.current = promise;
+    return promise;
+  }, []);
+
+  const stop = useCallback(
+    (reason: StopReason): Promise<FinishResult> => {
+      if (inFlight.current) return inFlight.current;
+      if (phaseRef.current !== "recording" || !scope) return Promise.resolve({ ok: true, audio: null });
+      return runOnce(async () => {
+        setPhaseBoth("saving");
+        const durationMs = recorder.currentTime ? Math.round(recorder.currentTime * 1000) : recorderState.durationMillis;
+        pending.current = { uri: null, durationMs, reason };
+        try {
+          await recorder.stop();
+          pending.current.uri = recorder.uri;
+        } catch {
+          // Kept pending: seal() retries the stop before reading the file.
+        }
+        return seal();
+      });
     },
-    [recorder, recorderState.durationMillis, scope, onSaved, setPhaseBoth],
+    [recorder, recorderState.durationMillis, scope, runOnce, seal, setPhaseBoth],
   );
+
+  const finish = useCallback((): Promise<FinishResult> => {
+    if (inFlight.current) return inFlight.current;
+    if (phaseRef.current === "recording") return stop("user");
+    if (pending.current) return runOnce(seal);
+    return Promise.resolve({ ok: true, audio: null });
+  }, [stop, runOnce, seal]);
   useEffect(() => {
     stopRef.current = stop;
   }, [stop]);
 
   const start = useCallback(async () => {
-    if (!scope || phaseRef.current === "recording" || phaseRef.current === "starting") return;
+    if (!scope || phaseRef.current === "recording" || phaseRef.current === "starting" || inFlight.current) return;
+    // A recording that still has to be sealed is never overwritten by a new one.
+    if (pending.current) {
+      setMessage(strings.surveys.recording.finalizeFailed);
+      return;
+    }
     setMessage(null);
     setCanOpenSettings(false);
     try {
@@ -165,8 +225,12 @@ function useNativeRecorder(scope: SurveyScope | null, onSaved: (audio: DraftAudi
     elapsedMs: phase === "recording" ? recorderState.durationMillis : 0,
     message,
     canOpenSettings,
+    pendingFinalize,
     start,
-    stop: () => stop("user"),
+    stop: async () => {
+      await stop("user");
+    },
+    finish,
     openSettings: () => void Linking.openSettings(),
   };
 }
@@ -177,8 +241,10 @@ function useUnavailableRecorder(): InterviewRecorder {
     elapsedMs: 0,
     message: strings.surveys.recording.unavailable,
     canOpenSettings: false,
+    pendingFinalize: false,
     start: async () => undefined,
     stop: async () => undefined,
+    finish: async () => ({ ok: true, audio: null }),
     openSettings: () => undefined,
   };
 }

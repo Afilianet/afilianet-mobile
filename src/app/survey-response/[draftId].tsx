@@ -58,7 +58,18 @@ export default function SurveyResponseScreen() {
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The edit still waiting for the autosave delay, with the scope it belongs
   // to. Leaving the screen saves it instead of dropping it.
-  const pendingSave = useRef<{ scope: SurveyScope; draft: SurveyDraft } | null>(null);
+  const pendingSave = useRef<{ scope: SurveyScope } | null>(null);
+  // The latest draft, also after unmount: autosave, exit and the recorder's
+  // late "audio sealed" callback all write THIS, so none of them can put an
+  // older copy (e.g. without its audio) back on disk.
+  const draftRef = useRef<SurveyDraft | null>(null);
+  // One exit/submit at a time: repeated taps never stop, seal or send twice.
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
+  const [finishing, setFinishing] = useState(false);
 
   // The draft belongs to the account+organization it was loaded under; if
   // the session switches away, this screen stops reading or writing it.
@@ -77,6 +88,7 @@ export default function SurveyResponseScreen() {
         return;
       }
       setLoaded({ scope, version: downloaded.version });
+      draftRef.current = stored;
       setDraft(stored);
     })();
     return () => {
@@ -86,14 +98,17 @@ export default function SurveyResponseScreen() {
 
   const persist = useCallback(
     (next: SurveyDraft) => {
+      draftRef.current = next;
       setDraft(next);
       setDraftSaved(false);
       if (!loaded || !sameScope) return;
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-      pendingSave.current = { scope: loaded.scope, draft: next };
+      pendingSave.current = { scope: loaded.scope };
       autosaveTimer.current = setTimeout(() => {
         pendingSave.current = null;
-        void saveDraft(loaded.scope, next)
+        const latest = draftRef.current;
+        if (!latest) return;
+        void saveDraft(loaded.scope, latest)
           .then(() => setDraftSaved(true))
           .catch((error) => setMessage(error instanceof StorageFullError ? error.message : copy.storageFull));
       }, AUTOSAVE_MS);
@@ -107,18 +122,23 @@ export default function SurveyResponseScreen() {
     // always in the account+organization the draft was loaded under.
     const pending = pendingSave.current;
     pendingSave.current = null;
-    if (pending) void saveDraft(pending.scope, pending.draft).catch(() => undefined);
+    if (pending && draftRef.current) void saveDraft(pending.scope, draftRef.current).catch(() => undefined);
   }, []);
 
   const onAudioSaved = useCallback(
     (audio: DraftAudio) => {
-      setDraft((current) => {
-        if (!current || !loaded) return current;
-        const next = { ...current, audio };
-        // Audio is saved immediately (not debounced): it must never exist without its draft.
-        void saveDraft(loaded.scope, next).then(() => setDraftSaved(true));
-        return next;
-      });
+      const current = draftRef.current;
+      if (!current || !loaded) return;
+      const next = { ...current, audio };
+      draftRef.current = next;
+      setDraft(next);
+      // Audio is saved immediately (not debounced): it must never exist without
+      // its draft -- also when it finishes after the screen was left.
+      void saveDraft(loaded.scope, next)
+        .then(() => {
+          if (mounted.current) setDraftSaved(true);
+        })
+        .catch(() => undefined);
     },
     [loaded],
   );
@@ -132,7 +152,8 @@ export default function SurveyResponseScreen() {
   const interview = draft.respondentType === "interviewed_external";
   const withAudio = audioApplies(version, draft.respondentType);
   const audioRequired = withAudio && version.audio_mode === "required";
-  const cannotRecord = recorder.phase === "unavailable" || recorder.phase === "denied" || recorder.phase === "failed";
+  const cannotRecord = recorder.phase === "unavailable" || recorder.phase === "denied" || (recorder.phase === "failed" && !recorder.pendingFinalize);
+  const finalizing = finishing || recorder.phase === "saving";
 
   function setAnswer(questionId: number, value: DraftValue) {
     if (!draft) return;
@@ -153,8 +174,9 @@ export default function SurveyResponseScreen() {
     ]);
   }
 
-  async function save() {
-    if (!draft || !loaded) return;
+  async function save(target: SurveyDraft) {
+    if (!loaded) return;
+    const draft = target;
     setSaving(true);
     setMessage(null);
     try {
@@ -198,32 +220,66 @@ export default function SurveyResponseScreen() {
     else router.replace(routes.surveys as never);
   }
 
-  /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
-  async function saveDraftAndExit() {
-    if (!draft || !loaded || saving) return;
-    if (recorder.phase === "recording" || recorder.phase === "saving") {
-      setMessage(copy.recording.stopBeforeExit);
-      return;
-    }
-    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    pendingSave.current = null;
-    if (sameScope) {
-      try {
-        await saveDraft(loaded.scope, draft);
-      } catch (error) {
-        setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
-        return;
+  /**
+   * An active recording is stopped and its file sealed (or a pending one is
+   * retried) before anything else. Resolves with the latest draft -- already
+   * holding the audio -- or null when it could not finish: then nothing is
+   * sent or left, and the answers and the recorded file stay on the phone.
+   */
+  async function finishRecording(): Promise<SurveyDraft | null> {
+    const current = draftRef.current;
+    if (!current) return null;
+    if (recorder.phase !== "recording" && recorder.phase !== "saving" && !recorder.pendingFinalize) return current;
+    setFinishing(true);
+    setMessage(null);
+    try {
+      const result = await recorder.finish();
+      if (!result.ok) {
+        if (mounted.current) setMessage(copy.recording.finalizeFailed);
+        return null;
       }
+      const latest = draftRef.current;
+      return latest && result.audio && !latest.audio ? { ...latest, audio: result.audio } : latest;
+    } finally {
+      if (mounted.current) setFinishing(false);
     }
-    leave();
   }
 
-  function submit() {
-    if (!draft || saving) return;
-    if (recorder.phase === "recording" || recorder.phase === "saving") {
-      setMessage(copy.recording.stopBeforeSubmit);
-      return;
+  /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
+  async function saveDraftAndExit() {
+    if (!loaded || saving || busy.current) return;
+    busy.current = true;
+    try {
+      const current = await finishRecording();
+      if (!current) return;
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+      pendingSave.current = null;
+      if (sameScope) {
+        try {
+          await saveDraft(loaded.scope, current);
+        } catch (error) {
+          setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
+          return;
+        }
+      }
+      leave();
+    } finally {
+      busy.current = false;
     }
+  }
+
+  async function submit() {
+    if (!loaded || saving || busy.current) return;
+    busy.current = true;
+    try {
+      const current = await finishRecording();
+      if (current) confirmAndSend(current);
+    } finally {
+      busy.current = false;
+    }
+  }
+
+  function confirmAndSend(draft: SurveyDraft) {
     // Required audio (contract): a decline is a valid, sendable choice, but no decision is not a
     // decline, and an accepted consent without its recording stays a draft -- never sent as complete.
     if (consentDecisionMissing(version, draft)) {
@@ -246,11 +302,11 @@ export default function SurveyResponseScreen() {
       Alert.alert(copy.form.incompleteTitle, copy.form.incompleteBody(missing.length), [
         { text: copy.form.keepAnswering, style: "cancel" },
         { text: copy.form.saveDraftAndExit, onPress: () => void saveDraftAndExit() },
-        { text: copy.form.saveIncomplete, style: "destructive", onPress: () => void save() },
+        { text: copy.form.saveIncomplete, style: "destructive", onPress: () => void save(draft) },
       ]);
       return;
     }
-    void save();
+    void save(draft);
   }
 
   return (
@@ -258,7 +314,7 @@ export default function SurveyResponseScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="survey-response-scroll">
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{version.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => void saveDraftAndExit()}>
+          <IconButton label={strings.common.close} disabled={saving || finalizing} onPress={() => void saveDraftAndExit()}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -309,7 +365,10 @@ export default function SurveyResponseScreen() {
               </Text>
             ) : null}
             {recorder.canOpenSettings ? <Button label={copy.recording.openSettings} variant="ghost" size="sm" onPress={recorder.openSettings} /> : null}
-            {recorder.phase === "recording" ? (
+            {finalizing ? <Text accessibilityLiveRegion="polite" style={styles.body} testID="recording-finishing">{copy.recording.finishing}</Text> : null}
+            {recorder.pendingFinalize && !finalizing ? (
+              <Button label={copy.recording.retryFinalize} variant="secondary" onPress={() => void finishRecording()} />
+            ) : recorder.phase === "recording" ? (
               <Button label={copy.recording.stop} variant="danger" onPress={() => void recorder.stop()} />
             ) : draft.audio ? (
               <>
@@ -335,9 +394,10 @@ export default function SurveyResponseScreen() {
 
         {draftSaved ? <Text style={styles.meta}>{copy.form.draftSaved}</Text> : null}
         {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
+        {finalizing ? <Text accessibilityLiveRegion="polite" style={styles.meta}>{copy.recording.finishing}</Text> : null}
         <Text style={styles.meta}>{copy.form.submitNote}</Text>
-        <Button label={copy.form.submit} size="lg" fullWidth loading={saving} onPress={submit} />
-        <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving} onPress={() => void saveDraftAndExit()} />
+        <Button label={copy.form.submit} size="lg" fullWidth loading={saving || finalizing} disabled={saving || finalizing} onPress={() => void submit()} />
+        <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving || finalizing} onPress={() => void saveDraftAndExit()} />
       </ScrollView>
     </KeyboardAvoidingView>
   );

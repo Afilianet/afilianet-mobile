@@ -31,6 +31,7 @@
   - La decisión es irreversible: `consent_audio` es `accepted` o `declined`, y `consent_version` es el id de la versión (regla del contrato).
   - El botón del micrófono no existe hasta que se acepta.
   - Mientras graba se ve el indicador con un botón para detener. No graba en segundo plano: una llamada o el paso a segundo plano detienen la grabación y conservan lo grabado, marcado como `interrupted`.
+  - «Guardar borrador y salir», «Enviar respuesta» y «Cerrar» detienen la grabación activa automáticamente: muestran «Finalizando grabación…» y esperan a que el archivo quede sellado antes de guardar, validar o pedir confirmación. Si no se puede sellar, no se envía ni se sale, se conservan las respuestas y lo grabado, y se ofrece «Reintentar guardar la grabación». Ya grabado, se ve «Grabación lista · duración», con «Borrar audio» para descartar o volver a grabar. Mobile no reproduce audio: la escucha se hace en el panel administrativo.
   - Si se niega el permiso, se ofrece "Abrir configuración".
   - Máximo 30 minutos, en AAC mono a 64 kbps.
   - **Si se rechaza el consentimiento, el audio nunca se envía.**

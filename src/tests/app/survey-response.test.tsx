@@ -28,12 +28,19 @@ const mockRecorder = {
   elapsedMs: 0,
   message: null as string | null,
   canOpenSettings: false,
+  pendingFinalize: false,
   start: jest.fn(),
   stop: jest.fn(),
+  finish: jest.fn(),
   openSettings: jest.fn(),
 };
+// The screen's "audio sealed" callback, so tests can deliver audio like the real hook does.
+let mockOnAudioSaved: ((audio: unknown) => void) | null = null;
 jest.mock("../../features/surveys/useInterviewRecorder", () => ({
-  useInterviewRecorder: () => mockRecorder,
+  useInterviewRecorder: (_scope: unknown, onSaved: (audio: unknown) => void) => {
+    mockOnAudioSaved = onSaved;
+    return mockRecorder;
+  },
   formatDuration: (ms: number) => `${Math.round(ms / 1000)}s`,
 }));
 
@@ -109,6 +116,8 @@ beforeEach(() => {
   mockRecorder.phase = "idle";
   mockRecorder.message = null;
   mockRecorder.canOpenSettings = false;
+  mockRecorder.pendingFinalize = false;
+  mockRecorder.finish.mockResolvedValue({ ok: true, audio: null });
   (loadDraft as jest.Mock).mockResolvedValue(draft());
   (getDownloaded as jest.Mock).mockResolvedValue({ version: INTERVIEW, downloadedAt: "2026-10-11T10:00:00Z" });
 });
@@ -137,20 +146,13 @@ describe("Survey response: consent and recording (interviews only)", () => {
     expect(screen.queryByText("Iniciar grabación")).toBeNull();
   });
 
-  it("shows a visible recording indicator with a stop control, and does not save while recording", async () => {
+  it("shows a visible recording indicator with a stop control", async () => {
     (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1], 2: "3" } }));
     mockRecorder.phase = "recording";
     mockRecorder.elapsedMs = 65000;
     const screen = await renderScreen();
     expect(screen.getByTestId("recording-indicator")).toBeTruthy();
     expect(screen.getByText("● Grabando · 65s")).toBeTruthy();
-    await press(screen, "Enviar respuesta");
-    expect(screen.getByText("Detén la grabación antes de enviar las respuestas.")).toBeTruthy();
-    expect(enqueueResponse).not.toHaveBeenCalled();
-    // Leaving is blocked too: the recording must finish into the draft first.
-    await press(screen, "Guardar borrador y salir");
-    expect(screen.getByText("Detén la grabación antes de salir. Lo grabado se conservará en el borrador.")).toBeTruthy();
-    expect(mockBack).not.toHaveBeenCalled();
     await press(screen, "Detener grabación");
     expect(mockRecorder.stop).toHaveBeenCalled();
   });
@@ -459,5 +461,158 @@ describe("Survey response: open text answer", () => {
     expect(style.textAlignVertical).toBe("top");
     // Single-line fields keep their 44 pt height.
     expect(StyleSheet.flatten(screen.getByLabelText("Tu respuesta (número)").props.style).height).toBe(44);
+  });
+});
+
+describe("Survey response: finishing an active recording automatically", () => {
+  const AUDIO = { clientAudioId: "aud-9", mimeType: "audio/mp4", durationMs: 30000, interrupted: false, bytes: 240000 };
+
+  function deferredFinish() {
+    let resolve!: (value: { ok: true; audio: typeof AUDIO | null } | { ok: false }) => void;
+    mockRecorder.finish.mockImplementation(() => new Promise((done) => {
+      resolve = done;
+    }));
+    return (value: Parameters<typeof resolve>[0]) => resolve(value);
+  }
+
+  it("«Enviar respuesta» while recording: shows «Finalizando grabación…», waits for the file, ignores repeated taps, then sends with the audio", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [2], 2: "7" } }));
+    mockRecorder.phase = "recording";
+    const finishWith = deferredFinish();
+    const screen = await renderScreen();
+
+    // A double tap lands before the screen re-renders: only one finish starts.
+    const send = screen.getByText("Enviar respuesta");
+    await act(async () => {
+      fireEvent.press(send);
+      fireEvent.press(send);
+    });
+    expect(screen.getAllByText("Finalizando grabación…").length).toBeGreaterThan(0);
+    expect(enqueueResponse).not.toHaveBeenCalled();
+    // The other exits do nothing while it finishes.
+    await press(screen, "Guardar borrador y salir");
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Cerrar"));
+    });
+    expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
+    expect(saveDraft).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishWith({ ok: true, audio: AUDIO });
+    });
+    expect(enqueueResponse).toHaveBeenCalledTimes(1);
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: AUDIO }), expect.any(Array));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Guardar borrador y salir» while recording: the draft is saved with its audio and answers, then it leaves", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1] } }));
+    mockRecorder.phase = "recording";
+    mockRecorder.finish.mockResolvedValue({ ok: true, audio: AUDIO });
+    const screen = await renderScreen();
+    await press(screen, "Guardar borrador y salir");
+
+    expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: AUDIO }));
+    expect(enqueueResponse).not.toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("«Cerrar» behaves the same: it finishes the recording before keeping the draft and leaving", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1] } }));
+    mockRecorder.phase = "recording";
+    mockRecorder.finish.mockResolvedValue({ ok: true, audio: AUDIO });
+    const screen = await renderScreen();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Cerrar"));
+    });
+    expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ audio: AUDIO }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("if finishing fails: nothing is sent or left, the answers stay, the problem is explained and it can be retried", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [2], 2: "7" } }));
+    mockRecorder.phase = "recording";
+    mockRecorder.finish.mockResolvedValueOnce({ ok: false });
+    const screen = await renderScreen();
+    await press(screen, "Enviar respuesta");
+
+    expect(screen.getByText(/No se pudo terminar de guardar la grabación/)).toBeTruthy();
+    expect(enqueueResponse).not.toHaveBeenCalled();
+    expect(deleteDraft).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Tu respuesta (número)").props.value).toBe("7");
+
+    // The hook now holds the unsealed file: the screen offers the retry.
+    mockRecorder.phase = "failed";
+    mockRecorder.pendingFinalize = true;
+    mockRecorder.finish.mockResolvedValueOnce({ ok: true, audio: AUDIO });
+    await act(async () => {
+      screen.rerender(<SurveyResponseScreen />);
+    });
+    await press(screen, "Reintentar guardar la grabación");
+    expect(mockRecorder.finish).toHaveBeenCalledTimes(2);
+  });
+
+  it("an incomplete interview sent while recording: finishes first, then the warning; «Enviar incompleta» keeps the audio", async () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [2] } }));
+    mockRecorder.phase = "recording";
+    mockRecorder.finish.mockResolvedValue({ ok: true, audio: AUDIO });
+    const screen = await renderScreen();
+    await press(screen, "Enviar respuesta");
+
+    expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
+    await act(async () => {
+      buttons.find((button) => button.text === "Enviar incompleta")?.onPress?.();
+    });
+    expect(enqueueResponse).toHaveBeenCalledWith(
+      SCOPE,
+      expect.objectContaining({ audio: AUDIO, missingRequired: 1 }),
+      expect.arrayContaining([{ question_id: 2, skipped: true }]),
+    );
+    alert.mockRestore();
+  });
+
+  it("with no recording in progress, sending does not wait for or touch the recorder", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: { 1: [2], 2: "7" } }));
+    const screen = await renderScreen();
+    await press(screen, "Enviar respuesta");
+    expect(mockRecorder.finish).not.toHaveBeenCalled();
+    expect(enqueueResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("audio sealed while an autosave is pending is never overwritten by that older autosave", async () => {
+    jest.useFakeTimers();
+    try {
+      (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: {} }));
+      const screen = await renderScreen();
+      await act(async () => {
+        fireEvent.changeText(screen.getByLabelText("Tu respuesta"), "Baches");
+      });
+      // The recording finishes (e.g. a call interrupted it) inside the 600 ms autosave window.
+      await act(async () => {
+        mockOnAudioSaved?.(AUDIO);
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(700);
+      });
+      const last = (saveDraft as jest.Mock).mock.calls.at(-1)?.[1];
+      expect(last).toEqual(expect.objectContaining({ audio: AUDIO, answers: { 3: "Baches" } }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("audio that finishes sealing after the screen was left (system back) is still linked to the draft", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1] } }));
+    const screen = await renderScreen();
+    screen.unmount();
+    await act(async () => {
+      mockOnAudioSaved?.(AUDIO);
+    });
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: AUDIO }));
   });
 });

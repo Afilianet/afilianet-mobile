@@ -43,6 +43,19 @@
 | E10 | «Sincronizar ahora» | «Recibido», y sigue «Incompleta: …». Los recibos anteriores a este cambio no indican la condición |
 | E11 | Modo avión, encuesta sin descargar → «Responder yo» | «Sin conexión, y esta encuesta no está en el teléfono…»; no abre una respuesta vacía |
 
+### A1b. Grabación en entrevistas (APK 11, con micrófono)
+
+**Qué decide si se pide audio:** solo las **entrevistas** (`interviewed_external`) de versiones con `audio_mode` distinto de `none` (`audioApplies` en `src/features/surveys/library.ts`). `audio_mode` lo define la versión de la encuesta en Admin: `none`, `optional` o `required`. Las respuestas propias nunca graban. «Satisfacción con el servicio (ejemplo)» es una respuesta propia con `audio_mode: "none"`, así que **no pide audio por configuración**: no es un fallo. «Entrevista vecinal (ejemplo)» tiene audio `optional`. Mobile no reproduce audio; la escucha está en Admin.
+
+| # | Paso | Resultado esperado |
+|---|---|---|
+| G1 | «Entrevista vecinal» → «Iniciar entrevista» → «La persona acepta que se grabe» → «Iniciar grabación», unos 10 s → **sin detener**, «Guardar borrador y salir» | Aparece «Finalizando grabación…», los botones quedan desactivados y vuelve a la encuesta con el borrador |
+| G2 | «Continuar» | Se ve «Grabación lista · 0:10» (o la duración real) y «Borrar audio». No se reactiva ninguna grabación |
+| G3 | «Borrar audio» → confirmar → «Iniciar grabación» unos segundos → **sin detener**, «Cerrar» (X) | El mismo comportamiento seguro que G1: finaliza, guarda el borrador y sale |
+| G4 | «Continuar» → grabar → **sin detener**, «Enviar respuesta» (dejar obligatorias sin responder) | Primero «Finalizando grabación…», después el aviso de incompleta. Con «Enviar incompleta», en «Envíos» aparece con audio y como «Incompleta» |
+| G5 | En otra entrevista, grabar y pulsar «Enviar respuesta» dos veces seguidas | Un solo envío en «Envíos» |
+| G6 | «Satisfacción con el servicio (ejemplo)» → «Responder yo» | No hay consentimiento ni controles de grabación (por configuración) |
+
 ### A2. Búsqueda en «Mi red» con la API actual (sin `meta.search`)
 
 | # | Paso | Resultado esperado |
@@ -102,6 +115,7 @@ El cambio de celular de una cuenta (`PATCH /me/phone`, que también responde 503
 - **Búsqueda con HTTP simulado** (`network-search.test.tsx`): API antigua; `meta.search` distinto del pedido; respuesta tardía de un texto anterior; página posterior sin confirmación (la búsqueda pasa a no disponible, sin mezclar); cambio de organización con una petición en curso y cambio de cuenta; nunca se llama al endpoint administrativo `GET /affiliates`.
 - **Encuestas** (`survey-draft-resume.test.tsx`): el recorrido completo, dos veces, con la navegación real (`Slot`) y con una pila que mantiene las pantallas montadas. La pila vuelve a Inicio con profundidad máxima 4.
 - **Registro asistido** (`assisted-enrollment.test.tsx`, `assistedQueue.test.ts`): normalización (`+52…`, correo en minúsculas), mismo `client_request_id` al reintentar y aislamiento de la cola por patrocinador y organización.
+- **Grabación** (`useInterviewRecorder.test.tsx`, `survey-response.test.tsx`): finalización lenta compartida (una sola detención y un solo sellado); fallo de sellado que conserva el archivo, no permite grabar encima y se reintenta sin volver a detener; detención fallida reintentada; doble pulsación; salida y «Cerrar» que finalizan antes de guardar; fallo sin enviar ni salir; envío incompleto con audio; audio sellado durante un autoguardado pendiente o después de salir, que sigue ligado al borrador.
 - **SMS** (`sms-availability.test.tsx`, HTTP simulado): 503 al pedir y al confirmar el código, en la verificación y en la recuperación, sin pérdida de datos; `queued` con la espera de reenvío; la alternativa de correo solo para cuentas con correo y el flujo de correo intacto.
 - **Límite de #63:** más de 10 palabras devuelve 422. Mobile lo muestra como error de la búsqueda, nunca como resultados.
 
