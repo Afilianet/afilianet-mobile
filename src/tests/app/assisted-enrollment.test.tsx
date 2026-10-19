@@ -153,6 +153,23 @@ describe("Registrar a alguien -- errors keep the form", () => {
     expect(screen.getByText(/ni se le envió ningún mensaje/)).toBeTruthy();
   });
 
+  it("an API before #63 that still requires email rejects phone-only: shown on the email field, nothing lost, nothing queued", async () => {
+    (createAssistedEnrollment as jest.Mock).mockRejectedValueOnce(new ApiError(
+      "validation", "The email field is required.", 422,
+      { email: ["The email field is required."] },
+    ));
+    const screen = await render(<AssistedEnrollmentScreen />);
+    await fill(screen, { phone: "5512345678" });
+    await submit(screen);
+
+    expect(screen.getByText("The email field is required.")).toBeTruthy();
+    expect(screen.getByLabelText("Nombre").props.value).toBe(" Ana ");
+    expect(screen.getByLabelText("Celular de la persona").props.value).toBe("5512345678");
+    expect(screen.getByText("Autorización confirmada ✓")).toBeTruthy();
+    expect(screen.queryByText(/Afiliado registrado/)).toBeNull();
+    expect(savePendingAssisted).not.toHaveBeenCalled();
+  });
+
   it("shows a generic server failure without discarding the form", async () => {
     (createAssistedEnrollment as jest.Mock).mockRejectedValueOnce(new ApiError("forbidden", "forbidden", 403));
     const screen = await render(<AssistedEnrollmentScreen />);
