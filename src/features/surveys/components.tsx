@@ -180,8 +180,11 @@ export function OutboxPanel({
 
 /**
  * Decision C/D: what the phone keeps from ANOTHER origin, or from an
- * unconfirmed one, grouped by origin and explained. Nothing here is sent,
- * edited or discarded from the active origin; drafts can only be viewed.
+ * unconfirmed one. Each origin is its own delimited card -- its heading and
+ * one-line explanation sit inside it, above its own records only -- with
+ * drafts, unsent responses and receipts in separate, counted parts. Nothing
+ * here is sent, edited or discarded from the active origin; drafts can only
+ * be viewed.
  */
 export function OtherOriginsPanel({
   activeOrigin,
@@ -198,47 +201,88 @@ export function OtherOriginsPanel({
 }) {
   const origins = [...new Set([...items, ...drafts, ...receipts].map((record) => record.origin))].filter((origin) => origin !== activeOrigin);
   if (!origins.length) return null;
-  const copy = strings.surveys;
-  const active = describeOrigin(activeOrigin);
+  const copy = strings.surveys.origin;
   return (
-    <Card style={styles.card} testID="survey-other-origins">
-      <Text style={styles.title}>{copy.origin.otherTitle}</Text>
-      <Text style={styles.body}>{copy.origin.otherIntro}</Text>
+    <View style={styles.section} testID="survey-other-origins">
+      <Text style={styles.title} accessibilityRole="header">{copy.otherTitle}</Text>
+      <Text style={styles.body}>{copy.otherIntro}</Text>
       {origins.map((origin) => (
-        <View key={origin} style={styles.group} testID={`other-origin-${origin}`}>
-          <Text style={styles.rowTitle}>{origin === UNCONFIRMED_ORIGIN ? copy.origin.unconfirmed : copy.origin.from(describeOrigin(origin))}</Text>
-          <Text style={styles.body}>{origin === UNCONFIRMED_ORIGIN ? copy.origin.unconfirmedHelp : copy.origin.otherHelp(describeOrigin(origin), active)}</Text>
-          {drafts
-            .filter((draft) => draft.origin === origin)
-            .map((draft) => (
-              <DraftRow key={draft.id} draft={draft} readOnly onContinue={() => onViewDraft(draft.id)} />
-            ))}
-          {items
-            .filter((item) => item.origin === origin)
-            .map((item) => (
-              <View key={item.id} style={styles.row} testID={`other-outbox-${item.id}`}>
-                <View style={styles.rowHeader}>
-                  <Text style={styles.rowTitle}>{item.surveyTitle}</Text>
-                  <Badge label={copy.origin.notSentHere} tone="neutral" />
-                </View>
-                <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
-                <Completeness missingRequired={item.missingRequired} />
-              </View>
-            ))}
-          {receipts
-            .filter((receipt) => receipt.origin === origin)
-            .slice(0, 5)
-            .map((receipt) => (
-              <View key={receipt.id} style={styles.row}>
-                <View style={styles.rowHeader}>
-                  <Text style={styles.rowTitle}>{receipt.surveyTitle}</Text>
-                  <Badge label={copy.outbox.received} tone="neutral" />
-                </View>
-                <Text style={styles.meta}>{copy.outbox.receivedAt(formatDateTime(receipt.receivedAt))}{receipt.withAudio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
-              </View>
-            ))}
-        </View>
+        <OriginGroup
+          key={origin}
+          origin={origin}
+          activeOrigin={activeOrigin}
+          drafts={drafts.filter((draft) => draft.origin === origin)}
+          items={items.filter((item) => item.origin === origin)}
+          receipts={receipts.filter((receipt) => receipt.origin === origin)}
+          onViewDraft={onViewDraft}
+        />
       ))}
+    </View>
+  );
+}
+
+function OriginGroup({
+  origin,
+  activeOrigin,
+  drafts,
+  items,
+  receipts,
+  onViewDraft,
+}: {
+  origin: SurveyOrigin;
+  activeOrigin: SurveyOrigin;
+  drafts: SurveyDraft[];
+  items: OutboxItem[];
+  receipts: OutboxReceipt[];
+  onViewDraft: (id: string) => void;
+}) {
+  const copy = strings.surveys;
+  const unconfirmed = origin === UNCONFIRMED_ORIGIN;
+  const heading = unconfirmed ? copy.origin.unconfirmed : copy.origin.from(describeOrigin(origin));
+  const shownReceipts = receipts.slice(0, 5);
+  return (
+    <Card padding={spacing.md} style={styles.group} testID={`other-origin-${origin}`}>
+      <View style={styles.groupHeader}>
+        <Text style={styles.title} accessibilityRole="header">{heading}</Text>
+        <Text style={styles.body}>{unconfirmed ? copy.origin.unconfirmedHelp : copy.origin.otherHelp(describeOrigin(origin), describeOrigin(activeOrigin))}</Text>
+      </View>
+      {drafts.length ? (
+        <View style={styles.part} testID={`other-origin-${origin}-drafts`}>
+          <Text style={styles.partTitle} accessibilityRole="header">{copy.origin.partDrafts(drafts.length)}</Text>
+          {drafts.map((draft) => (
+            <DraftRow key={draft.id} draft={draft} readOnly onContinue={() => onViewDraft(draft.id)} />
+          ))}
+        </View>
+      ) : null}
+      {items.length ? (
+        <View style={styles.part} testID={`other-origin-${origin}-unsent`}>
+          <Text style={styles.partTitle} accessibilityRole="header">{copy.origin.partUnsent(items.length)}</Text>
+          {items.map((item) => (
+            <View key={item.id} style={styles.row} testID={`other-outbox-${item.id}`}>
+              <View style={styles.rowHeader}>
+                <Text style={styles.rowTitle}>{item.surveyTitle}</Text>
+                <Badge label={copy.origin.notSentHere} tone="neutral" />
+              </View>
+              <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
+              <Completeness missingRequired={item.missingRequired} />
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {shownReceipts.length ? (
+        <View style={styles.part} testID={`other-origin-${origin}-receipts`}>
+          <Text style={styles.partTitle} accessibilityRole="header">{copy.origin.partReceipts(receipts.length)}</Text>
+          {shownReceipts.map((receipt) => (
+            <View key={receipt.id} style={styles.row}>
+              <View style={styles.rowHeader}>
+                <Text style={styles.rowTitle}>{receipt.surveyTitle}</Text>
+                <Badge label={copy.outbox.received} tone="neutral" />
+              </View>
+              <Text style={styles.meta}>{copy.outbox.receivedAt(formatDateTime(receipt.receivedAt))}{receipt.withAudio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -247,7 +291,11 @@ const styles = StyleSheet.create({
   notice: { gap: spacing.xs, backgroundColor: colors.surfaceRaised },
   noticeText: { ...typography.caption, color: colors.textSecondary },
   card: { gap: spacing.sm },
-  group: { gap: spacing.xs, paddingTop: spacing.xs },
+  section: { gap: spacing.sm },
+  group: { gap: spacing.md, borderColor: colors.borderStrong, backgroundColor: colors.surfaceRaised },
+  groupHeader: { gap: spacing.xs },
+  part: { gap: spacing.xs },
+  partTitle: { ...typography.bodyStrong, color: colors.textSecondary },
   title: { ...typography.bodyStrong, color: colors.textPrimary },
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },

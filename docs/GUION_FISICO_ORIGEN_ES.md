@@ -38,7 +38,7 @@ Esta fase activa la fuente real, solo para leer. **No abrir, descargar ni respon
 | # | Paso | Resultado esperado |
 |---|---|---|
 | O7 | Quitar el modo avión, abrir la app con el nuevo bundle, ir a Encuestas | Sin el aviso «Vista previa…». En «Envíos»: «Se envían a: Afilianet (servidor de pruebas).» y «No hay envíos pendientes.» La lista de encuestas puede salir vacía o con un error si staging no tiene encuestas: no importa |
-| O8 | Bajar hasta «Guardado con otro origen» | Un grupo «Guardado con datos de ejemplo» con la explicación «…no se envía desde aquí…». Dentro: B con «No se envía desde aquí» y «con audio», A y los borradores antiguos con «Consultar». Otro grupo «Origen sin confirmar» con los recibos antiguos. No hay botones de enviar ni de descartar |
+| O8 | Bajar hasta «Guardado con otro origen» | Un recuadro «Guardado con datos de ejemplo», con «No se envía a Afilianet (servidor de pruebas)…» dentro y sus apartados: «Borradores (n)» con A y los borradores antiguos («Consultar»), y «Respuestas sin enviar (n)» con B («No se envía desde aquí», «con audio»). Otro recuadro aparte, «Origen sin confirmar», con «Recibidos (n)» antiguos. No hay botones de enviar ni de descartar |
 | O9 | Deslizar hacia abajo para actualizar, dos veces | B sigue igual. Nada pasa a «Recibido» ni a «No se puede enviar» |
 | O10 | En A, «Consultar» | «Solo consulta: este borrador pertenece a datos de ejemplo…». Se ven las respuestas y «Grabación lista · 0:05». No se puede escribir ni elegir opciones, y no hay «Enviar respuesta», «Guardar borrador y salir» ni controles de grabación. «Cerrar» vuelve sin cambios |
 | O11 | Forzar la detención y volver a abrir | Igual que O8: nada se movió |
