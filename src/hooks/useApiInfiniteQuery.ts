@@ -14,7 +14,7 @@ const NON_RETRYABLE = new Set(["unauthorized", "forbidden", "validation", "not_f
 export function useApiInfiniteQuery<T>(
   queryKey: readonly unknown[],
   queryFn: (page: number) => Promise<PaginatedResponse<T>>,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; retry?: (failureCount: number, error: unknown) => boolean },
 ) {
   return useInfiniteQuery({
     queryKey,
@@ -27,6 +27,7 @@ export function useApiInfiniteQuery<T>(
       return current + 1;
     },
     retry: (failureCount, error) => {
+      if (options?.retry) return options.retry(failureCount, error);
       if (isApiError(error) && NON_RETRYABLE.has(error.kind)) return false;
       return failureCount < 2;
     },

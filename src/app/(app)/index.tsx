@@ -25,6 +25,8 @@ import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from 
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import { canShareReferral } from "../../utils/referral";
+import { surveysPreviewEnabled } from "../../features/surveys/flags";
+import { recaptureRequest } from "../../components/compliance/recaptureRequest";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
 export default function HomeScreen() {
@@ -83,12 +85,18 @@ export default function HomeScreen() {
       {noAffiliateProfile ? (
         <EnrollmentBanner />
       ) : (
-        <SectionCard title={strings.home.affiliateStatusTitle} query={affiliateQuery} isEmpty={() => false}>
+        <SectionCard
+          title={strings.home.affiliateStatusTitle}
+          query={affiliateQuery}
+          isEmpty={() => false}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
+        >
           {(affiliate) => <AffiliateStatusContent affiliate={affiliate} />}
         </SectionCard>
       )}
 
-      <ComplianceCard query={complianceQuery} />
+      <ComplianceCard query={complianceQuery} enabled={Boolean(activeOrganization)} />
 
       {releaseFeatures.commerce ? (
         <SectionCard
@@ -96,6 +104,8 @@ export default function HomeScreen() {
           query={commissionsQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noCommissionsYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <CommissionsContent commissions={list} />}
         </SectionCard>
@@ -107,6 +117,8 @@ export default function HomeScreen() {
           query={walletQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noWalletBalanceYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <WalletContent wallets={list} />}
         </SectionCard>
@@ -140,6 +152,9 @@ function Header() {
       ) : (
         <Text style={styles.orgName}>{orgLabel}</Text>
       )}
+      {surveysPreviewEnabled ? (
+        <Button label={strings.surveys.homeEntry} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
+      ) : null}
     </View>
   );
 }
@@ -179,7 +194,7 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
   );
 }
 
-function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) {
+function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompliance>; enabled: boolean }) {
   const router = useRouter();
   const notStarted = complianceStatusCopy("not_started");
 
@@ -192,6 +207,8 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
     <SectionCard
       title={strings.compliance.screenTitle}
       query={query}
+      enabled={enabled}
+      disabledTitle={strings.noOrganization.description}
       emptyContent={
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
@@ -206,6 +223,12 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
           <View style={styles.stateGroupLocal}>
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
+            {compliance.steps && recaptureRequest(compliance.current_step, compliance.steps) ? (
+              <View testID="home-recapture-request" style={styles.stateGroupLocal} accessible accessibilityRole="alert">
+                <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+                <Text style={styles.meta}>{strings.home.livenessRecaptureRequested}</Text>
+              </View>
+            ) : null}
             {compliance.status !== "approved" ? (
               <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
             ) : null}
