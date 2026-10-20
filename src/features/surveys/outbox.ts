@@ -29,8 +29,10 @@ const MAX_RECEIPTS = 50;
 const BASE_RETRY_MS = 5_000;
 const MAX_RETRY_MS = 10 * 60_000;
 
-export type BlockReason = "survey_version_closed" | "not_assigned_surveyor" | "respondent_type_not_allowed" | "not_a_member";
-export type AudioRejectReason = "unsupported_mime_type" | "object_too_large" | "audio_consent_required";
+/** `version_unavailable`: API #66 answered 404 -- the version is not in the active organization (or no longer exists). */
+export type BlockReason = "survey_version_closed" | "not_assigned_surveyor" | "respondent_type_not_allowed" | "not_a_member" | "version_unavailable";
+/** `response_unavailable`: API #66 answered 404 for the response the audio belongs to (outside the active organization). */
+export type AudioRejectReason = "unsupported_mime_type" | "object_too_large" | "audio_consent_required" | "response_unavailable";
 
 export interface OutboxAudio {
   clientAudioId: string;
@@ -209,12 +211,16 @@ function blockReason(error: unknown): BlockReason | null {
   if (error.reason === "not_assigned_surveyor") return "not_assigned_surveyor";
   if (error.reason === "respondent_type_not_allowed") return "respondent_type_not_allowed";
   if (error.kind === "forbidden") return "not_a_member";
+  // API #66: 404 = the version is not in the active organization. Retrying
+  // cannot change that; it is kept for the person to read and discard.
+  if (error.kind === "not_found") return "version_unavailable";
   return null;
 }
 
 function audioRejection(error: unknown): AudioRejectReason | null {
   if (!isApiError(error)) return null;
   if (error.reason === "unsupported_mime_type" || error.reason === "object_too_large" || error.reason === "audio_consent_required") return error.reason;
+  if (error.kind === "not_found") return "response_unavailable";
   return null;
 }
 

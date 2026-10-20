@@ -41,6 +41,11 @@ interface Loaded {
   drafts: SurveyDraft[];
 }
 
+/** API #66: 404 means the version is not in the active organization (or no longer exists). */
+function surveyErrorMessage(cause: unknown): string {
+  return isApiError(cause) && cause.kind === "not_found" ? strings.surveys.notAvailableAnymore : accessErrorMessage(cause);
+}
+
 export default function SurveyDetailScreen() {
   const router = useRouter();
   const { surveyId } = useLocalSearchParams<{ surveyId: string }>();
@@ -102,7 +107,7 @@ export default function SurveyDetailScreen() {
       await downloadVersion(scope, surveySource, available);
       await load();
     } catch (cause) {
-      setError(cause instanceof StorageFullError ? cause.message : accessErrorMessage(cause));
+      setError(cause instanceof StorageFullError ? cause.message : surveyErrorMessage(cause));
     } finally {
       setBusy(false);
     }
@@ -122,7 +127,7 @@ export default function SurveyDetailScreen() {
         await load();
       } catch (cause) {
         const offline = isApiError(cause) && (cause.kind === "offline" || cause.kind === "timeout");
-        setError(cause instanceof StorageFullError ? cause.message : offline ? copy.notDownloadedOffline : accessErrorMessage(cause));
+        setError(cause instanceof StorageFullError ? cause.message : offline ? copy.notDownloadedOffline : surveyErrorMessage(cause));
         return;
       } finally {
         setBusy(false);

@@ -442,3 +442,76 @@ describe("Network: privacy", () => {
     expect(queryByText(/\$\d/)).toBeNull();
   });
 });
+
+describe("Mi red: search and assisted registrations stay inside the active account and organization", () => {
+  it("switching organization clears the search and its results, and only the active organization's pending registrations are listed", async () => {
+    const router = jest.requireMock("expo-router") as { useFocusEffect: jest.Mock };
+    const React = jest.requireActual("react") as typeof import("react");
+    router.useFocusEffect.mockImplementation((effect: () => void) => React.useEffect(effect, [effect]));
+    const { listPendingAssisted } = jest.requireMock("../../../services/assistedQueue") as { listPendingAssisted: jest.Mock };
+    // Device storage holds drafts from two organizations; the screen must show only the active one's.
+    listPendingAssisted.mockResolvedValue([
+      { sponsorUserId: "sponsor-user", organizationId: "org-a", input: { client_request_id: "ra", first_name: "Ana", last_name: "Pendiente" } },
+      { sponsorUserId: "sponsor-user", organizationId: "org-b", input: { client_request_id: "rb", first_name: "Beto", last_name: "Pendiente" } },
+    ]);
+    mockedFetchMySponsored.mockImplementation(async (_page: number, _perPage: number, search?: string) =>
+      search
+        ? { ...page([affiliate({ id: "aff-hit", user: { id: "u-hit", first_name: "Ana", last_name: "Buscada" } })], 1, 1), meta: { current_page: 1, last_page: 1, total: 1, search } }
+        : page([affiliate({ id: "aff-s1", affiliate_code: "SPOD0001" })], 1, 1),
+    );
+
+    const screen = await renderNetwork(orgValue({ organizations: [ORG_A, ORG_B] }));
+    expect(await screen.findByText("Ana Pendiente")).toBeTruthy();
+    expect(screen.queryByText("Beto Pendiente")).toBeNull();
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText("Buscar por nombre en referidos directos"), "Ana");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(await screen.findByText("Ana Buscada")).toBeTruthy();
+    expect(mockedFetchMySponsored).toHaveBeenCalledWith(1, 20, "Ana");
+
+    await act(async () => {
+      screen.rerender(
+        <QueryClientProvider client={queryClient}>
+          <OrganizationContext.Provider value={orgValue({ organizations: [ORG_A, ORG_B], activeOrganization: ORG_B })}>
+            <NetworkScreen />
+          </OrganizationContext.Provider>
+        </QueryClientProvider>,
+      );
+    });
+    // Organization B reloads its profile first; then the sections come back with an empty search.
+    expect((await screen.findByLabelText("Buscar por nombre en referidos directos")).props.value).toBe("");
+    expect(screen.queryByText("Ana Buscada")).toBeNull();
+    expect(await screen.findByText("Beto Pendiente")).toBeTruthy();
+    expect(screen.queryByText("Ana Pendiente")).toBeNull();
+
+    // Both organizations are now cached (no loading state in between): the
+    // search must still be cleared by the switch itself.
+    const tree = (org: Organization) => (
+      <QueryClientProvider client={queryClient}>
+        <OrganizationContext.Provider value={orgValue({ organizations: [ORG_A, ORG_B], activeOrganization: org })}>
+          <NetworkScreen />
+        </OrganizationContext.Provider>
+      </QueryClientProvider>
+    );
+    await act(async () => {
+      screen.rerender(tree(ORG_A));
+    });
+    await act(async () => {
+      fireEvent.changeText(await screen.findByLabelText("Buscar por nombre en referidos directos"), "Ana");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(await screen.findByText("Ana Buscada")).toBeTruthy();
+    await act(async () => {
+      screen.rerender(tree(ORG_B));
+    });
+    expect(screen.getByLabelText("Buscar por nombre en referidos directos").props.value).toBe("");
+    expect(screen.queryByText("Ana Buscada")).toBeNull();
+    router.useFocusEffect.mockReset();
+  });
+});
