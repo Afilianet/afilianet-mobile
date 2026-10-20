@@ -46,9 +46,10 @@
   - **Los límites de audio se leen del servidor** (`GET /surveys/audio-config`), nunca se fijan en el código.
 - **Estados distintos:** "Guardado en el dispositivo", "Pendiente de sincronizar", "Audio pendiente", "Audio no aceptado", "Recibido" y bloqueado por alguno de estos motivos:
   - `survey_version_closed`: "No se pudo contar…";
-  - `not_assigned_surveyor`;
+  - `not_assigned_surveyor`, solo si el servidor lo confirma con ese `reason`;
   - `respondent_type_not_allowed`;
-  - un 403 por no tener perfil de afiliado en la organización.
+  - `version_unavailable` (404 de API #66: la versión no está en la organización activa);
+  - un 403 sin `reason` reconocido: bloqueo neutral «No se pudo autorizar el envío», con los datos conservados. No se deduce la causa por la modalidad ni por el texto del servidor.
 
   Lo bloqueado nunca se reenvía automáticamente; se conserva hasta que la persona lo descarta.
 - **Cierre de sesión con pendientes:** se informa y se ofrece sincronizar, conservar (solo para esta misma cuenta) o borrar, con confirmación.
@@ -78,7 +79,7 @@ npx expo start --dev-client --tunnel --clear --port 8082
 
 - **Un build EAS no fija la fuente:** ningún perfil define la variable. Un APK sin Metro usa los datos de ejemplo. Con el cliente de desarrollo, manda lo que sirva Metro.
 
-**Antes de alternar:** borradores, descargas, envíos y recibos se guardan por cuenta y organización, **no por fuente**.
+**Antes de alternar:** borradores, descargas, envíos y recibos se guardan por cuenta y organización, **no por fuente**. Riesgo reproducido y diseño del aislamiento por origen, aún sin implementar, en `docs/AISLAMIENTO_ORIGEN_ENCUESTAS_ES.md`.
 - Un envío pendiente de los datos de ejemplo (ids `fx-…`, que no son UUID) se mandaría a la API real.
   - Con la API desplegada `d4cec70`, el id mal formado da 500 y queda reintentándose con espera.
   - Con el candidato #67 da 404 y queda «No se puede enviar», conservado.
@@ -99,7 +100,7 @@ Al volver, la bandeja se actualiza con la fuente activa.
 | Recurso fuera de la organización activa | 404 | 404 | Respuesta bloqueada «ya no está disponible en esta organización», conservada y sin reintento. Audio «no aceptado» sin recibo. Al preparar: «Esta encuesta ya no está disponible» |
 | Id mal formado | **500** | 404 | Mobile solo usa ids del servidor; solo ocurre al alternar con pendientes de los datos de ejemplo (ver arriba) |
 | Encuesta cerrada | 422 `survey_version_closed` | Igual | Bloqueada «la encuesta cerró…», sin reintento |
-| 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documente | Igual, con texto en español | Mobile usa la modalidad: respuesta propia → «sin perfil de afiliado»; entrevista → «ya no estás asignado como encuestador» |
+| 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documenta | Igual, con texto en español | Bloqueo **neutral** «No se pudo autorizar el envío», con los datos conservados. Solo un `reason` del contrato (p. ej. `not_assigned_surveyor`) da un motivo específico. Ni la modalidad ni el texto del servidor deciden |
 | Duplicado (`client_response_id`) | 201 con la original | Igual | Un solo envío y un solo recibo |
 
 ## Comparación con la vista previa anterior (antes de conectar)
@@ -152,6 +153,6 @@ Lo demás funciona con Metro sobre el APK actual. En ese APK la app abre normalm
 - Repetir A1–A12 contra el servidor.
 - Verificar en Admin las respuestas, `rejected_closed`, `skipped`, `consent_audio` e `interrupted`.
 - Cerrar una versión archivándola o publicando una nueva mientras el teléfono está sin conexión.
-- Un encuestador no asignado debe recibir el bloqueo `not_assigned_surveyor`.
+- Un encuestador no asignado recibe `not_assigned_surveyor` solo si la API envía ese `reason`. La API desplegada (`d4cec703`) y el candidato #67 no lo envían, así que hoy se ve el bloqueo neutral «No se pudo autorizar el envío».
 - Un audio mayor que `max_bytes` debe aparecer como "Audio no aceptado".
 - Abrir una encuesta desde la push requiere también desplegar `e1ce99a`.

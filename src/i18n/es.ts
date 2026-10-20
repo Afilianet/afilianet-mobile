@@ -301,6 +301,7 @@ export const es = {
         respondent_type_not_allowed: "No se puede enviar: la encuesta ya no admite esta modalidad.",
         not_a_member: "No se puede enviar: tu cuenta no tiene perfil de afiliado en esta organización.",
         version_unavailable: "No se puede enviar: esta encuesta ya no está disponible en esta organización.",
+        forbidden: "No se pudo autorizar el envío. Se conserva en el teléfono; consulta con tu organización si deberías poder enviarla.",
       },
       audioRejected: "Audio no aceptado",
       audioRejectedHelp: "Las respuestas ya llegaron. El servidor no aceptó el audio (tipo o tamaño); se conserva en el teléfono hasta que lo descartes.",

@@ -408,6 +408,9 @@ describe("Survey journey: sending incomplete, completeness after the receipt", (
         items={[
           { ...base, id: "gone", audio: null, blocked: "version_unavailable" },
           { ...base, id: "unassigned", audio, blocked: "not_assigned_surveyor" },
+          { ...base, id: "unconfirmed", audio: null, blocked: "forbidden" },
+          // Stored before the neutral reason existed: still explained.
+          { ...base, id: "legacy", audio: null, blocked: "not_a_member", respondentType: "self" },
           { ...base, id: "audio404", audio: { ...audio, rejected: "response_unavailable" }, responseId: "resp-1", receivedAt: "2026-10-20T10:05:00Z" },
         ]}
         receipts={[]}
@@ -421,12 +424,14 @@ describe("Survey journey: sending incomplete, completeness after the receipt", (
     );
     expect(screen.getByText("No se puede enviar: esta encuesta ya no está disponible en esta organización.")).toBeTruthy();
     expect(screen.getByText("No se puede enviar: ya no estás asignado como encuestador.")).toBeTruthy();
-    expect(screen.getAllByText("Se conserva en el teléfono. Puedes descartarla si ya no la necesitas.")).toHaveLength(2);
+    expect(screen.getByText(/No se pudo autorizar el envío\. Se conserva en el teléfono/)).toBeTruthy();
+    expect(screen.getByText("No se puede enviar: tu cuenta no tiene perfil de afiliado en esta organización.")).toBeTruthy();
+    expect(screen.getAllByText("Se conserva en el teléfono. Puedes descartarla si ya no la necesitas.")).toHaveLength(4);
     expect(screen.getByText(/el servidor no encontró esa respuesta en esta organización para recibir el audio/)).toBeTruthy();
     expect(screen.getByText("Audio no aceptado")).toBeTruthy();
     expect(screen.queryByText("Recibido")).toBeNull();
     // Recovery is the person's explicit choice, never automatic.
-    expect(screen.getAllByText("Descartar del teléfono")).toHaveLength(2);
+    expect(screen.getAllByText("Descartar del teléfono")).toHaveLength(4);
     await act(async () => {
       fireEvent.press(screen.getByText("Descartar audio"));
     });
