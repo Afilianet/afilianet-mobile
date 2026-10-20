@@ -31,8 +31,12 @@ jest.mock("../../features/surveys/vault", () => {
     sealJson: jest.fn(async (scope, name: string, value: unknown) => void files.set(key(scope, name), JSON.stringify(value))),
     openJson: jest.fn(async (scope, name: string) => (files.has(key(scope, name)) ? JSON.parse(files.get(key(scope, name))!) : null)),
     removeItem: jest.fn(async (scope, name: string) => void files.delete(key(scope, name))),
-    sealBytes: jest.fn(async () => 0),
-    openBytes: jest.fn(async () => null),
+    sealBytes: jest.fn(async (scope, name: string, bytes: Uint8Array) => {
+      files.set(key(scope, name), JSON.stringify(Array.from(bytes)));
+      return bytes.byteLength;
+    }),
+    openBytes: jest.fn(async (scope, name: string) => (files.has(key(scope, name)) ? new Uint8Array(JSON.parse(files.get(key(scope, name))!)) : null)),
+    ensureSpace: jest.fn(),
     listScopes: jest.fn(async () => []),
     scopeId: (scope: { userId: string; organizationId: string }) => `${scope.userId}.${scope.organizationId}`,
     StorageFullError: class extends Error {},
@@ -60,9 +64,41 @@ jest.mock("../../features/surveys/runtime", () => {
     surveysPreviewEnabled: true,
   };
 });
-jest.mock("../../features/surveys/useInterviewRecorder", () => ({
-  useInterviewRecorder: () => ({ phase: "idle", elapsedMs: 0, message: null, canOpenSettings: false, start: jest.fn(), stop: jest.fn(), openSettings: jest.fn() }),
-  formatDuration: (ms: number) => `${Math.round(ms / 1000)}s`,
+// The recorder: an idle stand-in, or (mockRealRecorder) the REAL hook over a
+// simulated expo-audio -- so the journey covers the actual stop/seal/link chain.
+let mockRealRecorder = false;
+jest.mock("../../features/surveys/useInterviewRecorder", () => {
+  const actual = jest.requireActual("../../features/surveys/useInterviewRecorder");
+  const idle = { phase: "idle", elapsedMs: 0, message: null, canOpenSettings: false, pendingFinalize: false, start: jest.fn(), stop: jest.fn(), finish: jest.fn(async () => ({ ok: true, audio: null })), openSettings: jest.fn() };
+  return {
+    ...actual,
+    useInterviewRecorder: (...args: unknown[]) => (mockRealRecorder ? actual.useInterviewRecorder(...args) : idle),
+  };
+});
+jest.mock("../../features/surveys/audioSupport", () => ({ audioRecordingSupported: true }));
+const mockAudioRecorder = {
+  prepareToRecordAsync: jest.fn(async () => undefined),
+  record: jest.fn(),
+  stop: jest.fn(async () => undefined),
+  uri: "file:///cache/rec.m4a" as string | null,
+  currentTime: 12.4,
+};
+jest.mock("expo-audio", () => ({
+  RecordingPresets: { HIGH_QUALITY: { extension: ".m4a", sampleRate: 44100, numberOfChannels: 2, bitRate: 128000 } },
+  useAudioRecorder: () => mockAudioRecorder,
+  useAudioRecorderState: () => ({ isRecording: false, durationMillis: 12400, mediaServicesDidReset: false, canRecord: true, url: null }),
+  getRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: "granted" })),
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true, status: "granted" })),
+  setAudioModeAsync: jest.fn(async () => undefined),
+}));
+jest.mock("expo-file-system", () => ({
+  File: class {
+    exists = true;
+    async bytes() {
+      return new Uint8Array([7, 7, 7, 7]);
+    }
+    delete() {}
+  },
 }));
 
 jest.mock("expo-router", () => {
@@ -246,6 +282,9 @@ beforeEach(async () => {
   files.clear();
   mockScope = { ...SCOPE };
   mockOnline = true;
+  mockRealRecorder = false;
+  mockAudioRecorder.stop.mockReset();
+  mockAudioRecorder.stop.mockImplementation(async () => undefined);
   currentStack = [];
   deepest = 0;
   await seed({ download: true });
@@ -392,6 +431,19 @@ describe("Survey journey: answering without a manual download", () => {
     expect(top(screen).getByText("Satisfacción con el servicio (ejemplo)")).toBeTruthy();
   });
 
+  it("API #66: a 404 while preparing it says the survey is no longer available here, never «not available yet», and opens nothing", async () => {
+    const { surveySource } = jest.requireMock("../../features/surveys/runtime") as { surveySource: { getVersion: () => Promise<unknown> } };
+    const { ApiError } = jest.requireActual("../../api/errors");
+    const spy = jest.spyOn(surveySource, "getVersion").mockRejectedValueOnce(new ApiError("not_found", "Not Found.", 404));
+    const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-servicio"]);
+    await tap(screen, "Responder yo");
+    expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-servicio"]);
+    expect(top(screen).getByText(/Esta encuesta ya no está disponible/)).toBeTruthy();
+    expect(top(screen).queryByText(/todavía no está disponible/)).toBeNull();
+    expect(await listDrafts(SCOPE)).toEqual([]);
+    spy.mockRestore();
+  });
+
   it("offline with nothing on the phone, explains what is missing instead of opening an empty response", async () => {
     const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-servicio"]);
     mockOnline = false;
@@ -419,5 +471,114 @@ describe("Survey journey: isolation", () => {
     expect(top(screen).getByText("Envíos")).toBeTruthy();
     expect(top(screen).queryByText("Borrador")).toBeNull();
     expect(top(screen).queryByText("Continuar")).toBeNull();
+  });
+});
+
+describe("Survey journey with a real recording: finish on exit, offline, pending and uploaded audio", () => {
+  async function recordAndSaveDraft(screen: RenderedScreen) {
+    await tap(screen, "Iniciar entrevista");
+    await tap(screen, "La persona acepta que se grabe");
+    await tap(screen, "Iniciar grabación");
+    expect(top(screen).getByText(/Grabando/)).toBeTruthy();
+
+    // A slow stop: the exit waits visibly, and a second tap does nothing.
+    let finishStop!: () => void;
+    mockAudioRecorder.stop.mockImplementationOnce(() => new Promise<undefined>((done) => {
+      finishStop = () => done(undefined);
+    }));
+    const exit = top(screen).getByText("Guardar borrador y salir");
+    await act(async () => {
+      fireEvent.press(exit);
+      fireEvent.press(exit);
+    });
+    expect(top(screen).getByText("Finalizando grabación…")).toBeTruthy();
+    expect(currentStack.at(-1)).toMatch(/^\/survey-response\//);
+    await act(async () => {
+      finishStop();
+    });
+    await settle(30);
+    expect(mockAudioRecorder.stop).toHaveBeenCalledTimes(1);
+    expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-vecinal"]);
+  }
+
+  it("records, saves the draft without stopping by hand, continues, sends once, and shows pending audio until it really uploads", async () => {
+    mockRealRecorder = true;
+    mockOnline = false;
+    const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-vecinal"]);
+    await recordAndSaveDraft(screen);
+
+    const [draft] = await listDrafts(SCOPE);
+    expect(draft.audio).toEqual(expect.objectContaining({ durationMs: 12400, bytes: 4 }));
+
+    await tap(screen, "Continuar");
+    expect(top(screen).getByText(/Grabación lista · 0:12/)).toBeTruthy();
+    await tap(screen, "Menos de 1 año");
+    await type(screen, "Tu respuesta", "Baches");
+    await tap(screen, "7");
+    const send = top(screen).getByText("Enviar respuesta");
+    await act(async () => {
+      fireEvent.press(send);
+      fireEvent.press(send);
+    });
+    await settle(50);
+    expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-vecinal"]);
+    expect(await listDrafts(SCOPE)).toEqual([]);
+    const queued = await listOutbox(SCOPE);
+    expect(queued).toHaveLength(1);
+    expect(queued[0].audio).toEqual(expect.objectContaining({ bytes: 4 }));
+
+    // Offline: saved on the phone, with audio, complete; not received.
+    await close(screen);
+    expect(top(screen).getByText(/^(Guardado en el dispositivo|Pendiente de sincronizar)$/)).toBeTruthy();
+    expect(top(screen).getByText(/con audio/)).toBeTruthy();
+    expect(top(screen).getByText("Completa")).toBeTruthy();
+    expect(top(screen).queryByText("Recibido")).toBeNull();
+
+    // Back online, but the audio upload fails: the answers arrived, the audio is still pending.
+    mockOnline = true;
+    const { surveySource } = jest.requireMock("../../features/surveys/runtime") as { surveySource: { uploadAudio: () => Promise<void> } };
+    const { ApiError } = jest.requireActual("../../api/errors");
+    const upload = jest.spyOn(surveySource, "uploadAudio").mockRejectedValueOnce(new ApiError("server", "Upload failed.", 500));
+    await tap(screen, "Sincronizar ahora");
+    await settle(100);
+    const [afterAnswers] = await listOutbox(SCOPE);
+    expect(afterAnswers.responseId).toBeTruthy();
+    expect(top(screen).getByText("Audio pendiente")).toBeTruthy();
+    expect(top(screen).queryByText("Recibido")).toBeNull();
+
+    // Retry: now it really uploads; received once, with audio.
+    upload.mockRestore();
+    await tap(screen, "Sincronizar ahora");
+    await settle(100);
+    expect(await listOutbox(SCOPE)).toEqual([]);
+    const receipts = await listReceipts(SCOPE);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toEqual(expect.objectContaining({ withAudio: true, missingRequired: 0 }));
+    expect(top(screen).getByText("Recibido")).toBeTruthy();
+    expect(top(screen).getByText(/con audio/)).toBeTruthy();
+  });
+
+  it("a rejected audio is never shown as completed: «Audio no aceptado» until the person discards it", async () => {
+    mockRealRecorder = true;
+    const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-vecinal"]);
+    await recordAndSaveDraft(screen);
+    await tap(screen, "Continuar");
+    await tap(screen, "Menos de 1 año");
+    await type(screen, "Tu respuesta", "Baches");
+    await tap(screen, "7");
+    mockOnline = false;
+    await tap(screen, "Enviar respuesta");
+    await settle(50);
+    await close(screen);
+
+    mockOnline = true;
+    const { surveySource } = jest.requireMock("../../features/surveys/runtime") as { surveySource: { uploadAudio: () => Promise<void> } };
+    const { ApiError } = jest.requireActual("../../api/errors");
+    jest.spyOn(surveySource, "uploadAudio").mockRejectedValue(new ApiError("validation", "Too large.", 422, undefined, { reason: "object_too_large" }));
+    await tap(screen, "Sincronizar ahora");
+    await settle(100);
+    expect(top(screen).getByText("Audio no aceptado")).toBeTruthy();
+    expect(top(screen).queryByText("Recibido")).toBeNull();
+    expect(await listReceipts(SCOPE)).toEqual([]);
   });
 });

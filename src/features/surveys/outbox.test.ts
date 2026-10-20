@@ -251,6 +251,58 @@ describe("survey outbox", () => {
     expect(hasItem(ORG_A, "answers-r-1")).toBe(false);
   });
 
+  // API #66 (merged 2026-10-19): survey routes require the active organization
+  // (400 without X-Organization-ID) and answer 404 for anything outside it.
+  it("API #66: a 404 for the version blocks and KEEPS the response, never retried automatically, discarded only on request", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    const spy = jest.spyOn(source, "submitResponse").mockRejectedValue(new ApiError("not_found", "Not Found.", 404));
+    await syncOutbox(ORG_A, source);
+
+    const [blocked] = await listOutbox(ORG_A);
+    expect(displayState(blocked)).toBe("blocked");
+    expect(blocked.blocked).toBe("version_unavailable");
+    expect(hasItem(ORG_A, "answers-r-1")).toBe(true);
+
+    spy.mockClear();
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(spy).not.toHaveBeenCalled();
+    expect(await listReceipts(ORG_A)).toEqual([]);
+
+    await discardResponse(ORG_A, "r-1");
+    expect(await listOutbox(ORG_A)).toEqual([]);
+  });
+
+  it("API #66: a 400 (no active organization) is not a definitive rejection: kept pending and retried later, never blocked", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("unknown", "The X-Organization-ID header is required.", 400));
+    await syncOutbox(ORG_A, source);
+    const [pending] = await listOutbox(ORG_A);
+    expect(pending.blocked).toBeUndefined();
+    expect(displayState(pending)).toBe("pending_sync");
+
+    // The submission is idempotent (client_response_id): the retry lands once.
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect(await listReceipts(ORG_A)).toHaveLength(1);
+  });
+
+  it("API #66: a 404 for the audio's response marks the audio not accepted (answers received), never reported as completed nor retried", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    const upload = jest.spyOn(source, "uploadAudio").mockRejectedValue(new ApiError("not_found", "Not Found.", 404));
+    await syncOutbox(ORG_A, source);
+
+    const [item] = await listOutbox(ORG_A);
+    expect(item.responseId).toBeTruthy();
+    expect(item.audio?.rejected).toBe("response_unavailable");
+    expect(displayState(item)).toBe("audio_rejected");
+    expect(await listReceipts(ORG_A)).toEqual([]);
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+
+    upload.mockClear();
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(upload).not.toHaveBeenCalled();
+  });
+
   it("blocks an interview from someone who is no longer an assigned surveyor", async () => {
     await interviewWithAudio(ORG_A, "r-1", "aud-1");
     jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "x", 403, undefined, { reason: "not_assigned_surveyor" }));

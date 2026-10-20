@@ -19,11 +19,17 @@
 - **Staging:** el SHA desplegado no está confirmado. Antes de cualquier bloque que dependa del backend, registrar el SHA y el digest desplegados.
 - **API #63** (`feat/affiliate-network-name-search`, `8f7c08e`): contiene los contratos de búsqueda y de registro con teléfono o correo, pero **no está desplegada**.
 
-**Metro:** la tablet usa hoy el Metro con tunnel del worktree `apk-dev-staging` (#53, puerto 8082), que **no** incluye la búsqueda ni el registro nuevo. Para esta ronda hay que servir esta rama (ver «Metro para esta ronda»). No se cambió todavía.
+**Metro:** la tablet usa el Metro con tunnel del worktree `mvp-search-registration` (#56, puerto 8082). Las correcciones de la revisión `review/mobile-mvp-journey` (PR draft aparte: D1–D3 de API #66) **no** llegan a la tablet mientras ese Metro no sirva la rama de revisión, lo que requiere autorización. Los pasos marcados «(revisión)» dependen de eso.
 
 **Regla de evidencia:** un paso cuenta como probado solo si se ejecutó en la tablet. Anotar en cada paso la hora, una captura, el SHA de la rama, el `versionCode`, el SHA de la API (si aplica) y, si algo falla, el log de Metro.
 
 **Datos:** solo sintéticos. Las encuestas usan los datos de ejemplo (aviso «Vista previa») y no se envía nada real. El registro asistido **crea afiliados en staging**: usar nombres de prueba y alias `+` del buzón del equipo, nunca personas reales. No borrar borradores ni envíos previos de la tablet.
+
+## Ya confirmado por Andrés en la tablet (no repetir)
+
+- APK `versionCode` 11: conserva sesión y datos; permisos de micrófono y grabación funcionan.
+- Se puede escribir texto libre y números, y guardar.
+- El Metro con tunnel de #56 carga la app contra staging.
 
 ## A. Posible con el staging actual (sin API #63)
 
@@ -55,6 +61,14 @@
 | G4 | «Continuar» → grabar → **sin detener**, «Enviar respuesta» (dejar obligatorias sin responder) | Primero «Finalizando grabación…», después el aviso de incompleta. Con «Enviar incompleta», en «Envíos» aparece con audio y como «Incompleta» |
 | G5 | En otra entrevista, grabar y pulsar «Enviar respuesta» dos veces seguidas | Un solo envío en «Envíos» |
 | G6 | «Satisfacción con el servicio (ejemplo)» → «Responder yo» | No hay consentimiento ni controles de grabación (por configuración) |
+
+### A1c. Sin conexión y recuperación, con audio (datos de ejemplo)
+
+| # | Paso | Resultado esperado |
+|---|---|---|
+| O1 | Modo avión → «Entrevista vecinal» → aceptar la grabación → grabar unos segundos → responder todo → «Enviar respuesta» (sin detener) → «Cerrar» | En «Envíos»: «Guardado en el dispositivo» o «Pendiente de sincronizar», «con audio» y «Completa». Nada dice «Recibido» |
+| O2 | Quitar el modo avión → «Sincronizar ahora» | Pasa a «Recibido» con «con audio». Un solo envío |
+| O3 | (Opcional) Activar el modo avión justo después de que las respuestas lleguen y antes de que termine la subida del audio | Queda «Audio pendiente», nunca «Recibido», hasta que el audio sube |
 
 ### A2. Búsqueda en «Mi red» con la API actual (sin `meta.search`)
 
@@ -110,22 +124,37 @@ No probar «solo celular» sin conexión antes de #63: quedaría en cola y la AP
 
 El cambio de celular de una cuenta (`PATCH /me/phone`, que también responde 503 sin SMS) **no tiene pantalla en Mobile**, así que no se prueba en la tablet.
 
+### B3. Organización activa en encuestas (API #66; requiere la API de encuestas desplegada con #66 y Mobile con `EXPO_PUBLIC_SURVEYS_SOURCE=api`) (revisión)
+
+Hoy Mobile usa los datos de ejemplo para encuestas. Estos pasos solo aplican cuando la API real de encuestas esté desplegada con #66 y se sirva la rama de revisión.
+
+| # | Paso | Resultado esperado |
+|---|---|---|
+| K1 | Con una respuesta en «Envíos» de la organización A, retirar o archivar esa versión desde Admin de A → «Sincronizar ahora» | «No se puede enviar»: «esta encuesta ya no está disponible en esta organización». Se conserva y **no** se reintenta sola; solo se borra con «Descartar del teléfono» |
+| K2 | Abrir una encuesta que ya no existe en la organización activa → «Responder yo» | «Esta encuesta ya no está disponible…»; no abre ninguna respuesta |
+| K3 | Cambiar de organización con envíos pendientes | Cada organización ve y envía solo los suyos |
+
 ## C. Solo cubierto por pruebas automatizadas (no marcar como probado en la tablet)
 
 - **Búsqueda con HTTP simulado** (`network-search.test.tsx`): API antigua; `meta.search` distinto del pedido; respuesta tardía de un texto anterior; página posterior sin confirmación (la búsqueda pasa a no disponible, sin mezclar); cambio de organización con una petición en curso y cambio de cuenta; nunca se llama al endpoint administrativo `GET /affiliates`.
 - **Encuestas** (`survey-draft-resume.test.tsx`): el recorrido completo, dos veces, con la navegación real (`Slot`) y con una pila que mantiene las pantallas montadas. La pila vuelve a Inicio con profundidad máxima 4.
 - **Registro asistido** (`assisted-enrollment.test.tsx`, `assistedQueue.test.ts`): normalización (`+52…`, correo en minúsculas), mismo `client_request_id` al reintentar y aislamiento de la cola por patrocinador y organización.
 - **Grabación** (`useInterviewRecorder.test.tsx`, `survey-response.test.tsx`): finalización lenta compartida (una sola detención y un solo sellado); fallo de sellado que conserva el archivo, no permite grabar encima y se reintenta sin volver a detener; detención fallida reintentada; doble pulsación; salida y «Cerrar» que finalizan antes de guardar; fallo sin enviar ni salir; envío incompleto con audio; audio sellado durante un autoguardado pendiente o después de salir, que sigue ligado al borrador.
+- **API #66** (`outbox.test.ts`, `survey-draft-resume.test.tsx`): un 404 al enviar queda bloqueado y conservado, sin reintento; un 400 queda pendiente y llega una sola vez; un 404 del audio queda como no aceptado, sin recibo; un 404 al preparar la encuesta muestra «ya no está disponible».
+- **Recorrido con el grabador real** (`survey-draft-resume.test.tsx`): grabar, guardar el borrador sin detener (detención lenta y doble pulsación), continuar, enviar una sola vez, sin conexión, fallo de subida → «Audio pendiente» → «Recibido · con audio»; y el audio rechazado nunca se da por recibido.
+- **«Mi red» real** (`network.test.tsx`): cambiar de organización, con y sin caché, limpia la búsqueda y los resultados; los registros pendientes son solo los de la organización activa.
 - **SMS** (`sms-availability.test.tsx`, HTTP simulado): 503 al pedir y al confirmar el código, en la verificación y en la recuperación, sin pérdida de datos; `queued` con la espera de reenvío; la alternativa de correo solo para cuentas con correo y el flujo de correo intacto.
 - **Límite de #63:** más de 10 palabras devuelve 422. Mobile lo muestra como error de la búsqueda, nunca como resultados.
 
-## Metro para esta ronda (no ejecutado; requiere autorización)
+## Metro para esta ronda
 
-El Metro de la tablet (worktree `apk-dev-staging`, puerto 8082) sirve #53. Para esta ronda hay que servir esta rama: detener **ese** Metro con su propio pid (`kill -TERM -- -$(cat ~/.local/state/migracion/apk-dev-staging-tunnel.pid)`) e iniciar este en su lugar, o iniciar este en otro puerto y abrir su nueva URL en el cliente de desarrollo.
+**Hoy:** la tablet usa el Metro de #56 (worktree `mvp-search-registration`, puerto 8082, grupo de proceso en `~/.local/state/migracion/mvp-search-registration-tunnel.pid`). Sirve todo lo de las secciones A y B excepto lo marcado «(revisión)».
+
+**Para los pasos «(revisión)»** (no ejecutado; requiere autorización): servir la rama `review/mobile-mvp-journey`. Se puede detener **ese** Metro con su propio grupo (`kill -TERM -- -$(cat ~/.local/state/migracion/mvp-search-registration-tunnel.pid)`) y arrancar el de revisión en el 8082, o arrancar el de revisión en otro puerto y abrir su nueva URL en el cliente de desarrollo.
 
 ```bash
-cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/mvp-search-registration
-git fetch origin integration/mobile-mvp-search-registration && git status -sb && git rev-parse HEAD
+cd /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.claude/worktrees/mobile-review
+git fetch origin review/mobile-mvp-journey && git status -sb && git rev-parse HEAD
 unset EXPO_OFFLINE EXPO_PUBLIC_SURVEYS_SOURCE
 cp /home/andrehino/desarrollo/Afilianet/afilianet-mobile/.env.staging ./.env.staging
 node ./scripts/select-env.js staging
@@ -133,4 +162,4 @@ grep -E '^EXPO_PUBLIC_(APP_ENV|API_BASE_URL)=' .env   # staging / https://stagin
 npx expo start --dev-client --tunnel --clear --port 8083
 ```
 
-La URL del tunnel cambia con cada Metro nuevo. Se obtiene con `curl -s http://127.0.0.1:4040/api/tunnels`, o en el puerto de inspección que indique ngrok si ya hay otro tunnel activo.
+La URL del tunnel cambia con cada Metro nuevo. Se obtiene con `curl -s http://127.0.0.1:4040/api/tunnels`, o en el puerto de inspección que indique ngrok si ya hay otro tunnel activo. Todo sigue siendo JavaScript compatible con el APK 11; no hace falta un build nuevo.

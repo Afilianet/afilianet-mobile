@@ -134,7 +134,7 @@ export function OutboxPanel({
           ) : null}
           {!item.blocked && item.audio?.rejected ? (
             <>
-              <Text style={styles.body}>{copy.audioRejectedHelp}</Text>
+              <Text style={styles.body}>{item.audio.rejected === "response_unavailable" ? copy.audioResponseUnavailableHelp : copy.audioRejectedHelp}</Text>
               <Button label={copy.discardAudio} variant="ghost" size="sm" onPress={() => onDiscardAudio(item.id)} />
             </>
           ) : null}
