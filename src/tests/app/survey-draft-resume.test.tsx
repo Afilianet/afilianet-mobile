@@ -398,6 +398,41 @@ describe("Survey journey: sending incomplete, completeness after the receipt", (
     expect(top(screen).getByText("Borrador")).toBeTruthy();
   });
 
+  it("blocked (404 version, 403 surveyor) and audio not accepted (404) keep their data, explain why, offer only a discard, and never say «Recibido»", async () => {
+    const base = { surveyId: "s", versionId: "v", surveyTitle: "Entrevista", respondentType: "interviewed_external" as const, consentAudio: "accepted" as const, completedAt: "2026-10-20T10:00:00Z", attempts: 0 };
+    const audio = { clientAudioId: "a", mimeType: "audio/mp4", durationMs: 4000, interrupted: false, bytes: 10 };
+    const onDiscard = jest.fn();
+    const onDiscardAudio = jest.fn();
+    const screen = await render(
+      <OutboxPanel
+        items={[
+          { ...base, id: "gone", audio: null, blocked: "version_unavailable" },
+          { ...base, id: "unassigned", audio, blocked: "not_assigned_surveyor" },
+          { ...base, id: "audio404", audio: { ...audio, rejected: "response_unavailable" }, responseId: "resp-1", receivedAt: "2026-10-20T10:05:00Z" },
+        ]}
+        receipts={[]}
+        syncing={false}
+        progress={null}
+        message={null}
+        onSync={jest.fn()}
+        onDiscard={onDiscard}
+        onDiscardAudio={onDiscardAudio}
+      />,
+    );
+    expect(screen.getByText("No se puede enviar: esta encuesta ya no está disponible en esta organización.")).toBeTruthy();
+    expect(screen.getByText("No se puede enviar: ya no estás asignado como encuestador.")).toBeTruthy();
+    expect(screen.getAllByText("Se conserva en el teléfono. Puedes descartarla si ya no la necesitas.")).toHaveLength(2);
+    expect(screen.getByText(/el servidor no encontró esa respuesta en esta organización para recibir el audio/)).toBeTruthy();
+    expect(screen.getByText("Audio no aceptado")).toBeTruthy();
+    expect(screen.queryByText("Recibido")).toBeNull();
+    // Recovery is the person's explicit choice, never automatic.
+    expect(screen.getAllByText("Descartar del teléfono")).toHaveLength(2);
+    await act(async () => {
+      fireEvent.press(screen.getByText("Descartar audio"));
+    });
+    expect(onDiscardAudio).toHaveBeenCalledWith("audio404");
+  });
+
   it("never invents the condition of a receipt recorded before it was tracked", async () => {
     const screen = await render(
       <OutboxPanel

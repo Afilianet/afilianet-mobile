@@ -303,6 +303,61 @@ describe("survey outbox", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
+  // Deployed API d4cec70 (and candidate #67) answer these 403s with a message
+  // only -- no `reason` -- although the contract documents one. The modality
+  // tells them apart: self = no affiliate profile; interview = not assigned.
+  it("a 403 without reason on an interview is explained as «no longer an assigned surveyor», not as a missing affiliate profile", async () => {
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "No estás asignado como encuestador en esta organización.", 403));
+    await syncOutbox(ORG_A, source);
+    const [item] = await listOutbox(ORG_A);
+    expect(item.blocked).toBe("not_assigned_surveyor");
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+  });
+
+  it("a 403 without reason on a self response is the missing affiliate profile", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "No tienes un perfil de afiliado en esta organización.", 403));
+    await syncOutbox(ORG_A, source);
+    const [item] = await listOutbox(ORG_A);
+    expect(item.blocked).toBe("not_a_member");
+  });
+
+  it("a persistent server error never turns into continuous requests: automatic syncs wait a growing backoff, and nothing is duplicated", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    const submit = jest.spyOn(source, "submitResponse").mockRejectedValue(new ApiError("server", "Server Error", 500));
+    let clock = 1_000_000;
+    const now = () => clock;
+
+    await syncOutbox(ORG_A, source, { now });
+    expect(submit).toHaveBeenCalledTimes(1);
+    // Automatic syncs (focus, foreground, the 60 s timer) before the backoff ends send nothing.
+    for (const elapsed of [0, 1_000, 4_999]) {
+      clock = 1_000_000 + elapsed;
+      await syncOutbox(ORG_A, source, { now });
+    }
+    expect(submit).toHaveBeenCalledTimes(1);
+
+    clock = 1_000_000 + 5_000; // first backoff (5 s) elapsed
+    await syncOutbox(ORG_A, source, { now });
+    expect(submit).toHaveBeenCalledTimes(2);
+    const [afterTwo] = await listOutbox(ORG_A);
+    expect(afterTwo.attempts).toBe(2);
+    expect(afterTwo.nextAttemptAt).toBe(clock + 10_000); // doubled
+
+    // It keeps growing and is capped at 10 minutes.
+    for (let index = 0; index < 12; index += 1) {
+      const [current] = await listOutbox(ORG_A);
+      clock = current.nextAttemptAt!;
+      await syncOutbox(ORG_A, source, { now });
+    }
+    const [capped] = await listOutbox(ORG_A);
+    expect(capped.nextAttemptAt! - clock).toBe(10 * 60_000);
+    // One outbox entry and no receipt: never duplicated, never "Recibido".
+    expect(await listOutbox(ORG_A)).toHaveLength(1);
+    expect(await listReceipts(ORG_A)).toEqual([]);
+  });
+
   it("blocks an interview from someone who is no longer an assigned surveyor", async () => {
     await interviewWithAudio(ORG_A, "r-1", "aud-1");
     jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "x", 403, undefined, { reason: "not_assigned_surveyor" }));

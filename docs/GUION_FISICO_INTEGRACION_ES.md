@@ -25,6 +25,8 @@
 
 **Datos:** solo sintéticos. Las encuestas usan los datos de ejemplo (aviso «Vista previa») y no se envía nada real. El registro asistido **crea afiliados en staging**: usar nombres de prueba y alias `+` del buzón del equipo, nunca personas reales. No borrar borradores ni envíos previos de la tablet.
 
+**Ronda pendiente del candidato #56 + #57:** `docs/RONDA_FISICA_AUDIO_OFFLINE_ES.md` (audio, borrador con audio, sin conexión y sincronización). Esa es la ronda a ejecutar ahora; este documento conserva el inventario completo.
+
 ## Ya confirmado por Andrés en la tablet (no repetir)
 
 - APK `versionCode` 11: conserva sesión y datos; permisos de micrófono y grabación funcionan.

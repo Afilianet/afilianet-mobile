@@ -55,6 +55,53 @@
 - **Push:** `{screen: "surveys", organization_id, survey_id, version_id}` (sin `title`) abre la encuesta en su organización, con las protecciones de sesión de #47. Los avisos solo llegan con internet. API ya envía ese payload al teléfono en `fix/notifications-search-concurrency` @ `e1ce99a`, todavía sin merge.
 - **Transcripción y análisis de calidad:** ocurren en el servidor después de recibir el audio.
 
+## Alternar entre datos de ejemplo y la API real
+
+**No activar la fuente real hasta confirmar el despliegue.** Hoy (2026-10-20) Mobile usa los datos de ejemplo.
+
+| Qué | Configuración exacta | Dónde se lee |
+|---|---|---|
+| Fuente de encuestas | `EXPO_PUBLIC_SURVEYS_SOURCE=api` usa la API real (`createApiSurveySource`). Sin la variable, o con otro valor, usa los datos de ejemplo (`createFixtureSurveySource`), que es lo predeterminado | `src/features/surveys/runtime.ts` |
+| Mostrar encuestas | Visibles en cualquier entorno distinto de `production`. En `production` solo con `EXPO_PUBLIC_SURVEYS_PREVIEW=1` | `src/features/surveys/flags.ts` |
+| Cómo se nota en la app | Con los datos de ejemplo aparece el aviso «Vista previa con datos de ejemplo…» y el botón para cerrar o reabrir la encuesta de ejemplo. Con la API real, ninguno de los dos | `SurveysPreviewNotice`, detalle de la encuesta |
+
+- **Ninguna de las dos variables** está en `.env.staging`, `eas.json` ni `app.json`. `node scripts/select-env.js staging` no las define.
+- **Metro las incrusta al empaquetar** (son `EXPO_PUBLIC_*`): para cambiar de fuente hay que detener el Metro, exportar o quitar la variable y volver a iniciarlo con `--clear`. No cambian en caliente ni con una recarga.
+
+```bash
+# Real (solo cuando esté autorizado y el despliegue confirmado):
+EXPO_PUBLIC_SURVEYS_SOURCE=api npx expo start --dev-client --tunnel --clear --port 8082
+# Volver a los datos de ejemplo:
+unset EXPO_PUBLIC_SURVEYS_SOURCE
+npx expo start --dev-client --tunnel --clear --port 8082
+```
+
+- **Un build EAS no fija la fuente:** ningún perfil define la variable. Un APK sin Metro usa los datos de ejemplo. Con el cliente de desarrollo, manda lo que sirva Metro.
+
+**Antes de alternar:** borradores, descargas, envíos y recibos se guardan por cuenta y organización, **no por fuente**.
+- Un envío pendiente de los datos de ejemplo (ids `fx-…`, que no son UUID) se mandaría a la API real.
+  - Con la API desplegada `d4cec70`, el id mal formado da 500 y queda reintentándose con espera.
+  - Con el candidato #67 da 404 y queda «No se puede enviar», conservado.
+- Con los datos de ejemplo y conexión, todo se sincroniza solo, contra su servidor de ejemplo local (`AsyncStorage`, clave `afn.surveys.fixtureServer.v2`). Por eso, antes de cambiar:
+  - sincronizar o descartar lo pendiente en «Envíos»;
+  - descartar los borradores de ejemplo;
+  - quitar las descargas de ejemplo («Quitar descarga del teléfono»).
+
+Al volver, la bandeja se actualiza con la fuente activa.
+
+**Requisitos de la API real:** confirmar el SHA y el digest desplegados en staging. La compatibilidad está revisada contra `d4cec703` (#66, desplegado) y el candidato #67 `cfbb4b0` (ver «Compatibilidad con la API» más abajo).
+
+### Compatibilidad con la API
+
+| Situación | API desplegada `d4cec703` (#66) | Candidato #67 `cfbb4b0` | Mobile |
+|---|---|---|---|
+| Sin `X-Organization-ID` | 400 en rutas con recurso; **500** en `GET /surveys/available` | 400 en todas | Mobile siempre lo envía (`requireCurrent` comprueba que coincide con el borrador). Un 400 o 500 en el envío se reintenta con espera (idempotente); en la bandeja se muestra el error o la lista guardada |
+| Recurso fuera de la organización activa | 404 | 404 | Respuesta bloqueada «ya no está disponible en esta organización», conservada y sin reintento. Audio «no aceptado» sin recibo. Al preparar: «Esta encuesta ya no está disponible» |
+| Id mal formado | **500** | 404 | Mobile solo usa ids del servidor; solo ocurre al alternar con pendientes de los datos de ejemplo (ver arriba) |
+| Encuesta cerrada | 422 `survey_version_closed` | Igual | Bloqueada «la encuesta cerró…», sin reintento |
+| 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documente | Igual, con texto en español | Mobile usa la modalidad: respuesta propia → «sin perfil de afiliado»; entrevista → «ya no estás asignado como encuestador» |
+| Duplicado (`client_response_id`) | 201 con la original | Igual | Un solo envío y un solo recibo |
+
 ## Comparación con la vista previa anterior (antes de conectar)
 
 | Tema | Vista previa anterior de Mobile | Contrato `aa94798`, adoptado |

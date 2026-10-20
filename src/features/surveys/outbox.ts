@@ -205,12 +205,15 @@ function backoff(attempts: number): number {
   return Math.min(MAX_RETRY_MS, BASE_RETRY_MS * 2 ** Math.max(0, attempts - 1));
 }
 
-function blockReason(error: unknown): BlockReason | null {
+function blockReason(error: unknown, item: Pick<OutboxItem, "respondentType">): BlockReason | null {
   if (!isApiError(error)) return null;
   if (error.reason === "survey_version_closed") return "survey_version_closed";
   if (error.reason === "not_assigned_surveyor") return "not_assigned_surveyor";
   if (error.reason === "respondent_type_not_allowed") return "respondent_type_not_allowed";
-  if (error.kind === "forbidden") return "not_a_member";
+  // The deployed API (d4cec70, also #67) sends these 403s without `reason`.
+  // Its submit checks the affiliate profile for self responses and the
+  // surveyor assignment for interviews, so the modality names the cause.
+  if (error.kind === "forbidden") return item.respondentType === "interviewed_external" ? "not_assigned_surveyor" : "not_a_member";
   // API #66: 404 = the version is not in the active organization. Retrying
   // cannot change that; it is kept for the person to read and discard.
   if (error.kind === "not_found") return "version_unavailable";
@@ -319,7 +322,7 @@ export async function syncOutbox(
         }
       } catch (error) {
         if (error instanceof SessionChanged) throw error;
-        const blocked = blockReason(error);
+        const blocked = blockReason(error, snapshot);
         if (blocked) {
           await update(snapshot.id, (current) => ({ ...current, blocked, nextAttemptAt: undefined, lastError: undefined }));
           continue;
