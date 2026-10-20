@@ -66,9 +66,10 @@ const INTERVIEW_VERSION = "fx-v-vecinal-1";
 let online = true;
 let source: ReturnType<typeof createFixtureSurveySource>;
 
-function selfItem(id: string, overrides: Partial<Omit<OutboxItem, "attempts">> = {}): Omit<OutboxItem, "attempts"> {
+function selfItem(id: string, overrides: Partial<Omit<OutboxItem, "attempts">> = {}): Omit<OutboxItem, "attempts"> & { origin: string } {
   return {
     id,
+    origin: "fixture",
     surveyId: "fx-servicio",
     versionId: SELF_VERSION,
     surveyTitle: "Satisfacción",

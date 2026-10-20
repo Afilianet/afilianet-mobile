@@ -129,10 +129,10 @@ describe("offline availability", () => {
 
     online = false;
     await expect(refreshInbox(SCOPE, source)).rejects.toMatchObject({ kind: "offline" });
-    expect((await cachedInbox(SCOPE))?.surveys).toHaveLength(2);
+    expect((await cachedInbox(SCOPE, "fixture"))?.surveys).toHaveLength(2);
     expect((await getDownloaded(SCOPE, "fx-servicio"))?.version.id).toBe("fx-v-servicio-2");
     expect(await getDownloaded(OTHER, "fx-servicio")).toBeNull();
-    expect(await cachedInbox(OTHER)).toBeNull();
+    expect(await cachedInbox(OTHER, "fixture")).toBeNull();
   });
 
   it("cannot download while offline -- capture offline requires downloading first", async () => {
@@ -158,6 +158,7 @@ describe("drafts", () => {
     consentAudio: null,
     audio: null,
     updatedAt: "2026-10-12T10:00:00Z",
+    origin: "fixture",
   };
 
   it("saves, resumes (after a restart the store is all there is) and deletes a draft", async () => {

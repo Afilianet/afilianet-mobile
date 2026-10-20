@@ -1,13 +1,16 @@
-import { act, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
-import { cachedInbox, getDownloaded, refreshInbox } from "../../features/surveys/library";
+import { cachedInbox, getDownloaded, listDrafts, refreshInbox } from "../../features/surveys/library";
+import { surveySource } from "../../features/surveys/runtime";
+import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import type { AvailableSurvey } from "../../features/surveys/types";
 import SurveysInboxScreen from "../../app/surveys/index";
 
 jest.setTimeout(30_000);
 
+const mockPush = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn(), back: jest.fn() }),
+  useRouter: () => ({ push: mockPush, back: jest.fn() }),
   // The inbox is the focused screen here.
   useFocusEffect: (effect: () => void) => jest.requireActual("react").useEffect(effect, [effect]),
 }));
@@ -15,11 +18,11 @@ jest.mock("expo-router", () => ({
 let mockScope: { userId: string; organizationId: string } | null = { userId: "user-1", organizationId: "org-a" };
 jest.mock("../../features/surveys/runtime", () => ({
   useSurveyScope: () => mockScope,
-  surveySource: { kind: "fixture" },
+  surveySource: { kind: "fixture", origin: "fixture" },
   surveysPreviewEnabled: true,
 }));
 jest.mock("../../features/surveys/useSurveyOutbox", () => {
-  const outbox = { items: [], receipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn(), discardAudio: jest.fn(), reload: jest.fn(async () => undefined) };
+  const outbox = { items: [], receipts: [], otherItems: [], otherReceipts: [], syncing: false, progress: null, message: null, sync: jest.fn(), discard: jest.fn(), discardAudio: jest.fn(), reload: jest.fn(async () => undefined) };
   return { useSurveyOutbox: () => outbox };
 });
 jest.mock("../../features/surveys/library", () => ({ refreshInbox: jest.fn(), cachedInbox: jest.fn(), getDownloaded: jest.fn(), listDrafts: jest.fn(async () => []) }));
@@ -50,6 +53,13 @@ async function renderInbox() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  const outbox = (useSurveyOutbox as unknown as () => Record<string, unknown[]>)();
+  outbox.items = [];
+  outbox.receipts = [];
+  outbox.otherItems = [];
+  outbox.otherReceipts = [];
+  (surveySource as { origin: string }).origin = "fixture";
+  (listDrafts as jest.Mock).mockResolvedValue([]);
   mockScope = { userId: "user-1", organizationId: "org-a" };
   (getDownloaded as jest.Mock).mockResolvedValue(null);
 });
@@ -115,5 +125,79 @@ describe("Surveys inbox", () => {
     });
     expect(screen.getByText("De org B")).toBeTruthy();
     expect((refreshInbox as jest.Mock).mock.calls[1][0]).toEqual({ userId: "user-1", organizationId: "org-b" });
+  });
+});
+
+describe("Surveys inbox: origins (decisions C, D and F)", () => {
+  const STAGING = "api:https://staging-api.afilianet.mx";
+  const draft = (id: string, origin: string, title: string) => ({
+    id,
+    surveyId: `s-${id}`,
+    versionId: `v-${id}`,
+    surveyTitle: title,
+    respondentType: "self",
+    answers: {},
+    consentAudio: null,
+    audio: null,
+    updatedAt: "2026-10-12T10:00:00Z",
+    origin,
+  });
+  const item = (id: string, origin: string, title: string) => ({
+    id,
+    surveyId: "s",
+    versionId: "v",
+    surveyTitle: title,
+    respondentType: "self",
+    consentAudio: null,
+    completedAt: "2026-10-12T10:00:00Z",
+    audio: { clientAudioId: "a", mimeType: "audio/mp4", durationMs: 1000, interrupted: false, bytes: 1 },
+    attempts: 0,
+    origin,
+  });
+
+  beforeEach(() => {
+    (refreshInbox as jest.Mock).mockResolvedValue({ surveys: [], fetchedAt: "x" });
+  });
+
+  it.each([
+    ["fixture", "Modo de ejemplo: los envíos no salen del teléfono."],
+    [STAGING, "Se envían a: Afilianet (servidor de pruebas)."],
+    ["api:https://api.afilianet.mx", "Se envían a: Afilianet."],
+    ["api:http://192.168.1.20:8000", "Se envían a: el servidor 192.168.1.20:8000."],
+  ])("«Envíos» says where it sends in words (%s)", async (origin, text) => {
+    (surveySource as { origin: string }).origin = origin;
+    const screen = await renderInbox();
+    expect(screen.getByTestId("survey-outbox-destination").props.children).toBe(text);
+  });
+
+  it("keeps another origin's and unconfirmed data in their own section, explained, view only, and never in the active outbox", async () => {
+    const outbox = (useSurveyOutbox as unknown as () => Record<string, unknown[]>)();
+    outbox.otherItems = [item("o-1", STAGING, "Pendiente de staging"), item("o-2", "unconfirmed", "Pendiente antiguo")];
+    outbox.otherReceipts = [{ id: "r-1", surveyTitle: "Recibo antiguo", receivedAt: "2026-10-01T10:00:00Z", withAudio: false, origin: "unconfirmed" }];
+    (listDrafts as jest.Mock).mockResolvedValue([draft("d-own", "fixture", "Borrador propio"), draft("d-stg", STAGING, "Borrador de staging"), draft("d-old", "unconfirmed", "Borrador antiguo")]);
+    const screen = await renderInbox();
+
+    expect(screen.getByText("No hay envíos pendientes.")).toBeTruthy();
+    const other = screen.getByTestId("survey-other-origins");
+    expect(screen.getByText("Guardado con otro origen")).toBeTruthy();
+    expect(screen.getByText("Guardado con Afilianet (servidor de pruebas)")).toBeTruthy();
+    expect(screen.getByText(/Ahora la app usa datos de ejemplo, así que no se envía desde aquí/)).toBeTruthy();
+    expect(screen.getByText("Origen sin confirmar")).toBeTruthy();
+    expect(screen.getByText(/antes de que la app registrara a qué servidor pertenece/)).toBeTruthy();
+    expect(screen.getAllByText("No se envía desde aquí")).toHaveLength(2);
+    expect(screen.getByText("Recibo antiguo")).toBeTruthy();
+    // Nothing in that section can be sent, edited or discarded from here; drafts can only be viewed.
+    expect(screen.queryByText("Descartar del teléfono")).toBeNull();
+    expect(screen.queryByText("Sincronizar ahora")).toBeNull();
+    expect(screen.getAllByText("Consultar")).toHaveLength(2);
+    expect(within(other).queryByTestId("draft-d-own")).toBeNull();
+    expect(within(other).getByTestId("draft-d-stg")).toBeTruthy();
+    expect(within(screen.getByTestId("survey-drafts")).getByTestId("draft-d-own")).toBeTruthy();
+    expect(within(screen.getByTestId("survey-drafts")).queryByTestId("draft-d-stg")).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(screen.getAllByText("Consultar")[0]);
+    });
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("d-stg"));
   });
 });

@@ -39,6 +39,8 @@ interface Loaded {
   inboxKnown: boolean;
   downloaded: DownloadedVersion | null;
   drafts: SurveyDraft[];
+  /** Any draft of this survey, of any origin, still needs the downloaded questions. */
+  downloadInUse: boolean;
 }
 
 /** API #66: 404 means the version is not in the active organization (or no longer exists). */
@@ -63,14 +65,20 @@ export default function SurveyDetailScreen() {
   const load = useCallback(async () => {
     if (!scope || !surveyId) return;
     const key = scopeId(scope);
-    const [inbox, downloaded, allDrafts] = await Promise.all([cachedInbox(scope), getDownloaded(scope, surveyId), listDrafts(scope)]);
+    // This origin only: another origin's list, download or drafts never stand in for this one's.
+    const [inbox, downloaded, allDrafts] = await Promise.all([
+      cachedInbox(scope, surveySource.origin),
+      getDownloaded(scope, surveyId, surveySource.origin),
+      listDrafts(scope),
+    ]);
     if (key !== currentScope.current) return;
     setLoaded({
       key,
       available: inbox?.surveys.find((value) => value.survey_id === surveyId) ?? null,
       inboxKnown: Boolean(inbox),
       downloaded,
-      drafts: allDrafts.filter((draft) => draft.surveyId === surveyId),
+      drafts: allDrafts.filter((draft) => draft.surveyId === surveyId && draft.origin === surveySource.origin),
+      downloadInUse: allDrafts.some((draft) => draft.surveyId === surveyId),
     });
   }, [scope, surveyId]);
 
@@ -88,7 +96,7 @@ export default function SurveyDetailScreen() {
   // Keyed by scope: another account's or organization's data is never rendered.
   const current = loaded && loaded.key === scopeKey ? loaded : null;
   if (!current) return <SkeletonGroup lines={4} />;
-  const { available, inboxKnown, downloaded, drafts } = current;
+  const { available, inboxKnown, downloaded, drafts, downloadInUse } = current;
   if (!available && !downloaded) return <EmptyState title={copy.title} description={inboxKnown ? copy.notAvailableAnymore : copy.noCachedInbox} />;
 
   const version = downloaded?.version ?? null;
@@ -143,6 +151,7 @@ export default function SurveyDetailScreen() {
       consentAudio: null,
       audio: null,
       updatedAt: new Date().toISOString(),
+      origin: surveySource.origin,
     };
     try {
       await saveDraft(scope, draft);
@@ -201,7 +210,7 @@ export default function SurveyDetailScreen() {
           ) : null}
           {!downloaded ? <Text style={styles.body}>{copy.notDownloaded}</Text> : null}
           {available && (!downloaded || outdated) ? <Button label={copy.download} variant="secondary" loading={busy} onPress={() => void download()} /> : null}
-          {downloaded && drafts.length === 0 ? (
+          {downloaded && !downloadInUse ? (
             <Button
               label={copy.removeDownload}
               variant="ghost"

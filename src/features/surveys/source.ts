@@ -20,6 +20,12 @@ import type { AudioConfig, AvailableSurvey, ResponseReceipt, ResponseSubmission,
 export interface SurveySource {
   /** "fixture" = sample data shown as a preview; "api" = afilianet-api. */
   readonly kind: "fixture" | "api";
+  /**
+   * Where what this source reads and receives belongs (origin.ts): "fixture",
+   * or one API server's normalized identity. A stored record is only ever sent
+   * through a source with exactly its origin.
+   */
+  readonly origin: string;
   listAvailable(organizationId: string): Promise<AvailableSurvey[]>;
   getVersion(organizationId: string, versionId: string): Promise<SurveyVersion>;
   submitResponse(organizationId: string, versionId: string, submission: ResponseSubmission): Promise<ResponseReceipt>;

@@ -10,7 +10,7 @@ import { Card } from "../../components/ui/Card";
 import { IconButton } from "../../components/ui/IconButton";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
-import { DraftRow, OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
+import { DraftRow, OtherOriginsPanel, OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
 import { cachedInbox, getDownloaded, listDrafts, refreshInbox, type DownloadedVersion, type SurveyDraft } from "../../features/surveys/library";
 import { surveySource, surveysPreviewEnabled, useSurveyScope } from "../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../features/surveys/types";
@@ -34,7 +34,11 @@ export default function SurveysInboxScreen() {
   const copy = strings.surveys;
   const [loadedInbox, setLoadedInbox] = useState<{ key: string; inbox: InboxState; downloads: Record<string, DownloadedVersion | null> } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [loadedDrafts, setLoadedDrafts] = useState<{ key: string; drafts: { draft: SurveyDraft; version: DownloadedVersion["version"] | null }[] } | null>(null);
+  const [loadedDrafts, setLoadedDrafts] = useState<{
+    key: string;
+    drafts: { draft: SurveyDraft; version: DownloadedVersion["version"] | null }[];
+    others: (SurveyDraft & { origin: string })[];
+  } | null>(null);
   const scopeKey = scope ? scopeId(scope) : null;
   const currentScope = useRef(scopeKey);
   useEffect(() => {
@@ -49,7 +53,8 @@ export default function SurveysInboxScreen() {
       next = { kind: "online", surveys: (await refreshInbox(scope, surveySource)).surveys };
     } catch (error) {
       const offline = isApiError(error) && (error.kind === "offline" || error.kind === "timeout");
-      const cached = await cachedInbox(scope);
+      // Only this origin's saved list: another origin's is never shown as this one's.
+      const cached = await cachedInbox(scope, surveySource.origin);
       next = cached
         ? { kind: "offline", surveys: cached.surveys, fetchedAt: cached.fetchedAt }
         : offline
@@ -57,7 +62,7 @@ export default function SurveysInboxScreen() {
           : { kind: "error", message: strings.shared.genericError };
     }
     const listed = "surveys" in next ? next.surveys : [];
-    const entries = await Promise.all(listed.map(async (survey) => [survey.survey_id, await getDownloaded(scope, survey.survey_id)] as const));
+    const entries = await Promise.all(listed.map(async (survey) => [survey.survey_id, await getDownloaded(scope, survey.survey_id, surveySource.origin)] as const));
     // A switch of account/organization while loading must not show the previous one's list.
     if (key !== currentScope.current) return;
     setLoadedInbox({ key, inbox: next, downloads: Object.fromEntries(entries) });
@@ -69,18 +74,20 @@ export default function SurveysInboxScreen() {
 
   // Drafts never leave the phone: listed from local storage only, so coming
   // back from a response (the stack keeps this screen mounted) shows them.
+  // Another origin's (or an unconfirmed) draft is listed apart, view only.
   const loadDrafts = useCallback(async () => {
     if (!scope) return;
     const key = scopeId(scope);
-    const drafts = await listDrafts(scope);
+    const all = await listDrafts(scope);
+    const own = all.filter((draft) => draft.origin === surveySource.origin);
     const withVersion = await Promise.all(
-      drafts.map(async (draft) => {
-        const downloaded = await getDownloaded(scope, draft.surveyId);
+      own.map(async (draft) => {
+        const downloaded = await getDownloaded(scope, draft.surveyId, surveySource.origin);
         return { draft, version: downloaded && downloaded.version.id === draft.versionId ? downloaded.version : null };
       }),
     );
     if (key !== currentScope.current) return;
-    setLoadedDrafts({ key, drafts: withVersion });
+    setLoadedDrafts({ key, drafts: withVersion, others: all.filter((draft) => draft.origin !== surveySource.origin) });
   }, [scope]);
 
   const reloadOutbox = outbox.reload;
@@ -91,6 +98,7 @@ export default function SurveysInboxScreen() {
     }, [loadDrafts, reloadOutbox]),
   );
   const drafts = loadedDrafts && loadedDrafts.key === scopeKey ? loadedDrafts.drafts : [];
+  const otherDrafts = loadedDrafts && loadedDrafts.key === scopeKey ? loadedDrafts.others : [];
 
   // Keyed by scope: another account's or organization's list is never rendered, not even briefly.
   const inbox: InboxState = loadedInbox && loadedInbox.key === scopeKey ? loadedInbox.inbox : { kind: "loading" };
@@ -145,6 +153,14 @@ export default function SurveysInboxScreen() {
           onSync={() => void outbox.sync(true)}
           onDiscard={(id) => void outbox.discard(id)}
           onDiscardAudio={(id) => void outbox.discardAudio(id)}
+        />
+
+        <OtherOriginsPanel
+          activeOrigin={surveySource.origin}
+          items={outbox.otherItems}
+          drafts={otherDrafts}
+          receipts={outbox.otherReceipts}
+          onViewDraft={(id) => router.push(surveyResponse(id) as never)}
         />
 
         {inbox.kind === "loading" ? <SkeletonGroup lines={3} /> : null}

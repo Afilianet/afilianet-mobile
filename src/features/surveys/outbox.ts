@@ -1,6 +1,7 @@
 import { randomUUID } from "expo-crypto";
 import { captureApiSessionGuard } from "../../api/client";
 import { isApiError } from "../../api/errors";
+import { isInvalidIdentifierError, isSendableOrigin, ledgerKey, legacyOrigin, OriginMismatchError, readOriginLedger, resolveOrigin, UNCONFIRMED_ORIGIN, type OriginLedger, type SurveyOrigin } from "./origin";
 import type { SurveySource } from "./source";
 import type { AudioConfig, ConsentAudio, RespondentType, SurveyAnswer } from "./types";
 import { listScopes, openBytes, openJson, removeItem, sealJson, type SurveyScope } from "./vault";
@@ -21,10 +22,15 @@ import { listScopes, openBytes, openJson, removeItem, sealJson, type SurveyScope
  * - Permanent refusals (version closed, not an assigned surveyor, modality
  *   not allowed) are never retried automatically: the item is KEPT, blocked,
  *   until the person decides.
+ * - Origin isolation (docs/AISLAMIENTO_ORIGEN_ENCUESTAS_ES.md): every item
+ *   and its audio belong to ONE origin (sample data or one API server), set
+ *   when it is stored and never changed. A sync only ever sends the items of
+ *   its source's exact origin; everything else -- another origin, or an old
+ *   item whose origin cannot be proven -- is kept untouched and never sent.
  */
 
-const OUTBOX = "outbox";
-const RECEIPTS = "receipts";
+export const OUTBOX = "outbox";
+export const RECEIPTS = "receipts";
 const MAX_RECEIPTS = 50;
 const BASE_RETRY_MS = 5_000;
 const MAX_RETRY_MS = 10 * 60_000;
@@ -34,10 +40,18 @@ const MAX_RETRY_MS = 10 * 60_000;
  * `forbidden`: a 403 whose cause the server did not confirm with a known `reason` -- neutral on purpose.
  * `not_a_member`: 403 confirmed with `reason: "no_affiliate_profile"` (API #68). Items stored before, when it
  * was inferred, keep rendering it.
+ * `invalid_identifier`: refused on the phone, before any request: an id the contract requires as a UUID is not one.
  */
-export type BlockReason = "survey_version_closed" | "not_assigned_surveyor" | "respondent_type_not_allowed" | "not_a_member" | "version_unavailable" | "forbidden";
+export type BlockReason =
+  | "survey_version_closed"
+  | "not_assigned_surveyor"
+  | "respondent_type_not_allowed"
+  | "not_a_member"
+  | "version_unavailable"
+  | "forbidden"
+  | "invalid_identifier";
 /** `response_unavailable`: API #66 answered 404 for the response the audio belongs to (outside the active organization). */
-export type AudioRejectReason = "unsupported_mime_type" | "object_too_large" | "audio_consent_required" | "response_unavailable";
+export type AudioRejectReason = "unsupported_mime_type" | "object_too_large" | "audio_consent_required" | "response_unavailable" | "invalid_identifier";
 
 export interface OutboxAudio {
   clientAudioId: string;
@@ -49,6 +63,8 @@ export interface OutboxAudio {
   receivedAt?: string;
   /** Permanently refused (type/size/consent): kept until the person discards it. */
   rejected?: AudioRejectReason;
+  /** Always its response's origin (checked when stored); absent on audio stored before origins existed. */
+  origin?: SurveyOrigin;
 }
 
 export interface OutboxItem {
@@ -68,6 +84,8 @@ export interface OutboxItem {
   nextAttemptAt?: number;
   lastError?: string;
   blocked?: BlockReason;
+  /** Set when stored, never changed; absent on items stored before origins existed. */
+  origin?: SurveyOrigin;
 }
 
 export interface OutboxReceipt {
@@ -77,6 +95,7 @@ export interface OutboxReceipt {
   withAudio: boolean;
   /** Carried from the sent item; absent on receipts recorded before it existed (shown as unknown, never guessed). */
   missingRequired?: number;
+  origin?: SurveyOrigin;
 }
 
 /**
@@ -116,33 +135,59 @@ async function writeIndex(scope: SurveyScope, items: OutboxItem[]): Promise<void
   await sealJson(scope, OUTBOX, items);
 }
 
+type WithOrigin<T> = T & { origin: SurveyOrigin };
+
+export const itemOrigin = (item: OutboxItem, ledger: OriginLedger) =>
+  resolveOrigin(item.origin, ledger, ledgerKey.outbox(item.id), () => legacyOrigin(item.surveyId, item.versionId));
+/** An audio always travels with its own response's origin; if they ever disagree it belongs to neither. */
+export const outboxAudioOrigin = (item: OutboxItem, ledger: OriginLedger) => {
+  const owner = itemOrigin(item, ledger);
+  const own = item.audio?.origin;
+  return own === undefined || own === owner ? owner : UNCONFIRMED_ORIGIN;
+};
+// Receipts never carried their version: one stored before origins existed cannot be proven.
+const receiptOrigin = (receipt: OutboxReceipt, ledger: OriginLedger) => resolveOrigin(receipt.origin, ledger, ledgerKey.receipt(receipt.id), () => UNCONFIRMED_ORIGIN);
+
 export function newClientId(): string {
   return randomUUID();
 }
 
-export async function listOutbox(scope: SurveyScope): Promise<OutboxItem[]> {
-  return serialized(() => readIndex(scope));
+/** Every item on the phone for this account+organization, of every origin, with `origin` filled in (stored or classified). */
+export async function listOutbox(scope: SurveyScope): Promise<WithOrigin<OutboxItem>[]> {
+  const [items, ledger] = await Promise.all([serialized(() => readIndex(scope)), readOriginLedger(scope)]);
+  return items.map((item) => ({ ...item, origin: itemOrigin(item, ledger) }));
 }
 
-export async function listReceipts(scope: SurveyScope): Promise<OutboxReceipt[]> {
-  return (await openJson<OutboxReceipt[]>(scope, RECEIPTS)) ?? [];
+export async function listReceipts(scope: SurveyScope): Promise<WithOrigin<OutboxReceipt>[]> {
+  const [receipts, ledger] = await Promise.all([openJson<OutboxReceipt[]>(scope, RECEIPTS), readOriginLedger(scope)]);
+  return (receipts ?? []).map((receipt) => ({ ...receipt, origin: receiptOrigin(receipt, ledger) }));
 }
 
-/** Stores a completed response on the phone ("Guardado en el dispositivo"). Audio, if any, was sealed already. */
-export async function enqueueResponse(scope: SurveyScope, item: Omit<OutboxItem, "attempts">, answers: SurveyAnswer[]): Promise<OutboxItem> {
+/**
+ * Stores a completed response on the phone ("Guardado en el dispositivo").
+ * Audio, if any, was sealed already. The item names its origin -- the draft's
+ * -- and its audio must come from that same origin.
+ */
+export async function enqueueResponse(
+  scope: SurveyScope,
+  item: Omit<OutboxItem, "attempts" | "origin"> & { origin: SurveyOrigin },
+  answers: SurveyAnswer[],
+): Promise<OutboxItem> {
+  if (!isSendableOrigin(item.origin)) throw new OriginMismatchError("A response needs the origin of an active source.");
+  if (item.audio?.origin !== undefined && item.audio.origin !== item.origin) throw new OriginMismatchError("A response and its audio must share one origin.");
   return serialized(async () => {
     const items = await readIndex(scope);
     const existing = items.find((value) => value.id === item.id);
     if (existing) return existing;
     await sealJson(scope, answersName(item.id), answers);
-    const stored: OutboxItem = { ...item, attempts: 0 };
+    const stored: OutboxItem = { ...item, audio: item.audio && { ...item.audio, origin: item.origin }, attempts: 0 };
     await writeIndex(scope, [...items, stored]);
     return stored;
   });
 }
 
 async function recordReceipt(scope: SurveyScope, item: OutboxItem, receivedAt: string, withAudio: boolean) {
-  const receipts = await listReceipts(scope);
+  const [receipts, ledger] = await Promise.all([openJson<OutboxReceipt[]>(scope, RECEIPTS).then((value) => value ?? []), readOriginLedger(scope)]);
   await sealJson(scope, RECEIPTS, [
     {
       id: item.id,
@@ -150,17 +195,23 @@ async function recordReceipt(scope: SurveyScope, item: OutboxItem, receivedAt: s
       receivedAt,
       withAudio,
       ...(item.missingRequired === undefined ? {} : { missingRequired: item.missingRequired }),
+      origin: itemOrigin(item, ledger),
     },
     ...receipts.filter((receipt) => receipt.id !== item.id),
   ].slice(0, MAX_RECEIPTS));
 }
 
-/** Explicit, user-confirmed discard of one whole response (e.g. its survey closed). */
-export async function discardResponse(scope: SurveyScope, id: string): Promise<void> {
+/**
+ * Explicit, user-confirmed discard of one whole response (e.g. its survey
+ * closed). With `origin`, only an item of that origin: nothing of another
+ * origin is touched from the active one.
+ */
+export async function discardResponse(scope: SurveyScope, id: string, origin?: SurveyOrigin): Promise<void> {
   return serialized(async () => {
     const items = await readIndex(scope);
     const item = items.find((value) => value.id === id);
     if (!item) return;
+    if (origin !== undefined && itemOrigin(item, await readOriginLedger(scope)) !== origin) return;
     await removeItem(scope, answersName(id));
     if (item.audio) await removeItem(scope, audioName(item.audio.clientAudioId));
     await writeIndex(scope, items.filter((value) => value.id !== id));
@@ -168,11 +219,12 @@ export async function discardResponse(scope: SurveyScope, id: string): Promise<v
 }
 
 /** Explicit discard of an audio the server refused; the already-received answers become a receipt. */
-export async function discardRejectedAudio(scope: SurveyScope, id: string): Promise<void> {
+export async function discardRejectedAudio(scope: SurveyScope, id: string, origin?: SurveyOrigin): Promise<void> {
   return serialized(async () => {
     const items = await readIndex(scope);
     const item = items.find((value) => value.id === id);
     if (!item?.audio?.rejected || !item.responseId) return;
+    if (origin !== undefined && itemOrigin(item, await readOriginLedger(scope)) !== origin) return;
     await removeItem(scope, audioName(item.audio.clientAudioId));
     await recordReceipt(scope, item, item.receivedAt ?? new Date().toISOString(), false);
     await writeIndex(scope, items.filter((value) => value.id !== id));
@@ -202,6 +254,8 @@ export interface SyncResult {
   /** Set when the whole pass stopped early (offline, session/organization changed). */
   stoppedReason?: "offline" | "session_changed";
   errors: string[];
+  /** Items kept and NOT sent because they belong to another origin (or an unconfirmed one). */
+  otherOrigin: number;
 }
 
 class SessionChanged extends Error {}
@@ -211,6 +265,7 @@ function backoff(attempts: number): number {
 }
 
 function blockReason(error: unknown): BlockReason | null {
+  if (isInvalidIdentifierError(error)) return "invalid_identifier";
   if (!isApiError(error)) return null;
   if (error.reason === "survey_version_closed") return "survey_version_closed";
   if (error.reason === "not_assigned_surveyor") return "not_assigned_surveyor";
@@ -229,6 +284,7 @@ function blockReason(error: unknown): BlockReason | null {
 }
 
 function audioRejection(error: unknown): AudioRejectReason | null {
+  if (isInvalidIdentifierError(error)) return "invalid_identifier";
   if (!isApiError(error)) return null;
   if (error.reason === "unsupported_mime_type" || error.reason === "object_too_large" || error.reason === "audio_consent_required") return error.reason;
   if (error.kind === "not_found") return "response_unavailable";
@@ -239,6 +295,11 @@ function audioRejection(error: unknown): AudioRejectReason | null {
  * Sends what is pending for ONE account+organization. `force` ignores the
  * retry backoff (the person tapped "Sincronizar ahora"); blocked items are
  * never resent automatically.
+ *
+ * Every caller (opening, returning to the foreground, the periodic retry,
+ * "Sincronizar ahora", sign-out) goes through here, and only items whose
+ * origin is EXACTLY the source's are sent -- answers and audio alike. The
+ * origin is checked again on the freshly read item right before each request.
  */
 export async function syncOutbox(
   scope: SurveyScope,
@@ -247,15 +308,16 @@ export async function syncOutbox(
 ): Promise<SyncResult> {
   const key = `${scope.userId}.${scope.organizationId}`;
   const now = options.now ?? Date.now;
-  if (syncing.has(key)) return { received: 0, remaining: (await listOutbox(scope)).length, errors: [] };
+  if (syncing.has(key)) return { received: 0, remaining: (await listOutbox(scope)).length, errors: [], otherOrigin: 0 };
   syncing.add(key);
   const stillCurrent = captureApiSessionGuard(scope.organizationId);
   const requireCurrent = () => {
     if (!stillCurrent()) throw new SessionChanged();
   };
-  const result: SyncResult = { received: 0, remaining: 0, errors: [] };
+  const result: SyncResult = { received: 0, remaining: 0, errors: [], otherOrigin: 0 };
 
   // Each mutation re-reads the index, so a concurrent enqueue is never lost.
+  // No change can relabel an item or its audio.
   const update = (id: string, change: (item: OutboxItem) => OutboxItem | null) =>
     serialized(async () => {
       const items = await readIndex(scope);
@@ -264,11 +326,24 @@ export async function syncOutbox(
         if (item.id !== id) next.push(item);
         else {
           const changed = change(item);
-          if (changed) next.push(changed);
+          if (changed) next.push({ ...changed, origin: item.origin, audio: changed.audio && item.audio ? { ...changed.audio, origin: item.audio.origin } : changed.audio });
         }
       }
       await writeIndex(scope, next);
     });
+
+  // Read fresh on every check: what decides whether an item may go is what is on disk now.
+  const sendable = isSendableOrigin(source.origin);
+  const ownItems = async () => {
+    const [items, ledger] = await Promise.all([serialized(() => readIndex(scope)), readOriginLedger(scope)]);
+    const own = items.filter((item) => sendable && itemOrigin(item, ledger) === source.origin);
+    return { own, others: items.length - own.length, ledger };
+  };
+  const stillOwn = async (id: string, audio = false) => {
+    const { own, ledger } = await ownItems();
+    const item = own.find((value) => value.id === id);
+    return Boolean(item) && (!audio || outboxAudioOrigin(item!, ledger) === source.origin);
+  };
 
   const complete = async (item: OutboxItem, receivedAt: string, withAudio: boolean) => {
     await serialized(() => recordReceipt(scope, item, receivedAt, withAudio));
@@ -291,11 +366,14 @@ export async function syncOutbox(
   const due = (item: OutboxItem) => !item.blocked && (options.force || !item.nextAttemptAt || item.nextAttemptAt <= now());
 
   try {
-    // Pass 1: answers.
-    const answersDue = (await listOutbox(scope)).filter((item) => !item.responseId && due(item));
+    // Pass 1: answers, of this source's origin only.
+    const first = await ownItems();
+    result.otherOrigin = first.others;
+    const answersDue = first.own.filter((item) => !item.responseId && due(item));
     for (const [index, snapshot] of answersDue.entries()) {
       options.onProgress?.({ phase: "answers", done: index, total: answersDue.length });
       requireCurrent();
+      if (!(await stillOwn(snapshot.id))) continue;
       const answers = await openJson<SurveyAnswer[]>(scope, answersName(snapshot.id));
       if (!answers) {
         await update(snapshot.id, (current) => ({ ...current, lastError: "local_missing" }));
@@ -339,15 +417,24 @@ export async function syncOutbox(
       }
     }
 
-    // Pass 2: audio, only for responses the server already has.
-    const audioDue = (await listOutbox(scope)).filter(
-      (item) => item.responseId && item.audio && !item.audio.receivedAt && !item.audio.rejected && due(item),
+    // Pass 2: audio, only for responses the server already has, and only with
+    // the same origin as its response -- an audio never goes to another server.
+    const second = await ownItems();
+    const audioDue = second.own.filter(
+      (item) =>
+        item.responseId &&
+        item.audio &&
+        !item.audio.receivedAt &&
+        !item.audio.rejected &&
+        outboxAudioOrigin(item, second.ledger) === source.origin &&
+        due(item),
     );
     let audioConfig: AudioConfig | null = null;
     for (const [index, snapshot] of audioDue.entries()) {
       options.onProgress?.({ phase: "audio", done: index, total: audioDue.length });
       const audio = snapshot.audio!;
       requireCurrent();
+      if (!(await stillOwn(snapshot.id, true))) continue;
       try {
         // Limits are read from the server, never hardcoded.
         audioConfig ??= await source.getAudioConfig(scope.organizationId);
