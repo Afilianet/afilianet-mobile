@@ -181,9 +181,9 @@ describe("Surveys inbox: origins (decisions C, D and F)", () => {
     const other = screen.getByTestId("survey-other-origins");
     expect(screen.getByText("Guardado con otro origen")).toBeTruthy();
     expect(screen.getByText("Guardado con Afilianet (servidor de pruebas)")).toBeTruthy();
-    expect(screen.getByText(/Ahora la app usa datos de ejemplo, así que no se envía desde aquí/)).toBeTruthy();
+    expect(screen.getByText("No se envía a datos de ejemplo. Podrá enviarse cuando la app vuelva a usar Afilianet (servidor de pruebas).")).toBeTruthy();
     expect(screen.getByText("Origen sin confirmar")).toBeTruthy();
-    expect(screen.getByText(/antes de que la app registrara a qué servidor pertenece/)).toBeTruthy();
+    expect(screen.getByText("Se guardó antes de que la app registrara su servidor. No se envía a ningún servidor.")).toBeTruthy();
     expect(screen.getAllByText("No se envía desde aquí")).toHaveLength(2);
     expect(screen.getByText("Recibo antiguo")).toBeTruthy();
     // Nothing in that section can be sent, edited or discarded from here; drafts can only be viewed.
@@ -199,5 +199,76 @@ describe("Surveys inbox: origins (decisions C, D and F)", () => {
       fireEvent.press(screen.getAllByText("Consultar")[0]);
     });
     expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("d-stg"));
+  });
+
+  it("each origin is its own group: its heading and explanation sit with its own drafts, unsent responses and receipts only", async () => {
+    const outbox = (useSurveyOutbox as unknown as () => Record<string, unknown[]>)();
+    outbox.otherItems = [item("o-stg", STAGING, "Entrevista de staging"), item("o-old", "unconfirmed", "Entrevista antigua")];
+    outbox.otherReceipts = [
+      { id: "r-old", surveyTitle: "Recibo antiguo", receivedAt: "2026-10-01T10:00:00Z", withAudio: true, origin: "unconfirmed" },
+      { id: "r-stg", surveyTitle: "Recibo de staging", receivedAt: "2026-10-02T10:00:00Z", withAudio: false, origin: STAGING },
+    ];
+    (listDrafts as jest.Mock).mockResolvedValue([draft("d-stg", STAGING, "Borrador de staging"), draft("d-old", "unconfirmed", "Borrador antiguo")]);
+    const screen = await renderInbox();
+
+    const staging = within(screen.getByTestId(`other-origin-${STAGING}`));
+    const unconfirmed = within(screen.getByTestId("other-origin-unconfirmed"));
+    // Heading and explanation belong to their own group.
+    expect(staging.getByText("Guardado con Afilianet (servidor de pruebas)")).toBeTruthy();
+    expect(staging.queryByText("Origen sin confirmar")).toBeNull();
+    expect(unconfirmed.getByText("Origen sin confirmar")).toBeTruthy();
+    expect(unconfirmed.getByText("Se guardó antes de que la app registrara su servidor. No se envía a ningún servidor.")).toBeTruthy();
+    expect(unconfirmed.queryByText(/Guardado con/)).toBeNull();
+    // Records never leak into another origin's group.
+    expect(staging.getByText("Entrevista de staging")).toBeTruthy();
+    expect(staging.queryByText("Entrevista antigua")).toBeNull();
+    expect(unconfirmed.getByText("Entrevista antigua")).toBeTruthy();
+    expect(unconfirmed.queryByText("Borrador de staging")).toBeNull();
+    // Drafts, unsent responses and receipts are separate, counted parts of the group.
+    for (const [origin, records] of [[STAGING, ["Borrador de staging", "Entrevista de staging", "Recibo de staging"]], ["unconfirmed", ["Borrador antiguo", "Entrevista antigua", "Recibo antiguo"]]] as const) {
+      const [draftTitle, unsentTitle, receiptTitle] = records;
+      const drafts = within(screen.getByTestId(`other-origin-${origin}-drafts`));
+      const unsent = within(screen.getByTestId(`other-origin-${origin}-unsent`));
+      const receipts = within(screen.getByTestId(`other-origin-${origin}-receipts`));
+      expect(drafts.getByText("Borradores (1)")).toBeTruthy();
+      expect(drafts.getByText(draftTitle)).toBeTruthy();
+      expect(drafts.queryByText(unsentTitle)).toBeNull();
+      expect(unsent.getByText("Respuestas sin enviar (1)")).toBeTruthy();
+      expect(unsent.getByText(unsentTitle)).toBeTruthy();
+      expect(unsent.queryByText(receiptTitle)).toBeNull();
+      expect(receipts.getByText("Recibidos (1)")).toBeTruthy();
+      expect(receipts.getByText(receiptTitle)).toBeTruthy();
+    }
+    // State and audio stay visible on every record.
+    expect(within(screen.getByTestId(`other-origin-${STAGING}-drafts`)).getByText("Borrador")).toBeTruthy();
+    expect(within(screen.getByTestId("other-outbox-o-old")).getByText("No se envía desde aquí")).toBeTruthy();
+    expect(within(screen.getByTestId("other-outbox-o-old")).getByText(/con audio/)).toBeTruthy();
+    expect(within(screen.getByTestId("other-origin-unconfirmed-receipts")).getByText("Recibido")).toBeTruthy();
+    expect(within(screen.getByTestId("other-origin-unconfirmed-receipts")).getByText(/con audio/)).toBeTruthy();
+    // The explanation appears once per group, not per record.
+    expect(screen.getAllByText("Se guardó antes de que la app registrara su servidor. No se envía a ningún servidor.")).toHaveLength(1);
+  });
+
+  it("the only action in another origin's group is viewing a draft", async () => {
+    const outbox = (useSurveyOutbox as unknown as () => Record<string, unknown[]>)();
+    outbox.otherItems = [item("o-stg", STAGING, "Entrevista de staging")];
+    (listDrafts as jest.Mock).mockResolvedValue([draft("d-old", "unconfirmed", "Borrador antiguo")]);
+    const screen = await renderInbox();
+
+    const other = within(screen.getByTestId("survey-other-origins"));
+    const buttons = other.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+    expect(within(buttons[0]).getByText("Consultar")).toBeTruthy();
+    expect(other.queryByText("Continuar")).toBeNull();
+    expect(other.queryByText("Descartar del teléfono")).toBeNull();
+    expect(other.queryByText("Descartar borrador")).toBeNull();
+    expect(other.queryByText("Sincronizar ahora")).toBeNull();
+    // An origin with only one kind of record shows only that part.
+    expect(screen.queryByTestId(`other-origin-${STAGING}-drafts`)).toBeNull();
+    expect(screen.queryByTestId("other-origin-unconfirmed-unsent")).toBeNull();
+    await act(async () => {
+      fireEvent.press(other.getByText("Consultar"));
+    });
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining("d-old"));
   });
 });
