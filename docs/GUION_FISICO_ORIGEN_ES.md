@@ -55,6 +55,20 @@ Esta fase activa la fuente real, solo para leer. **No abrir, descargar ni respon
 
 **Opcional:** con dos organizaciones, cambiar a la otra en la fase 1. No muestra ni envía nada de la primera; al volver, todo sigue ahí.
 
+## Resultado de la ronda (2026-10-20, Andrés)
+
+**Candidato probado:** Mobile #60 `c0d3db753b35d511ac768a2acda7b8316581ce1b`, APK `versionCode` 11, Metro con tunnel en el puerto 8082 y API base `https://staging-api.afilianet.mx`.
+
+| Fase | Fuente | Resultado |
+|---|---|---|
+| 1 | Datos de ejemplo | **Pasó.** Se conservaron los datos anteriores. Los borradores se podían continuar, con sus respuestas y su audio. Se creó el borrador A y el envío B, ambos con audio; B quedó pendiente en modo avión |
+| 2 | API real de staging, solo consulta | **Pasó.** «Envíos» mostró «Se envían a: Afilianet (servidor de pruebas)» y «No hay envíos pendientes». Los registros de ejemplo mostraron «No se envía desde aquí» y no cambiaron tras dos actualizaciones. A se abrió con «Consultar» en solo consulta. B, como envío, no se puede editar (es lo esperado). No se abrió, descargó, respondió ni envió nada en staging |
+| 3 | Datos de ejemplo | **Pasó completa.** Volvió el modo de ejemplo; A se podía continuar con sus respuestas y su audio; los otros borradores seguían ahí; B se conservó, y su paso a «Recibido» ocurre dentro del teléfono, contra el servidor de ejemplo; los registros de origen desconocido siguieron aparte y sin enviarse |
+
+**Observación de presentación:** en la fase 2, el encabezado «Origen sin confirmar» se leyó como parte de las entrevistas que tenía encima. No hubo clasificación incorrecta: esas entrevistas estaban en «Guardado con datos de ejemplo». Se corrige en Mobile #61, donde cada origen es un recuadro propio. Esta versión del guion ya describe esa presentación (O8).
+
+No se cerró sesión ni se borró, descartó o reclasificó ningún dato de la tablet. Al terminar, Metro quedó sirviendo #60 con datos de ejemplo.
+
 ## Si algo falla
 
 - Anotar el paso, la hora y la captura. No descartar nada para «arreglarlo».
