@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { strings } from "../../i18n";
+import type { SurveyOrigin } from "./origin";
+import { upgradeLegacyOrigins } from "./originUpgrade";
 import { discardRejectedAudio, discardResponse, listOutbox, listReceipts, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
 import { scopeId, type SurveyScope } from "./vault";
@@ -12,10 +14,20 @@ const AUTO_SYNC_INTERVAL_MS = 60_000;
  * Syncs on open, when the app returns to the foreground and every minute
  * while anything is pending (each item still honours its retry backoff);
  * "Sincronizar ahora" forces it. Results for a previous scope are dropped.
+ *
+ * Split by origin: `items`/`receipts` are the active source's; `other*` are
+ * kept from another (or an unconfirmed) origin and are never sent from here.
  */
 export function useSurveyOutbox(scope: SurveyScope | null) {
   // Keyed by scope: another account's or organization's list is never rendered, not even briefly.
-  const [state, setState] = useState<{ key: string; items: OutboxItem[]; receipts: OutboxReceipt[] } | null>(null);
+  type Listed<T> = (T & { origin: SurveyOrigin })[];
+  const [state, setState] = useState<{
+    key: string;
+    items: Listed<OutboxItem>;
+    receipts: Listed<OutboxReceipt>;
+    otherItems: Listed<OutboxItem>;
+    otherReceipts: Listed<OutboxReceipt>;
+  } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [progress, setProgress] = useState<SyncProgress | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -28,9 +40,18 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
   const reload = useCallback(async () => {
     if (!scope) return;
     const id = scopeId(scope);
-    const [nextItems, nextReceipts] = await Promise.all([listOutbox(scope), listReceipts(scope)]);
+    // Classify what older versions stored (writes only its own ledger; never blocks listing).
+    await upgradeLegacyOrigins(scope).catch(() => undefined);
+    const [allItems, allReceipts] = await Promise.all([listOutbox(scope), listReceipts(scope)]);
     if (currentScope.current !== id) return;
-    setState({ key: id, items: nextItems, receipts: nextReceipts });
+    const own = (record: { origin: SurveyOrigin }) => record.origin === surveySource.origin;
+    setState({
+      key: id,
+      items: allItems.filter(own),
+      receipts: allReceipts.filter(own),
+      otherItems: allItems.filter((item) => !own(item)),
+      otherReceipts: allReceipts.filter((receipt) => !own(receipt)),
+    });
   }, [scope]);
 
   const sync = useCallback(
@@ -62,7 +83,7 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
   const discard = useCallback(
     async (itemId: string) => {
       if (!scope) return;
-      await discardResponse(scope, itemId);
+      await discardResponse(scope, itemId, surveySource.origin);
       await reload();
     },
     [scope, reload],
@@ -71,7 +92,7 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
   const discardAudio = useCallback(
     async (itemId: string) => {
       if (!scope) return;
-      await discardRejectedAudio(scope, itemId);
+      await discardRejectedAudio(scope, itemId, surveySource.origin);
       await reload();
     },
     [scope, reload],
@@ -88,6 +109,9 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
   const current = state && state.key === key ? state : null;
   const items = current?.items ?? [];
   const receipts = current?.receipts ?? [];
+  const otherItems = current?.otherItems ?? [];
+  const otherReceipts = current?.otherReceipts ?? [];
+  // Only what this origin can send keeps the periodic retry going.
   const hasPending = items.length > 0;
   useEffect(() => {
     if (!hasPending) return;
@@ -95,5 +119,5 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
     return () => clearInterval(timer);
   }, [hasPending, sync]);
 
-  return { items, receipts, syncing, progress, message, sync, discard, discardAudio, reload };
+  return { items, receipts, otherItems, otherReceipts, syncing, progress, message, sync, discard, discardAudio, reload };
 }

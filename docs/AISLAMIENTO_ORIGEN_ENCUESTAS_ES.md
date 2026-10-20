@@ -1,10 +1,10 @@
-# Aislamiento por origen en encuestas (datos de ejemplo frente a API real)
+# Aislamiento por origen en encuestas
 
-**Estado:** diseño propuesto; **sin implementar** y **sin migración de almacenamiento**. Reproducción en `src/features/surveys/sourceIsolation.test.ts`.
+**Estado:** implementado (rama `feat/survey-origin-isolation`, sobre Mobile #59). Solo JavaScript: compatible con el APK `versionCode` 11. Pruebas integrales en `src/features/surveys/sourceIsolation.test.ts`. Guion físico: `docs/GUION_FISICO_ORIGEN_ES.md`.
 
-## 1. Problema
+## 1. Problema que resuelve
 
-Mobile guarda en el teléfono, por **cuenta y organización** pero **no por origen**:
+Mobile guarda en el teléfono, por **cuenta y organización**:
 - el inbox en caché;
 - las versiones descargadas;
 - los borradores;
@@ -12,60 +12,161 @@ Mobile guarda en el teléfono, por **cuenta y organización** pero **no por orig
 - los audios sellados;
 - los recibos.
 
-La fuente se elige al empaquetar (`EXPO_PUBLIC_SURVEYS_SOURCE`): de ejemplo (`fixture`) o real (`api`). El servidor de ejemplo guarda su propio estado aparte (`AsyncStorage` `afn.surveys.fixtureServer.v2`); los datos de usuario de arriba, no.
+La fuente se elige al empaquetar (`EXPO_PUBLIC_SURVEYS_SOURCE`). Hasta Mobile #59, al cambiar de fuente o de servidor con datos pendientes, esos datos se ofrecían al origen equivocado:
+- lo de ejemplo se mandaba a la API real, con ids `fx-…`;
+- lo real se mandaba al servidor de ejemplo.
 
-Al pasar de la fuente de ejemplo a la real con datos pendientes:
+En ambos casos terminaban reintentándose sin fin o bloqueados con un motivo engañoso. Staging y producción tampoco se distinguían.
 
-| Qué queda | Qué pasa con la fuente real | Prueba |
+## 2. Qué es el origen
+
+| Origen | Valor guardado | Cuándo |
 |---|---|---|
-| Envío pendiente de ejemplo (`versionId` `fx-v-…`) | Se envía a la API real: `POST /api/v1/surveys/versions/fx-v-servicio-2/responses`. Con la API desplegada `d4cec703` responde **500** y se **reintenta indefinidamente** con espera. Con el candidato #67, **404**, y queda bloqueado como «ya no está disponible en esta organización», un motivo engañoso | `REPRODUCES` 1 y 2 |
-| Borrador y descarga de ejemplo | Se siguen ofreciendo. Al enviarlos, ocurre lo mismo | `REPRODUCES` 3 |
-| Audio de un envío de ejemplo | Se subiría a la API real solo si su respuesta llegara a aceptarse, lo que no ocurre con un id `fx-…`. Pero el riesgo es el mismo origen equivocado | — |
-| Al volver de la API real a la de ejemplo | Lo pendiente real se ofrece al servidor de ejemplo local. Como no conoce esa versión, responde 404 y queda bloqueado como «ya no está disponible en esta organización»: un motivo engañoso. Se conserva y **no** se marca como recibido, pero ya no se reintenta solo. Si se volviera a la fuente real, seguiría bloqueado hasta que la persona lo descarte, aunque la versión real exista | `REPRODUCES` en sentido inverso |
+| Datos de ejemplo | `fixture` | Fuente de ejemplo; nada sale del teléfono |
+| Un servidor | `api:<esquema>://<host>[:puerto][/ruta]` | Fuente real. Ej.: `api:https://staging-api.afilianet.mx` |
+| Sin confirmar | `unconfirmed` | Registro anterior a esta versión cuyo origen no se puede demostrar |
 
-En ambas direcciones el envío va al origen equivocado y termina con un estado o un motivo que no corresponden. Ninguna dirección marca falsamente como «Recibido» ni borra datos. Hoy solo lo evita el procedimiento manual documentado en `ENCUESTAS_MVP_ES.md`.
+**Identidad normalizada (decisión A):** `apiOrigin(config.apiBaseUrl)` (`src/features/surveys/origin.ts`):
+- pasa el esquema y el host a minúsculas;
+- quita credenciales, consulta, fragmento, el punto final del host, el puerto por defecto y las barras sobrantes.
 
-## 2. Propuesta
+La misma URL escrita de formas distintas da la misma identidad. Staging, producción, `http` frente a `https`, otro puerto o un servidor local dan identidades distintas. Sin URL configurada, el origen `api:unconfigured` no puede enviar nada.
 
-1. **Etiqueta de origen** en cada registro nuevo: `origin`. Valores posibles:
-   - `"fixture"`;
-   - `"api:<host>"`, con el host de `config.apiBaseUrl` (p. ej. `api:staging-api.afilianet.mx`), para distinguir también staging, producción y local.
+## 3. Reglas
 
-   La etiqueta la pone la librería al escribir (`saveDraft`, `downloadVersion`, `refreshInbox`, `enqueueResponse`). El audio hereda el origen del borrador o del envío al que pertenece. El campo es **opcional**: no se reescribe nada existente.
-2. **Nunca enviar al origen equivocado.** `syncOutbox(scope, source)` se salta todo envío cuyo `origin` no sea el de la fuente activa:
-   - no hace petición ni cuenta un intento;
-   - el envío se conserva intacto, con un estado nuevo y visible, `other_origin`: «Guardado con otra fuente de encuestas; no se envía a este servidor».
+1. **El origen se fija al crear el registro y no cambia.** Lo ponen:
+   - `downloadVersion` y `refreshInbox`, con el origen de la fuente;
+   - el detalle de la encuesta, al crear el borrador;
+   - la pantalla de respuesta, al sellar el audio (el de su borrador);
+   - `enqueueResponse`, con el del borrador, y el audio del envío hereda ese mismo.
 
-   Como defensa adicional, `apiSource` rechaza localmente cualquier `versionId` o `responseId` que no sea un UUID, antes de hacer la petición.
-3. **Lectura por origen.**
-   - El inbox, las descargas y la lista de encuestas usan solo el origen activo.
-   - Los borradores y envíos de otro origen siguen visibles en una sección propia («Otra fuente de encuestas»), de solo lectura y con «Descartar del teléfono» explícito.
-   - **Nunca se borra ni se descarta nada automáticamente.**
-4. **Registros antiguos sin `origin`.** Se clasifican al leerlos, sin migrar:
-   - `versionId` o `surveyId` que empiezan por `fx-` → `fixture` (los ids de ejemplo siempre lo hacen);
-   - UUID → `api`, de host desconocido (decisión pendiente B);
-   - cualquier otro formato → origen desconocido: no se envía y se muestra en «Otra fuente de encuestas».
-5. **Recibos:** se muestran solo los del origen activo. Los antiguos sin origen siguen la regla 4 a partir de su id.
-6. **Sin migración:** la etiqueta se añade al escribir, y la lectura tolera que falte. Una migración posterior que escriba `origin` en los registros antiguos sería opcional e idempotente.
+   Además:
+   - `saveDraft` rechaza guardar un borrador con otro origen, o con audio de otro origen;
+   - `enqueueResponse` exige un origen válido y rechaza un audio de otro origen;
+   - ninguna actualización del outbox puede cambiar el origen de un envío ni de su audio.
+2. **Solo se envía lo del origen exacto de la fuente activa.** Todo pasa por `syncOutbox`: al abrir, al volver a primer plano, el reintento periódico, «Sincronizar ahora» y cerrar sesión con pendientes. Ahí se aplican tres controles:
+   - Al empezar, se filtran las respuestas y los audios cuyo origen no es el de la fuente.
+   - Justo antes de cada petición, el envío se vuelve a leer del disco y se comprueba otra vez.
+   - Un audio solo se sube si su origen y el de su respuesta coinciden con la fuente. Si discrepan, no pertenece a ninguno y no se sube.
 
-## 3. Decisiones pendientes
+   Lo de otro origen no cuenta intentos ni cambia de estado: queda exactamente como estaba.
+3. **La API real comprueba su propio servidor y los ids** (decisión E). `createApiSurveySource` guarda su origen y, en cada llamada, comprueba que el cliente HTTP sigue apuntando a ese mismo servidor. Antes de cada petición valida como UUID:
+   - la versión;
+   - `client_response_id`;
+   - la respuesta del audio.
 
-| # | Decisión | Opciones | Recomendación |
-|---|---|---|---|
-| A | Granularidad del origen | (a) solo `fixture`/`api`; (b) `api:<host>` | (b): evita mezclar staging y producción si alguna vez coinciden en el mismo teléfono |
-| B | Registros antiguos con UUID (host desconocido) | (a) asumir el host activo; (b) ponerlos en cuarentena hasta una confirmación explícita de la persona | (a) para el APK de desarrollo actual, que siempre apuntó a staging; (b) si hubo teléfonos con builds de distintos servidores |
-| C | Qué hacer con los envíos de otro origen | (a) visibles y de solo lectura, con descarte explícito; (b) ocultos hasta volver a su fuente | (a): no esconde datos y evita borrar por error |
-| D | Borradores de otro origen | (a) se pueden editar pero no enviar; (b) solo lectura | (b): un borrador de ejemplo no tiene versión real a la que enviarse |
-| E | Validación de UUID en `apiSource` | (a) incluirla ya, sin depender del origen; (b) solo junto con el origen | (a): defensa barata, que no requiere migración y evita el envío con ids `fx-…` |
-| F | Indicador del origen activo | (a) el aviso «Vista previa» actual basta; (b) añadir también «Servidor: <host>» en «Envíos» | (b) mientras convivan ambas fuentes en pruebas |
+   Así lo exige el contrato: rutas `->whereUuid`, sin distinguir mayúsculas. Si un id no es UUID:
+   - el envío queda «No se puede enviar: sus datos no tienen el formato que pide el servidor…» (`invalid_identifier`), sin petición y conservado;
+   - en el audio, queda «Audio no aceptado» con su explicación.
 
-## 4. Plan de pruebas (cuando se implemente)
+   Si el servidor devuelve un id de sesión de audio mal formado, es un fallo suyo y se reintenta más tarde.
+4. **Lectura por origen** (decisiones C y D):
+   - La bandeja guardada, las descargas y los borradores editables son solo los del origen activo.
+   - Cada origen guarda su propia bandeja (`inbox-<origen>`), así que actualizar la de staging no reemplaza la lista de ejemplo guardada para usar sin conexión. El archivo único de versiones anteriores (`inbox`) no se vuelve a escribir.
+   - Lo demás aparece en Encuestas, en «Guardado con otro origen», agrupado por origen y con explicación: envíos («No se envía desde aquí»), borradores («Consultar») y recibos.
+   - Desde esa sección nada se envía, se edita ni se descarta. Descartar también comprueba el origen.
+   - Un borrador de otro origen o sin confirmar se abre en **solo consulta**: respuestas y audio visibles, campos deshabilitados, sin grabar, guardar ni enviar.
+   - «Quitar descarga» se oculta mientras cualquier borrador, de cualquier origen, use esa encuesta.
+5. **Destino visible** (decisión F). «Envíos» muestra:
+   - «Se envían a: Afilianet (servidor de pruebas).» para staging;
+   - «Se envían a: Afilianet.» para producción;
+   - «Se envían a: el servidor 192.168.1.20:8000.» para un servidor desconocido, nombrado solo por su host;
+   - «Modo de ejemplo: los envíos no salen del teléfono.» con los datos de ejemplo.
+6. **Se conserva lo anterior.** Esto no cambia:
+   - aislamiento por cuenta y organización, y la parada si la sesión u organización cambia a mitad de una sincronización;
+   - idempotencia por `client_response_id`;
+   - consentimiento (`consent_audio`, `consent_version`);
+   - bloqueos sin reintento automático;
+   - 403 neutral salvo `reason` confirmado (API #68).
 
-- Convertir la prueba `it.failing` de `sourceIsolation.test.ts` en una prueba normal, y las `REPRODUCES` en sus inversas.
-- En ambas direcciones (ejemplo → real y real → ejemplo): sin peticiones ni recibos para el origen equivocado; los datos y el audio se conservan; el estado `other_origin` es visible; el descarte solo ocurre a petición.
-- Registros antiguos sin `origin` (ids `fx-…`, UUID y desconocidos) según la regla 4.
-- Aislamiento por cuenta y organización intacto; compatible con el APK `versionCode` 11 (solo JavaScript).
+## 4. Registros anteriores (decisión B)
 
-## 5. Mitigación vigente (sin código)
+**Clasificación** (`legacyOrigin`):
+- **Ejemplo** solo con evidencia inequívoca: el par exacto encuesta/versión de los datos de ejemplo de todo su historial (`git log` de `fixtureSource.ts`):
+  - `fx-servicio`/`fx-v-servicio-2`;
+  - `fx-vecinal`/`fx-v-vecinal-1`;
+  - `fx-cerrada`/`fx-v-cerrada-1`.
 
-El procedimiento de `ENCUESTAS_MVP_ES.md` («Antes de alternar»): sincronizar o descartar lo pendiente, descartar los borradores de ejemplo y quitar las descargas de ejemplo antes de cambiar `EXPO_PUBLIC_SURVEYS_SOURCE`. La fuente real **no está activada**.
+  Una bandeja guardada es de ejemplo solo si todas sus entradas lo son.
+- **«Origen sin confirmar»** todo lo demás, incluidos los UUID: **no se deduce staging ni producción por tener un UUID**. Los recibos antiguos no guardaban su versión, así que siempre quedan sin confirmar.
+
+**Actualización** (`upgradeLegacyOrigins`, `src/features/surveys/originUpgrade.ts`; se ejecuta al cargar «Envíos»):
+- Escribe **un único archivo nuevo** por cuenta y organización: el registro de clasificación `origins`, cifrado como los demás.
+- **No reescribe, mueve ni borra** ningún registro, respuesta ni audio.
+- **Idempotente:** solo añade entradas que faltan y nunca cambia una existente. Una segunda ejecución no escribe nada.
+- **Recuperable:** si se interrumpe, o el archivo se daña, se lee como vacío y los registros se clasifican al vuelo con las mismas reglas. La siguiente ejecución lo completa.
+- **Enviar no depende de que se haya ejecutado:** la clasificación al vuelo da el mismo resultado.
+- **No puede volver enviable nada:** solo acepta `fixture` o `unconfirmed`. Un valor que nombre un servidor se ignora.
+
+## 5. No se puede reetiquetar para forzar un envío
+
+Ningún camino del código cambia el origen de un registro existente:
+- `saveDraft` lo rechaza;
+- `enqueueResponse` de un id ya guardado devuelve el existente sin tocarlo;
+- el outbox conserva el origen en cada actualización;
+- el registro de clasificación no admite servidores.
+
+Lo prueban `sourceIsolation.test.ts` y las mutaciones descritas en la sección 7.
+
+### Procedimiento aparte para casos «Origen sin confirmar»
+
+No hay acción en la app para reasignarlos, a propósito. Si alguien necesita que esas respuestas lleguen al servidor:
+1. **Identificar**, con la persona y su teléfono:
+   - qué encuestas son, desde «Guardado con otro origen» → «Consultar»;
+   - con qué build y servidor se capturaron, según el historial de builds y Metro de esas fechas.
+2. **Confirmar con el equipo de encuestas en Admin** que esas respuestas no llegaron ya, buscando la encuesta, la fecha y el encuestador.
+3. **Si no llegaron y deben contarse:** volver a capturarlas como respuestas nuevas, con la fuente correcta activa y la persona presente, a partir de la consulta del borrador o envío antiguo. El consentimiento de audio se vuelve a pedir; nunca se reutiliza un audio de origen sin confirmar.
+4. **Conservar los antiguos** hasta que la organización decida.
+   - Hoy la app no ofrece descartar registros sin confirmar fuera de «Cerrar sesión» → borrar los datos de esa cuenta y organización, que lo borra todo, con confirmación.
+   - Una acción dedicada de descarte, con confirmación, es una decisión pendiente (sección 8).
+
+## 6. Riesgos que quedan
+
+- **Bundle anterior:** un bundle anterior a este cambio, servido por Metro con datos de varios orígenes en el teléfono, no conoce los orígenes y enviaría todo a la fuente activa. No volver a servirlo sobre un teléfono con datos mezclados.
+- **Misma encuesta en dos orígenes:** las descargas se guardan por `survey_id`. Si dos orígenes compartieran el id de una encuesta, la descarga de uno reemplazaría a la del otro. Con UUID no ocurre en la práctica. Además:
+  - las respuestas no dependen de la descarga;
+  - un borrador cuya versión ya no está se conserva y lo explica.
+- **Espacio:** lo de otro origen o sin confirmar ocupa espacio dentro del límite por cuenta y organización (300 MB) hasta que se decida qué hacer con ello.
+
+## 7. Pruebas
+
+Integrales (`sourceIsolation.test.ts`):
+- **Montaje:** el almacenamiento real de la app (vault con llave por elemento y directorios por cuenta y organización) sobre un teléfono en memoria (`src/tests/support/fakeDevice.ts`), que conserva los datos entre reinicios de módulos.
+- **Red:** cliente HTTP y fuente real contra dos servidores simulados (staging y producción), cada uno con su bucket de audio; fuente de ejemplo real.
+- **Casos:**
+  - ejemplo → staging y staging → ejemplo (también que la bandeja de un origen no reemplaza la del otro), incluida la antigua prueba `it.failing` («nunca se envía a la API real lo capturado con la fuente de ejemplo»), ahora una prueba normal;
+  - staging ⇄ producción: cada servidor recibe solo sus respuestas y audios;
+  - registros antiguos: ejemplo conocido, UUID que existe en staging y que aun así no se envía, id raro, borradores y recibos;
+  - reetiquetado imposible: guardar, volver a encolar o editar el registro de clasificación;
+  - borrador con audio, envío pendiente y audio parcialmente sincronizado, incluido un audio con origen discordante;
+  - actualización interrumpida, repetida y con el registro dañado;
+  - reconexión, reinicio, otra cuenta u organización y cambio de organización a mitad de la sincronización;
+  - ids inválidos (decisión E);
+  - recorrido normal en staging y con los datos de ejemplo, y 403 neutral.
+
+**Mutaciones:** cada una se aplicó temporalmente y se comprobó que hace fallar la suite. El código quedó restaurado.
+
+| Mutación | Pruebas que fallan |
+|---|---|
+| Sincronizar sin filtrar por origen | 9 |
+| Quitar los dos controles de origen del audio | 2 |
+| Quitar la nueva comprobación antes de cada envío (respuestas) | 1 |
+| Quitar la nueva comprobación antes de cada envío (audio) | 1 |
+| Registro de clasificación que acepta cualquier valor | 1 |
+| Tratar un UUID antiguo como del servidor activo | 4 |
+| Sin validar UUID antes de la API real | 1 |
+| Permitir cambiar el origen de un borrador | 3 |
+| Aceptar un envío con audio de otro origen | 2 |
+
+Quitar solo el filtro inicial del audio no hace fallar ninguna prueba, a propósito: la nueva comprobación antes de subirlo basta por sí sola. Quitar solo esa comprobación sí hace fallar la suite (fila «Quitar la nueva comprobación antes de cada envío (audio)»).
+
+También hay pruebas de pantalla:
+- `surveys-inbox.test.tsx`: destino en «Envíos» y sección «Guardado con otro origen»;
+- `survey-response.test.tsx`: solo consulta, y el audio sellado con el origen de su borrador.
+
+Las pruebas unitarias están en `origin.test.ts` (identidad y clasificación) y `apiSource.test.ts` (ids y servidor).
+
+## 8. Decisiones pendientes
+
+- Acción dedicada para descartar, con confirmación, registros «Origen sin confirmar» o de otro origen, sin cerrar sesión.
+- Ampliar `KNOWN_SERVERS` (`origin.ts`) si aparece otro servidor oficial, por ejemplo uno interno.

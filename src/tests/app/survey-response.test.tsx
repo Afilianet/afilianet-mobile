@@ -19,7 +19,7 @@ jest.mock("expo-router", () => ({
 let mockScope: { userId: string; organizationId: string } | null = { userId: "user-1", organizationId: "org-a" };
 jest.mock("../../features/surveys/runtime", () => ({
   useSurveyScope: () => mockScope,
-  surveySource: { kind: "fixture" },
+  surveySource: { kind: "fixture", origin: "fixture" },
   surveysPreviewEnabled: true,
 }));
 
@@ -36,8 +36,11 @@ const mockRecorder = {
 };
 // The screen's "audio sealed" callback, so tests can deliver audio like the real hook does.
 let mockOnAudioSaved: ((audio: unknown) => void) | null = null;
+// The scope the screen lets the recorder use: null means the microphone can never start.
+let mockRecorderScope: unknown = undefined;
 jest.mock("../../features/surveys/useInterviewRecorder", () => ({
-  useInterviewRecorder: (_scope: unknown, onSaved: (audio: unknown) => void) => {
+  useInterviewRecorder: (scope: unknown, onSaved: (audio: unknown) => void) => {
+    mockRecorderScope = scope;
     mockOnAudioSaved = onSaved;
     return mockRecorder;
   },
@@ -92,6 +95,7 @@ function draft(overrides: Partial<SurveyDraft> = {}): SurveyDraft {
     consentAudio: null,
     audio: null,
     updatedAt: "2026-10-12T10:00:00Z",
+    origin: "fixture",
     ...overrides,
   };
 }
@@ -464,8 +468,66 @@ describe("Survey response: open text answer", () => {
   });
 });
 
+describe("Survey response: a draft of another origin is view only (decision D)", () => {
+  const STAGING_ORIGIN = "api:https://staging-api.afilianet.mx";
+  const audio = { clientAudioId: "a-1", mimeType: "audio/mp4", durationMs: 12000, interrupted: false, bytes: 10, origin: STAGING_ORIGIN };
+
+  it("shows its answers and audio, explains why, and offers no way to edit, record, save or send it", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ origin: STAGING_ORIGIN, consentAudio: "accepted", audio, answers: { 1: [2], 2: "41", 3: "Baches" } }));
+    const screen = await renderScreen();
+
+    expect(screen.getByText("Solo consulta: este borrador pertenece a Afilianet (servidor de pruebas). No se puede editar ni enviar desde el origen actual.")).toBeTruthy();
+    expect(screen.getByText("Grabación lista · 12s")).toBeTruthy();
+    expect(screen.getByDisplayValue("Baches").props.editable).toBe(false);
+    expect(screen.getByDisplayValue("41").props.editable).toBe(false);
+    expect(screen.queryByText("Enviar respuesta")).toBeNull();
+    expect(screen.queryByText("Guardar borrador y salir")).toBeNull();
+    expect(screen.queryByText("Iniciar grabación")).toBeNull();
+    expect(screen.queryByText("Borrar audio")).toBeNull();
+    expect(mockRecorderScope).toBeNull();
+    // The version was read from the copy kept for that draft, not as this origin's download.
+    expect(getDownloaded).toHaveBeenCalledWith(SCOPE, "s-1", undefined);
+
+    await press(screen, "Poco");
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Cerrar"));
+    });
+    expect(saveDraft).not.toHaveBeenCalled();
+    expect(enqueueResponse).not.toHaveBeenCalled();
+    expect(mockBack).toHaveBeenCalled();
+  });
+
+  it("an unconfirmed draft says so", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ origin: "unconfirmed" }));
+    const screen = await renderScreen();
+    expect(screen.getByText("Solo consulta: este borrador tiene origen sin confirmar. No se puede editar ni enviar; se conserva en el teléfono.")).toBeTruthy();
+  });
+
+  it("another origin's draft whose questions are not on the phone: says the draft is kept", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ origin: STAGING_ORIGIN }));
+    (getDownloaded as jest.Mock).mockResolvedValue(null);
+    const missing = await renderScreen();
+    expect(missing.getByText("No está en el teléfono la encuesta con la que se guardó este borrador, así que no se pueden mostrar sus preguntas. El borrador se conserva.")).toBeTruthy();
+  });
+
+  it("a draft of the active origin stays editable and is stored and sent under its own origin, audio included", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1], 2: "3" } }));
+    const screen = await renderScreen();
+    expect(screen.queryByTestId("draft-read-only")).toBeNull();
+    expect(mockRecorderScope).toEqual(SCOPE);
+    await act(async () => {
+      mockOnAudioSaved?.({ clientAudioId: "a-2", mimeType: "audio/mp4", durationMs: 3000, interrupted: false, bytes: 5 });
+    });
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ origin: "fixture", audio: expect.objectContaining({ clientAudioId: "a-2", origin: "fixture" }) }));
+    await press(screen, "Enviar respuesta");
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ id: "d-1", origin: "fixture", audio: expect.objectContaining({ origin: "fixture" }) }), expect.any(Array));
+  });
+});
+
 describe("Survey response: finishing an active recording automatically", () => {
   const AUDIO = { clientAudioId: "aud-9", mimeType: "audio/mp4", durationMs: 30000, interrupted: false, bytes: 240000 };
+  // What the screen keeps: the recorder's audio, under its draft's origin.
+  const STAMPED = { ...AUDIO, origin: "fixture" };
 
   function deferredFinish() {
     let resolve!: (value: { ok: true; audio: typeof AUDIO | null } | { ok: false }) => void;
@@ -501,7 +563,7 @@ describe("Survey response: finishing an active recording automatically", () => {
       finishWith({ ok: true, audio: AUDIO });
     });
     expect(enqueueResponse).toHaveBeenCalledTimes(1);
-    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: AUDIO }), expect.any(Array));
+    expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ consentAudio: "accepted", audio: STAMPED }), expect.any(Array));
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
@@ -513,7 +575,7 @@ describe("Survey response: finishing an active recording automatically", () => {
     await press(screen, "Guardar borrador y salir");
 
     expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
-    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: AUDIO }));
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: STAMPED }));
     expect(enqueueResponse).not.toHaveBeenCalled();
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
@@ -527,7 +589,7 @@ describe("Survey response: finishing an active recording automatically", () => {
       fireEvent.press(screen.getByLabelText("Cerrar"));
     });
     expect(mockRecorder.finish).toHaveBeenCalledTimes(1);
-    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ audio: AUDIO }));
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ audio: STAMPED }));
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
@@ -570,7 +632,7 @@ describe("Survey response: finishing an active recording automatically", () => {
     });
     expect(enqueueResponse).toHaveBeenCalledWith(
       SCOPE,
-      expect.objectContaining({ audio: AUDIO, missingRequired: 1 }),
+      expect.objectContaining({ audio: STAMPED, missingRequired: 1 }),
       expect.arrayContaining([{ question_id: 2, skipped: true }]),
     );
     alert.mockRestore();
@@ -600,7 +662,7 @@ describe("Survey response: finishing an active recording automatically", () => {
         jest.advanceTimersByTime(700);
       });
       const last = (saveDraft as jest.Mock).mock.calls.at(-1)?.[1];
-      expect(last).toEqual(expect.objectContaining({ audio: AUDIO, answers: { 3: "Baches" } }));
+      expect(last).toEqual(expect.objectContaining({ audio: STAMPED, answers: { 3: "Baches" } }));
     } finally {
       jest.useRealTimers();
     }
@@ -613,6 +675,6 @@ describe("Survey response: finishing an active recording automatically", () => {
     await act(async () => {
       mockOnAudioSaved?.(AUDIO);
     });
-    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: AUDIO }));
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [1] }, audio: STAMPED }));
   });
 });

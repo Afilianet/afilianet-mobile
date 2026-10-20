@@ -25,8 +25,9 @@ import {
   type DraftValue,
   type SurveyDraft,
 } from "../../features/surveys/library";
+import { describeOrigin, UNCONFIRMED_ORIGIN, type SurveyOrigin } from "../../features/surveys/origin";
 import { audioName, enqueueResponse } from "../../features/surveys/outbox";
-import { useSurveyScope } from "../../features/surveys/runtime";
+import { surveySource, useSurveyScope } from "../../features/surveys/runtime";
 import type { SurveyQuestion, SurveyVersion } from "../../features/surveys/types";
 import { formatDuration, useInterviewRecorder } from "../../features/surveys/useInterviewRecorder";
 import { removeItem, scopeId, StorageFullError, type SurveyScope } from "../../features/surveys/vault";
@@ -43,13 +44,16 @@ const AUTOSAVE_MS = 600;
  *   rejects them).
  * - Audio only for interviews whose version records audio, only after the
  *   consent was accepted; the decision is final once submitted.
+ * - Only a draft of the ACTIVE origin can be edited, recorded or sent. One of
+ *   another origin, or an unconfirmed one, opens view-only: nothing on this
+ *   screen writes, records or sends it.
  */
 export default function SurveyResponseScreen() {
   const router = useRouter();
   const { draftId } = useLocalSearchParams<{ draftId: string }>();
   const scope = useSurveyScope();
   const copy = strings.surveys;
-  const [loaded, setLoaded] = useState<{ scope: SurveyScope; version: SurveyVersion } | null | undefined>(undefined);
+  const [loaded, setLoaded] = useState<{ scope: SurveyScope; version: SurveyVersion; origin: SurveyOrigin; readOnly: boolean } | null | undefined>(undefined);
   const [draft, setDraft] = useState<SurveyDraft | null>(null);
   const [errors, setErrors] = useState<Record<number, string>>({});
   const [message, setMessage] = useState<string | null>(null);
@@ -80,24 +84,28 @@ export default function SurveyResponseScreen() {
     void (async () => {
       if (!scope || !draftId) return;
       const stored = await loadDraft(scope, draftId);
-      const downloaded = stored ? await getDownloaded(scope, stored.surveyId) : null;
+      const own = stored?.origin === surveySource.origin;
+      // Editing needs this origin's own download. Viewing another origin's
+      // draft only needs its exact version's questions, from any copy kept.
+      const downloaded = stored ? await getDownloaded(scope, stored.surveyId, own ? surveySource.origin : undefined) : null;
       if (!active) return;
       if (!stored || !downloaded || downloaded.version.id !== stored.versionId) {
         setLoaded(null);
-        setMessage(!stored ? copy.form.draftMissing : copy.form.versionMissing);
+        setMessage(!stored ? copy.form.draftMissing : own ? copy.form.versionMissing : copy.origin.versionMissing);
         return;
       }
-      setLoaded({ scope, version: downloaded.version });
+      setLoaded({ scope, version: downloaded.version, origin: stored.origin, readOnly: !own });
       draftRef.current = stored;
       setDraft(stored);
     })();
     return () => {
       active = false;
     };
-  }, [scope, draftId, copy.form.draftMissing, copy.form.versionMissing]);
+  }, [scope, draftId, copy.form.draftMissing, copy.form.versionMissing, copy.origin.versionMissing]);
 
   const persist = useCallback(
     (next: SurveyDraft) => {
+      if (!loaded || loaded.readOnly) return;
       draftRef.current = next;
       setDraft(next);
       setDraftSaved(false);
@@ -128,8 +136,9 @@ export default function SurveyResponseScreen() {
   const onAudioSaved = useCallback(
     (audio: DraftAudio) => {
       const current = draftRef.current;
-      if (!current || !loaded) return;
-      const next = { ...current, audio };
+      if (!current || !loaded || loaded.readOnly) return;
+      // The audio belongs to its draft's origin, recorded and stored under it.
+      const next = { ...current, audio: { ...audio, origin: loaded.origin } };
       draftRef.current = next;
       setDraft(next);
       // Audio is saved immediately (not debounced): it must never exist without
@@ -142,13 +151,13 @@ export default function SurveyResponseScreen() {
     },
     [loaded],
   );
-  const recorder = useInterviewRecorder(sameScope && loaded ? loaded.scope : null, onAudioSaved);
+  const recorder = useInterviewRecorder(sameScope && loaded && !loaded.readOnly ? loaded.scope : null, onAudioSaved);
 
   if (loaded === undefined) return <SkeletonGroup lines={5} />;
   if (loaded === null || !draft) return <EmptyState title={copy.title} description={message ?? copy.form.draftMissing} />;
   if (!sameScope) return <EmptyState title={copy.title} description={copy.form.draftMissing} />;
 
-  const { version } = loaded;
+  const { version, readOnly } = loaded;
   const interview = draft.respondentType === "interviewed_external";
   const withAudio = audioApplies(version, draft.respondentType);
   const audioRequired = withAudio && version.audio_mode === "required";
@@ -175,7 +184,8 @@ export default function SurveyResponseScreen() {
   }
 
   async function save(target: SurveyDraft) {
-    if (!loaded) return;
+    // Sent only from its own origin: the outbox stores it under that origin, with its audio.
+    if (!loaded || loaded.readOnly || loaded.origin !== surveySource.origin) return;
     const draft = target;
     setSaving(true);
     setMessage(null);
@@ -196,6 +206,7 @@ export default function SurveyResponseScreen() {
           respondentType: draft.respondentType,
           consentAudio,
           completedAt: new Date().toISOString(),
+          origin: loaded.origin,
           missingRequired: missingRequired(version, draft.answers).length,
           // Never send audio without an accepted consent.
           audio: consentAudio === "accepted" ? draft.audio : null,
@@ -239,7 +250,7 @@ export default function SurveyResponseScreen() {
         return null;
       }
       const latest = draftRef.current;
-      return latest && result.audio && !latest.audio ? { ...latest, audio: result.audio } : latest;
+      return latest && result.audio && !latest.audio && loaded ? { ...latest, audio: { ...result.audio, origin: loaded.origin } } : latest;
     } finally {
       if (mounted.current) setFinishing(false);
     }
@@ -247,6 +258,10 @@ export default function SurveyResponseScreen() {
 
   /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
   async function saveDraftAndExit() {
+    if (loaded?.readOnly) {
+      leave();
+      return;
+    }
     if (!loaded || saving || busy.current) return;
     busy.current = true;
     try {
@@ -269,7 +284,7 @@ export default function SurveyResponseScreen() {
   }
 
   async function submit() {
-    if (!loaded || saving || busy.current) return;
+    if (!loaded || loaded.readOnly || saving || busy.current) return;
     busy.current = true;
     try {
       const current = await finishRecording();
@@ -319,6 +334,14 @@ export default function SurveyResponseScreen() {
           </IconButton>
         </View>
         <Text style={styles.meta}>{interview ? copy.availability.interview : copy.availability.self}</Text>
+        {readOnly ? (
+          <Card style={styles.card} testID="draft-read-only">
+            <Text accessibilityRole="alert" style={styles.body}>
+              {loaded.origin === UNCONFIRMED_ORIGIN ? copy.origin.readOnlyUnconfirmed : copy.origin.readOnlyDraft(describeOrigin(loaded.origin))}
+            </Text>
+            {draft.audio ? <Text style={styles.meta}>{`${copy.recording.saved(formatDuration(draft.audio.durationMs))}`}</Text> : null}
+          </Card>
+        ) : null}
         <SurveysPreviewNotice />
         {version.instructions ? (
           <Card style={styles.card}>
@@ -327,7 +350,7 @@ export default function SurveyResponseScreen() {
           </Card>
         ) : null}
 
-        {withAudio && draft.consentAudio === null ? (
+        {!readOnly && withAudio && draft.consentAudio === null ? (
           <Card style={styles.card} testID="recording-consent">
             <Text style={styles.cardTitle}>{copy.consent.title}</Text>
             <Text style={styles.body}>{version.consent_text ? copy.consent.read : copy.consent.noText}</Text>
@@ -345,7 +368,7 @@ export default function SurveyResponseScreen() {
           </Card>
         ) : null}
 
-        {withAudio && draft.consentAudio === "accepted" ? (
+        {!readOnly && withAudio && draft.consentAudio === "accepted" ? (
           <Card style={styles.card} testID="recording-controls">
             {recorder.phase === "recording" ? (
               <View
@@ -389,15 +412,20 @@ export default function SurveyResponseScreen() {
             value={draft.answers[question.id]}
             error={errors[question.id]}
             onChange={(value) => setAnswer(question.id, value)}
+            readOnly={readOnly}
           />
         ))}
 
         {draftSaved ? <Text style={styles.meta}>{copy.form.draftSaved}</Text> : null}
         {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
         {finalizing ? <Text accessibilityLiveRegion="polite" style={styles.meta}>{copy.recording.finishing}</Text> : null}
-        <Text style={styles.meta}>{copy.form.submitNote}</Text>
-        <Button label={copy.form.submit} size="lg" fullWidth loading={saving || finalizing} disabled={saving || finalizing} onPress={() => void submit()} />
-        <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving || finalizing} onPress={() => void saveDraftAndExit()} />
+        {readOnly ? null : (
+          <>
+            <Text style={styles.meta}>{copy.form.submitNote}</Text>
+            <Button label={copy.form.submit} size="lg" fullWidth loading={saving || finalizing} disabled={saving || finalizing} onPress={() => void submit()} />
+            <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving || finalizing} onPress={() => void saveDraftAndExit()} />
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -409,12 +437,14 @@ function QuestionField({
   value,
   error,
   onChange,
+  readOnly = false,
 }: {
   question: SurveyQuestion;
   position: string;
   value: DraftValue | undefined;
   error?: string;
   onChange: (value: DraftValue) => void;
+  readOnly?: boolean;
 }) {
   const copy = strings.surveys.form;
   const selected = Array.isArray(value) ? value : [];
@@ -427,7 +457,7 @@ function QuestionField({
       <Text style={styles.cardTitle}>{question.prompt}</Text>
       {question.type === "single_choice"
         ? question.options.map((option) => (
-            <Choice key={option.id} label={option.label} selected={selected[0] === option.id} role="radio" onPress={() => onChange([option.id])} />
+            <Choice key={option.id} label={option.label} selected={selected[0] === option.id} role="radio" disabled={readOnly} onPress={() => onChange([option.id])} />
           ))
         : null}
       {question.type === "multiple_choice"
@@ -437,6 +467,7 @@ function QuestionField({
               label={option.label}
               selected={selected.includes(option.id)}
               role="checkbox"
+              disabled={readOnly}
               onPress={() => onChange(selected.includes(option.id) ? selected.filter((id) => id !== option.id) : [...selected, option.id])}
             />
           ))
@@ -446,7 +477,7 @@ function QuestionField({
           <Text style={styles.meta}>{copy.scaleHint(scaleMin, scaleMax)}</Text>
           <View style={styles.scale}>
             {range(scaleMin, scaleMax).map((number) => (
-              <Choice key={number} label={String(number)} selected={value === number} role="radio" compact onPress={() => onChange(number)} />
+              <Choice key={number} label={String(number)} selected={value === number} role="radio" compact disabled={readOnly} onPress={() => onChange(number)} />
             ))}
           </View>
         </>
@@ -457,11 +488,12 @@ function QuestionField({
           value={typeof value === "string" ? value : typeof value === "number" ? String(value) : ""}
           onChangeText={onChange}
           keyboardType="decimal-pad"
+          editable={!readOnly}
           helperText={question.number_min !== null || question.number_max !== null ? strings.surveys.validation.numberRange(question.number_min, question.number_max) : undefined}
         />
       ) : null}
       {question.type === "text" ? (
-        <TextInput label={copy.textLabel} value={typeof value === "string" ? value : ""} onChangeText={onChange} multiline maxLength={2000} />
+        <TextInput label={copy.textLabel} value={typeof value === "string" ? value : ""} onChangeText={onChange} multiline maxLength={2000} editable={!readOnly} />
       ) : null}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     </Card>
@@ -473,18 +505,21 @@ function Choice({
   selected,
   role,
   compact = false,
+  disabled = false,
   onPress,
 }: {
   label: string;
   selected: boolean;
   role: "radio" | "checkbox";
   compact?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole={role}
-      accessibilityState={{ checked: selected }}
+      accessibilityState={{ checked: selected, disabled }}
+      disabled={disabled}
       accessibilityLabel={label}
       onPress={onPress}
       style={[styles.choice, compact ? styles.choiceCompact : null, selected ? styles.choiceSelected : null]}

@@ -7,6 +7,7 @@ import type { BadgeTone } from "../../design-system/theme";
 import { strings } from "../../i18n";
 import { formatDateTime } from "../../utils/date";
 import type { SurveyDraft } from "./library";
+import { describeOrigin, FIXTURE_ORIGIN, UNCONFIRMED_ORIGIN, type SurveyOrigin } from "./origin";
 import { displayState, type OutboxDisplayState, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
 import type { SurveyVersion } from "./types";
@@ -21,12 +22,15 @@ export function DraftRow({
   version,
   onContinue,
   onDiscard,
+  readOnly = false,
 }: {
   draft: SurveyDraft;
   /** The downloaded version, when known, to show how far the draft got. */
   version?: SurveyVersion | null;
   onContinue: () => void;
   onDiscard?: () => void;
+  /** Another origin's (or an unconfirmed) draft: it can be viewed, never edited or sent from here. */
+  readOnly?: boolean;
 }) {
   const copy = strings.surveys;
   const answered = Object.values(draft.answers).filter((value) => value !== null && value !== "" && !(Array.isArray(value) && value.length === 0)).length;
@@ -41,7 +45,7 @@ export function DraftRow({
         {`${copy.draftUpdated(formatDateTime(draft.updatedAt))} · ${modality}`}
         {version ? ` · ${copy.draftProgress(answered, version.questions.length)}` : ""}
       </Text>
-      <Button label={copy.continueDraft} variant="secondary" size="sm" onPress={onContinue} />
+      <Button label={readOnly ? copy.origin.viewDraft : copy.continueDraft} variant="secondary" size="sm" onPress={onContinue} />
       {onDiscard ? <Button label={copy.discardDraft} variant="ghost" size="sm" onPress={onDiscard} /> : null}
     </View>
   );
@@ -84,6 +88,12 @@ function Completeness({ missingRequired }: { missingRequired?: number }) {
   );
 }
 
+/** Where «Envíos» sends right now, in words (decision F): no ids, no URLs. */
+export function destinationText(origin: SurveyOrigin): string {
+  const copy = strings.surveys.outbox;
+  return origin === FIXTURE_ORIGIN ? copy.destinationFixture : copy.destination(describeOrigin(origin));
+}
+
 export function OutboxPanel({
   items,
   receipts,
@@ -93,7 +103,9 @@ export function OutboxPanel({
   onSync,
   onDiscard,
   onDiscardAudio,
+  destination = destinationText(surveySource.origin),
 }: {
+  /** The active origin's items only: anything else goes to OtherOriginsPanel. */
   items: OutboxItem[];
   receipts: OutboxReceipt[];
   syncing: boolean;
@@ -102,6 +114,7 @@ export function OutboxPanel({
   onSync: () => void;
   onDiscard: (id: string) => void;
   onDiscardAudio: (id: string) => void;
+  destination?: string;
 }) {
   const copy = strings.surveys.outbox;
 
@@ -115,6 +128,7 @@ export function OutboxPanel({
   return (
     <Card style={styles.card} testID="survey-outbox">
       <Text style={styles.title}>{copy.title}</Text>
+      <Text style={styles.meta} testID="survey-outbox-destination">{destination}</Text>
       {items.length === 0 ? <Text style={styles.body}>{copy.empty}</Text> : null}
       {items.map((item) => (
         <View key={item.id} style={styles.row} testID={`outbox-${item.id}`}>
@@ -134,7 +148,13 @@ export function OutboxPanel({
           ) : null}
           {!item.blocked && item.audio?.rejected ? (
             <>
-              <Text style={styles.body}>{item.audio.rejected === "response_unavailable" ? copy.audioResponseUnavailableHelp : copy.audioRejectedHelp}</Text>
+              <Text style={styles.body}>
+                {item.audio.rejected === "response_unavailable"
+                  ? copy.audioResponseUnavailableHelp
+                  : item.audio.rejected === "invalid_identifier"
+                    ? copy.audioInvalidIdentifierHelp
+                    : copy.audioRejectedHelp}
+              </Text>
               <Button label={copy.discardAudio} variant="ghost" size="sm" onPress={() => onDiscardAudio(item.id)} />
             </>
           ) : null}
@@ -158,10 +178,76 @@ export function OutboxPanel({
   );
 }
 
+/**
+ * Decision C/D: what the phone keeps from ANOTHER origin, or from an
+ * unconfirmed one, grouped by origin and explained. Nothing here is sent,
+ * edited or discarded from the active origin; drafts can only be viewed.
+ */
+export function OtherOriginsPanel({
+  activeOrigin,
+  items,
+  drafts,
+  receipts,
+  onViewDraft,
+}: {
+  activeOrigin: SurveyOrigin;
+  items: (OutboxItem & { origin: SurveyOrigin })[];
+  drafts: (SurveyDraft & { origin: SurveyOrigin })[];
+  receipts: (OutboxReceipt & { origin: SurveyOrigin })[];
+  onViewDraft: (id: string) => void;
+}) {
+  const origins = [...new Set([...items, ...drafts, ...receipts].map((record) => record.origin))].filter((origin) => origin !== activeOrigin);
+  if (!origins.length) return null;
+  const copy = strings.surveys;
+  const active = describeOrigin(activeOrigin);
+  return (
+    <Card style={styles.card} testID="survey-other-origins">
+      <Text style={styles.title}>{copy.origin.otherTitle}</Text>
+      <Text style={styles.body}>{copy.origin.otherIntro}</Text>
+      {origins.map((origin) => (
+        <View key={origin} style={styles.group} testID={`other-origin-${origin}`}>
+          <Text style={styles.rowTitle}>{origin === UNCONFIRMED_ORIGIN ? copy.origin.unconfirmed : copy.origin.from(describeOrigin(origin))}</Text>
+          <Text style={styles.body}>{origin === UNCONFIRMED_ORIGIN ? copy.origin.unconfirmedHelp : copy.origin.otherHelp(describeOrigin(origin), active)}</Text>
+          {drafts
+            .filter((draft) => draft.origin === origin)
+            .map((draft) => (
+              <DraftRow key={draft.id} draft={draft} readOnly onContinue={() => onViewDraft(draft.id)} />
+            ))}
+          {items
+            .filter((item) => item.origin === origin)
+            .map((item) => (
+              <View key={item.id} style={styles.row} testID={`other-outbox-${item.id}`}>
+                <View style={styles.rowHeader}>
+                  <Text style={styles.rowTitle}>{item.surveyTitle}</Text>
+                  <Badge label={copy.origin.notSentHere} tone="neutral" />
+                </View>
+                <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
+                <Completeness missingRequired={item.missingRequired} />
+              </View>
+            ))}
+          {receipts
+            .filter((receipt) => receipt.origin === origin)
+            .slice(0, 5)
+            .map((receipt) => (
+              <View key={receipt.id} style={styles.row}>
+                <View style={styles.rowHeader}>
+                  <Text style={styles.rowTitle}>{receipt.surveyTitle}</Text>
+                  <Badge label={copy.outbox.received} tone="neutral" />
+                </View>
+                <Text style={styles.meta}>{copy.outbox.receivedAt(formatDateTime(receipt.receivedAt))}{receipt.withAudio ? ` · ${copy.outbox.withAudio}` : ""}</Text>
+              </View>
+            ))}
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   notice: { gap: spacing.xs, backgroundColor: colors.surfaceRaised },
   noticeText: { ...typography.caption, color: colors.textSecondary },
   card: { gap: spacing.sm },
+  group: { gap: spacing.xs, paddingTop: spacing.xs },
   title: { ...typography.bodyStrong, color: colors.textPrimary },
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },

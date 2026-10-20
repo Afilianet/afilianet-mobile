@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { randomUUID } from "expo-crypto";
 import { ApiError } from "../../api/errors";
 import { config } from "../../config/env";
+import { FIXTURE_ORIGIN } from "./origin";
 import type { SurveySource } from "./source";
 import type { AudioConfig, AvailableSurvey, ResponseReceipt, SurveyQuestion, SurveyVersion } from "./types";
 
@@ -140,6 +141,7 @@ export function createFixtureSurveySource(reach: () => Promise<void> = () => rea
 
   return {
     kind: "fixture",
+    origin: FIXTURE_ORIGIN,
 
     async listAvailable(): Promise<AvailableSurvey[]> {
       await reach();

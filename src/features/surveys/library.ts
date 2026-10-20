@@ -1,4 +1,16 @@
 import { strings } from "../../i18n";
+import {
+  isSendableOrigin,
+  ledgerKey,
+  legacyInboxOrigin,
+  legacyOrigin,
+  OriginMismatchError,
+  originStorageKey,
+  readOriginLedger,
+  resolveOrigin,
+  type OriginLedger,
+  type SurveyOrigin,
+} from "./origin";
 import type { SurveySource } from "./source";
 import type { AvailableSurvey, ConsentAudio, RespondentType, SurveyAnswer, SurveyQuestion, SurveyVersion } from "./types";
 import { openJson, removeItem, sealJson, type SurveyScope } from "./vault";
@@ -8,16 +20,24 @@ import { openJson, removeItem, sealJson, type SurveyScope } from "./vault";
  * questionnaire versions they explicitly downloaded, the last inbox they
  * saw, and their drafts. Offline capture is only possible for a downloaded
  * version -- nothing is fetched lazily mid-survey.
+ *
+ * Every record carries its origin (origin.ts), set when it is created and
+ * never changed. Records read back always have `origin` filled in: their own,
+ * or -- for those stored before origins existed -- their classification
+ * ("fixture" with unequivocal evidence, else "unconfirmed").
  */
 
 export interface DownloadedVersion {
   version: SurveyVersion;
   downloadedAt: string;
+  /** Absent on downloads stored before origins existed. */
+  origin?: SurveyOrigin;
 }
 
 export interface CachedInbox {
   surveys: AvailableSurvey[];
   fetchedAt: string;
+  origin?: SurveyOrigin;
 }
 
 export interface DraftAudio {
@@ -27,6 +47,8 @@ export interface DraftAudio {
   durationMs: number;
   interrupted: boolean;
   bytes: number;
+  /** The origin it was recorded under; always its draft's. Absent on audio recorded before origins existed. */
+  origin?: SurveyOrigin;
 }
 
 /** A draft answer as typed: option ids, text, or a number. */
@@ -43,22 +65,45 @@ export interface SurveyDraft {
   consentAudio: ConsentAudio | null;
   audio: DraftAudio | null;
   updatedAt: string;
+  /** Required on new drafts; absent on drafts stored before origins existed. */
+  origin?: SurveyOrigin;
 }
 
-const versionName = (surveyId: string) => `version-${surveyId}`;
-const draftName = (id: string) => `draft-${id}`;
-const INBOX = "inbox";
-const DRAFTS = "drafts";
+export const versionName = (surveyId: string) => `version-${surveyId}`;
+export const draftName = (id: string) => `draft-${id}`;
+/** The single saved inbox of builds before origins existed; never written again. */
+export const INBOX = "inbox";
+/** Each origin keeps its own saved inbox, so refreshing one never replaces another's offline list. */
+const inboxName = (origin: SurveyOrigin) => `inbox-${originStorageKey(origin)}`;
+export const DRAFTS = "drafts";
 
-export async function downloadVersion(scope: SurveyScope, source: SurveySource, available: AvailableSurvey): Promise<DownloadedVersion> {
+type WithOrigin<T> = T & { origin: SurveyOrigin };
+
+export const versionOrigin = (downloaded: DownloadedVersion, ledger: OriginLedger) =>
+  resolveOrigin(downloaded.origin, ledger, ledgerKey.version(downloaded.version?.survey_id), () => legacyOrigin(downloaded.version?.survey_id, downloaded.version?.id));
+export const draftOrigin = (draft: SurveyDraft, ledger: OriginLedger) =>
+  resolveOrigin(draft.origin, ledger, ledgerKey.draft(draft.id), () => legacyOrigin(draft.surveyId, draft.versionId));
+const inboxOrigin = (inbox: CachedInbox, ledger: OriginLedger) => resolveOrigin(inbox.origin, ledger, ledgerKey.inbox, () => legacyInboxOrigin(inbox.surveys));
+
+function requireOrigin(origin: SurveyOrigin | undefined): SurveyOrigin {
+  if (!isSendableOrigin(origin)) throw new OriginMismatchError("A new survey record needs the origin of an active source.");
+  return origin;
+}
+
+export async function downloadVersion(scope: SurveyScope, source: SurveySource, available: AvailableSurvey): Promise<WithOrigin<DownloadedVersion>> {
+  const origin = requireOrigin(source.origin);
   const version = await source.getVersion(scope.organizationId, available.id);
-  const downloaded: DownloadedVersion = { version, downloadedAt: new Date().toISOString() };
+  const downloaded = { version, downloadedAt: new Date().toISOString(), origin };
   await sealJson(scope, versionName(available.survey_id), downloaded);
   return downloaded;
 }
 
-export async function getDownloaded(scope: SurveyScope, surveyId: string): Promise<DownloadedVersion | null> {
-  return openJson<DownloadedVersion>(scope, versionName(surveyId));
+/** With `origin`, a download from any other origin reads as not downloaded (it stays on the phone). */
+export async function getDownloaded(scope: SurveyScope, surveyId: string, origin?: SurveyOrigin): Promise<WithOrigin<DownloadedVersion> | null> {
+  const downloaded = await openJson<DownloadedVersion>(scope, versionName(surveyId));
+  if (!downloaded) return null;
+  const resolved = { ...downloaded, origin: versionOrigin(downloaded, await readOriginLedger(scope)) };
+  return origin === undefined || resolved.origin === origin ? resolved : null;
 }
 
 export async function removeDownloaded(scope: SurveyScope, surveyId: string): Promise<void> {
@@ -66,28 +111,54 @@ export async function removeDownloaded(scope: SurveyScope, surveyId: string): Pr
 }
 
 /** Fetches the inbox (open versions only) and remembers it, so it can be shown offline. */
-export async function refreshInbox(scope: SurveyScope, source: SurveySource): Promise<CachedInbox> {
-  const inbox: CachedInbox = { surveys: await source.listAvailable(scope.organizationId), fetchedAt: new Date().toISOString() };
-  await sealJson(scope, INBOX, inbox);
+export async function refreshInbox(scope: SurveyScope, source: SurveySource): Promise<WithOrigin<CachedInbox>> {
+  const origin = requireOrigin(source.origin);
+  const inbox = { surveys: await source.listAvailable(scope.organizationId), fetchedAt: new Date().toISOString(), origin };
+  await sealJson(scope, inboxName(origin), inbox);
   return inbox;
 }
 
-export async function cachedInbox(scope: SurveyScope): Promise<CachedInbox | null> {
-  return openJson<CachedInbox>(scope, INBOX);
+/**
+ * This origin's saved inbox; else the single one older builds kept, only if
+ * it belongs to this origin. With no `origin`, that older one (any origin).
+ * Another origin's list is never shown as this one's.
+ */
+export async function cachedInbox(scope: SurveyScope, origin?: SurveyOrigin): Promise<WithOrigin<CachedInbox> | null> {
+  if (origin !== undefined) {
+    const own = await openJson<CachedInbox>(scope, inboxName(origin));
+    if (own) return { ...own, origin };
+  }
+  const inbox = await openJson<CachedInbox>(scope, INBOX);
+  if (!inbox) return null;
+  const resolved = { ...inbox, origin: inboxOrigin(inbox, await readOriginLedger(scope)) };
+  return origin === undefined || resolved.origin === origin ? resolved : null;
 }
 
-export async function listDrafts(scope: SurveyScope): Promise<SurveyDraft[]> {
+/** Every draft on the phone for this account+organization, of every origin; callers split them by `origin`. */
+export async function listDrafts(scope: SurveyScope): Promise<WithOrigin<SurveyDraft>[]> {
   const ids = (await openJson<string[]>(scope, DRAFTS)) ?? [];
   const drafts = await Promise.all(ids.map((id) => openJson<SurveyDraft>(scope, draftName(id))));
-  return drafts.filter((draft): draft is SurveyDraft => Boolean(draft));
+  const ledger = await readOriginLedger(scope);
+  return drafts.filter((draft): draft is SurveyDraft => Boolean(draft)).map((draft) => ({ ...draft, origin: draftOrigin(draft, ledger) }));
 }
 
-export async function loadDraft(scope: SurveyScope, id: string): Promise<SurveyDraft | null> {
-  return openJson<SurveyDraft>(scope, draftName(id));
+export async function loadDraft(scope: SurveyScope, id: string): Promise<WithOrigin<SurveyDraft> | null> {
+  const draft = await openJson<SurveyDraft>(scope, draftName(id));
+  return draft ? { ...draft, origin: draftOrigin(draft, await readOriginLedger(scope)) } : null;
 }
 
+/**
+ * A new draft must name its origin; an existing one keeps the origin it has
+ * (stored or classified), and an attempt to save it under another origin --
+ * or with audio from another origin -- is refused: relabelling is how a
+ * record would reach the wrong server.
+ */
 export async function saveDraft(scope: SurveyScope, draft: SurveyDraft): Promise<void> {
-  await sealJson(scope, draftName(draft.id), { ...draft, updatedAt: new Date().toISOString() });
+  const existing = await openJson<SurveyDraft>(scope, draftName(draft.id));
+  const origin = existing ? draftOrigin(existing, await readOriginLedger(scope)) : requireOrigin(draft.origin);
+  if (draft.origin !== undefined && draft.origin !== origin) throw new OriginMismatchError("A draft cannot change origin.");
+  if (draft.audio?.origin !== undefined && draft.audio.origin !== origin) throw new OriginMismatchError("A draft's audio must come from the draft's own origin.");
+  await sealJson(scope, draftName(draft.id), { ...draft, origin, updatedAt: new Date().toISOString() });
   const ids = (await openJson<string[]>(scope, DRAFTS)) ?? [];
   if (!ids.includes(draft.id)) await sealJson(scope, DRAFTS, [...ids, draft.id]);
 }

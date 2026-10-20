@@ -79,16 +79,15 @@ npx expo start --dev-client --tunnel --clear --port 8082
 
 - **Un build EAS no fija la fuente:** ningún perfil define la variable. Un APK sin Metro usa los datos de ejemplo. Con el cliente de desarrollo, manda lo que sirva Metro.
 
-**Antes de alternar:** borradores, descargas, envíos y recibos se guardan por cuenta y organización, **no por fuente**. Riesgo reproducido y diseño del aislamiento por origen, aún sin implementar, en `docs/AISLAMIENTO_ORIGEN_ENCUESTAS_ES.md`.
-- Un envío pendiente de los datos de ejemplo (ids `fx-…`, que no son UUID) se mandaría a la API real.
-  - Con la API desplegada `d4cec70`, el id mal formado da 500 y queda reintentándose con espera.
-  - Con el candidato #67 da 404 y queda «No se puede enviar», conservado.
-- Con los datos de ejemplo y conexión, todo se sincroniza solo, contra su servidor de ejemplo local (`AsyncStorage`, clave `afn.surveys.fixtureServer.v2`). Por eso, antes de cambiar:
-  - sincronizar o descartar lo pendiente en «Envíos»;
-  - descartar los borradores de ejemplo;
-  - quitar las descargas de ejemplo («Quitar descarga del teléfono»).
+**Al alternar: aislamiento por origen** (detalle en `docs/AISLAMIENTO_ORIGEN_ENCUESTAS_ES.md`). Cada descarga, borrador, envío, audio y recibo guarda su origen: los datos de ejemplo o un servidor concreto (staging, producción, local). La app solo envía lo que pertenece exactamente a la fuente activa:
+- Lo de otro origen se conserva en el teléfono, en la sección «Guardado con otro origen» de Encuestas. No se envía, edita ni descarta desde ahí. Los borradores solo se pueden «Consultar».
+- Lo guardado antes de esta versión solo se clasifica como ejemplo con evidencia inequívoca (los ids de ejemplo históricos). El resto queda como «Origen sin confirmar» y no se envía a ningún servidor; un UUID no basta para suponer staging o producción.
+- «Envíos» dice adónde envía: «Se envían a: Afilianet (servidor de pruebas).» o «Modo de ejemplo: los envíos no salen del teléfono.»
+- Antes de llamar a la API real se validan como UUID los ids que exige el contrato. Si uno no lo es, el envío queda «No se puede enviar» con el motivo y se conserva.
 
-Al volver, la bandeja se actualiza con la fuente activa.
+Ya no hace falta vaciar el teléfono antes de cambiar de fuente. Sí hay una precaución: **no volver a servir un bundle anterior a este cambio** con datos de varios orígenes en el teléfono, porque ese código no conoce los orígenes y enviaría todo a la fuente activa.
+
+Al volver a una fuente, la bandeja se actualiza con esa fuente y sus pendientes se envían solos.
 
 **Requisitos de la API real:** confirmar el SHA y el digest desplegados en staging. La compatibilidad está revisada contra `d4cec703` (#66, desplegado) y el candidato #67 `cfbb4b0` (ver «Compatibilidad con la API» más abajo).
 
@@ -98,7 +97,7 @@ Al volver, la bandeja se actualiza con la fuente activa.
 |---|---|---|---|
 | Sin `X-Organization-ID` | 400 en rutas con recurso; **500** en `GET /surveys/available` | 400 en todas | Mobile siempre lo envía (`requireCurrent` comprueba que coincide con el borrador). Un 400 o 500 en el envío se reintenta con espera (idempotente); en la bandeja se muestra el error o la lista guardada |
 | Recurso fuera de la organización activa | 404 | 404 | Respuesta bloqueada «ya no está disponible en esta organización», conservada y sin reintento. Audio «no aceptado» sin recibo. Al preparar: «Esta encuesta ya no está disponible» |
-| Id mal formado | **500** | 404 | Mobile solo usa ids del servidor; solo ocurre al alternar con pendientes de los datos de ejemplo (ver arriba) |
+| Id mal formado | **500** | 404 | No llega al servidor: lo de ejemplo nunca se envía a la API real (origen distinto) y los ids que el contrato exige como UUID se validan antes de la petición. Si uno no lo es, queda «No se puede enviar» con su motivo y se conserva |
 | Encuesta cerrada | 422 `survey_version_closed` | Igual | Bloqueada «la encuesta cerró…», sin reintento |
 | 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documenta | Igual, con texto en español | Bloqueo **neutral** «No se pudo autorizar el envío», con los datos conservados. Con API #68 (sin desplegar), `reason: no_affiliate_profile` o `not_assigned_surveyor` dan su motivo específico. Un `reason` ausente o desconocido sigue siendo neutral. Ni la modalidad ni el texto del servidor deciden |
 | Duplicado (`client_response_id`) | 201 con la original | Igual | Un solo envío y un solo recibo |
