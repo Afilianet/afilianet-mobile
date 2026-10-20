@@ -46,7 +46,7 @@
   - **Los límites de audio se leen del servidor** (`GET /surveys/audio-config`), nunca se fijan en el código.
 - **Estados distintos:** "Guardado en el dispositivo", "Pendiente de sincronizar", "Audio pendiente", "Audio no aceptado", "Recibido" y bloqueado por alguno de estos motivos:
   - `survey_version_closed`: "No se pudo contar…";
-  - `not_assigned_surveyor`, solo si el servidor lo confirma con ese `reason`;
+  - `not_assigned_surveyor` y `no_affiliate_profile` (contrato de API #68, aún sin desplegar), solo si el servidor los confirma con ese `reason`: «ya no estás asignado como encuestador» y «tu cuenta no tiene perfil de afiliado en esta organización»;
   - `respondent_type_not_allowed`;
   - `version_unavailable` (404 de API #66: la versión no está en la organización activa);
   - un 403 sin `reason` reconocido: bloqueo neutral «No se pudo autorizar el envío», con los datos conservados. No se deduce la causa por la modalidad ni por el texto del servidor.
@@ -100,7 +100,7 @@ Al volver, la bandeja se actualiza con la fuente activa.
 | Recurso fuera de la organización activa | 404 | 404 | Respuesta bloqueada «ya no está disponible en esta organización», conservada y sin reintento. Audio «no aceptado» sin recibo. Al preparar: «Esta encuesta ya no está disponible» |
 | Id mal formado | **500** | 404 | Mobile solo usa ids del servidor; solo ocurre al alternar con pendientes de los datos de ejemplo (ver arriba) |
 | Encuesta cerrada | 422 `survey_version_closed` | Igual | Bloqueada «la encuesta cerró…», sin reintento |
-| 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documenta | Igual, con texto en español | Bloqueo **neutral** «No se pudo autorizar el envío», con los datos conservados. Solo un `reason` del contrato (p. ej. `not_assigned_surveyor`) da un motivo específico. Ni la modalidad ni el texto del servidor deciden |
+| 403 sin perfil de afiliado o sin asignación | 403 **sin `reason`**, aunque el contrato lo documenta | Igual, con texto en español | Bloqueo **neutral** «No se pudo autorizar el envío», con los datos conservados. Con API #68 (sin desplegar), `reason: no_affiliate_profile` o `not_assigned_surveyor` dan su motivo específico. Un `reason` ausente o desconocido sigue siendo neutral. Ni la modalidad ni el texto del servidor deciden |
 | Duplicado (`client_response_id`) | 201 con la original | Igual | Un solo envío y un solo recibo |
 
 ## Comparación con la vista previa anterior (antes de conectar)
@@ -153,6 +153,6 @@ Lo demás funciona con Metro sobre el APK actual. En ese APK la app abre normalm
 - Repetir A1–A12 contra el servidor.
 - Verificar en Admin las respuestas, `rejected_closed`, `skipped`, `consent_audio` e `interrupted`.
 - Cerrar una versión archivándola o publicando una nueva mientras el teléfono está sin conexión.
-- Un encuestador no asignado recibe `not_assigned_surveyor` solo si la API envía ese `reason`. La API desplegada (`d4cec703`) y el candidato #67 no lo envían, así que hoy se ve el bloqueo neutral «No se pudo autorizar el envío».
+- Un encuestador no asignado recibe `not_assigned_surveyor`, y una cuenta sin perfil de afiliado `no_affiliate_profile`, solo si la API envía ese `reason` (API #68). La API desplegada (`d4cec703`) y el candidato #67 no lo envían, así que hoy se ve el bloqueo neutral «No se pudo autorizar el envío».
 - Un audio mayor que `max_bytes` debe aparecer como "Audio no aceptado".
 - Abrir una encuesta desde la push requiere también desplegar `e1ce99a`.

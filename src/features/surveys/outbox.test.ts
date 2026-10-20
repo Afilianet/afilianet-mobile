@@ -309,7 +309,10 @@ describe("survey outbox", () => {
   // data kept. The server's message text is never used to classify.
   describe("403 on submit: specific only with a confirmed reason", () => {
     it.each([
-      ["recognized reason, interview", "interview", { reason: "not_assigned_surveyor" }, "not_assigned_surveyor"],
+      ["recognized reason not_assigned_surveyor (API #68)", "interview", { reason: "not_assigned_surveyor" }, "not_assigned_surveyor"],
+      ["recognized reason no_affiliate_profile (API #68)", "self", { reason: "no_affiliate_profile" }, "not_a_member"],
+      // A confirmed reason wins over the modality: no inference either way.
+      ["recognized no_affiliate_profile on an interview", "interview", { reason: "no_affiliate_profile" }, "not_a_member"],
       ["no reason, interview", "interview", {}, "forbidden"],
       ["no reason, self response", "self", {}, "forbidden"],
       ["unknown reason", "interview", { reason: "something_new" }, "forbidden"],

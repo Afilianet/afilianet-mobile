@@ -32,7 +32,8 @@ const MAX_RETRY_MS = 10 * 60_000;
 /**
  * `version_unavailable`: API #66 answered 404 -- the version is not in the active organization (or no longer exists).
  * `forbidden`: a 403 whose cause the server did not confirm with a known `reason` -- neutral on purpose.
- * `not_a_member` is no longer produced (it was inferred, not confirmed); kept so items already stored still render.
+ * `not_a_member`: 403 confirmed with `reason: "no_affiliate_profile"` (API #68). Items stored before, when it
+ * was inferred, keep rendering it.
  */
 export type BlockReason = "survey_version_closed" | "not_assigned_surveyor" | "respondent_type_not_allowed" | "not_a_member" | "version_unavailable" | "forbidden";
 /** `response_unavailable`: API #66 answered 404 for the response the audio belongs to (outside the active organization). */
@@ -213,11 +214,13 @@ function blockReason(error: unknown): BlockReason | null {
   if (!isApiError(error)) return null;
   if (error.reason === "survey_version_closed") return "survey_version_closed";
   if (error.reason === "not_assigned_surveyor") return "not_assigned_surveyor";
+  if (error.reason === "no_affiliate_profile") return "not_a_member";
   if (error.reason === "respondent_type_not_allowed") return "respondent_type_not_allowed";
   // A specific cause only when the server confirms it with a contract
-  // `reason`. The deployed API (d4cec70, also #67) sends these 403s without
-  // one; the modality does not prove the cause and the message is never
-  // parsed: a neutral block, with the data kept.
+  // `reason` (API #68: no_affiliate_profile, not_assigned_surveyor). The
+  // deployed API (d4cec70, also #67) still omits it for several causes; the
+  // modality does not prove the cause and the message is never parsed: a
+  // neutral block, with the data kept.
   if (error.kind === "forbidden") return "forbidden";
   // API #66: 404 = the version is not in the active organization. Retrying
   // cannot change that; it is kept for the person to read and discard.
