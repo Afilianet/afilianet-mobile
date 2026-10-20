@@ -281,6 +281,7 @@ export const en = {
         respondent_type_not_allowed: "Can't be sent: the survey no longer allows this mode.",
         not_a_member: "Can't be sent: your account has no affiliate profile in this organization.",
         version_unavailable: "Can't be sent: this survey is no longer available in this organization.",
+        forbidden: "The submission couldn't be authorized. It's kept on the phone; ask your organization whether you should be able to send it.",
       },
       audioRejected: "Audio not accepted",
       audioRejectedHelp: "The answers arrived. The server didn't accept the audio (type or size); it's kept on the phone until you discard it.",

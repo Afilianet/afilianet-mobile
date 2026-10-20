@@ -303,24 +303,37 @@ describe("survey outbox", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
-  // Deployed API d4cec70 (and candidate #67) answer these 403s with a message
-  // only -- no `reason` -- although the contract documents one. The modality
-  // tells them apart: self = no affiliate profile; interview = not assigned.
-  it("a 403 without reason on an interview is explained as «no longer an assigned surveyor», not as a missing affiliate profile", async () => {
-    await interviewWithAudio(ORG_A, "r-1", "aud-1");
-    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "No estás asignado como encuestador en esta organización.", 403));
-    await syncOutbox(ORG_A, source);
-    const [item] = await listOutbox(ORG_A);
-    expect(item.blocked).toBe("not_assigned_surveyor");
-    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
-  });
+  // A 403 names a specific cause only when the server CONFIRMS it with a
+  // contract `reason`. Without one (the deployed API d4cec70 and #67 send
+  // none) or with an unknown one, the cause is not known: a neutral block,
+  // data kept. The server's message text is never used to classify.
+  describe("403 on submit: specific only with a confirmed reason", () => {
+    it.each([
+      ["recognized reason not_assigned_surveyor (API #68)", "interview", { reason: "not_assigned_surveyor" }, "not_assigned_surveyor"],
+      ["recognized reason no_affiliate_profile (API #68)", "self", { reason: "no_affiliate_profile" }, "not_a_member"],
+      // A confirmed reason wins over the modality: no inference either way.
+      ["recognized no_affiliate_profile on an interview", "interview", { reason: "no_affiliate_profile" }, "not_a_member"],
+      ["no reason, interview", "interview", {}, "forbidden"],
+      ["no reason, self response", "self", {}, "forbidden"],
+      ["unknown reason", "interview", { reason: "something_new" }, "forbidden"],
+    ] as const)("%s", async (_label, mode, extra, expected) => {
+      if (mode === "interview") await interviewWithAudio(ORG_A, "r-1", "aud-1");
+      else await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+      // The message even claims a cause; it must not be what decides.
+      const error = new ApiError("forbidden", "No estás asignado como encuestador en esta organización.", 403, undefined, extra);
+      const submit = jest.spyOn(source, "submitResponse").mockRejectedValueOnce(error);
+      await syncOutbox(ORG_A, source);
 
-  it("a 403 without reason on a self response is the missing affiliate profile", async () => {
-    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
-    jest.spyOn(source, "submitResponse").mockRejectedValueOnce(new ApiError("forbidden", "No tienes un perfil de afiliado en esta organización.", 403));
-    await syncOutbox(ORG_A, source);
-    const [item] = await listOutbox(ORG_A);
-    expect(item.blocked).toBe("not_a_member");
+      const [item] = await listOutbox(ORG_A);
+      expect(item.blocked).toBe(expected);
+      expect(hasItem(ORG_A, "answers-r-1")).toBe(true);
+      if (mode === "interview") expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+      // Blocked: never resent automatically.
+      submit.mockClear();
+      await syncOutbox(ORG_A, source, { force: true });
+      expect(submit).not.toHaveBeenCalled();
+      expect(await listReceipts(ORG_A)).toEqual([]);
+    });
   });
 
   it("a persistent server error never turns into continuous requests: automatic syncs wait a growing backoff, and nothing is duplicated", async () => {
