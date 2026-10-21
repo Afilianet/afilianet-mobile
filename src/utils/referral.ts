@@ -17,6 +17,14 @@ export function buildWhatsappShareUrl(message: string): string {
 }
 
 /**
+ * Email draft (mailto:): opens the person's mail app with subject and message
+ * ready; they pick the recipient and press send. Nothing is sent by Afilianet.
+ */
+export function buildEmailShareUrl(subject: string, body: string): string {
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/**
  * Only an HTTPS link is tappable inside a WhatsApp chat; the installed-app
  * scheme used outside staging (afilianetmobile://) is not, so offering
  * "share by WhatsApp" there would hand the invitee a dead link.

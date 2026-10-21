@@ -130,12 +130,28 @@ export async function resetPasswordWithPhoneCode(input: {
  * EXISTING. Accepts a referral invitation as the signed-in user: the API
  * joins that organization with this same account (no new account, token null).
  */
-export async function acceptReferralAsCurrentUser(invitationToken: string): Promise<void> {
-  await apiRequest(`/api/v1/invitations/${encodeURIComponent(invitationToken)}/accept`, {
+/** What accepting a referral with the current account did (`already_affiliated`: API #78; absent before it). */
+export interface ReferralAcceptance {
+  organization_role?: string;
+  already_affiliated?: boolean;
+}
+
+export async function acceptReferralAsCurrentUser(invitationToken: string): Promise<ReferralAcceptance> {
+  const response = await apiRequest<{ data?: ReferralAcceptance } | null>(`/api/v1/invitations/${encodeURIComponent(invitationToken)}/accept`, {
     method: "POST",
     body: {},
     skipOrganization: true,
   });
+  return response?.data ?? {};
+}
+
+/**
+ * Before API #78, an account ALREADY in the organization's network got a 422
+ * with exactly this sentence (AffiliateNetworkException::alreadyEnrolled). It
+ * states the same fact as `already_affiliated`, so it is treated as such.
+ */
+export function isAlreadyEnrolledError(error: unknown): boolean {
+  return isApiError(error) && error.kind === "validation" && /ya está inscrito como afiliado en esta organización/i.test(error.message);
 }
 
 /** The server cannot send SMS at all right now (503 `sms_unavailable`). */

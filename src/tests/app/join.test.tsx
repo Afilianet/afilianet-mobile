@@ -215,6 +215,50 @@ describe("Join: later affiliation with the current account", () => {
     expect(view.queryByText("Unirme con mi cuenta")).toBeNull();
   });
 
+  it("already affiliated there (has_affiliate_profile: true): nothing to join", async () => {
+    const org = { id: "org-1", name: "Mi organización", my_role: "affiliate", my_membership_status: "active", has_affiliate_profile: true } as OrganizationContextValue["organizations"][number];
+    const view = await renderMember(memberAuth(), orgs([org]));
+    expect(view.getByText("Ya perteneces a esta organización.")).toBeTruthy();
+    expect(view.queryByText("Unirme con mi cuenta")).toBeNull();
+  });
+
+  it("a manager there WITHOUT a profile (API #75) may still join the network, keeping the role", async () => {
+    const org = { id: "org-1", name: "Mi organización", my_role: "owner", my_membership_status: "active", has_affiliate_profile: false } as OrganizationContextValue["organizations"][number];
+    accept.mockResolvedValue({ organization_role: "owner", already_affiliated: false });
+    const view = await renderMember(memberAuth(), orgs([org]));
+    expect(view.queryByText("Ya perteneces a esta organización.")).toBeNull();
+    expect(view.getByText(/conservas tu rol de gestión/)).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.press(view.getByText("Unirme con mi cuenta"));
+    });
+    expect(accept).toHaveBeenCalledWith("private-token");
+    expect(refresh).toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+  });
+
+  it.each([
+    ["the API says so (already_affiliated, API #78)", () => accept.mockResolvedValue({ organization_role: "affiliate", already_affiliated: true })],
+    ["the API before #78 answers «ya está inscrito»", () => accept.mockRejectedValue(new ApiError("validation", "Este usuario ya está inscrito como afiliado en esta organización.", 422))],
+  ])("an account already in the network is told so, with no error and no retry loop: %s", async (_case, arrange) => {
+    arrange();
+    const view = await renderMember();
+    await act(async () => {
+      fireEvent.press(view.getByText("Unirme con mi cuenta"));
+    });
+
+    expect(view.getByTestId("join-already-affiliated")).toBeTruthy();
+    expect(view.getByText(/tu patrocinador sigue siendo el mismo/)).toBeTruthy();
+    expect(view.queryByRole("alert")).toBeNull();
+    expect(view.queryByText("Unirme con mi cuenta")).toBeNull();
+    expect(clearPendingReferral).toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.press(view.getByText("Ir al inicio"));
+    });
+    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+  });
+
   it("can be dismissed, which forgets the pending referral", async () => {
     const view = await renderMember();
     await act(async () => {
