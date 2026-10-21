@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
@@ -27,6 +28,14 @@ import type { ComplianceCase, ComplianceStep } from "../types/api";
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
 
 export default function ComplianceScreen() {
+  return (
+    <PersonalAffiliateGate>
+      <ComplianceScreenContent />
+    </PersonalAffiliateGate>
+  );
+}
+
+function ComplianceScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();

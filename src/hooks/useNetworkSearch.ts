@@ -2,6 +2,8 @@ import { fetchMyPlacementChildren, fetchMySponsored } from "../api/endpoints";
 import { isApiError } from "../api/errors";
 import { useAuth } from "../auth/AuthContext";
 import { useOrganization } from "../state/OrganizationContext";
+// Personal affiliate data: never requested when the account has no profile in this organization (API #75).
+import { hasPersonalAffiliateAccess } from "../state/membership";
 import type { AffiliateProfile, PaginatedResponse } from "../types/api";
 import { useApiInfiniteQuery } from "./useApiInfiniteQuery";
 
@@ -44,7 +46,7 @@ const NON_RETRYABLE = new Set(["unauthorized", "forbidden", "validation", "not_f
 export function useNetworkSearch(scope: NetworkSearchScope, term: string) {
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
-  const enabled = Boolean(user) && Boolean(activeOrganization) && term.length >= NETWORK_SEARCH_MIN_LENGTH;
+  const enabled = Boolean(user) && hasPersonalAffiliateAccess(activeOrganization) && term.length >= NETWORK_SEARCH_MIN_LENGTH;
   return useApiInfiniteQuery(
     ["affiliate", scope, "me", activeOrganization?.id, user?.id, "search", term],
     async (page) => {

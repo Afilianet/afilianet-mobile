@@ -1,4 +1,5 @@
 import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -25,7 +26,9 @@ import { addMoney, formatMoney } from "../../utils/money";
 export default function WalletScreen() {
   return (
     <CommercialFeatureGate>
-      <WalletScreenContent />
+      <PersonalAffiliateGate>
+        <WalletScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }

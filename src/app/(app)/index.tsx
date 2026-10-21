@@ -22,6 +22,7 @@ import { useUnreadNotificationCount } from "../../hooks/useUnreadNotificationCou
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
+import { affiliateProfilePresence, isOrganizationStaff } from "../../state/membership";
 import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
@@ -57,9 +58,17 @@ export default function HomeScreen() {
     }
   }, [walletQuery.isSuccess]);
 
+  // API #75: an explicit "no profile here" (never a missing field) hides every personal card.
+  const profileAbsent = affiliateProfilePresence(activeOrganization) === "absent";
+
   async function handleRefresh() {
     setRefreshing(true);
     try {
+      // refetch() ignores `enabled`: personal data is never re-requested for an account without a profile.
+      if (profileAbsent) {
+        await unreadCountQuery.refetch();
+        return;
+      }
       await Promise.all([
         affiliateQuery.refetch(),
         complianceQuery.refetch(),
@@ -84,6 +93,10 @@ export default function HomeScreen() {
       <Header />
       {surveysPreviewEnabled ? <SurveysEntryCard /> : null}
 
+      {profileAbsent ? (
+        <StaffWithoutProfileCard staff={isOrganizationStaff(activeOrganization)} />
+      ) : (
+        <>
       {noAffiliateProfile ? (
         <EnrollmentBanner />
       ) : (
@@ -129,7 +142,27 @@ export default function HomeScreen() {
       {activeOrganization && affiliateQuery.isSuccess ? (
         <NetworkPreviewCard sponsor={affiliateQuery.data.sponsor} query={sponsoredQuery} />
       ) : null}
+        </>
+      )}
     </ScrollView>
+  );
+}
+
+/**
+ * Instead of the personal cards, for an account with no affiliate profile in
+ * this organization: what it is, and -- for staff -- where its work is.
+ * Never «No iniciada» nor «Iniciar verificación».
+ */
+function StaffWithoutProfileCard({ staff }: { staff: boolean }) {
+  const router = useRouter();
+  return (
+    <Card style={styles.enrollmentCard} testID="home-staff-without-profile">
+      <Text style={styles.enrollmentTitle}>{strings.staffWithoutProfile.title}</Text>
+      <Text style={styles.meta}>{strings.staffWithoutProfile.description}</Text>
+      {staff ? (
+        <Button label={strings.organizationAffiliates.open} variant="secondary" size="sm" onPress={() => router.push(routes.network as never)} />
+      ) : null}
+    </Card>
   );
 }
 

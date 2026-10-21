@@ -415,6 +415,17 @@ export async function fetchAffiliateDetails(affiliateId: string): Promise<Affili
   return data;
 }
 
+/**
+ * GET /api/v1/affiliates -- the ACTIVE organization's affiliates, for its
+ * staff (owner/admin/manager; anyone else gets 403 from the API). Server-side
+ * search by name or affiliate code (every word must match), newest first.
+ * The management entry point to the organization's network: each row opens
+ * GET /affiliates/{uuid} and its own network endpoints (API #75 contract).
+ */
+export async function fetchOrganizationAffiliates(page = 1, perPage = 20, search?: string): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(`/api/v1/affiliates?per_page=${perPage}&page=${page}${searchParam(search)}`);
+}
+
 /** Same endpoint/shape as fetchSponsoredAffiliates -- named separately for the drill-down call sites' clarity. */
 export async function fetchAffiliateSponsored(
   affiliateId: string,

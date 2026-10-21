@@ -1,4 +1,5 @@
 import * as Clipboard from "expo-clipboard";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
@@ -27,6 +28,14 @@ import type { AffiliateProfile } from "../types/api";
 import { buildReferralUrl, canShareReferral } from "../utils/referral";
 
 export default function ReferralScreen() {
+  return (
+    <PersonalAffiliateGate>
+      <ReferralScreenContent />
+    </PersonalAffiliateGate>
+  );
+}
+
+function ReferralScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const { activeOrganization } = useOrganization();

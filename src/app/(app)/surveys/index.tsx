@@ -14,6 +14,7 @@ import { Icon } from "../../../design-system/icons/Icon";
 import { DraftRow, OtherOriginsPanel, OutboxPanel, SurveysPreviewNotice } from "../../../features/surveys/components";
 import { cachedInbox, getDownloaded, listDrafts, refreshInbox, type DownloadedVersion, type SurveyDraft } from "../../../features/surveys/library";
 import { canStartInterview } from "../../../features/surveys/interviewer";
+import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, surveysPreviewEnabled, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../../features/surveys/types";
 import { useSurveyOutbox } from "../../../features/surveys/useSurveyOutbox";
@@ -178,7 +179,7 @@ export default function SurveysInboxScreen() {
           const outdated = downloaded && downloaded.version.id !== survey.id;
           const destination = surveyDetail(survey.survey_id);
           const modes = [
-            survey.allows_self_response ? copy.availability.self : null,
+            survey.allows_self_response && affiliateProfilePresence(activeOrganization) !== "absent" ? copy.availability.self : null,
             canStartInterview(survey, activeOrganization) ? copy.availability.interview : null,
           ].filter(Boolean).join(" · ");
           return (

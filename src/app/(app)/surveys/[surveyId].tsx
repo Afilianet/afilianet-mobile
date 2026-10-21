@@ -26,6 +26,7 @@ import {
 } from "../../../features/surveys/library";
 import { audioName, newClientId } from "../../../features/surveys/outbox";
 import { canStartInterview } from "../../../features/surveys/interviewer";
+import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
 import type { AvailableSurvey, RespondentType } from "../../../features/surveys/types";
 import { removeItem, scopeId, StorageFullError } from "../../../features/surveys/vault";
@@ -104,7 +105,10 @@ export default function SurveyDetailScreen() {
   const version = downloaded?.version ?? null;
   const outdated = Boolean(available && downloaded && downloaded.version.id !== available.id);
   const open = Boolean(available) && !outdated;
-  const allowsSelf = version?.allows_self_response ?? available?.allows_self_response ?? false;
+  const surveyAllowsSelf = version?.allows_self_response ?? available?.allows_self_response ?? false;
+  // A self response needs an affiliate profile here (API: 403 no_affiliate_profile); never offered without one.
+  const selfWithoutProfile = surveyAllowsSelf && affiliateProfilePresence(activeOrganization) === "absent";
+  const allowsSelf = surveyAllowsSelf && !selfWithoutProfile;
   const allowsInterview = version?.allows_interview_response ?? available?.allows_interview_response ?? false;
   // Assigned surveyor or organization staff, as the API decides on submit.
   const assigned = canStartInterview(available, activeOrganization);
@@ -224,6 +228,7 @@ export default function SurveyDetailScreen() {
         </Card>
 
         {allowsInterview && !assigned ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
+        {selfWithoutProfile ? <Text style={styles.body}>{strings.staffWithoutProfile.selfSurveyUnavailable}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         {allowsSelf ? <Button label={copy.answerMyself} disabled={!open} loading={busy} onPress={() => void start("self")} /> : null}
         {allowsInterview && assigned ? (

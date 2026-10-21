@@ -22,6 +22,7 @@ export const routes = {
   platformNotifications: "/platform-notifications",
   noOrganization: "/no-organization",
   surveys: "/surveys",
+  organizationAffiliates: "/organization-affiliates",
   signOutPending: "/sign-out-pending",
 } as const;
 
