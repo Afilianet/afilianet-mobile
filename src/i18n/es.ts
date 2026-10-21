@@ -543,6 +543,7 @@ export const es = {
     referralLinkA11y: (url: string) => `Liga de referido ${url}`,
     share: "Compartir",
     copyLink: "Copiar liga",
+    shareWhatsapp: "Compartir por WhatsApp",
     myInvitations: "Mis invitaciones",
     seeInvitations: "Consulta a quién has invitado y su estado en Red.",
     viewInvitations: "Ver invitaciones",
