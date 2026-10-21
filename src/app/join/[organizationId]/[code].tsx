@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { acceptReferralAsCurrentUser, accessErrorMessage } from "../../../api/access";
+import { acceptReferralAsCurrentUser, accessErrorMessage, isAlreadyEnrolledError } from "../../../api/access";
 import { fetchPublicReferral, startReferralInvitation, type PublicReferral } from "../../../api/endpoints";
 import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useAuth } from "../../../auth/AuthContext";
@@ -16,6 +16,7 @@ import { Logo } from "../../../design-system/icons/Logo";
 import { strings } from "../../../i18n";
 import { routes } from "../../../navigation/routes";
 import { useOrganization } from "../../../state/OrganizationContext";
+import { affiliateProfilePresence } from "../../../state/membership";
 import { DEFAULT_PHONE_COUNTRY, normalizePhone } from "../../../utils/phone";
 
 const EMAIL = /^\S+@\S+\.\S+$/;
@@ -110,7 +111,14 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user?.id]);
-  const alreadyMember = organizations.some((organization) => organization.id === organizationId);
+  // Belonging is not being affiliated: a manager without a profile there may
+  // still join the network (API #75/#78). Only an unknown profile (an API
+  // before #75) keeps the previous "already a member" reading.
+  const membership = organizations.find((organization) => organization.id === organizationId);
+  const presence = membership ? affiliateProfilePresence(membership) : null;
+  const alreadyMember = presence === "present" || presence === "unknown";
+  const memberWithoutProfile = presence === "absent";
+  const [alreadyAffiliated, setAlreadyAffiliated] = useState(false);
 
   async function accept() {
     if (submitting || !user) return;
@@ -122,9 +130,15 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
     try {
       const { token } = await startReferralInvitation(organizationId, code);
       if (!stillSameSession()) return;
-      await acceptReferralAsCurrentUser(token);
+      const result = await acceptReferralAsCurrentUser(token);
       if (!stillSameSession()) return;
       await clearPendingReferral();
+      if (result?.already_affiliated) {
+        // Nothing was created or changed: say so instead of moving on silently.
+        await refresh();
+        if (stillSameSession()) setAlreadyAffiliated(true);
+        return;
+      }
       // Reloads memberships: with no previous organization the new one is
       // selected automatically; an already-active organization stays active
       // and the new one appears in the organization switcher.
@@ -132,6 +146,11 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
       if (stillSameSession()) router.replace(routes.home as never);
     } catch (cause) {
       if (!stillSameSession()) return;
+      if (isAlreadyEnrolledError(cause)) {
+        await clearPendingReferral();
+        setAlreadyAffiliated(true);
+        return;
+      }
       setError(isApiError(cause) && cause.kind === "conflict" ? copy.alreadyMember : accessErrorMessage(cause));
     } finally {
       if (mounted.current) setSubmitting(false);
@@ -143,12 +162,23 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
     router.replace(routes.home as never);
   }
 
+  if (alreadyAffiliated) {
+    return (
+      <Card style={styles.form} testID="join-already-affiliated">
+        <Text style={styles.title} accessibilityRole="header">{copy.alreadyAffiliatedTitle}</Text>
+        <Text style={styles.info}>{copy.alreadyAffiliated}</Text>
+        <Button label={copy.goHome} size="lg" fullWidth onPress={() => router.replace(routes.home as never)} />
+      </Card>
+    );
+  }
+
   return (
     <Card style={styles.form}>
       <Text style={styles.title} accessibilityRole="header">{copy.title}</Text>
       <Text style={styles.info}>{copy.invitedBy(referral.referrer_first_name)}</Text>
       {user ? <Text style={styles.info}>{copy.description(`${user.first_name} ${user.last_name}`.trim())}</Text> : null}
       {alreadyMember ? <Text style={styles.info}>{copy.alreadyMember}</Text> : null}
+      {memberWithoutProfile ? <Text style={styles.info}>{copy.memberWithoutProfile}</Text> : null}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       {!alreadyMember ? <Button label={copy.accept} size="lg" fullWidth loading={submitting} onPress={() => void accept()} /> : null}
       <Button label={copy.dismiss} variant="ghost" disabled={submitting} onPress={() => void dismiss()} />
