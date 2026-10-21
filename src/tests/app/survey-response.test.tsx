@@ -4,7 +4,7 @@ import { deleteDraft, getDownloaded, loadDraft, saveDraft, type SurveyDraft } fr
 import { enqueueResponse } from "../../features/surveys/outbox";
 import type { SurveyQuestion, SurveyVersion } from "../../features/surveys/types";
 import { removeItem } from "../../features/surveys/vault";
-import SurveyResponseScreen from "../../app/survey-response/[draftId]";
+import SurveyResponseScreen from "../../app/(app)/surveys/response/[draftId]";
 
 // The first render pays the screen's cold module cost; on slow machines that alone can pass Jest's 10s default.
 jest.setTimeout(30_000);
@@ -14,6 +14,8 @@ const mockBack = jest.fn();
 jest.mock("expo-router", () => ({
   useRouter: () => ({ replace: mockReplace, push: jest.fn(), back: mockBack, canGoBack: () => true }),
   useLocalSearchParams: () => ({ draftId: "d-1" }),
+  // Single screen, always focused: registering the bottom bar's guard runs like an effect.
+  useFocusEffect: (effect: () => void | (() => void)) => jest.requireActual("react").useEffect(effect, [effect]),
 }));
 
 let mockScope: { userId: string; organizationId: string } | null = { userId: "user-1", organizationId: "org-a" };
@@ -521,6 +523,132 @@ describe("Survey response: a draft of another origin is view only (decision D)",
     expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ origin: "fixture", audio: expect.objectContaining({ clientAudioId: "a-2", origin: "fixture" }) }));
     await press(screen, "Enviar respuesta");
     expect(enqueueResponse).toHaveBeenCalledWith(SCOPE, expect.objectContaining({ id: "d-1", origin: "fixture", audio: expect.objectContaining({ origin: "fixture" }) }), expect.any(Array));
+  });
+});
+
+describe("Survey response: switching section from the bottom bar keeps everything (navigation/leaveGuard.ts)", () => {
+  const AUDIO = { clientAudioId: "aud-bar", mimeType: "audio/mp4", durationMs: 9000, interrupted: false, bytes: 70000 };
+  const { runLeaveGuard } = jest.requireActual("../../navigation/leaveGuard") as typeof import("../../navigation/leaveGuard");
+  const leaveFromBar = async () => {
+    let result!: boolean;
+    await act(async () => {
+      result = await runLeaveGuard();
+    });
+    return result;
+  };
+
+  it("with a recording in progress: finishes it, saves the draft with its audio and answers, and only then lets the bar navigate", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [2] } }));
+    mockRecorder.phase = "recording";
+    let finishWith!: (value: { ok: true; audio: typeof AUDIO }) => void;
+    mockRecorder.finish.mockImplementation(() => new Promise((done) => (finishWith = done)));
+    const screen = await renderScreen();
+
+    let left: boolean | undefined;
+    await act(async () => {
+      void runLeaveGuard().then((value) => (left = value));
+    });
+    expect(screen.getAllByText("Finalizando grabación…").length).toBeGreaterThan(0);
+    expect(left).toBeUndefined();
+    expect(saveDraft).not.toHaveBeenCalled();
+
+    await act(async () => {
+      finishWith({ ok: true, audio: AUDIO });
+    });
+    expect(left).toBe(true);
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ id: "d-1", answers: { 1: [2] }, audio: { ...AUDIO, origin: "fixture" } }));
+    // The bar navigates; the screen itself does not go back.
+    expect(mockBack).not.toHaveBeenCalled();
+    expect(enqueueResponse).not.toHaveBeenCalled();
+  });
+
+  it("a typed answer still waiting for its autosave is saved before leaving", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: {} }));
+    const screen = await renderScreen();
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText("Tu respuesta"), "Baches en la calle");
+    });
+    expect(await leaveFromBar()).toBe(true);
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ answers: { 3: "Baches en la calle" } }));
+  });
+
+  it("if the recording cannot be finished: stays, explains it, saves nothing, and a later try can succeed", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "accepted", answers: { 1: [1] } }));
+    mockRecorder.phase = "recording";
+    mockRecorder.finish.mockResolvedValueOnce({ ok: false });
+    const screen = await renderScreen();
+
+    expect(await leaveFromBar()).toBe(false);
+    expect(screen.getByText("No se pudo terminar de guardar la grabación. Tus respuestas y lo grabado se conservan en el teléfono: reintenta antes de continuar.")).toBeTruthy();
+    expect(saveDraft).not.toHaveBeenCalled();
+
+    mockRecorder.finish.mockResolvedValueOnce({ ok: true, audio: AUDIO });
+    expect(await leaveFromBar()).toBe(true);
+    expect(saveDraft).toHaveBeenLastCalledWith(SCOPE, expect.objectContaining({ audio: { ...AUDIO, origin: "fixture" } }));
+  });
+
+  it("if the draft cannot be saved (storage full): stays and says why; nothing is lost", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ consentAudio: "declined", answers: { 1: [1] } }));
+    const { StorageFullError } = jest.requireMock("../../features/surveys/vault") as { StorageFullError: new (message: string) => Error };
+    (saveDraft as jest.Mock).mockRejectedValueOnce(new StorageFullError("Tu teléfono tiene poco espacio libre."));
+    const screen = await renderScreen();
+
+    expect(await leaveFromBar()).toBe(false);
+    expect(screen.getByText("Tu teléfono tiene poco espacio libre.")).toBeTruthy();
+    expect(screen.getByText("Enviar respuesta")).toBeTruthy();
+    expect(removeItem).not.toHaveBeenCalled();
+    expect(deleteDraft).not.toHaveBeenCalled();
+  });
+
+  it("after a switch of organization: leaving never writes into the new one, and the pending edit stays with the draft's own", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = new Map<string, SurveyDraft>([["user-1.org-a/d-1", draft({ consentAudio: "declined" })]]);
+      (loadDraft as jest.Mock).mockImplementation(async (scope: { userId: string; organizationId: string }, id: string) => store.get(`${scope.userId}.${scope.organizationId}/${id}`) ?? null);
+      (saveDraft as jest.Mock).mockImplementation(async (scope: { userId: string; organizationId: string }, value: SurveyDraft) => {
+        store.set(`${scope.userId}.${scope.organizationId}/${value.id}`, value);
+      });
+      const screen = await renderScreen();
+      await act(async () => {
+        fireEvent.changeText(screen.getByLabelText("Tu respuesta"), "Antes del cambio");
+      });
+      // The organization changes while the response is open (same screen instance).
+      mockScope = { userId: "user-1", organizationId: "org-b" };
+      await act(async () => {
+        screen.rerender(<SurveyResponseScreen />);
+      });
+
+      expect(await leaveFromBar()).toBe(true);
+      await act(async () => {
+        jest.runOnlyPendingTimers();
+      });
+      expect([...store.keys()]).toEqual(["user-1.org-a/d-1"]);
+      expect(store.get("user-1.org-a/d-1")?.answers).toEqual({ 3: "Antes del cambio" });
+      for (const [scope] of (saveDraft as jest.Mock).mock.calls) expect(scope).toEqual(SCOPE);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("a view-only draft of another origin is never rewritten: leaving is immediate", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ origin: "api:https://staging-api.afilianet.mx", answers: { 1: [1] } }));
+    await renderScreen();
+    expect(await leaveFromBar()).toBe(true);
+    expect(saveDraft).not.toHaveBeenCalled();
+  });
+
+  it("while the response is being sent, the bar waits: it never leaves in the middle of a send", async () => {
+    (loadDraft as jest.Mock).mockResolvedValue(draft({ respondentType: "self", consentAudio: null, answers: { 1: [1], 2: "3" } }));
+    let release!: () => void;
+    (enqueueResponse as jest.Mock).mockImplementationOnce(() => new Promise<void>((done) => (release = done)));
+    const screen = await renderScreen();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Enviar respuesta"));
+    });
+    expect(await leaveFromBar()).toBe(false);
+    await act(async () => {
+      release();
+    });
   });
 });
 

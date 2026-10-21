@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
 import { releaseFeatures } from "../../config/release";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
 import { strings } from "../../i18n";
+import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { NotificationBell } from "../../components/NotificationBell";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
@@ -81,6 +82,7 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Header />
+      {surveysPreviewEnabled ? <SurveysEntryCard /> : null}
 
       {noAffiliateProfile ? (
         <EnrollmentBanner />
@@ -133,10 +135,6 @@ export default function HomeScreen() {
 
 function Header() {
   const { user } = useAuth();
-  const { activeOrganization, organizations } = useOrganization();
-  const router = useRouter();
-
-  const orgLabel = activeOrganization?.name ?? strings.home.noOrganizationSelected;
 
   return (
     <View style={styles.header}>
@@ -144,18 +142,20 @@ function Header() {
         <Text style={styles.greeting}>{user ? strings.home.greeting(user.first_name) : strings.home.welcome}</Text>
         <NotificationBell />
       </View>
-      {organizations.length > 1 ? (
-        <Pressable onPress={() => router.push(routes.organizationPicker as never)} style={styles.orgSwitcher}>
-          <Text style={styles.orgName}>{orgLabel}</Text>
-          <Text style={styles.orgSwitcherChevron}>⌄</Text>
-        </Pressable>
-      ) : (
-        <Text style={styles.orgName}>{orgLabel}</Text>
-      )}
-      {surveysPreviewEnabled ? (
-        <Button label={strings.surveys.homeEntry} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
-      ) : null}
+      <ActiveOrganizationBar />
     </View>
+  );
+}
+
+/** Its own card, apart from the organization bar: two different actions, never mistaken for each other. */
+function SurveysEntryCard() {
+  const router = useRouter();
+  return (
+    <Card style={styles.surveysCard} testID="home-surveys-entry">
+      <Text style={styles.surveysTitle}>{strings.surveys.title}</Text>
+      <Text style={styles.meta}>{strings.home.surveysDescription}</Text>
+      <Button label={strings.home.openSurveys} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
+    </Card>
   );
 }
 
@@ -325,8 +325,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
+    gap: spacing.md,
+  },
+  surveysCard: {
     gap: spacing.xs,
-    marginBottom: spacing.sm,
+  },
+  surveysTitle: {
+    ...typography.subtitle,
+    color: colors.textPrimary,
   },
   headerTopRow: {
     flexDirection: "row",
@@ -336,19 +342,6 @@ const styles = StyleSheet.create({
   greeting: {
     ...typography.title,
     color: colors.textPrimary,
-  },
-  orgSwitcher: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  orgName: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  orgSwitcherChevron: {
-    ...typography.body,
-    color: colors.textSecondary,
   },
   enrollmentCard: {
     gap: spacing.xs,

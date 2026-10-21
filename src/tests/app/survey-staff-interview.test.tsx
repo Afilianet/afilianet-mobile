@@ -1,10 +1,12 @@
+import type React from "react";
+import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import { act, fireEvent, render, waitFor as rawWaitFor } from "@testing-library/react-native";
 import { configureApiClient } from "../../api/client";
 import { listDrafts, refreshInbox } from "../../features/surveys/library";
 import { enqueueResponse, listOutbox, listReceipts, syncOutbox } from "../../features/surveys/outbox";
 import { surveySource } from "../../features/surveys/runtime";
-import SurveyDetailScreen from "../../app/surveys/[surveyId]";
-import SurveysInboxScreen from "../../app/surveys/index";
+import SurveyDetailScreen from "../../app/(app)/surveys/[surveyId]";
+import SurveysInboxScreen from "../../app/(app)/surveys/index";
 
 /**
  * Staff interviews against the REAL API source (only fetch is simulated),
@@ -128,6 +130,14 @@ async function renderDetail() {
   return screen;
 }
 
+
+/** The section's organization bar reads the active organization; here, the test's scope. */
+function WithOrganization({ children }: { children: React.ReactNode }) {
+  const organization = { id: "org-a", name: "Organización de prueba" };
+  const value = { status: "ready", organizations: [organization], activeOrganization: organization, error: null, selectOrganization: jest.fn(), refresh: jest.fn() } as unknown as OrganizationContextValue;
+  return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
+}
+
 describe("Interviews by organization staff (API b3175c84: assigned surveyor OR staff)", () => {
   it.each(["owner", "admin", "manager"])("an active %s without an affiliate profile may start the interview, and the API accepts it", async (role) => {
     mockOrganization = { my_role: role, my_membership_status: "active" };
@@ -182,7 +192,7 @@ describe("Interviews by organization staff (API b3175c84: assigned surveyor OR s
     mockOrganization = { my_role: "owner", my_membership_status: "active" };
     let screen!: Awaited<ReturnType<typeof render>>;
     await act(async () => {
-      screen = await render(<SurveysInboxScreen />);
+      screen = await render(<WithOrganization><SurveysInboxScreen /></WithOrganization>);
     });
     await waitFor(() => expect(screen.getByText("Entrevista · Versión 1")).toBeTruthy());
   });

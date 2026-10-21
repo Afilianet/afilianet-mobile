@@ -4,9 +4,10 @@ import { Alert, Pressable, Text, View } from "react-native";
 import { OutboxPanel } from "../../features/surveys/components";
 import { downloadVersion, listDrafts, refreshInbox } from "../../features/surveys/library";
 import { listOutbox, listReceipts } from "../../features/surveys/outbox";
-import SurveyResponseScreen from "../../app/survey-response/[draftId]";
-import SurveyDetailScreen from "../../app/surveys/[surveyId]";
-import SurveysInboxScreen from "../../app/surveys/index";
+import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
+import SurveyResponseScreen from "../../app/(app)/surveys/response/[draftId]";
+import SurveyDetailScreen from "../../app/(app)/surveys/[surveyId]";
+import SurveysInboxScreen from "../../app/(app)/surveys/index";
 
 /**
  * Physical findings on the survey journey (exit, close loop, draft vs. send,
@@ -154,7 +155,8 @@ function HomeStub() {
 }
 
 function screenFor(path: string): { Screen: ComponentType; params: Record<string, string> } {
-  const response = path.match(/^\/survey-response\/(.+)$/);
+  // Inside the Encuestas section, so it must be matched before the survey detail.
+  const response = path.match(/^\/surveys\/response\/(.+)$/);
   if (response) return { Screen: SurveyResponseScreen, params: { draftId: decodeURIComponent(response[1]) } };
   const detail = path.match(/^\/surveys\/(.+)$/);
   if (detail) return { Screen: SurveyDetailScreen, params: { surveyId: decodeURIComponent(detail[1]) } };
@@ -181,8 +183,11 @@ function Navigator({ mode, initial }: { mode: Mode; initial: string[] }) {
     router.__navigation.canGoBack = () => currentStack.length > 1;
   }, []);
   const rendered = mode === "slot" ? stack.slice(-1) : stack;
+  // The section's organization bar reads the active organization: the test's own scope.
+  const organization = { id: mockScope?.organizationId ?? "none", name: `Organización ${mockScope?.organizationId ?? ""}` };
+  const organizationValue = { status: "ready", organizations: [organization], activeOrganization: organization, error: null, selectOrganization: jest.fn(), refresh: jest.fn() } as unknown as OrganizationContextValue;
   return (
-    <>
+    <OrganizationContext.Provider value={organizationValue}>
       {rendered.map((entry) => {
         const { Screen, params } = screenFor(entry.path);
         const focused = entry === stack[stack.length - 1];
@@ -197,7 +202,7 @@ function Navigator({ mode, initial }: { mode: Mode; initial: string[] }) {
           </router.__ParamsContext.Provider>
         );
       })}
-    </>
+    </OrganizationContext.Provider>
   );
 }
 
@@ -468,7 +473,7 @@ describe("Survey journey: answering without a manual download", () => {
     const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-servicio"]);
     expect(top(screen).getByText("Descargar para usar sin conexión")).toBeTruthy();
     await tap(screen, "Responder yo");
-    expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-servicio", expect.stringMatching(/^\/survey-response\//)]);
+    expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-servicio", expect.stringMatching(/^\/surveys\/response\//)]);
     expect(top(screen).getByText("Satisfacción con el servicio (ejemplo)")).toBeTruthy();
   });
 
@@ -533,7 +538,7 @@ describe("Survey journey with a real recording: finish on exit, offline, pending
       fireEvent.press(exit);
     });
     expect(top(screen).getByText("Finalizando grabación…")).toBeTruthy();
-    expect(currentStack.at(-1)).toMatch(/^\/survey-response\//);
+    expect(currentStack.at(-1)).toMatch(/^\/surveys\/response\//);
     await act(async () => {
       finishStop();
     });

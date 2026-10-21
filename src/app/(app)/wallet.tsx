@@ -12,6 +12,7 @@ import { SkeletonGroup } from "../../components/Skeleton";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
+import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useWallet } from "../../hooks/useWallet";
@@ -70,6 +71,7 @@ function WalletScreenContent() {
           onPress={() => router.push(routes.payouts as never)}
         />
       </View>
+      <ActiveOrganizationBar />
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />

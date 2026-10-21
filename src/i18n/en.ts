@@ -391,6 +391,8 @@ export const en = {
     walletTitle: "Wallet",
     noWalletBalanceYet: "No wallet balance yet",
     noOrganizationSelected: "No organization selected",
+    surveysDescription: "Answer surveys or run interviews. They also work offline once downloaded.",
+    openSurveys: "Open surveys",
     greeting: (firstName: string) => `Hi, ${firstName}`,
     welcome: "Welcome",
     enrollment: {
@@ -687,6 +689,12 @@ export const en = {
       payouts: "Go to Payouts",
     } as Record<string, string>,
     goToSectionFallback: "See more",
+  },
+  organizationBar: {
+    label: "Active organization",
+    change: "Change",
+    a11y: (name: string) => `Active organization: ${name}`,
+    changeA11y: (name: string) => `Change organization. Active: ${name}`,
   },
   organizationPicker: {
     title: "Choose an organization",

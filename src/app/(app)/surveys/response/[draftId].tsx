@@ -1,15 +1,15 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { EmptyState } from "../../components/EmptyState";
-import { SkeletonGroup } from "../../components/Skeleton";
-import { Button } from "../../components/ui/Button";
-import { Card } from "../../components/ui/Card";
-import { IconButton } from "../../components/ui/IconButton";
-import { TextInput } from "../../components/ui/TextInput";
-import { colors, measures, radius, spacing, typography } from "../../components/ui/theme";
-import { Icon } from "../../design-system/icons/Icon";
-import { SurveysPreviewNotice } from "../../features/surveys/components";
+import { EmptyState } from "../../../../components/EmptyState";
+import { SkeletonGroup } from "../../../../components/Skeleton";
+import { Button } from "../../../../components/ui/Button";
+import { Card } from "../../../../components/ui/Card";
+import { IconButton } from "../../../../components/ui/IconButton";
+import { TextInput } from "../../../../components/ui/TextInput";
+import { colors, measures, radius, spacing, typography } from "../../../../components/ui/theme";
+import { Icon } from "../../../../design-system/icons/Icon";
+import { SurveysPreviewNotice } from "../../../../features/surveys/components";
 import {
   audioApplies,
   consentDecisionMissing,
@@ -24,15 +24,16 @@ import {
   type DraftAudio,
   type DraftValue,
   type SurveyDraft,
-} from "../../features/surveys/library";
-import { describeOrigin, UNCONFIRMED_ORIGIN, type SurveyOrigin } from "../../features/surveys/origin";
-import { audioName, enqueueResponse } from "../../features/surveys/outbox";
-import { surveySource, useSurveyScope } from "../../features/surveys/runtime";
-import type { SurveyQuestion, SurveyVersion } from "../../features/surveys/types";
-import { formatDuration, useInterviewRecorder } from "../../features/surveys/useInterviewRecorder";
-import { removeItem, scopeId, StorageFullError, type SurveyScope } from "../../features/surveys/vault";
-import { strings } from "../../i18n";
-import { routes } from "../../navigation/routes";
+} from "../../../../features/surveys/library";
+import { describeOrigin, UNCONFIRMED_ORIGIN, type SurveyOrigin } from "../../../../features/surveys/origin";
+import { audioName, enqueueResponse } from "../../../../features/surveys/outbox";
+import { surveySource, useSurveyScope } from "../../../../features/surveys/runtime";
+import type { SurveyQuestion, SurveyVersion } from "../../../../features/surveys/types";
+import { formatDuration, useInterviewRecorder } from "../../../../features/surveys/useInterviewRecorder";
+import { removeItem, scopeId, StorageFullError, type SurveyScope } from "../../../../features/surveys/vault";
+import { strings } from "../../../../i18n";
+import { registerLeaveGuard } from "../../../../navigation/leaveGuard";
+import { routes } from "../../../../navigation/routes";
 
 const AUTOSAVE_MS = 600;
 
@@ -153,6 +154,15 @@ export default function SurveyResponseScreen() {
   );
   const recorder = useInterviewRecorder(sameScope && loaded && !loaded.readOnly ? loaded.scope : null, onAudioSaved);
 
+  // The bottom bar's safe exit (navigation/leaveGuard.ts): while this screen
+  // is focused, switching section first runs keepDraft() -- the same steps as
+  // «Guardar borrador y salir» -- and only leaves if it kept everything.
+  const keepDraftRef = useRef<() => Promise<boolean>>(async () => true);
+  useEffect(() => {
+    keepDraftRef.current = keepDraft;
+  });
+  useFocusEffect(useCallback(() => registerLeaveGuard(() => keepDraftRef.current()), []));
+
   if (loaded === undefined) return <SkeletonGroup lines={5} />;
   if (loaded === null || !draft) return <EmptyState title={copy.title} description={message ?? copy.form.draftMissing} />;
   if (!sameScope) return <EmptyState title={copy.title} description={copy.form.draftMissing} />;
@@ -256,31 +266,40 @@ export default function SurveyResponseScreen() {
     }
   }
 
-  /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
-  async function saveDraftAndExit() {
-    if (loaded?.readOnly) {
-      leave();
-      return;
-    }
-    if (!loaded || saving || busy.current) return;
+  /**
+   * The safe exit shared by «Cerrar», «Guardar borrador y salir» and the
+   * bottom bar: an active recording is finished and the draft saved. True
+   * when nothing is left at risk; false keeps the screen, with the reason on
+   * it (recording not finished, storage full) or because another exit or a
+   * send is already running.
+   */
+  async function keepDraft(): Promise<boolean> {
+    if (!loaded || loaded.readOnly) return true;
+    if (saving || busy.current) return false;
     busy.current = true;
     try {
       const current = await finishRecording();
-      if (!current) return;
+      if (!current) return false;
+      // After a switch of account or organization nothing is written from here:
+      // a pending edit is saved, in the draft's own scope, when this screen unmounts.
+      if (!sameScope) return true;
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
       pendingSave.current = null;
-      if (sameScope) {
-        try {
-          await saveDraft(loaded.scope, current);
-        } catch (error) {
-          setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
-          return;
-        }
+      try {
+        await saveDraft(loaded.scope, current);
+      } catch (error) {
+        setMessage(error instanceof StorageFullError ? error.message : copy.storageFull);
+        return false;
       }
-      leave();
+      return true;
     } finally {
       busy.current = false;
     }
+  }
+
+  /** «Cerrar» and «Guardar borrador y salir»: the draft is kept and stays editable via «Continuar». */
+  async function saveDraftAndExit() {
+    if (await keepDraft()) leave();
   }
 
   async function submit() {
