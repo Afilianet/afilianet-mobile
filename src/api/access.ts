@@ -29,6 +29,15 @@ import { ApiError, friendlyMessage, isApiError } from "./errors";
  * which `accessErrorMessage` reports as "not available yet" -- never as a
  * success, and never as a verified channel.
  *
+ * API #79 (feat/phone-otp-whatsapp-channel @ bad03c0, not merged yet) adds a
+ * delivery channel to POST /api/v1/auth/phone-verification: {channel: "sms" |
+ * "whatsapp"} (SMS when omitted). 202 {retry_after, expires_in, delivery:
+ * "queued", channel} only means the send was queued. A 503 `sms_unavailable` /
+ * `whatsapp_unavailable` creates no code and the API never falls back to the
+ * other channel. One code per minute is shared by both channels (429 with
+ * `retry_after` in the body and the Retry-After header, no `reason`); the
+ * newest code is the only valid one. Recovery stays SMS-only.
+ *
  * Verification state is ONLY ever read from the server's user
  * (email_verified_at / phone_verified_at). Nothing here marks a channel
  * verified on the client.
@@ -51,6 +60,14 @@ export interface CodeDelivery {
   retryAfterSeconds: number;
   /** Seconds the code stays valid, when the API says. */
   expiresInSeconds?: number;
+}
+
+/** Where the phone verification code is sent (API #79). */
+export type PhoneCodeChannel = "sms" | "whatsapp";
+
+export interface PhoneCodeDelivery extends CodeDelivery {
+  /** The channel the API says it queued the code on. */
+  channel: PhoneCodeChannel;
 }
 
 const PUBLIC = { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true } as const;
@@ -84,14 +101,24 @@ export async function requestEmailVerification(): Promise<void> {
 
 type Maybe<T> = T & { data?: T };
 
-/** Sends (or re-sends) the SMS code to the signed-in user's phone. The contract answers flat: 202 {retry_after, expires_in}. */
-export async function requestPhoneVerification(): Promise<CodeDelivery> {
-  const body = await apiRequest<Maybe<{ retry_after?: number; expires_in?: number }> | null>("/api/v1/auth/phone-verification", {
+/**
+ * Sends (or re-sends) the code to the signed-in user's phone through `channel`.
+ * Contract (flat): 202 {retry_after, expires_in, delivery: "queued", channel}.
+ * The channel shown is the one the API answers: an API without #79 ignores
+ * `channel`, answers without it and only sends SMS, so an absent channel is SMS.
+ */
+export async function requestPhoneVerification(channel: PhoneCodeChannel = "sms"): Promise<PhoneCodeDelivery> {
+  const body = await apiRequest<Maybe<{ retry_after?: number; expires_in?: number; channel?: string }> | null>("/api/v1/auth/phone-verification", {
     method: "POST",
+    body: { channel },
     skipOrganization: true,
   });
   const delivery = body?.data ?? body;
-  return { retryAfterSeconds: delivery?.retry_after ?? DEFAULT_RESEND_SECONDS, expiresInSeconds: delivery?.expires_in };
+  return {
+    retryAfterSeconds: delivery?.retry_after ?? DEFAULT_RESEND_SECONDS,
+    expiresInSeconds: delivery?.expires_in,
+    channel: delivery?.channel === "whatsapp" ? "whatsapp" : "sms",
+  };
 }
 
 /** Returns the server's user (contract: 200 {user}); phone_verified_at is the only source of truth. */
@@ -159,6 +186,14 @@ export function isSmsUnavailable(error: unknown): boolean {
   return isApiError(error) && error.reason === "sms_unavailable";
 }
 
+/** The channel a 503 says cannot send codes right now (API #79), if any. */
+export function unavailablePhoneChannel(error: unknown): PhoneCodeChannel | null {
+  if (!isApiError(error)) return null;
+  if (error.reason === "whatsapp_unavailable") return "whatsapp";
+  if (error.reason === "sms_unavailable") return "sms";
+  return null;
+}
+
 /** Spanish copy for every access failure; OTP reasons map to their own message. */
 export function accessErrorMessage(error: unknown): string {
   const copy = strings.access.errors;
@@ -179,6 +214,9 @@ export function accessErrorMessage(error: unknown): string {
       // any code is created; retrying right away does not help. Each screen
       // adds the email alternative only where its flow really allows it.
       return copy.smsUnavailable;
+    case "whatsapp_unavailable":
+      // API #79 503: no code was created and nothing was sent by SMS instead.
+      return copy.whatsappUnavailable;
     case "invitation_recipient_mismatch":
       return copy.invitationRecipientMismatch;
   }
@@ -196,6 +234,7 @@ function validationMessage(error: ApiError): string {
   const copy = strings.access.errors;
   const fields = Object.keys(error.details ?? {});
   if (fields.includes("code")) return copy.otpInvalid;
+  if (fields.includes("channel")) return copy.channelRejected;
   if (fields.includes("token")) return copy.otpExpired;
   if (fields.includes("email")) return copy.emailRejected;
   if (fields.includes("phone")) return copy.phoneRejected;

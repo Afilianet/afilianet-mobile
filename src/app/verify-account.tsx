@@ -1,7 +1,15 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { accessErrorMessage, isSmsUnavailable, requestEmailVerification, requestPhoneVerification, verifyPhone } from "../api/access";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  accessErrorMessage,
+  isSmsUnavailable,
+  requestEmailVerification,
+  requestPhoneVerification,
+  unavailablePhoneChannel,
+  verifyPhone,
+  type PhoneCodeChannel,
+} from "../api/access";
 import { isApiError } from "../api/errors";
 import { useAuth } from "../auth/AuthContext";
 import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
@@ -9,7 +17,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { TextInput } from "../components/ui/TextInput";
-import { colors, measures, spacing, typography } from "../components/ui/theme";
+import { colors, measures, radius, spacing, typography } from "../components/ui/theme";
 import { useCountdown } from "../hooks/useCountdown";
 import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
@@ -52,7 +60,7 @@ export default function VerifyAccountScreen() {
           <EmailChannel key={`email-${user.id}`} email={user.email} verified={emailVerified} refreshUser={refreshUser} />
         ) : null}
         {user.phone ? (
-          <PhoneChannel key={`phone-${user.id}`} phone={user.phone} hasEmail={Boolean(user.email)} verified={phoneVerified} refreshUser={refreshUser} />
+          <PhoneChannel key={`phone-${user.id}-${user.phone}`} phone={user.phone} hasEmail={Boolean(user.email)} verified={phoneVerified} refreshUser={refreshUser} />
         ) : null}
         <Button label={allVerified ? copy.continue : copy.later} variant={allVerified ? "primary" : "ghost"} onPress={next} />
       </ScrollView>
@@ -135,40 +143,74 @@ function EmailChannel({ email, verified, refreshUser }: { email: string; verifie
   );
 }
 
+type ChannelFlags = Record<PhoneCodeChannel, boolean>;
+const CHANNELS: PhoneCodeChannel[] = ["sms", "whatsapp"];
+const otherChannel = (channel: PhoneCodeChannel): PhoneCodeChannel => (channel === "sms" ? "whatsapp" : "sms");
+
+/**
+ * Phone code by SMS or WhatsApp (API #79). The person picks the channel; the
+ * app never switches it on its own. One wait (the API's retry_after) applies
+ * to both channels, and only the newest code is valid. Verified is shown only
+ * once the server's user has phone_verified_at.
+ */
 function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: string; hasEmail: boolean; verified: boolean; refreshUser: RefreshUser }) {
   const copy = strings.access.verify;
   const mounted = useMounted();
   const countdown = useCountdown();
-  const [sent, setSent] = useState(false);
+  const [channel, setChannel] = useState<PhoneCodeChannel>("sms");
+  // Channel the API says it queued the latest code on; null until one is accepted.
+  const [sentChannel, setSentChannel] = useState<PhoneCodeChannel | null>(null);
+  const [codeStep, setCodeStep] = useState(false);
+  const [sendCount, setSendCount] = useState(0);
+  const [smsOnlyServer, setSmsOnlyServer] = useState(false);
   const [expiresInMinutes, setExpiresInMinutes] = useState<number | null>(null);
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [smsUnavailable, setSmsUnavailable] = useState(false);
+  const [acceptedNotConfirmed, setAcceptedNotConfirmed] = useState(false);
+  // Channels a 503 said cannot send right now, and the one behind the last error.
+  const [unavailable, setUnavailable] = useState<ChannelFlags>({ sms: false, whatsapp: false });
+  const [downChannel, setDownChannel] = useState<PhoneCodeChannel | null>(null);
+  const busy = sending || verifying;
+  const name = (value: PhoneCodeChannel) => copy.channelNames[value];
 
   async function send() {
-    if (sending || countdown.active) return;
+    if (busy || countdown.active) return;
+    const requested = channel;
     setSending(true);
     setError(null);
-    setSmsUnavailable(false);
+    setDownChannel(null);
+    setAcceptedNotConfirmed(false);
     try {
-      const delivery = await requestPhoneVerification();
+      const delivery = await requestPhoneVerification(requested);
       if (!mounted.current) return;
-      setSent(true);
+      setSentChannel(delivery.channel);
+      setChannel(delivery.channel);
+      setSmsOnlyServer(requested !== delivery.channel);
+      setUnavailable((flags) => ({ ...flags, [delivery.channel]: false }));
+      setSendCount((count) => count + 1);
+      setCodeStep(true);
       setCode("");
       setExpiresInMinutes(delivery.expiresInSeconds ? Math.ceil(delivery.expiresInSeconds / 60) : null);
       countdown.start(delivery.retryAfterSeconds);
     } catch (cause) {
       if (!mounted.current) return;
-      setError(accessErrorMessage(cause));
-      // Rejected before any code exists: never move to "type the code".
-      setSmsUnavailable(isSmsUnavailable(cause));
+      setError(sendErrorMessage(cause));
+      // Rejected before any code exists (503, or a channel the API refuses): stay before "type the code".
+      const down = unavailablePhoneChannel(cause) ?? (isChannelRejected(cause) ? requested : null);
+      if (down) {
+        // An API without #79 ignores `channel`: SMS being down for a WhatsApp request means neither works.
+        const bothDown = down !== requested;
+        setUnavailable((flags) => (bothDown ? { sms: true, whatsapp: true } : { ...flags, [down]: true }));
+        setDownChannel(requested);
+      }
       if (isApiError(cause) && cause.kind === "rate_limited") {
-        countdown.start(cause.retryAfterSeconds ?? DEFAULT_RESEND_SECONDS);
-        // Registration already sent a code a moment ago (the API allows one per minute): let them type it.
-        setSent(true);
+        // Only the API's own wait; none is made up when it gives none.
+        if (cause.retryAfterSeconds) countdown.start(cause.retryAfterSeconds);
+        // A code from a moment ago (e.g. sent at sign-up) may still be valid -- unless the last try created none.
+        if (sentChannel || !Object.values(unavailable).some(Boolean)) setCodeStep(true);
       }
       if (isApiError(cause) && cause.reason === "phone_already_verified") await refreshUser().catch(() => null);
     } finally {
@@ -176,35 +218,69 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
     }
   }
 
+  async function confirmWithServer() {
+    // The server's user is the only proof the phone is verified.
+    const fresh = await refreshUser();
+    if (!mounted.current) return;
+    if (fresh?.phone_verified_at) {
+      setAcceptedNotConfirmed(false);
+      setNotice(copy.phoneVerified);
+    } else {
+      setAcceptedNotConfirmed(true);
+    }
+  }
+
   async function submit() {
+    if (busy) return;
     const digits = code.replace(/\D/g, "");
-    if (verifying || digits.length < 4) {
+    if (digits.length < 4) {
       setError(strings.access.errors.otpInvalid);
       return;
     }
     setVerifying(true);
     setError(null);
-    setSmsUnavailable(false);
+    setDownChannel(null);
+    let accepted = false;
     try {
       await verifyPhone(digits);
-      // The server's user is the only proof the phone is verified.
-      const fresh = await refreshUser();
+      accepted = true;
       if (!mounted.current) return;
-      if (fresh?.phone_verified_at) setNotice(copy.phoneVerified);
+      await confirmWithServer();
     } catch (cause) {
       if (!mounted.current) return;
-      setError(accessErrorMessage(cause));
+      if (accepted) {
+        // The code went through but the account could not be re-read: still not shown as verified.
+        setAcceptedNotConfirmed(true);
+        setError(accessErrorMessage(cause));
+        return;
+      }
       // On 503 the code is neither consumed nor counted: it stays typed.
-      setSmsUnavailable(isSmsUnavailable(cause));
+      setError(isSmsUnavailable(cause) ? copy.verifyUnavailable : accessErrorMessage(cause));
       if (isApiError(cause) && (cause.reason === "otp_expired" || cause.reason === "otp_attempts_exceeded")) {
-        // The code is dead: let them request a fresh one right away.
+        // The code is dead: let them request a fresh one (on either channel) once the wait allows.
         setCode("");
-        setSent(false);
+        setCodeStep(false);
+        setSentChannel(null);
       }
     } finally {
       if (mounted.current) setVerifying(false);
     }
   }
+
+  async function recheck() {
+    if (busy) return;
+    setVerifying(true);
+    setError(null);
+    try {
+      await confirmWithServer();
+    } catch (cause) {
+      if (mounted.current) setError(accessErrorMessage(cause));
+    } finally {
+      if (mounted.current) setVerifying(false);
+    }
+  }
+
+  const bothDown = unavailable.sms && unavailable.whatsapp;
 
   return (
     <Card style={styles.card} testID="verify-phone">
@@ -217,9 +293,11 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
         notice ? <Text accessibilityLiveRegion="polite" style={styles.description}>{notice}</Text> : null
       ) : (
         <>
-          {sent ? <Text accessibilityLiveRegion="polite" style={styles.description}>{copy.codeSentTo(maskPhone(phone))}</Text> : null}
-          {sent && expiresInMinutes ? <Text style={styles.meta}>{copy.codeExpiresIn(expiresInMinutes)}</Text> : null}
-          {sent ? (
+          {sentChannel ? <Text accessibilityLiveRegion="polite" style={styles.description}>{copy.codeSentTo(name(sentChannel), maskPhone(phone))}</Text> : null}
+          {sentChannel && smsOnlyServer ? <Text style={styles.description}>{copy.smsOnlyServer}</Text> : null}
+          {sentChannel && sendCount > 1 ? <Text style={styles.meta}>{copy.newestCodeOnly}</Text> : null}
+          {sentChannel && expiresInMinutes ? <Text style={styles.meta}>{copy.codeExpiresIn(expiresInMinutes)}</Text> : null}
+          {codeStep ? (
             <>
               <TextInput
                 label={copy.codeLabel}
@@ -231,23 +309,63 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
                 maxLength={8}
                 helperText={copy.codeHint}
               />
-              <Button label={copy.submitCode} loading={verifying} disabled={!code.trim()} onPress={() => void submit()} />
+              <Button label={copy.submitCode} loading={verifying} disabled={!code.trim() || sending} onPress={() => void submit()} />
+            </>
+          ) : null}
+          {acceptedNotConfirmed ? (
+            <>
+              <Text accessibilityLiveRegion="polite" style={styles.description}>{copy.acceptedNotConfirmed}</Text>
+              <Button label={copy.checkStatus} variant="secondary" disabled={busy} onPress={() => void recheck()} />
             </>
           ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-          {smsUnavailable && hasEmail ? <Text style={styles.description}>{copy.smsUnavailableWithEmail}</Text> : null}
-          {countdown.active ? <Text style={styles.meta}>{copy.resendIn(countdown.remaining)}</Text> : null}
+          {downChannel ? (
+            <Text style={styles.description}>{bothDown ? copy.noChannelAvailable : copy.tryOtherChannel(name(otherChannel(downChannel)))}</Text>
+          ) : null}
+          {downChannel && hasEmail ? <Text style={styles.description}>{copy.smsUnavailableWithEmail}</Text> : null}
+          <Text style={styles.label}>{copy.channelQuestion}</Text>
+          <View style={styles.channels} accessibilityRole="radiogroup">
+            {CHANNELS.map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setChannel(option)}
+                disabled={busy}
+                style={[styles.channel, channel === option ? styles.channelSelected : null]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: channel === option, disabled: busy }}
+                accessibilityLabel={copy.channelOption(name(option))}
+              >
+                <Text style={[styles.channelLabel, channel === option ? styles.channelLabelSelected : null]}>{name(option)}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {countdown.active ? (
+            <>
+              <Text style={styles.meta}>{copy.resendIn(countdown.remaining)}</Text>
+              <Text style={styles.meta}>{copy.sharedWait}</Text>
+            </>
+          ) : null}
           <Button
-            label={sent ? copy.resendCode : copy.sendCode}
-            variant={sent ? "ghost" : "secondary"}
+            label={sentChannel ? copy.resendCodeBy(name(channel)) : copy.sendCodeBy(name(channel))}
+            variant={codeStep ? "ghost" : "secondary"}
             loading={sending}
-            disabled={countdown.active}
+            disabled={countdown.active || verifying}
             onPress={() => void send()}
           />
         </>
       )}
     </Card>
   );
+}
+
+/** Sending is limited once a minute for SMS and WhatsApp together: say so, with the API's own wait. */
+function sendErrorMessage(error: unknown): string {
+  if (isApiError(error) && error.kind === "rate_limited" && error.retryAfterSeconds) return strings.access.verify.rateLimited(error.retryAfterSeconds);
+  return accessErrorMessage(error);
+}
+
+function isChannelRejected(error: unknown): boolean {
+  return isApiError(error) && error.kind === "validation" && Boolean(error.details?.channel);
 }
 
 const styles = StyleSheet.create({
@@ -260,4 +378,18 @@ const styles = StyleSheet.create({
   cardTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textTertiary },
   error: { ...typography.caption, color: colors.danger },
+  label: { ...typography.label, color: colors.textTertiary },
+  channels: { flexDirection: "row", gap: spacing.sm },
+  channel: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  channelSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceRaised },
+  channelLabel: { ...typography.body, color: colors.textSecondary },
+  channelLabelSelected: { ...typography.bodyStrong, color: colors.textPrimary },
 });

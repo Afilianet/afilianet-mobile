@@ -65,7 +65,7 @@ async function renderVerify(value: AuthContextValue) {
 beforeEach(() => {
   jest.clearAllMocks();
   mockPendingReferral = null;
-  mockedRequestPhone.mockResolvedValue({ retryAfterSeconds: 60, expiresInSeconds: 600 });
+  mockedRequestPhone.mockResolvedValue({ retryAfterSeconds: 60, expiresInSeconds: 600, channel: "sms" });
   mockedVerifyPhone.mockResolvedValue({ ...BASE_USER, phone_verified_at: "2026-10-12T10:00:00Z" });
   mockedRequestEmail.mockResolvedValue(undefined);
 });
@@ -92,9 +92,10 @@ describe("Verify account", () => {
     expect(screen.getByText("El código vence en 10 min.")).toBeTruthy();
     expect(screen.getByText("Podrás pedir otro código en 60 s")).toBeTruthy();
     await act(async () => {
-      fireEvent.press(screen.getByText("Reenviar código"));
+      fireEvent.press(screen.getByText("Pedir otro código por SMS"));
     });
     expect(mockedRequestPhone).toHaveBeenCalledTimes(1);
+    expect(mockedRequestPhone).toHaveBeenCalledWith("sms");
   });
 
   it("treats the phone as verified only after the server's user says so", async () => {
@@ -141,7 +142,7 @@ describe("Verify account", () => {
       fireEvent.press(screen.getByText("Enviar código por SMS"));
     });
 
-    expect(screen.getByText("Espera 30 segundos antes de intentarlo de nuevo.")).toBeTruthy();
+    expect(screen.getByText("Espera 30 segundos para pedir otro código, por SMS o por WhatsApp.")).toBeTruthy();
     expect(screen.getByText("Podrás pedir otro código en 30 s")).toBeTruthy();
     // Registration already sent a code (one per minute): the person can type it right away.
     expect(screen.getByLabelText("Código de verificación")).toBeTruthy();
