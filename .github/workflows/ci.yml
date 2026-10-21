@@ -33,6 +33,9 @@ jobs:
       - name: Verify account email and recovery
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/email-verification.test.tsx src/tests/app/forgot-password.test.tsx 'src/tests/app/(app)/profile.test.tsx' src/tests/app/account-deletion.test.tsx
 
+      - name: Verify referral sharing (share sheet, copy, WhatsApp link only for a public HTTPS link)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/referral.test.tsx src/tests/app/referral-whatsapp.test.tsx src/utils/referral.test.ts
+
       - name: Verify first release scope and build environment
         run: |
           npm run test:build-env
