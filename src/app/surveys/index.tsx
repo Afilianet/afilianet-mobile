@@ -12,7 +12,8 @@ import { colors, measures, spacing, typography } from "../../components/ui/theme
 import { Icon } from "../../design-system/icons/Icon";
 import { DraftRow, OtherOriginsPanel, OutboxPanel, SurveysPreviewNotice } from "../../features/surveys/components";
 import { cachedInbox, getDownloaded, listDrafts, refreshInbox, type DownloadedVersion, type SurveyDraft } from "../../features/surveys/library";
-import { surveySource, surveysPreviewEnabled, useSurveyScope } from "../../features/surveys/runtime";
+import { canStartInterview } from "../../features/surveys/interviewer";
+import { surveySource, surveysPreviewEnabled, useSurveyOrganization, useSurveyScope } from "../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../features/surveys/types";
 import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import { scopeId } from "../../features/surveys/vault";
@@ -30,6 +31,7 @@ type InboxState =
 export default function SurveysInboxScreen() {
   const router = useRouter();
   const scope = useSurveyScope();
+  const activeOrganization = useSurveyOrganization();
   const outbox = useSurveyOutbox(scope);
   const copy = strings.surveys;
   const [loadedInbox, setLoadedInbox] = useState<{ key: string; inbox: InboxState; downloads: Record<string, DownloadedVersion | null> } | null>(null);
@@ -175,7 +177,7 @@ export default function SurveysInboxScreen() {
           const destination = surveyDetail(survey.survey_id);
           const modes = [
             survey.allows_self_response ? copy.availability.self : null,
-            survey.allows_interview_response && survey.is_assigned_surveyor ? copy.availability.interview : null,
+            canStartInterview(survey, activeOrganization) ? copy.availability.interview : null,
           ].filter(Boolean).join(" · ");
           return (
             <Card key={survey.survey_id} style={styles.card} testID={`survey-${survey.survey_id}`}>

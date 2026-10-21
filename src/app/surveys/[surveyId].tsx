@@ -25,7 +25,8 @@ import {
   type SurveyDraft,
 } from "../../features/surveys/library";
 import { audioName, newClientId } from "../../features/surveys/outbox";
-import { surveySource, useSurveyScope } from "../../features/surveys/runtime";
+import { canStartInterview } from "../../features/surveys/interviewer";
+import { surveySource, useSurveyOrganization, useSurveyScope } from "../../features/surveys/runtime";
 import type { AvailableSurvey, RespondentType } from "../../features/surveys/types";
 import { removeItem, scopeId, StorageFullError } from "../../features/surveys/vault";
 import { strings } from "../../i18n";
@@ -52,6 +53,7 @@ export default function SurveyDetailScreen() {
   const router = useRouter();
   const { surveyId } = useLocalSearchParams<{ surveyId: string }>();
   const scope = useSurveyScope();
+  const activeOrganization = useSurveyOrganization();
   const copy = strings.surveys;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,7 +106,8 @@ export default function SurveyDetailScreen() {
   const open = Boolean(available) && !outdated;
   const allowsSelf = version?.allows_self_response ?? available?.allows_self_response ?? false;
   const allowsInterview = version?.allows_interview_response ?? available?.allows_interview_response ?? false;
-  const assigned = available?.is_assigned_surveyor ?? false;
+  // Assigned surveyor or organization staff, as the API decides on submit.
+  const assigned = canStartInterview(available, activeOrganization);
   const title = available?.title ?? version?.title ?? copy.title;
 
   async function download() {

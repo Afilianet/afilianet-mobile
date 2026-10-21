@@ -58,6 +58,7 @@ jest.mock("../../features/surveys/runtime", () => {
   const { ApiError } = jest.requireActual("../../api/errors");
   return {
     useSurveyScope: () => mockScope,
+    useSurveyOrganization: () => ({ my_role: "affiliate", my_membership_status: "active" }),
     surveySource: createFixtureSurveySource(async () => {
       if (!mockOnline) throw new ApiError("offline", "Sin conexión.");
     }),

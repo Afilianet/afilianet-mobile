@@ -16,8 +16,11 @@ jest.mock("expo-router", () => ({
 }));
 
 let mockScope: { userId: string; organizationId: string } | null = { userId: "user-1", organizationId: "org-a" };
+// An affiliate member unless a test says otherwise (staff may interview: see canStartInterview).
+let mockOrganization: { my_role?: string; my_membership_status?: string } | null = { my_role: "affiliate", my_membership_status: "active" };
 jest.mock("../../features/surveys/runtime", () => ({
   useSurveyScope: () => mockScope,
+  useSurveyOrganization: () => mockOrganization,
   surveySource: { kind: "fixture", origin: "fixture" },
   surveysPreviewEnabled: true,
 }));
@@ -53,6 +56,7 @@ async function renderInbox() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockOrganization = { my_role: "affiliate", my_membership_status: "active" };
   const outbox = (useSurveyOutbox as unknown as () => Record<string, unknown[]>)();
   outbox.items = [];
   outbox.receipts = [];
