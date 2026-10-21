@@ -7,6 +7,24 @@ export function buildReferralUrl(organizationId: string, affiliateCode: string, 
   return `${base}/${encodeURIComponent(organizationId)}/${encodeURIComponent(affiliateCode)}`;
 }
 
+/**
+ * WhatsApp share link (https://wa.me/?text=...): opens WhatsApp - or its web
+ * fallback - with the message prefilled; the user still picks the chat and
+ * presses send. Nothing is sent by Afilianet and no provider is involved.
+ */
+export function buildWhatsappShareUrl(message: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Only an HTTPS link is tappable inside a WhatsApp chat; the installed-app
+ * scheme used outside staging (afilianetmobile://) is not, so offering
+ * "share by WhatsApp" there would hand the invitee a dead link.
+ */
+export function isLinkTappableInChats(url: string): boolean {
+  return url.startsWith("https://");
+}
+
 const SHAREABLE_STATUSES = new Set(["active", "pending"]);
 
 export function canShareReferral(affiliateStatus: string): boolean {

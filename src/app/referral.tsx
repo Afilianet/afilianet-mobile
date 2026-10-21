@@ -2,7 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { isApiError } from "../api/errors";
 import { EmptyState } from "../components/EmptyState";
@@ -25,7 +25,7 @@ import { useOrganization } from "../state/OrganizationContext";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
-import { buildReferralUrl, canShareReferral } from "../utils/referral";
+import { buildReferralUrl, buildWhatsappShareUrl, canShareReferral, isLinkTappableInChats } from "../utils/referral";
 
 export default function ReferralScreen() {
   return (
@@ -147,6 +147,17 @@ function ReferralBody({
     }
   }
 
+  async function handleWhatsappShare() {
+    analytics.capture("referral_whatsapp_opened");
+    try {
+      await Linking.openURL(buildWhatsappShareUrl(strings.referral.shareMessage(url)));
+    } catch {
+      // WhatsApp (and the browser fallback) could not be opened: offer the
+      // regular share sheet instead of failing silently.
+      await handleShare();
+    }
+  }
+
   async function handleCopy() {
     await Clipboard.setStringAsync(url);
     analytics.capture("referral_link_copied");
@@ -199,6 +210,16 @@ function ReferralBody({
               iconLeft={<Icon name="compartir" size={18} color={colors.textOnBrand} />}
               onPress={() => void handleShare()}
             />
+            {isLinkTappableInChats(url) ? (
+              <Button
+                label={strings.referral.shareWhatsapp}
+                variant="secondary"
+                size="md"
+                fullWidth
+                iconLeft={<Icon name="compartir" size={16} color={colors.textPrimary} />}
+                onPress={() => void handleWhatsappShare()}
+              />
+            ) : null}
             <Button
               label={strings.referral.copyLink}
               variant="secondary"

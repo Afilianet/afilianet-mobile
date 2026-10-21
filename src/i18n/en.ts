@@ -522,6 +522,7 @@ export const en = {
     referralLinkA11y: (url: string) => `Referral link ${url}`,
     share: "Share",
     copyLink: "Copy link",
+    shareWhatsapp: "Share on WhatsApp",
     myInvitations: "My invitations",
     seeInvitations: "See who you've invited and their status under Network.",
     viewInvitations: "View invitations",
