@@ -1,10 +1,12 @@
+import type React from "react";
+import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
 import { cachedInbox, getDownloaded, listDrafts, refreshInbox } from "../../features/surveys/library";
 import { surveySource } from "../../features/surveys/runtime";
 import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import type { AvailableSurvey } from "../../features/surveys/types";
-import SurveysInboxScreen from "../../app/surveys/index";
+import SurveysInboxScreen from "../../app/(app)/surveys/index";
 
 jest.setTimeout(30_000);
 
@@ -49,7 +51,7 @@ const available = (overrides: Partial<AvailableSurvey>): AvailableSurvey => ({
 async function renderInbox() {
   let screen!: Awaited<ReturnType<typeof render>>;
   await act(async () => {
-    screen = await render(<SurveysInboxScreen />);
+    screen = await render(<WithOrganization><SurveysInboxScreen /></WithOrganization>);
   });
   return screen;
 }
@@ -67,6 +69,14 @@ beforeEach(() => {
   mockScope = { userId: "user-1", organizationId: "org-a" };
   (getDownloaded as jest.Mock).mockResolvedValue(null);
 });
+
+
+/** The section's organization bar reads the active organization; here, the test's scope. */
+function WithOrganization({ children }: { children: React.ReactNode }) {
+  const organization = { id: "org-a", name: "Organización de prueba" };
+  const value = { status: "ready", organizations: [organization], activeOrganization: organization, error: null, selectOrganization: jest.fn(), refresh: jest.fn() } as unknown as OrganizationContextValue;
+  return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
+}
 
 describe("Surveys inbox", () => {
   it("offline, shows the saved list with its date and which surveys are available offline", async () => {
@@ -120,7 +130,7 @@ describe("Surveys inbox", () => {
     (refreshInbox as jest.Mock).mockImplementationOnce(() => new Promise((resolve) => { resolveB = resolve; }));
     mockScope = { userId: "user-1", organizationId: "org-b" };
     await act(async () => {
-      screen.rerender(<SurveysInboxScreen />);
+      screen.rerender(<WithOrganization><SurveysInboxScreen /></WithOrganization>);
     });
     expect(screen.queryByText("Solo de org A")).toBeNull();
 

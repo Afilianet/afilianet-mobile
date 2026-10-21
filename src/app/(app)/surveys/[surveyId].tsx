@@ -1,17 +1,17 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
-import { accessErrorMessage } from "../../api/access";
-import { isApiError } from "../../api/errors";
-import { EmptyState } from "../../components/EmptyState";
-import { SkeletonGroup } from "../../components/Skeleton";
-import { Badge } from "../../components/ui/Badge";
-import { Button } from "../../components/ui/Button";
-import { Card } from "../../components/ui/Card";
-import { IconButton } from "../../components/ui/IconButton";
-import { colors, measures, spacing, typography } from "../../components/ui/theme";
-import { Icon } from "../../design-system/icons/Icon";
-import { DraftRow, SurveysPreviewNotice } from "../../features/surveys/components";
+import { accessErrorMessage } from "../../../api/access";
+import { isApiError } from "../../../api/errors";
+import { EmptyState } from "../../../components/EmptyState";
+import { SkeletonGroup } from "../../../components/Skeleton";
+import { Badge } from "../../../components/ui/Badge";
+import { Button } from "../../../components/ui/Button";
+import { Card } from "../../../components/ui/Card";
+import { IconButton } from "../../../components/ui/IconButton";
+import { colors, measures, spacing, typography } from "../../../components/ui/theme";
+import { Icon } from "../../../design-system/icons/Icon";
+import { DraftRow, SurveysPreviewNotice } from "../../../features/surveys/components";
 import {
   cachedInbox,
   deleteDraft,
@@ -23,15 +23,15 @@ import {
   saveDraft,
   type DownloadedVersion,
   type SurveyDraft,
-} from "../../features/surveys/library";
-import { audioName, newClientId } from "../../features/surveys/outbox";
-import { canStartInterview } from "../../features/surveys/interviewer";
-import { surveySource, useSurveyOrganization, useSurveyScope } from "../../features/surveys/runtime";
-import type { AvailableSurvey, RespondentType } from "../../features/surveys/types";
-import { removeItem, scopeId, StorageFullError } from "../../features/surveys/vault";
-import { strings } from "../../i18n";
-import { surveyResponse } from "../../navigation/routes";
-import { formatDateTime } from "../../utils/date";
+} from "../../../features/surveys/library";
+import { audioName, newClientId } from "../../../features/surveys/outbox";
+import { canStartInterview } from "../../../features/surveys/interviewer";
+import { surveySource, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
+import type { AvailableSurvey, RespondentType } from "../../../features/surveys/types";
+import { removeItem, scopeId, StorageFullError } from "../../../features/surveys/vault";
+import { strings } from "../../../i18n";
+import { surveyResponse } from "../../../navigation/routes";
+import { formatDateTime } from "../../../utils/date";
 
 interface Loaded {
   key: string;

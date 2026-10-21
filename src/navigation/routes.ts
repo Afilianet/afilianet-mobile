@@ -85,6 +85,7 @@ export function surveyDetail(surveyId: string): string | null {
   return SURVEY_ID.test(surveyId) ? `/surveys/${surveyId}` : null;
 }
 
+/** Inside the Encuestas section (its own stack under the tab bar), so leaving it keeps the bar and its safe exit. */
 export function surveyResponse(draftId: string): string {
-  return `/survey-response/${encodeURIComponent(draftId)}`;
+  return `/surveys/response/${encodeURIComponent(draftId)}`;
 }

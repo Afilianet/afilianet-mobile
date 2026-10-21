@@ -411,6 +411,8 @@ export const es = {
     walletTitle: "Monedero",
     noWalletBalanceYet: "Aún no hay saldo en el monedero",
     noOrganizationSelected: "Ninguna organización seleccionada",
+    surveysDescription: "Responde encuestas o haz entrevistas. Funcionan también sin conexión si las descargas.",
+    openSurveys: "Abrir encuestas",
     greeting: (firstName: string) => `Hola, ${firstName}`,
     welcome: "Bienvenido",
     enrollment: {
@@ -747,6 +749,12 @@ export const es = {
     signIn: "Iniciar sesión",
     goHome: "Ir al inicio",
     genericError: "No se pudo procesar la invitación. Intenta de nuevo.",
+  },
+  organizationBar: {
+    label: "Organización activa",
+    change: "Cambiar",
+    a11y: (name: string) => `Organización activa: ${name}`,
+    changeA11y: (name: string) => `Cambiar de organización. Activa: ${name}`,
   },
   organizationPicker: {
     title: "Elige una organización",

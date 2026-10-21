@@ -21,6 +21,7 @@ import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Icon } from "../../design-system/icons/Icon";
 import { affiliateStatusCopy } from "../../design-system/statusMapping";
+import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useMyInvitations } from "../../hooks/useMyInvitations";
@@ -164,6 +165,7 @@ export default function NetworkScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Text style={styles.heading}>{strings.network.title}</Text>
+      <ActiveOrganizationBar />
       {!affiliateQuery.data || loadFailed || forbidden ? assistedSection : null}
 
       {affiliateQuery.isPending ? (

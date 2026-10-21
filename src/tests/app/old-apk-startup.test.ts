@@ -38,7 +38,8 @@ describe("JavaScript from this branch on the previous APK (no ExpoAudio native m
     for (const file of files) {
       expect(() => require(file)).not.toThrow();
     }
-    expect(files.some((file) => file.includes("survey-response"))).toBe(true);
+    // The response screen (the one that records) is among them, now inside the Encuestas section.
+    expect(files.some((file) => file.includes(join("surveys", "response")))).toBe(true);
   });
 
   it("reports recording as unavailable instead of failing", () => {
