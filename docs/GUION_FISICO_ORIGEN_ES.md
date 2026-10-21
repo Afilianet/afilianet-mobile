@@ -38,7 +38,7 @@ Esta fase activa la fuente real, solo para leer. **No abrir, descargar ni respon
 | # | Paso | Resultado esperado |
 |---|---|---|
 | O7 | Quitar el modo avión, abrir la app con el nuevo bundle, ir a Encuestas | Sin el aviso «Vista previa…». En «Envíos»: «Se envían a: Afilianet (servidor de pruebas).» y «No hay envíos pendientes.» La lista de encuestas puede salir vacía o con un error si staging no tiene encuestas: no importa |
-| O8 | Bajar hasta «Guardado con otro origen» | Un grupo «Guardado con datos de ejemplo» con la explicación «…no se envía desde aquí…». Dentro: B con «No se envía desde aquí» y «con audio», A y los borradores antiguos con «Consultar». Otro grupo «Origen sin confirmar» con los recibos antiguos. No hay botones de enviar ni de descartar |
+| O8 | Bajar hasta «Guardado con otro origen» | Un recuadro «Guardado con datos de ejemplo», con «No se envía a Afilianet (servidor de pruebas)…» dentro y sus apartados: «Borradores (n)» con A y los borradores antiguos («Consultar»), y «Respuestas sin enviar (n)» con B («No se envía desde aquí», «con audio»). Otro recuadro aparte, «Origen sin confirmar», con «Recibidos (n)» antiguos. No hay botones de enviar ni de descartar |
 | O9 | Deslizar hacia abajo para actualizar, dos veces | B sigue igual. Nada pasa a «Recibido» ni a «No se puede enviar» |
 | O10 | En A, «Consultar» | «Solo consulta: este borrador pertenece a datos de ejemplo…». Se ven las respuestas y «Grabación lista · 0:05». No se puede escribir ni elegir opciones, y no hay «Enviar respuesta», «Guardar borrador y salir» ni controles de grabación. «Cerrar» vuelve sin cambios |
 | O11 | Forzar la detención y volver a abrir | Igual que O8: nada se movió |
@@ -54,6 +54,20 @@ Esta fase activa la fuente real, solo para leer. **No abrir, descargar ni respon
 | O16 | Comparar con la captura de O0 | Todo lo de O0 sigue, más A (borrador) y B (recibido). No falta nada |
 
 **Opcional:** con dos organizaciones, cambiar a la otra en la fase 1. No muestra ni envía nada de la primera; al volver, todo sigue ahí.
+
+## Resultado de la ronda (2026-10-20, Andrés)
+
+**Candidato probado:** Mobile #60 `c0d3db753b35d511ac768a2acda7b8316581ce1b`, APK `versionCode` 11, Metro con tunnel en el puerto 8082 y API base `https://staging-api.afilianet.mx`.
+
+| Fase | Fuente | Resultado |
+|---|---|---|
+| 1 | Datos de ejemplo | **Pasó.** Se conservaron los datos anteriores. Los borradores se podían continuar, con sus respuestas y su audio. Se creó el borrador A y el envío B, ambos con audio; B quedó pendiente en modo avión |
+| 2 | API real de staging, solo consulta | **Pasó.** «Envíos» mostró «Se envían a: Afilianet (servidor de pruebas)» y «No hay envíos pendientes». Los registros de ejemplo mostraron «No se envía desde aquí» y no cambiaron tras dos actualizaciones. A se abrió con «Consultar» en solo consulta. B, como envío, no se puede editar (es lo esperado). No se abrió, descargó, respondió ni envió nada en staging |
+| 3 | Datos de ejemplo | **Pasó completa.** Volvió el modo de ejemplo; A se podía continuar con sus respuestas y su audio; los otros borradores seguían ahí; B se conservó, y su paso a «Recibido» ocurre dentro del teléfono, contra el servidor de ejemplo; los registros de origen desconocido siguieron aparte y sin enviarse |
+
+**Observación de presentación:** en la fase 2, el encabezado «Origen sin confirmar» se leyó como parte de las entrevistas que tenía encima. No hubo clasificación incorrecta: esas entrevistas estaban en «Guardado con datos de ejemplo». Se corrige en Mobile #61, donde cada origen es un recuadro propio. Esta versión del guion ya describe esa presentación (O8).
+
+No se cerró sesión ni se borró, descartó o reclasificó ningún dato de la tablet. Al terminar, Metro quedó sirviendo #60 con datos de ejemplo.
 
 ## Si algo falla
 

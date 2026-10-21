@@ -63,7 +63,7 @@ La misma URL escrita de formas distintas da la misma identidad. Staging, producc
 4. **Lectura por origen** (decisiones C y D):
    - La bandeja guardada, las descargas y los borradores editables son solo los del origen activo.
    - Cada origen guarda su propia bandeja (`inbox-<origen>`), así que actualizar la de staging no reemplaza la lista de ejemplo guardada para usar sin conexión. El archivo único de versiones anteriores (`inbox`) no se vuelve a escribir.
-   - Lo demás aparece en Encuestas, en «Guardado con otro origen», agrupado por origen y con explicación: envíos («No se envía desde aquí»), borradores («Consultar») y recibos.
+   - Lo demás aparece en Encuestas, en «Guardado con otro origen». Cada origen es un recuadro propio, con su encabezado y una explicación de una línea dentro, y sus registros separados en «Borradores (n)» (con «Consultar»), «Respuestas sin enviar (n)» («No se envía desde aquí») y «Recibidos (n)». Cada registro muestra su estado y si tiene audio.
    - Desde esa sección nada se envía, se edita ni se descarta. Descartar también comprueba el origen.
    - Un borrador de otro origen o sin confirmar se abre en **solo consulta**: respuestas y audio visibles, campos deshabilitados, sin grabar, guardar ni enviar.
    - «Quitar descarga» se oculta mientras cualquier borrador, de cualquier origen, use esa encuesta.
@@ -161,7 +161,7 @@ Integrales (`sourceIsolation.test.ts`):
 Quitar solo el filtro inicial del audio no hace fallar ninguna prueba, a propósito: la nueva comprobación antes de subirlo basta por sí sola. Quitar solo esa comprobación sí hace fallar la suite (fila «Quitar la nueva comprobación antes de cada envío (audio)»).
 
 También hay pruebas de pantalla:
-- `surveys-inbox.test.tsx`: destino en «Envíos» y sección «Guardado con otro origen»;
+- `surveys-inbox.test.tsx`: destino en «Envíos» y sección «Guardado con otro origen»: cada encabezado queda con sus propios registros, separados por tipo, y la única acción es «Consultar» un borrador;
 - `survey-response.test.tsx`: solo consulta, y el audio sellado con el origen de su borrador.
 
 Las pruebas unitarias están en `origin.test.ts` (identidad y clasificación) y `apiSource.test.ts` (ids y servidor).

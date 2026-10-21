@@ -42,7 +42,7 @@ jobs:
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/organization-exit.test.tsx src/tests/push/preferences.test.tsx
 
       - name: Verify notification inbox, detail (incl. session/organization isolation), settings, push opening and native liveness copy
-        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/notifications.test.tsx src/tests/app/notification-detail.test.tsx src/tests/app/notification-settings.test.tsx src/components/PushLifecycleOpen.test.tsx src/components/compliance/recaptureRequest.test.ts src/tests/native/livenessNativeStrings.test.ts
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/notifications-http.test.tsx src/tests/app/notifications.test.tsx src/tests/app/notification-detail.test.tsx src/tests/app/notification-settings.test.tsx src/components/PushLifecycleOpen.test.tsx src/components/compliance/recaptureRequest.test.ts src/tests/native/livenessNativeStrings.test.ts
       # Stale fixtures fixed: a review verdict is a passed step (#24 recapture
       # semantics), terms must be the case's current_step (enforced order, #2)
       # and the assisted-enrollment tenant domains are invalidated too.
