@@ -4,6 +4,7 @@ import { fetchPendingAssistedEnrollments } from "../../api/assistedEnrollment";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
+import { hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
 import { listPendingAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
@@ -13,6 +14,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { ForbiddenState } from "../../components/ForbiddenState";
 import { InvitationRow } from "../../components/InvitationRow";
 import { NetworkSearchSection } from "../../components/network/NetworkSearchSection";
+import { OrganizationAffiliatesSection } from "../../components/network/OrganizationAffiliatesSection";
 import { SectionCard } from "../../components/SectionCard";
 import { SkeletonGroup } from "../../components/Skeleton";
 import { Badge } from "../../components/ui/Badge";
@@ -37,18 +39,22 @@ export default function NetworkScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
+  // API #75: personal network and assisted enrollment need an affiliate
+  // profile in THIS organization; staff without one get the management view.
+  const personal = hasPersonalAffiliateAccess(activeOrganization);
+  const staff = isOrganizationStaff(activeOrganization);
   const [assistedPage, setAssistedPage] = useState(1);
   const assistedQuery = useApiQuery(
     ["assisted-enrollments", user?.id, activeOrganization?.id, assistedPage],
     () => fetchPendingAssistedEnrollments(assistedPage),
-    { enabled: Boolean(user) && Boolean(activeOrganization) },
+    { enabled: Boolean(user) && personal },
   );
   const [pendingItems, setPendingItems] = useState<PendingAssistedEnrollment[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
-    if (!user || !activeOrganization) return;
+    if (!user || !activeOrganization || !hasPersonalAffiliateAccess(activeOrganization)) return;
     let active = true;
     void listPendingAssisted(user.id, activeOrganization.id)
       .then((items) => { if (active) { setPendingItems(items); } })
@@ -94,6 +100,11 @@ export default function NetworkScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
+    if (!personal) {
+      // Nothing personal to refresh; the management list refreshes with its own pull.
+      setRefreshing(false);
+      return;
+    }
     if (user && activeOrganization) {
       try {
         const items = await listPendingAssisted(user.id, activeOrganization.id);
@@ -120,7 +131,7 @@ export default function NetworkScreen() {
   const loadFailed = isApiError(affiliateQuery.error) && !noAffiliateProfile && !forbidden;
 
   const visiblePending = pendingItems.filter((item) => item.sponsorUserId === user?.id && item.organizationId === activeOrganization?.id);
-  const assistedSection = user && activeOrganization ? (
+  const assistedSection = user && activeOrganization && personal ? (
     <>
       <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
           {visiblePending.length > 0 ? (
@@ -166,6 +177,20 @@ export default function NetworkScreen() {
     >
       <Text style={styles.heading}>{strings.network.title}</Text>
       <ActiveOrganizationBar />
+      {!personal ? (
+        <>
+          <Card style={styles.pendingCard} testID="staff-without-profile">
+            <Text style={styles.pendingHeading}>{strings.staffWithoutProfile.title}</Text>
+            <Text style={styles.pendingText}>{strings.staffWithoutProfile.description}</Text>
+          </Card>
+          {/* Keyed by account+organization: switching either clears the search and its results. */}
+          {staff ? <OrganizationAffiliatesSection key={`organization-affiliates:${user?.id}:${activeOrganization?.id}`} /> : null}
+        </>
+      ) : (
+        <>
+      {staff ? (
+        <Button label={strings.organizationAffiliates.open} variant="secondary" onPress={() => router.push(routes.organizationAffiliates as never)} />
+      ) : null}
       {!affiliateQuery.data || loadFailed || forbidden ? assistedSection : null}
 
       {affiliateQuery.isPending ? (
@@ -258,6 +283,8 @@ export default function NetworkScreen() {
           </SectionCard>
         </>
       ) : null}
+        </>
+      )}
     </ScrollView>
   );
 }

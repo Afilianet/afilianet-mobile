@@ -58,6 +58,12 @@ export interface Organization {
   // membership pivot, e.g. GET /api/v1/me/organizations.
   my_role?: string;
   my_membership_status?: string;
+  /**
+   * API #75: whether THIS user has an affiliate profile in THIS organization.
+   * Absent on older APIs and on lists saved offline before it: unknown, never
+   * false (see state/membership.ts).
+   */
+  has_affiliate_profile?: boolean;
 }
 
 // afilianet-api has no standalone Membership/OrganizationMembership resource --

@@ -750,6 +750,21 @@ export const es = {
     goHome: "Ir al inicio",
     genericError: "No se pudo procesar la invitación. Intenta de nuevo.",
   },
+  organizationAffiliates: {
+    title: "Afiliados de la organización",
+    helpText: "Todas las personas afiliadas a esta organización. Abre una para ver su ficha y su red.",
+    emptyTitle: "Esta organización aún no tiene afiliados",
+    noResults: (term: string) => `Ningún afiliado coincide con «${term}».`,
+    searchLabel: "Buscar por nombre o código",
+    searchA11y: "Buscar afiliados de la organización por nombre o código",
+    open: "Ver afiliados de la organización",
+  },
+  staffWithoutProfile: {
+    title: "Cuenta de gestión",
+    description: "Esta cuenta administra la organización; no tiene perfil de afiliado.",
+    personalUnavailable: "No disponible para esta cuenta: no tiene perfil de afiliado en esta organización.",
+    selfSurveyUnavailable: "Responder por tu cuenta requiere un perfil de afiliado en esta organización.",
+  },
   organizationBar: {
     label: "Organización activa",
     change: "Cambiar",

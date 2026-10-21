@@ -19,6 +19,7 @@ import { useCompliance } from "../../hooks/useCompliance";
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
+import { affiliateProfilePresence } from "../../state/membership";
 import type { AffiliateProfile } from "../../types/api";
 import { formatDate } from "../../utils/date";
 import { formatPhoneForDisplay } from "../../utils/phone";
@@ -56,7 +57,13 @@ export default function ProfileScreen() {
         <Button label={strings.noOrganization.verifyAccount} variant="secondary" onPress={() => router.push(routes.verifyAccount as never)} />
       ) : null}
 
-      {activeOrganization ? <>
+      {activeOrganization && affiliateProfilePresence(activeOrganization) === "absent" ? (
+        // API #75: no affiliate block and no verification for an account without a profile here.
+        <Card style={styles.card} testID="profile-staff-without-profile">
+          <Text style={styles.sectionTitle}>{strings.staffWithoutProfile.title}</Text>
+          <Text style={styles.fieldValue}>{strings.staffWithoutProfile.description}</Text>
+        </Card>
+      ) : activeOrganization ? <>
       <SectionCard
         title={strings.profile.affiliateTitle}
         query={affiliateQuery}

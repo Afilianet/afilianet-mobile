@@ -690,6 +690,21 @@ export const en = {
     } as Record<string, string>,
     goToSectionFallback: "See more",
   },
+  organizationAffiliates: {
+    title: "Organization affiliates",
+    helpText: "Everyone affiliated with this organization. Open one to see their profile and network.",
+    emptyTitle: "This organization has no affiliates yet",
+    noResults: (term: string) => `No affiliate matches “${term}”.`,
+    searchLabel: "Search by name or code",
+    searchA11y: "Search the organization's affiliates by name or code",
+    open: "View organization affiliates",
+  },
+  staffWithoutProfile: {
+    title: "Management account",
+    description: "This account manages the organization; it has no affiliate profile.",
+    personalUnavailable: "Not available for this account: it has no affiliate profile in this organization.",
+    selfSurveyUnavailable: "Answering on your own requires an affiliate profile in this organization.",
+  },
   organizationBar: {
     label: "Active organization",
     change: "Change",

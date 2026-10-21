@@ -1,8 +1,6 @@
+import { isOrganizationStaff } from "../../state/membership";
 import type { Organization } from "../../types/api";
 import type { AvailableSurvey } from "./types";
-
-/** MembershipRole::canManageOrganization() in afilianet-api: staff, not affiliates. */
-const STAFF_ROLES = new Set(["owner", "admin", "manager"]);
 
 /**
  * Whether this account may start an interview for a survey in the active
@@ -22,5 +20,5 @@ export function canStartInterview(
 ): boolean {
   if (!survey?.allows_interview_response) return false;
   if (survey.is_assigned_surveyor) return true;
-  return organization?.my_membership_status === "active" && STAFF_ROLES.has(organization.my_role ?? "");
+  return isOrganizationStaff(organization);
 }
