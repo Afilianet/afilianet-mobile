@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
+import type { Organization } from "../../types/api";
 import { createApiSurveySource } from "./apiSource";
 import { createFixtureSurveySource } from "./fixtureSource";
 import type { SurveySource } from "./source";
@@ -28,4 +29,9 @@ export function useSurveyScope(): SurveyScope | null {
   const userId = status === "signedIn" ? user?.id : undefined;
   const organizationId = activeOrganization?.id;
   return useMemo(() => (userId && organizationId ? { userId, organizationId } : null), [userId, organizationId]);
+}
+
+/** The active organization with this account's role in it (`my_role`), for what surveys may offer. */
+export function useSurveyOrganization(): Organization | null {
+  return useOrganization().activeOrganization ?? null;
 }
