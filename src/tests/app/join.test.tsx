@@ -208,6 +208,32 @@ describe("Join: later affiliation with the current account", () => {
     expect(mockReplace).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["a new affiliation", { organization_role: "affiliate", already_affiliated: false }],
+    ["already in the network (API #78)", { organization_role: "affiliate", already_affiliated: true }],
+  ])("an acceptance answered after the session changed (%s) never touches the new session", async (_case, answer) => {
+    let resolveAccept!: (value: unknown) => void;
+    accept.mockImplementationOnce(() => new Promise((resolve) => { resolveAccept = resolve; }));
+    const view = await renderMember();
+    await act(async () => {
+      fireEvent.press(view.getByText("Unirme con mi cuenta"));
+    });
+    expect(accept).toHaveBeenCalledWith("private-token");
+
+    await act(async () => {
+      view.rerender(tree(memberAuth({ ...MEMBER, id: "user-2", first_name: "Otra" })));
+    });
+    await act(async () => {
+      resolveAccept(answer);
+    });
+
+    // The server already answered for the previous account: the new one keeps its pending referral and stays put.
+    expect(clearPendingReferral).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(view.queryByTestId("join-already-affiliated")).toBeNull();
+  });
+
   it("does not offer to join an organization the account already belongs to", async () => {
     const org = { id: "org-1", name: "Mi organización" } as OrganizationContextValue["organizations"][number];
     const view = await renderMember(memberAuth(), orgs([org]));
