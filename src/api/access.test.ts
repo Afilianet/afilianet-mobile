@@ -6,6 +6,7 @@ import {
   requestPhoneVerification,
   resetPasswordWithPhoneCode,
   signInWith,
+  unavailablePhoneChannel,
   verifyPhone,
 } from "./access";
 import { configureApiClient } from "./client";
@@ -68,9 +69,55 @@ describe("phone verification", () => {
   it("reports the server's resend wait and expiry", async () => {
     // Contract (API #50): 202 {retry_after, expires_in}, flat.
     fetchMock.mockResolvedValueOnce(json({ retry_after: 45, expires_in: 600 }, 202));
-    await expect(requestPhoneVerification()).resolves.toEqual({ retryAfterSeconds: 45, expiresInSeconds: 600 });
+    await expect(requestPhoneVerification()).resolves.toEqual({ retryAfterSeconds: 45, expiresInSeconds: 600, channel: "sms" });
+    expect(lastCall().body).toEqual({ channel: "sms" });
     expect(lastCall().headers.Authorization).toBe("Bearer session-token");
     expect(lastCall().headers["X-Organization-ID"]).toBeUndefined();
+  });
+
+  it("API #79: asks for WhatsApp and reports the channel the API says it queued", async () => {
+    fetchMock.mockResolvedValueOnce(json({ retry_after: 60, expires_in: 600, delivery: "queued", channel: "whatsapp" }, 202));
+    await expect(requestPhoneVerification("whatsapp")).resolves.toEqual({ retryAfterSeconds: 60, expiresInSeconds: 600, channel: "whatsapp" });
+    expect(lastCall().url).toBe("https://api.test/api/v1/auth/phone-verification");
+    expect(lastCall().body).toEqual({ channel: "whatsapp" });
+  });
+
+  it("an API without #79 ignores the channel and answers without one: the code went by SMS, never reported as WhatsApp", async () => {
+    fetchMock.mockResolvedValueOnce(json({ retry_after: 60, expires_in: 600 }, 202));
+    await expect(requestPhoneVerification("whatsapp")).resolves.toMatchObject({ channel: "sms" });
+  });
+
+  it("429: the wait comes from the body's retry_after (before the Retry-After header); the 429 has no reason", async () => {
+    fetchMock.mockResolvedValueOnce(json({ message: "Too Many Attempts.", retry_after: 42 }, 429, { "Retry-After": "50" }));
+    const error = (await requestPhoneVerification("whatsapp").catch((cause) => cause)) as ApiError;
+    expect(error.kind).toBe("rate_limited");
+    expect(error.retryAfterSeconds).toBe(42);
+    expect(error.reason).toBeUndefined();
+  });
+
+  it("429 without any wait from the API: none is made up", async () => {
+    fetchMock.mockResolvedValueOnce(json({ message: "Too Many Attempts." }, 429));
+    const error = (await requestPhoneVerification().catch((cause) => cause)) as ApiError;
+    expect(error.retryAfterSeconds).toBeUndefined();
+    expect(accessErrorMessage(error)).toBe("Demasiados intentos. Espera un momento e inténtalo de nuevo.");
+  });
+
+  it.each([
+    ["whatsapp_unavailable", "whatsapp", "Por ahora no podemos enviar códigos por WhatsApp. No se envió ningún código."],
+    ["sms_unavailable", "sms", "Por ahora no podemos enviar mensajes SMS. Inténtalo más tarde."],
+  ])("503 %s: names the channel that cannot send; no retry_after in that body", async (reason, channel, message) => {
+    fetchMock.mockResolvedValueOnce(json({ message: "Unavailable.", reason }, 503));
+    const error = await requestPhoneVerification(channel as "sms" | "whatsapp").catch((cause) => cause);
+    expect(unavailablePhoneChannel(error)).toBe(channel);
+    expect((error as ApiError).retryAfterSeconds).toBeUndefined();
+    expect(accessErrorMessage(error)).toBe(message);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("422 errors.channel: the channel was refused, in this app's Spanish", async () => {
+    fetchMock.mockResolvedValueOnce(json({ message: "The selected channel is invalid.", errors: { channel: ["The selected channel is invalid."] } }, 422));
+    const error = await requestPhoneVerification("whatsapp").catch((cause) => cause);
+    expect(accessErrorMessage(error)).toBe("Ese medio no está disponible para enviar el código. Elige otro.");
   });
 
   it("returns the server's user, never a locally-built verified one", async () => {

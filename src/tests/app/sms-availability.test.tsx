@@ -125,7 +125,8 @@ describe("Phone verification (signed in)", () => {
     fetchMock.mockResolvedValueOnce(json(SMS_UNAVAILABLE, 503));
     await press(screen, "Verificar celular");
 
-    expect(screen.getByText("Por ahora no podemos enviar mensajes SMS. Inténtalo más tarde.")).toBeTruthy();
+    // With API #79 a 503 here means no channel can check codes: it is not about sending SMS.
+    expect(screen.getByText("Por ahora no podemos comprobar códigos. Tu código sigue escrito: inténtalo más tarde.")).toBeTruthy();
     expect(screen.getByLabelText("Código de verificación").props.value).toBe("123456");
   });
 });
