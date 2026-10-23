@@ -34,7 +34,7 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 
 | Hecho | Fuente | Efecto en la beta |
 |---|---|---|
-| `GET /api/v1/privacy/notice` responde **HTTP 503** | Comprobado aquí (solo lectura) | En la app, «Aviso de privacidad» muestra «El aviso no está disponible por el momento.» |
+| `GET /api/v1/privacy/notice` responde **HTTP 503** | Comprobado aquí (solo lectura). Causa en la API (`PrivacyNoticeController.php` en `main` `3a2e267`): solo publica con `PRIVACY_NOTICE_PUBLISHED=true`, los 11 textos y datos de `config/privacy.php` completos (responsable, domicilio, correo válido, plazo de eliminación «naturales» o «hábiles») y la retención configurada para cada categoría de evidencia | En la app, «Aviso de privacidad» muestra «El aviso no está disponible por el momento.» |
 | `PRIVACY_NOTICE_PUBLISHED=false`, `PRIVACY_RETENTION_SCHEDULE_ENABLED=false` | Sesión de infraestructura (task definition `:51`) | Aviso y retención sin publicar ni activar |
 | `AWS_FACE_LIVENESS_ENABLED=true`, `FACE_MATCH_ENGINE_ENABLED=true` | Sesión de infraestructura | La verificación de identidad captura **biometría real** hoy |
 | `PUSH_ENABLED=true` | Sesión de infraestructura | Aceptar un referido manda un push real al patrocinador |
