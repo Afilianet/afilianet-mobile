@@ -3,12 +3,22 @@ import { pathToFileURL } from "node:url";
 export function validateBuildEnvironment(env) {
   const errors = [];
   const appEnv = env.EXPO_PUBLIC_APP_ENV;
-  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", internal: "internal", development: "development" };
+  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", "store-beta-apk": "staging", internal: "internal", development: "development" };
   if (!["development", "internal", "staging", "production"].includes(appEnv)) {
     errors.push("Define EXPO_PUBLIC_APP_ENV explícitamente.");
   }
   if (expected[env.EAS_BUILD_PROFILE] && expected[env.EAS_BUILD_PROFILE] !== appEnv) {
     errors.push("El entorno no corresponde al perfil de compilación.");
+  }
+  // Feature switches are read as exactly "1"/"0": anything else ("true", "yes") would be silently ignored.
+  for (const name of ["EXPO_PUBLIC_SURVEYS_PREVIEW", "EXPO_PUBLIC_PHONE_WHATSAPP"]) {
+    if (env[name] !== undefined && !["0", "1"].includes(env[name])) {
+      errors.push(`${name} solo admite "0" o "1".`);
+    }
+  }
+  // A store build reaches outside testers: whether they see the surveys preview must be an explicit decision.
+  if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE) && env.EXPO_PUBLIC_SURVEYS_PREVIEW === undefined) {
+    errors.push("store-beta debe decidir EXPO_PUBLIC_SURVEYS_PREVIEW (\"0\" o \"1\") explícitamente.");
   }
   let url;
   try {
@@ -26,7 +36,7 @@ export function validateBuildEnvironment(env) {
     if (appEnv === "production" && url.origin !== "https://api.afilianet.mx") {
       errors.push("Producción requiere https://api.afilianet.mx; no uses staging, direcciones locales ni ejemplos.");
     }
-    if (["staging", "store-beta", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
+    if (["staging", "store-beta", "store-beta-apk", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
       errors.push("El perfil de pruebas requiere https://staging-api.afilianet.mx.");
     }
   }

@@ -142,10 +142,36 @@ describe("Verify account", () => {
       fireEvent.press(screen.getByText("Enviar código por SMS"));
     });
 
-    expect(screen.getByText("Espera 30 segundos para pedir otro código, por SMS o por WhatsApp.")).toBeTruthy();
+    // The default build offers SMS only, so the wait never mentions WhatsApp.
+    expect(screen.getByText("Espera 30 segundos antes de intentarlo de nuevo.")).toBeTruthy();
     expect(screen.getByText("Podrás pedir otro código en 30 s")).toBeTruthy();
     // Registration already sent a code (one per minute): the person can type it right away.
     expect(screen.getByLabelText("Código de verificación")).toBeTruthy();
+  });
+
+  it("by default (no WhatsApp switch in the build) offers SMS only: no channel choice and no WhatsApp anywhere", async () => {
+    const screen = await renderVerify(auth(BASE_USER));
+    expect(screen.queryByText("¿Cómo quieres recibir el código?")).toBeNull();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.queryByText(/WhatsApp/)).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("Enviar código por SMS"));
+    });
+    expect(mockedRequestPhone).toHaveBeenCalledWith("sms");
+    expect(screen.getByText("Podrás pedir otro código en 60 s")).toBeTruthy();
+    expect(screen.queryByText(/WhatsApp/)).toBeNull();
+  });
+
+  it("by default, SMS unavailable never suggests WhatsApp", async () => {
+    mockedRequestPhone.mockRejectedValue(new ApiError("server", "SMS is not available.", 503, undefined, { reason: "sms_unavailable" }));
+    const screen = await renderVerify(auth(BASE_USER));
+    await act(async () => {
+      fireEvent.press(screen.getByText("Enviar código por SMS"));
+    });
+    expect(screen.getByText("Por ahora no podemos enviar mensajes SMS. Inténtalo más tarde.")).toBeTruthy();
+    expect(screen.getByText("Mientras tanto puedes seguir entrando con tu correo.")).toBeTruthy();
+    expect(screen.queryByText(/WhatsApp/)).toBeNull();
   });
 
   it("re-reads the server before claiming the email is confirmed", async () => {
