@@ -30,6 +30,16 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 - el simulador de verificación está fuera (requiere `__DEV__`);
 - `localhost` y `expo-development-client` solo aparecen dentro de librerías (servidor de desarrollo de RN, Spotlight de Sentry, router), no en pantallas a las que llegue el usuario.
 
+## Estado del servidor de staging (2026-10-23)
+
+| Hecho | Fuente | Efecto en la beta |
+|---|---|---|
+| `GET /api/v1/privacy/notice` responde **HTTP 503** | Comprobado aquí (solo lectura) | En la app, «Aviso de privacidad» muestra «El aviso no está disponible por el momento.» |
+| `PRIVACY_NOTICE_PUBLISHED=false`, `PRIVACY_RETENTION_SCHEDULE_ENABLED=false` | Sesión de infraestructura (task definition `:51`) | Aviso y retención sin publicar ni activar |
+| `AWS_FACE_LIVENESS_ENABLED=true`, `FACE_MATCH_ENGINE_ENABLED=true` | Sesión de infraestructura | La verificación de identidad captura **biometría real** hoy |
+| `PUSH_ENABLED=true` | Sesión de infraestructura | Aceptar un referido manda un push real al patrocinador |
+| Sin variables `SMS_*` ni `MAIL_*`: se aplican los valores por defecto del código | Sesión de infraestructura (es una inferencia; lo confirma la sesión de la API) | Si el envío falla, no llegan códigos SMS y la recuperación por SMS no funciona |
+
 ## Defectos corregidos en este candidato
 
 1. **El código por WhatsApp se ofrecía aunque el servidor no lo envía.**
@@ -107,7 +117,7 @@ Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS
 **Bloqueos de la beta cerrada de Android:**
 1. Un build `store-beta-apk` instalado y probado en la ronda física de abajo.
 2. Acceso a Play Console con la app `com.afilianet.mobile` y un track de prueba interna o cerrada. Firma: decidir si la gestiona EAS o Play App Signing.
-3. URL pública del aviso de privacidad y URL web para solicitar la eliminación de cuenta, ambas exigidas por Play. También el formulario «Seguridad de los datos» con lo de arriba.
+3. URL pública del aviso de privacidad y URL web para solicitar la eliminación de cuenta, ambas exigidas por Play. **Hoy el aviso responde 503 en staging,** también dentro de la app. También el formulario «Seguridad de los datos» con lo de arriba.
 4. Decisión sobre permisos: bloquear audio en store-beta, o declararlo y justificarlo.
 5. Confirmar que staging tiene la API #50 (registro y acceso por teléfono, SMS).
 
@@ -176,9 +186,9 @@ npx.cmd eas-cli build --platform android --profile store-beta
 | 3 | Perfil → «Verificar mi cuenta» (si el celular está pendiente) | Solo «Enviar código por SMS», sin selector y sin la palabra WhatsApp. **No enviar** |
 | 4 | Referidos | Liga `https://staging-admin…`; correo y WhatsApp abren borradores. Cancelar |
 | 5 | Cambiar de organización | La liga y los datos cambian a la nueva |
-| 6 | Verificación de identidad → documento con cámara | Pide el permiso de cámara; denegarlo muestra cómo habilitarlo. No subir |
+| 6 | Verificación de identidad → documento con cámara | Pide el permiso de cámara; denegarlo muestra cómo habilitarlo. **No capturar ni subir:** staging tiene la biometría real activada |
 | 7 | Notificaciones | Pide el permiso; la bandeja carga sin error rojo |
-| 8 | Perfil → opciones de cuenta | «Eliminar mi cuenta» visible y el aviso de privacidad carga. **No enviar** la solicitud |
+| 8 | Perfil → opciones de cuenta | «Eliminar mi cuenta» visible. **No enviar** la solicitud. El aviso de privacidad: mientras siga sin publicarse, lo esperado es «El aviso no está disponible por el momento.» con «Reintentar», nunca un error rojo distinto |
 | 9 | Cerrar sesión y volver a entrar | Sin datos de la sesión anterior |
 
 **Anotar:** dispositivo, versión de Android, número de build, SHA, captura por paso y el texto exacto de cualquier error.
