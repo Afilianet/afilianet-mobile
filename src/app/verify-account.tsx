@@ -18,6 +18,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { TextInput } from "../components/ui/TextInput";
 import { colors, measures, radius, spacing, typography } from "../components/ui/theme";
+import { whatsappCodeChannelEnabled } from "../config/phoneChannels";
 import { useCountdown } from "../hooks/useCountdown";
 import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
@@ -144,7 +145,9 @@ function EmailChannel({ email, verified, refreshUser }: { email: string; verifie
 }
 
 type ChannelFlags = Record<PhoneCodeChannel, boolean>;
-const CHANNELS: PhoneCodeChannel[] = ["sms", "whatsapp"];
+// Only channels the server really offers: WhatsApp needs an explicit build switch (see config/phoneChannels).
+const CHANNELS: PhoneCodeChannel[] = whatsappCodeChannelEnabled ? ["sms", "whatsapp"] : ["sms"];
+const SEVERAL_CHANNELS = CHANNELS.length > 1;
 const otherChannel = (channel: PhoneCodeChannel): PhoneCodeChannel => (channel === "sms" ? "whatsapp" : "sms");
 
 /**
@@ -319,30 +322,34 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
             </>
           ) : null}
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-          {downChannel ? (
+          {downChannel && SEVERAL_CHANNELS ? (
             <Text style={styles.description}>{bothDown ? copy.noChannelAvailable : copy.tryOtherChannel(name(otherChannel(downChannel)))}</Text>
           ) : null}
           {downChannel && hasEmail ? <Text style={styles.description}>{copy.smsUnavailableWithEmail}</Text> : null}
-          <Text style={styles.label}>{copy.channelQuestion}</Text>
-          <View style={styles.channels} accessibilityRole="radiogroup">
-            {CHANNELS.map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => setChannel(option)}
-                disabled={busy}
-                style={[styles.channel, channel === option ? styles.channelSelected : null]}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: channel === option, disabled: busy }}
-                accessibilityLabel={copy.channelOption(name(option))}
-              >
-                <Text style={[styles.channelLabel, channel === option ? styles.channelLabelSelected : null]}>{name(option)}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {SEVERAL_CHANNELS ? (
+            <>
+            <Text style={styles.label}>{copy.channelQuestion}</Text>
+            <View style={styles.channels} accessibilityRole="radiogroup">
+              {CHANNELS.map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => setChannel(option)}
+                  disabled={busy}
+                  style={[styles.channel, channel === option ? styles.channelSelected : null]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: channel === option, disabled: busy }}
+                  accessibilityLabel={copy.channelOption(name(option))}
+                >
+                  <Text style={[styles.channelLabel, channel === option ? styles.channelLabelSelected : null]}>{name(option)}</Text>
+                </Pressable>
+              ))}
+            </View>
+            </>
+          ) : null}
           {countdown.active ? (
             <>
               <Text style={styles.meta}>{copy.resendIn(countdown.remaining)}</Text>
-              <Text style={styles.meta}>{copy.sharedWait}</Text>
+              {SEVERAL_CHANNELS ? <Text style={styles.meta}>{copy.sharedWait}</Text> : null}
             </>
           ) : null}
           <Button
@@ -358,9 +365,9 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
   );
 }
 
-/** Sending is limited once a minute for SMS and WhatsApp together: say so, with the API's own wait. */
+/** Sending is limited once a minute for SMS and WhatsApp together: say so (when both are offered), with the API's own wait. */
 function sendErrorMessage(error: unknown): string {
-  if (isApiError(error) && error.kind === "rate_limited" && error.retryAfterSeconds) return strings.access.verify.rateLimited(error.retryAfterSeconds);
+  if (SEVERAL_CHANNELS && isApiError(error) && error.kind === "rate_limited" && error.retryAfterSeconds) return strings.access.verify.rateLimited(error.retryAfterSeconds);
   return accessErrorMessage(error);
 }
 

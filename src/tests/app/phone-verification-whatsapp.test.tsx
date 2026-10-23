@@ -15,6 +15,8 @@ import type { User } from "../../types/api";
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), push: jest.fn() }) }));
 jest.mock("../../auth/pendingReferral", () => ({ usePendingReferral: () => null, pendingReferralPath: () => "/" }));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 5000 } }));
+// These journeys need a build that offers WhatsApp (API #79 deployed); the default build offers SMS only.
+jest.mock("../../config/phoneChannels", () => ({ whatsappCodeChannelEnabled: true }));
 
 const originalFetch = global.fetch;
 const fetchMock = jest.fn();
