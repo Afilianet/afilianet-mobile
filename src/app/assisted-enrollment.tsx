@@ -12,6 +12,8 @@ import { TextInput } from "../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { useAuth } from "../auth/AuthContext";
+import { strings } from "../i18n";
+import { identityCaptureAvailable } from "../state/membership";
 import { useOrganization } from "../state/OrganizationContext";
 import { removePendingAssisted, savePendingAssisted } from "../services/assistedQueue";
 import { assistedAccessInstructions, assistedVerificationNote } from "../utils/assistedAccess";
@@ -38,6 +40,8 @@ export default function AssistedEnrollmentScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
+  // API #86: registering someone stays available; capturing their ID does not.
+  const captureAvailable = identityCaptureAvailable(activeOrganization);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -116,14 +120,16 @@ export default function AssistedEnrollmentScreen() {
         <Card style={styles.card}>
           <Text style={styles.success}>Afiliado registrado · {result.affiliate_code}</Text>
           <Text style={styles.description}>Acceso pendiente: {assistedAccessInstructions(submitted ?? {})}</Text>
-          <Text style={styles.description}>{assistedVerificationNote(submitted ?? {})} Si siguen juntos, también pueden verificar su identidad en este teléfono antes de que active su cuenta.</Text>
-          <Button label="Verificar identidad ahora" onPress={() => router.replace(`/assisted-verification/${result.id}` as never)} />
+          {captureAvailable ? <>
+            <Text style={styles.description}>{assistedVerificationNote(submitted ?? {})} Si siguen juntos, también pueden verificar su identidad en este teléfono antes de que active su cuenta.</Text>
+            <Button label="Verificar identidad ahora" onPress={() => router.replace(`/assisted-verification/${result.id}` as never)} />
+          </> : <Text style={styles.description}>{strings.compliance.captureUnavailable.title}.</Text>}
           <Button label="Volver a Red" variant="secondary" onPress={() => router.back()} />
         </Card>
       ) : queued ? (
         <Card style={styles.card}>
           <Text style={styles.success}>Guardado en este teléfono</Text>
-          <Button label="Capturar INE sin conexión" onPress={() => router.replace(`/assisted-offline/${requestId}` as never)} />
+          {captureAvailable ? <Button label="Capturar INE sin conexión" onPress={() => router.replace(`/assisted-offline/${requestId}` as never)} /> : null}
           <Text style={styles.description}>Aún no se creó el afiliado ni se le envió ningún mensaje. Al recuperar la conexión, abre Red y pulsa «Sincronizar registros pendientes».</Text>
           <Button label="Volver a Red" onPress={() => router.back()} />
         </Card>

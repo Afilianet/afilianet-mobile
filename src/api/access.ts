@@ -217,6 +217,10 @@ export function accessErrorMessage(error: unknown): string {
     case "whatsapp_unavailable":
       // API #79 503: no code was created and nothing was sent by SMS instead.
       return copy.whatsappUnavailable;
+    case "email_unavailable":
+      // API #84 503: decided before any lookup, the same for every address
+      // (no enumeration); nothing was sent, so never "te enviamos un enlace".
+      return strings.shared.apiErrors.emailUnavailable;
     case "invitation_recipient_mismatch":
       return copy.invitationRecipientMismatch;
   }

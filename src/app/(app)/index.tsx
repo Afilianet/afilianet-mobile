@@ -22,7 +22,7 @@ import { useUnreadNotificationCount } from "../../hooks/useUnreadNotificationCou
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
-import { affiliateProfilePresence, isOrganizationStaff } from "../../state/membership";
+import { affiliateProfilePresence, identityCaptureAvailable, isOrganizationStaff } from "../../state/membership";
 import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
@@ -230,6 +230,9 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
 function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompliance>; enabled: boolean }) {
   const router = useRouter();
   const notStarted = complianceStatusCopy("not_started");
+  // API #86: the status stays readable; no way into capture is offered.
+  const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
+  const unavailable = <Text testID="home-kyc-capture-unavailable" style={styles.meta}>{strings.compliance.captureUnavailable.title}</Text>;
 
   function goToCompliance() {
     analytics.capture("compliance_cta_pressed");
@@ -246,7 +249,7 @@ function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompli
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
           {notStarted.description ? <Text style={styles.meta}>{notStarted.description}</Text> : null}
-          <Button label={strings.compliance.startVerification} variant="secondary" onPress={goToCompliance} />
+          {captureAvailable ? <Button label={strings.compliance.startVerification} variant="secondary" onPress={goToCompliance} /> : unavailable}
         </View>
       }
     >
@@ -256,15 +259,15 @@ function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompli
           <View style={styles.stateGroupLocal}>
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
-            {compliance.steps && recaptureRequest(compliance.current_step, compliance.steps) ? (
+            {captureAvailable && compliance.steps && recaptureRequest(compliance.current_step, compliance.steps) ? (
               <View testID="home-recapture-request" style={styles.stateGroupLocal} accessible accessibilityRole="alert">
                 <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
                 <Text style={styles.meta}>{strings.home.livenessRecaptureRequested}</Text>
               </View>
             ) : null}
-            {compliance.status !== "approved" ? (
+            {compliance.status === "approved" ? null : captureAvailable ? (
               <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
-            ) : null}
+            ) : unavailable}
           </View>
         );
       }}

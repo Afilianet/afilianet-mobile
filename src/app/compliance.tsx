@@ -22,6 +22,8 @@ import { useCompliance } from "../hooks/useCompliance";
 import { useComplianceSteps } from "../hooks/useComplianceSteps";
 import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
+import { identityCaptureAvailable } from "../state/membership";
+import { useOrganization } from "../state/OrganizationContext";
 import { formatDate } from "../utils/date";
 import type { ComplianceCase, ComplianceStep } from "../types/api";
 
@@ -37,6 +39,9 @@ export default function ComplianceScreen() {
 
 function ComplianceScreenContent() {
   const router = useRouter();
+  // API #86. Checked on every render, so a deep link, a pull-to-refresh or a
+  // refusal recorded mid-session all land on the same read-only screen.
+  const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();
   const hasCase = complianceQuery.data !== undefined;
@@ -59,6 +64,7 @@ function ComplianceScreenContent() {
   }
 
   async function handleStart() {
+    if (!captureAvailable) return;
     setStartError(null);
     try {
       await startMutation.mutateAsync();
@@ -100,16 +106,29 @@ function ComplianceScreenContent() {
             onRetry={() => void complianceQuery.refetch()}
             retrying={complianceQuery.isFetching}
           />
+        ) : notStarted && !captureAvailable ? (
+          <CaptureUnavailableCard />
         ) : notStarted ? (
           <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} />
         ) : complianceQuery.data ? (
           <>
+            {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} captureAvailable={captureAvailable} />
           </>
         ) : null}
       </ScrollView>
     </View>
+  );
+}
+
+function CaptureUnavailableCard() {
+  const copy = strings.compliance.captureUnavailable;
+  return (
+    <Card style={styles.card} testID="kyc-capture-unavailable">
+      <Text accessibilityRole="alert" style={styles.unavailableTitle}>{copy.title}</Text>
+      <Text style={styles.description}>{copy.description}</Text>
+    </Card>
   );
 }
 
@@ -160,11 +179,13 @@ function StepsCard({
   currentStep,
   identityDataStatus,
   caseSteps,
+  captureAvailable,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
   identityDataStatus: ComplianceCase["identity_data_status"];
   caseSteps?: ComplianceStep[];
+  captureAvailable: boolean;
 }) {
   // Case status, current step and rows must come from one server snapshot.
   // The separate steps query may finish before or after a staff update.
@@ -183,7 +204,7 @@ function StepsCard({
   } else if (steps && steps.length > 0) {
     body = (
       <View>
-        {recaptureRequest(currentStep, steps) ? (
+        {captureAvailable && recaptureRequest(currentStep, steps) ? (
           <View testID="recapture-request" style={styles.recaptureBox} accessible accessibilityRole="alert">
             <View style={styles.recaptureHeader}>
               <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
@@ -284,6 +305,10 @@ const styles = StyleSheet.create({
     ...typography.bodyStrong,
     color: colors.textPrimary,
     flexShrink: 1,
+  },
+  unavailableTitle: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
   },
   error: {
     ...typography.body,

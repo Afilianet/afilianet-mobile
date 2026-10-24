@@ -58,6 +58,10 @@ export function kindForStatus(status: number): ApiErrorKind {
 }
 
 export function friendlyMessage(error: ApiError): string {
+  // 503s whose `reason` says exactly what is off (API #84, #86): retrying
+  // right away does not help, so they never read as a generic server error.
+  if (error.reason === "email_unavailable") return strings.shared.apiErrors.emailUnavailable;
+  if (error.reason === "kyc_unavailable") return strings.shared.apiErrors.kycUnavailable;
   switch (error.kind) {
     case "offline":
       return strings.shared.apiErrors.offline;

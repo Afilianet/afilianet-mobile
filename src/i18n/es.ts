@@ -412,6 +412,8 @@ export const es = {
       server: "Algo salió mal de nuestro lado. Inténtalo de nuevo en un momento.",
       loginFailed: "No puedes iniciar sesión en este momento.",
       loginTimeout: "Esto tardó demasiado. Inténtalo de nuevo.",
+      emailUnavailable: "Por ahora no podemos enviar correos. No se envió ningún enlace; inténtalo más tarde.",
+      kycUnavailable: "Verificación de identidad no disponible en esta organización.",
     },
   },
   joinAffiliateProgram: {
@@ -856,6 +858,10 @@ export const es = {
     unknown: "Desconocido",
   },
   compliance: {
+    captureUnavailable: {
+      title: "Verificación de identidad no disponible en esta organización",
+      description: "Por ahora no se pueden tomar fotos, capturar documentos ni hacer la prueba de vida aquí. Lo que ya enviaste se conserva y puedes consultarlo.",
+    },
     identityData: {
       title: "Datos de identidad",
       description: "La extracción y revisión de datos se hacen por separado de las fotos. Si falta algo, lo resolverá el equipo.",

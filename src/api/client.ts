@@ -4,10 +4,12 @@ import { ApiError, ApiErrorDetails, kindForStatus } from "./errors";
 type TokenGetter = () => string | null;
 type OrganizationIdGetter = () => string | null;
 type UnauthorizedHandler = () => void;
+type KycUnavailableHandler = (organizationId: string) => void;
 
 let getToken: TokenGetter = () => null;
 let getOrganizationId: OrganizationIdGetter = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let onKycUnavailable: KycUnavailableHandler = () => {};
 
 /**
  * Wires the API client to the current auth/organization state. Called once
@@ -18,10 +20,12 @@ export function configureApiClient(options: {
   getToken?: TokenGetter;
   getOrganizationId?: OrganizationIdGetter;
   onUnauthorized?: UnauthorizedHandler;
+  onKycUnavailable?: KycUnavailableHandler;
 }) {
   if (options.getToken) getToken = options.getToken;
   if (options.getOrganizationId) getOrganizationId = options.getOrganizationId;
   if (options.onUnauthorized) onUnauthorized = options.onUnauthorized;
+  if (options.onKycUnavailable) onKycUnavailable = options.onKycUnavailable;
 }
 
 export interface ApiRequestOptions {
@@ -140,6 +144,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
     });
     if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
+    // API #86: capture is off in the organization this request was sent for
+    // (its header, not whichever is active by the time a late answer lands).
+    const requestOrganizationId = headers["X-Organization-ID"];
+    if (error.reason === "kyc_unavailable" && requestOrganizationId) onKycUnavailable(requestOrganizationId);
     throw error;
   }
 

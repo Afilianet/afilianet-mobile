@@ -392,6 +392,8 @@ export const en = {
       server: "Something went wrong on our end. Please try again shortly.",
       loginFailed: "You can't sign in right now.",
       loginTimeout: "That took too long. Please try again.",
+      emailUnavailable: "We can't send emails right now. No link was sent; try again later.",
+      kycUnavailable: "Identity verification isn't available in this organization.",
     },
   },
   joinAffiliateProgram: {
@@ -796,6 +798,10 @@ export const en = {
     unknown: "Unknown",
   },
   compliance: {
+    captureUnavailable: {
+      title: "Identity verification isn't available in this organization",
+      description: "Photos, document capture and the liveness check can't be done here for now. What you already sent is kept and you can still see it.",
+    },
     identityData: {
       title: "Identity data",
       description: "Data extraction and review happen separately from photo capture. Staff will resolve missing details.",
