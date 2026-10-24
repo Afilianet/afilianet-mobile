@@ -16,6 +16,7 @@ import type { Organization } from "../types/api";
 export type AffiliateProfilePresence = "present" | "absent" | "unknown";
 
 type Membership = Pick<Organization, "my_role" | "my_membership_status" | "has_affiliate_profile">;
+type CaptureSetting = Pick<Organization, "identity_verification_available">;
 
 /** MembershipRole::canManageOrganization() in afilianet-api: staff, not affiliates. */
 const STAFF_ROLES = new Set(["owner", "admin", "manager"]);
@@ -34,4 +35,16 @@ export function hasPersonalAffiliateAccess(organization: Membership | null | und
 /** An active owner/admin/manager of this organization. The API still checks every request. */
 export function isOrganizationStaff(organization: Membership | null | undefined): boolean {
   return organization?.my_membership_status === "active" && STAFF_ROLES.has(organization.my_role ?? "");
+}
+
+/**
+ * New identity-verification capture (camera, document, liveness, location) may
+ * be offered in this organization. Only an explicit `false` (API #86, or a
+ * `kyc_unavailable` refusal recorded by OrganizationProvider) turns it off; a
+ * missing field is unknown and keeps the previous behaviour. The capture
+ * routes refuse on their own whatever this says: it only avoids offering
+ * something the server will refuse. Reading existing cases is never gated.
+ */
+export function identityCaptureAvailable(organization: CaptureSetting | null | undefined): boolean {
+  return organization?.identity_verification_available !== false;
 }

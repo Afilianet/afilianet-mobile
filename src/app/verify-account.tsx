@@ -105,6 +105,9 @@ function EmailChannel({ email, verified, refreshUser }: { email: string; verifie
     } catch (cause) {
       if (!mounted.current) return;
       setError(accessErrorMessage(cause));
+      // 503 email_unavailable (API #84): nothing was sent this time, so an
+      // earlier "te enviamos un enlace" must not stay on screen next to it.
+      if (isApiError(cause) && cause.reason === "email_unavailable") setMessage(null);
       if (isApiError(cause) && cause.kind === "rate_limited") countdown.start(cause.retryAfterSeconds ?? DEFAULT_RESEND_SECONDS);
     } finally {
       if (mounted.current) setBusy(false);

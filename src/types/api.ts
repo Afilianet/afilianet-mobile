@@ -64,6 +64,12 @@ export interface Organization {
    * false (see state/membership.ts).
    */
   has_affiliate_profile?: boolean;
+  /**
+   * API #86: whether this organization accepts NEW identity-verification
+   * capture, computed by the server. Absent on older APIs and on lists saved
+   * offline before it: unknown, never false (see state/membership.ts).
+   */
+  identity_verification_available?: boolean;
 }
 
 // afilianet-api has no standalone Membership/OrganizationMembership resource --

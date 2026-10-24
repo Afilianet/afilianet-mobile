@@ -150,7 +150,7 @@ Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS
    - Hoy el correo afirma que se envió y no llega (PR #84 de la API).
    - Hoy el SMS responde 503.
    - Sin proveedores, los testers no pueden verificar ni recuperar su cuenta.
-3. **Protección de KYC en el servidor:** la puerta por organización con 503 `kyc_unavailable` que propone la API. También se puede autorizar de forma explícita la captura biométrica real con su aviso. **Un botón oculto en la app no sustituye esa protección.** Cuando exista el contrato, la app solo añadirá un mensaje claro para esa respuesta.
+3. **Protección de KYC en el servidor:** la puerta por organización con 503 `kyc_unavailable` (API #86, también en el candidato #88). Falta fusionarla, desplegarla y apagar la captura en la organización de la beta (`compliance.capture_enabled=false`). También se puede autorizar de forma explícita la captura biométrica real con su aviso. **Un botón oculto en la app no sustituye esa protección.** La app ya responde a ese contrato (sección siguiente).
 4. **Funciones autorizadas para la beta.** Hoy van apagados WhatsApp OTP, Encuestas (y su audio) y comercio.
 5. **Play Console:** la app `com.afilianet.mobile`, un track de prueba interna o cerrada, firma (EAS o Play App Signing) y la configuración de envío (`submit.store-beta`).
 6. El hito A aprobado.
@@ -166,6 +166,22 @@ Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS
 - Guardar el borrador al pasar a segundo plano.
 - Variables del entorno `production` y el perfil de producción.
 - App Links (`https` → app) para los referidos.
+
+## Respuestas de disponibilidad de la API (#84 y #86)
+
+Seguimiento apilado sobre #70. Contratos leídos en la API #84 `4644f0b` y #86 `825f9e5`, y comprobados sin cambios en el candidato combinado #88 `112cdcc`. Ninguno está fusionado ni desplegado: con la API de staging actual la app se comporta como #70.
+
+| Respuesta del servidor | Qué hace la app |
+|---|---|
+| 503 `email_unavailable` en recuperación por correo | «Por ahora no podemos enviar correos. No se envió ningún enlace…». Nunca muestra «Revisa tu correo» y conserva el correo escrito. El servidor decide antes de buscar la cuenta, así que la pantalla es idéntica para correos registrados y no registrados |
+| 503 `email_unavailable` en verificación de correo (Verificar cuenta y Perfil) | El mismo mensaje. Se retira cualquier «Te enviamos un enlace» anterior y el texto «desde el enlace que te enviamos». No inicia la espera para reenviar |
+| `PATCH me/email` | Mobile no tiene pantalla para cambiar el correo. El mapeo vive en `accessErrorMessage` y `friendlyMessage`, y cualquier pantalla futura lo hereda |
+| `identity_verification_available: false` en la organización activa | Verificación, Inicio, registro asistido y captura sin conexión explican «Verificación de identidad no disponible en esta organización». No ofrecen comenzar, continuar ni volver a capturar, y ningún paso pendiente monta su componente: no se abre cámara, documento, prueba de vida ni ubicación. La comprobación vive en la tarjeta de cada paso, así que cubre los accesos directos y la actualización manual |
+| Campo ausente (API anterior o lista guardada sin conexión) | Desconocido, no `false`: la app actúa como antes y el servidor decide |
+| 503 `kyc_unavailable` recibido directamente | Mensaje propio, sin reintento ni apariencia de éxito. La organización a la que se envió la petición (por su encabezado, aunque la respuesta llegue tarde tras cambiar de organización) queda sin captura en esta sesión. La siguiente lista del servidor vuelve a mandar |
+| Datos existentes | El caso, el estado de cada paso y los resultados de los pasos aprobados siguen visibles. Las fotos guardadas en el teléfono para un registro asistido se conservan. La sincronización las retiene si el servidor rechaza |
+
+El servidor sigue siendo la protección: la app solo evita ofrecer lo que el servidor rechazará.
 
 ## iOS (no entra el 29–30)
 

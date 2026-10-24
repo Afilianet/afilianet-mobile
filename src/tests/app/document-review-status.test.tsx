@@ -2,6 +2,7 @@ import { fireEvent, render } from "@testing-library/react-native";
 import { ComplianceStepCard } from "../../components/compliance/ComplianceStepCard";
 import { DocumentResultView } from "../../components/compliance/document-capture/DocumentResultView";
 import { verdictCopy } from "../../components/compliance/document-capture/documentCaptureCopy";
+import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import type { ComplianceStep, DocumentProcessingResult } from "../../types/api";
 
 jest.mock("../../components/compliance/steps/IdentityDocumentStep", () => ({
@@ -46,7 +47,9 @@ const reviewResult = {
 } as DocumentProcessingResult;
 
 it("uses a retry status for an inconclusive document instead of a rejection", async () => {
-  const screen = await render(<ComplianceStepCard step={reviewStep} currentStep="identity_document" />);
+  // The card reads the active organization (API #86 capture control); the field is absent here, as before #86.
+  const organization = { activeOrganization: { id: "org-a" } } as unknown as OrganizationContextValue;
+  const screen = await render(<OrganizationContext.Provider value={organization}><ComplianceStepCard step={reviewStep} currentStep="identity_document" /></OrganizationContext.Provider>);
   expect(screen.getByText("Otro intento necesario")).toBeTruthy();
   expect(screen.queryByText("Rechazado")).toBeNull();
 });
