@@ -23,6 +23,10 @@ export const config = {
   appEnv: parseAppEnvironment(process.env.EXPO_PUBLIC_APP_ENV),
   apiBaseUrl: (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, ""),
   apiTimeoutMs: parseTimeoutMs(process.env.EXPO_PUBLIC_API_TIMEOUT_MS, 15000),
+  // Sentry needs an explicit "1" as well as a DSN: a DSN sitting in an EAS
+  // environment must never switch error reporting on by itself. Store builds
+  // ship "0" and a blank DSN (scripts/check-build-env.mjs enforces both).
+  sentryEnabled: process.env.EXPO_PUBLIC_SENTRY_ENABLED === "1",
   sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
   posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? "",
   posthogHost: process.env.EXPO_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
