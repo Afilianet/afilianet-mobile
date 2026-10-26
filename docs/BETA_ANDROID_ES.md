@@ -148,6 +148,31 @@ Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS
 - Los crashes nativos los escribe el SDK nativo y no pasan por estos filtros. Solo llevan el scope sincronizado desde JavaScript, que ya está filtrado, más el contexto del dispositivo.
 - Los nombres propios en texto libre no se pueden detectar. La app no debe ponerlos en mensajes de error.
 
+## Registros asistidos detenidos por la organización
+
+Una respuesta `assisted_enrollment_unavailable` (API #92) o `kyc_unavailable` (API #86) depende de la configuración de la organización; no es un fallo de red. Por eso:
+- el registro guardado deja de reintentarse solo;
+- se conserva tal cual (datos, fotos cifradas y ubicación), con el motivo a la vista;
+- se ofrecen «Reintentar envío» y «Descartar».
+
+Descartar pide confirmación y dice qué queda en el servidor:
+- **No se creó nada:** nunca salió una solicitud, o el servidor rechazó la creación de ese `client_request_id`.
+- **Ya existe:** hay `enrollmentId`.
+- **No sabemos:** salió una solicitud sin respuesta clara.
+
+Descartar borra solo la copia de este teléfono y nunca registros remotos. No borra fotos que otro pendiente use.
+
+Siguen siendo transitorios y se reintentan: sin conexión, timeout, 5xx sin motivo, otros motivos y cambio de sesión u organización.
+
+El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture` rechaza la captura. La app solo deja de insistir.
+
+**Retención propuesta (no activada; la decide Andrés junto con la retención general):**
+- **Plazo:** 30 días desde que el registro se detuvo. El mismo tope aplicaría a cualquier pendiente nunca enviado, contado desde su captura, porque son datos e INE de un tercero.
+- **Advertencias:** en Red, desde el día 7, «Se borrará de este teléfono el {fecha}». Recordatorio al abrir Red en los días 21 y 28. Sin notificaciones push.
+- **Al vencer:** se borra solo la copia local. El texto distingue «no se creó nada» de «el registro se conserva en el servidor».
+- **Datos ya sincronizados:** la app ya borra sus fotos locales en cuanto el servidor las acepta. Lo que existe en el servidor (registro, evidencias, ubicación) sigue la retención del servidor. La app no lo toca.
+- **Pendiente relacionado:** «la persona ya activó su cuenta» (`access_status` distinto de `pending`) también es permanente y hoy se reintenta. Se propone el mismo trato, sin aplicarlo todavía.
+
 ## Dos hitos
 
 ### A. APK técnico para revisión controlada de Andrés
