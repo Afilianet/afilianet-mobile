@@ -17,8 +17,8 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 | `EXPO_PUBLIC_APP_ENV` | `staging` | `staging` | `production` |
 | Encuestas | Vista previa con **datos de ejemplo** | **Apagadas** (`EXPO_PUBLIC_SURVEYS_PREVIEW=0`) | Apagadas |
 | Código por WhatsApp | No se ofrece (sin `EXPO_PUBLIC_PHONE_WHATSAPP`) | No se ofrece | No se ofrece |
-| Sentry | DSN de `preview`; `tracesSampleRate` 1.0 | Igual | Sin DSN |
-| PostHog | Sin clave: apagado | Sin clave: apagado | Sin clave |
+| Sentry | DSN de `preview`; apagado salvo `EXPO_PUBLIC_SENTRY_ENABLED=1` | **Apagado:** `EXPO_PUBLIC_SENTRY_ENABLED=0` y DSN vacío; el hook detiene el build si llega un DSN | Sin DSN |
+| PostHog | Sin clave: apagado | **Apagado:** clave vacía; el hook detiene el build si llega una | Sin clave |
 | Push (FCM) | `GOOGLE_SERVICES_JSON` en `preview` | Igual | **Sin archivo:** sin push |
 | Liga de referido | `https://staging-admin.afilianet.mx/join/…` | Igual | `afilianetmobile://` (solo con la app instalada) |
 | Identificador | `com.afilianet.mobile`; versión remota con autoincremento | Igual | Igual |
@@ -110,8 +110,8 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 
 | SDK | Qué recoge | Configuración |
 |---|---|---|
-| Sentry | Errores, rendimiento y breadcrumbs | DSN en `preview`; sin `sendDefaultPii` ni `setUser`; sin Replay |
-| PostHog | — | Apagado por falta de clave. Pendiente: `analytics.reset()` al cerrar sesión, antes de activarlo |
+| Sentry | Nada en store-beta (ver «Telemetría») | Apagado en JavaScript y, por tanto, en nativo y rendimiento |
+| PostHog | Nada | Apagado por falta de clave. Pendiente: `analytics.reset()` al cerrar sesión, antes de activarlo |
 | Expo push / FCM | Token del dispositivo | Se da de baja al cerrar sesión |
 | AWS Rekognition Face Liveness | Video del rostro, enviado directo a AWS con credenciales temporales | — |
 | URL prefirmada | Fotos de identificación y selfie | — |
@@ -121,10 +121,32 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 - fotos de identificación y selfie;
 - datos biométricos (prueba de vida);
 - ubicación aproximada, opcional;
-- diagnósticos (Sentry);
+- diagnósticos: **no** en el candidato posterior a 6115fedb (Sentry apagado); **sí** en el APK 6115fedb (ver «Telemetría»);
 - identificadores del dispositivo (push).
 
 Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS, que exige el hook previo a la instalación.
+
+## Telemetría
+
+**APK 6115fedb (versionCode 12, `71f4fd3`), ya instalado en el Galaxy A06:** Sentry **activo**. Lleva el DSN del entorno `preview` (región US), `environment` `staging` y `tracesSampleRate` 1.0. No tiene consentimiento ni `beforeSend`. Los breadcrumbs de red guardan la URL completa, con tokens de invitación, códigos de referido y la búsqueda `q`. PostHog está apagado (sin clave). Este APK no cambia: solo un build nuevo lo corrige.
+
+**Candidato siguiente (este cambio):**
+- `EXPO_PUBLIC_SENTRY_ENABLED=0`, `EXPO_PUBLIC_SENTRY_DSN=""`, `EXPO_PUBLIC_POSTHOG_API_KEY=""` y `SENTRY_DISABLE_AUTO_UPLOAD=true` en `eas.json` (store-beta, heredado por store-beta-apk).
+- eas-cli da prioridad al `env` del perfil sobre el entorno de EAS, así que el DSN de `preview` no se compila.
+- `scripts/check-build-env.mjs` corre en el worker (`eas-build-pre-install`) con el entorno ya combinado. Detiene el build si llega un DSN, una clave de PostHog o el interruptor distinto de `"0"`.
+- Sin `Sentry.init` no arranca nada nativo: el SDK trae `io.sentry.auto-init=false`. Quedan apagados la captura de crashes nativos (NDK), las sesiones y el rendimiento. Las bibliotecas nativas siguen dentro del APK, pero inactivas.
+
+**Si algún día se activa Sentry** (`EXPO_PUBLIC_SENTRY_ENABLED=1` y DSN, en otro perfil):
+- `sendDefaultPii` en false y sin usuario.
+- `tracesSampleRate` 0.1, sin perfiles, Replay, capturas de pantalla ni jerarquía de vistas.
+- `tracePropagationTargets` vacío: no se añaden cabeceras `sentry-trace` ni `baggage` a ninguna petición.
+- `src/services/telemetryScrub.ts` limpia eventos, breadcrumbs, transacciones, spans y el contexto de muestreo:
+  - rutas normalizadas: `/invitations/:token`, `/staff-invitations/:token`, `/staff-invite/:token`, `/referrals/:code`, `/join/:id/:code`, UUID y números como `:id`;
+  - query strings y fragmentos sustituidos por `[Filtered]`;
+  - fuera cuerpos, cabeceras, cookies, correos, teléfonos, Bearer y JWT;
+  - se descartan los breadcrumbs de consola y el nombre del dispositivo.
+- Los crashes nativos los escribe el SDK nativo y no pasan por estos filtros. Solo llevan el scope sincronizado desde JavaScript, que ya está filtrado, más el contexto del dispositivo.
+- Los nombres propios en texto libre no se pueden detectar. La app no debe ponerlos en mensajes de error.
 
 ## Dos hitos
 

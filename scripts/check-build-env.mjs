@@ -11,7 +11,7 @@ export function validateBuildEnvironment(env) {
     errors.push("El entorno no corresponde al perfil de compilación.");
   }
   // Feature switches are read as exactly "1"/"0": anything else ("true", "yes") would be silently ignored.
-  for (const name of ["EXPO_PUBLIC_SURVEYS_PREVIEW", "EXPO_PUBLIC_PHONE_WHATSAPP"]) {
+  for (const name of ["EXPO_PUBLIC_SURVEYS_PREVIEW", "EXPO_PUBLIC_PHONE_WHATSAPP", "EXPO_PUBLIC_SENTRY_ENABLED"]) {
     if (env[name] !== undefined && !["0", "1"].includes(env[name])) {
       errors.push(`${name} solo admite "0" o "1".`);
     }
@@ -19,6 +19,13 @@ export function validateBuildEnvironment(env) {
   // A store build reaches outside testers: whether they see the surveys preview must be an explicit decision.
   if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE) && env.EXPO_PUBLIC_SURVEYS_PREVIEW === undefined) {
     errors.push("store-beta debe decidir EXPO_PUBLIC_SURVEYS_PREVIEW (\"0\" o \"1\") explícitamente.");
+  }
+  // The store beta's privacy notice describes no diagnostics or analytics. This runs on the
+  // EAS worker with the merged environment, so a DSN or key inherited from an EAS environment fails the build.
+  if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE)) {
+    if (env.EXPO_PUBLIC_SENTRY_ENABLED !== "0") errors.push("store-beta requiere EXPO_PUBLIC_SENTRY_ENABLED=\"0\".");
+    if (env.EXPO_PUBLIC_SENTRY_DSN) errors.push("store-beta no debe incluir EXPO_PUBLIC_SENTRY_DSN.");
+    if (env.EXPO_PUBLIC_POSTHOG_API_KEY) errors.push("store-beta no debe incluir EXPO_PUBLIC_POSTHOG_API_KEY.");
   }
   let url;
   try {

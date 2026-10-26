@@ -88,7 +88,7 @@ Each environment file sets the same four things:
 
 - **`EXPO_PUBLIC_API_BASE_URL`** — which backend this build talks to. Never edited automatically between environments; a build only uses whatever its own environment file says, so a `staging`/`internal` build can never silently point at production.
 - **`EXPO_PUBLIC_APP_ENV`** — this build's own identifier (`"development"` / `"internal"` / `"staging"` / `"production"`), read in `src/config/env.ts`. This is the single signal that gates the development-only Compliance simulator (see below) and tags Sentry error reports by environment, so an Internal Alpha crash is never confused with a real production one.
-- **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; both no-op when blank.
+- **`EXPO_PUBLIC_SENTRY_ENABLED`** / **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; Sentry needs both the switch (`"1"`) and a DSN, PostHog no-ops without a key.
 
 **Every `EXPO_PUBLIC_*` variable is bundled into the client and visible to anyone who inspects the app** — that's how Expo's public env vars work, and it's why this app never puts a real secret in one. A Sentry DSN and a PostHog project API key are both designed to be public/write-only values (this is normal, documented practice for both services), not secrets in the traditional sense. `afilianet-api`'s own server-side credentials (database passwords, the identity-engine service token, etc.) never appear anywhere in this repo or this app's bundle.
 
@@ -414,7 +414,7 @@ Neither existed before Internal Alpha — both were newly established this phase
 
 Both are wired up but **disabled by default**. To enable:
 
-- Sentry: set `EXPO_PUBLIC_SENTRY_DSN` in your `.env` file to your project's DSN.
+- Sentry: set `EXPO_PUBLIC_SENTRY_ENABLED=1` **and** `EXPO_PUBLIC_SENTRY_DSN` to your project's DSN. A DSN alone does nothing. Store-beta builds must ship `0` and a blank DSN (`scripts/check-build-env.mjs` fails the build otherwise). Everything sent passes through `src/services/telemetryScrub.ts`: tokens, codes, query strings, contact data, bodies and headers are removed.
 - PostHog: set `EXPO_PUBLIC_POSTHOG_API_KEY` (and `EXPO_PUBLIC_POSTHOG_HOST` if you're not using PostHog Cloud US).
 
 Leaving these blank is safe — the app runs normally, it just doesn't send any data anywhere.
