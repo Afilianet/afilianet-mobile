@@ -16,7 +16,7 @@ import { identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
 import { strings } from "../../i18n";
 import { assistedAccessInstructions } from "../../utils/assistedAccess";
-import { blockedExplanation, discardConfirmation } from "../../utils/assistedPending";
+import { blockedExplanation, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
 
 import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
@@ -34,6 +34,7 @@ export default function AssistedOfflineScreen() {
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const query = useApiQuery(
     ["assisted-local", user?.id, activeOrganization?.id, requestId],
     async () => (await listPendingAssisted(user!.id, activeOrganization!.id))
@@ -92,11 +93,24 @@ export default function AssistedOfflineScreen() {
     }
   }
 
-  function discard() {
-    if (!query.data) return;
-    Alert.alert(query.data.blocked ? "Descartar registro guardado" : "Eliminar copia local", discardConfirmation(query.data), [
+  async function discard() {
+    const item = query.data;
+    if (!item || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    setChecking(true);
+    let check: Awaited<ReturnType<typeof checkServerBeforeDiscard>>;
+    try {
+      check = await checkServerBeforeDiscard(item);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      setChecking(false);
+    }
+    Alert.alert(item.blocked ? "Descartar registro guardado" : "Eliminar copia local", discardConfirmation(item, check), [
       { text: "Cancelar", style: "cancel" },
-      { text: query.data.blocked ? "Descartar" : "Eliminar", style: "destructive", onPress: () => {
+      { text: item.blocked ? "Descartar" : "Eliminar", style: "destructive", onPress: () => {
         void removePendingAssisted(requestId).then(() => router.back()).catch(() => setError("No se pudo eliminar la copia local."));
       } },
     ]);
@@ -119,7 +133,7 @@ export default function AssistedOfflineScreen() {
       <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation(item.blocked.reason).title}</Text>
       <Text style={styles.description}>{blockedExplanation(item.blocked.reason).description}</Text>
       {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} /> : null}
-      <Button label="Descartar" variant="danger" disabled={busy} onPress={discard} />
+      <Button label="Descartar" variant="danger" disabled={busy} loading={checking} onPress={() => void discard()} />
     </Card> : null}
     {captureAvailable ? null : <Card style={styles.card} testID="kyc-capture-unavailable">
       <Text accessibilityRole="alert" style={styles.label}>{strings.compliance.captureUnavailable.title}</Text>
@@ -151,7 +165,8 @@ export default function AssistedOfflineScreen() {
     <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. {assistedAccessInstructions(item.input)} Después completará la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />
-    {item.blocked ? null : <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />}
+    {checking ? <Text accessibilityLiveRegion="polite" style={styles.description}>Comprobando en el servidor…</Text> : null}
+    {item.blocked ? null : <Button label="Eliminar copia local" variant="danger" disabled={busy} loading={checking} onPress={() => void discard()} />}
   </ScrollView>;
 }
 

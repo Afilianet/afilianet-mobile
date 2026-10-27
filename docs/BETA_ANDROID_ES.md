@@ -162,6 +162,11 @@ Descartar pide confirmación y dice qué queda en el servidor:
 
 Descartar borra solo la copia de este teléfono y nunca registros remotos. No borra fotos que otro pendiente use.
 
+**Antes de confirmar el descarte** (si alguna solicitud salió del teléfono), la app pregunta al servidor con la consulta de solo lectura de API #92: `GET /api/v1/affiliates/me/assisted-enrollments/by-request/{client_request_id}`, con la organización del pendiente. Nunca reenvía la creación para averiguarlo. Según la respuesta:
+- **200:** el registro existe (sin activar o ya activado). Descartar borra solo la copia local.
+- **404 con el motivo propio de la ruta:** «el servidor no tiene ahora un registro para esta solicitud». No se presenta como prueba de que nunca existió.
+- **Timeout, sin conexión, 401/403, 5xx, 404 sin motivo (API antigua) o cambio de sesión u organización:** «no pudimos confirmar». Solo un `enrollmentId` conocido permite decir «ya existe».
+
 Siguen siendo transitorios y se reintentan: sin conexión, timeout, 5xx sin motivo, otros motivos y cambio de sesión u organización.
 
 El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture` rechaza la captura. La app solo deja de insistir.

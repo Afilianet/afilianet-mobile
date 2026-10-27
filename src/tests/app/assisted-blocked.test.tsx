@@ -27,6 +27,10 @@ jest.mock("../../services/assistedQueue", () => ({
   retryBlockedAssisted: jest.fn(async () => { delete mockItem.blocked; }),
   replaceAssistedPhoto: jest.fn(), replaceAssistedGeolocation: jest.fn(),
 }));
+// API #92 read-only lookup before discarding; the session guard always matches here.
+const mockLookup = jest.fn();
+jest.mock("../../api/assistedEnrollment", () => ({ lookupAssistedEnrollmentByRequest: (...args: unknown[]) => mockLookup(...args) }));
+jest.mock("../../api/client", () => ({ ...jest.requireActual("../../api/client"), captureApiSessionGuard: () => () => true }));
 jest.mock("../../services/assistedEvidenceVault", () => ({ sealAssistedPhoto: jest.fn(), removeAssistedPhoto: jest.fn() }));
 
 const base: PendingAssistedEnrollment = {
@@ -44,6 +48,7 @@ async function renderScreen() {
 beforeEach(() => {
   onlineManager.setOnline(false);
   mockItem = { ...base, createAttempted: true, blocked: { reason: "assisted_enrollment_unavailable", at: "2026-10-26T12:00:00Z" } };
+  mockLookup.mockResolvedValue(null);
 });
 afterEach(() => { onlineManager.setOnline(true); jest.restoreAllMocks(); jest.clearAllMocks(); });
 
@@ -65,7 +70,9 @@ it("discard asks first: cancelling keeps everything, confirming deletes only the
   await waitFor(() => expect(screen.getByText("Descartar")).toBeTruthy());
 
   await fireEvent.press(screen.getByText("Descartar"));
-  expect(alert).toHaveBeenCalledWith("Descartar registro guardado", discardConfirmation(mockItem), expect.any(Array));
+  // The server is asked first (read-only, same request id); its answer shapes the confirmation.
+  await waitFor(() => expect(alert).toHaveBeenCalledWith("Descartar registro guardado", discardConfirmation(mockItem, { kind: "not_found" }), expect.any(Array)));
+  expect(mockLookup).toHaveBeenCalledWith("request-a");
   const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => void }[];
   buttons.find((button) => button.text === "Cancelar")?.onPress?.();
   expect(removePendingAssisted).not.toHaveBeenCalled();
@@ -98,12 +105,14 @@ it("kyc_unavailable is explained as paused identity verification", async () => {
 
 it("assisted_access_claimed: explains the person continues on their own, offers discard only", async () => {
   mockItem = { ...base, createAttempted: true, enrollmentId: "enrollment-a", blocked: { reason: "assisted_access_claimed", at: "2026-10-27T12:00:00Z" } };
+  mockLookup.mockResolvedValue({ id: "enrollment-a", affiliate_id: "a", affiliate_code: "AFF1", first_name: "Ana", last_name: "López", affiliate_status: "pending", access_status: "ready", created_at: "" });
   const alert = jest.spyOn(Alert, "alert");
   const { screen, client } = await renderScreen();
   await waitFor(() => expect(screen.getByText("La persona ya activó su cuenta")).toBeTruthy());
   expect(screen.queryByText("Reintentar envío")).toBeNull();
   await fireEvent.press(screen.getByText("Descartar"));
-  expect(alert.mock.calls[0][1]).toMatch(/ya existe en la organización.*se conservan en el servidor/);
+  await waitFor(() => expect(alert).toHaveBeenCalled());
+  expect(alert.mock.calls[0][1]).toMatch(/existe en la organización y la persona ya activó su cuenta.*solo borra la copia de este teléfono.*se conservan en el servidor/);
   await screen.unmount();
   client.clear();
 });
@@ -111,7 +120,8 @@ it("assisted_access_claimed: explains the person continues on their own, offers 
 describe("the confirmation says what stays on the server", () => {
   it("nothing was ever sent, or the server confirmed nothing exists", () => {
     expect(discardConfirmation(base)).toMatch(/^No se creó ningún registro en la organización/);
-    expect(discardConfirmation({ ...base, createAttempted: true, blocked: { reason: "assisted_enrollment_unavailable", at: "" } })).toMatch(/^No se creó ningún registro/);
+    // Without a server answer, an earlier creation refusal alone does not claim it.
+    expect(discardConfirmation({ ...base, createAttempted: true, blocked: { reason: "assisted_enrollment_unavailable", at: "" } })).toMatch(/^No pudimos confirmar/);
   });
 
   it("the enrollment exists: only this phone's copy goes, the server keeps the record and what was sent", () => {

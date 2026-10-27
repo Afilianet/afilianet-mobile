@@ -27,7 +27,9 @@ jest.mock("../../../auth/AuthContext", () => ({
 }));
 jest.mock("../../../api/assistedEnrollment", () => ({
   fetchPendingAssistedEnrollments: jest.fn().mockResolvedValue({ data: [], meta: { current_page: 1, last_page: 1 } }),
+  lookupAssistedEnrollmentByRequest: jest.fn().mockResolvedValue(null),
 }));
+jest.mock("../../../api/client", () => ({ ...jest.requireActual("../../../api/client"), captureApiSessionGuard: () => () => true }));
 jest.mock("../../../services/assistedQueue", () => ({
   ...jest.requireActual("../../../services/assistedQueue"),
   listPendingAssisted: jest.fn().mockResolvedValue([]),
@@ -545,7 +547,8 @@ describe("Mi red: a pending registration stopped by the organization (API #92, A
     await act(async () => { fireEvent.press(screen.getByText("Descartar")); });
     const [title, message, buttons] = alert.mock.calls[0] as [string, string, { text: string; onPress?: () => void }[]];
     expect(title).toBe("Descartar registro guardado");
-    expect(message).toMatch(/^No se creó ningún registro en la organización/);
+    // Asked the server first (read-only): it holds no enrollment for this request now.
+    expect(message).toMatch(/^El servidor no tiene ahora un registro para esta solicitud/);
     buttons.find((button) => button.text === "Cancelar")?.onPress?.();
     expect(queue().removePendingAssisted).not.toHaveBeenCalled();
 
