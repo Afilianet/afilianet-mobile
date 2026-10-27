@@ -12,6 +12,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { SectionCard } from "../../components/SectionCard";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
 import { Icon } from "../../design-system/icons/Icon";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useCompliance } from "../../hooks/useCompliance";
@@ -91,6 +92,7 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Header />
+      <PrivacyNoticeBanner />
       {surveysPreviewEnabled ? <SurveysEntryCard /> : null}
 
       {profileAbsent ? (

@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { StepNoticeRefs, StepPrivacy } from "./privacy";
 import type {
   AffiliateProfile,
   AttemptStepPayload,
@@ -581,14 +582,17 @@ export interface PublicReferral {
   id: string;
   affiliate_code: string;
   referrer_first_name: string;
+  /** API #91: absent on an API before it. */
+  privacy?: StepPrivacy;
 }
 
 export interface PublicInvitation {
   token: string;
 }
 
-// The API accepts email, phone (E.164) or both -- at least one.
-export interface ReferralRegistration {
+// The API accepts email, phone (E.164) or both -- at least one. API #91 adds
+// the notices shown in the step and the attempt's client_request_id.
+export interface ReferralRegistration extends StepNoticeRefs {
   first_name: string;
   last_name: string;
   email?: string;
@@ -731,6 +735,8 @@ export async function updatePlatformNotificationPreferences(input: {
 export interface StaffInvitation {
   organization: { id: string; name: string };
   role: string;
+  /** API #91: absent on an API before it. */
+  privacy?: StepPrivacy;
 }
 
 export async function fetchStaffInvitation(token: string): Promise<StaffInvitation> {
@@ -761,13 +767,13 @@ export interface StaffInvitationAcceptResult {
  */
 export async function acceptStaffInvitation(
   token: string,
-  options: { authenticated: true } | { authenticated: false; registration: ReferralRegistration },
+  options: { authenticated: true; notices?: StepNoticeRefs } | { authenticated: false; registration: ReferralRegistration },
 ): Promise<StaffInvitationAcceptResult> {
   const { data } = await apiRequest<{ data: StaffInvitationAcceptResult }>(
     `/api/v1/staff-invitations/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",
-      body: options.authenticated ? {} : options.registration,
+      body: options.authenticated ? options.notices ?? {} : options.registration,
       skipAuth: options.authenticated ? false : true,
       skipOrganization: true,
       skipUnauthorizedHandling: true,

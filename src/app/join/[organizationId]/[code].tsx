@@ -3,16 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { acceptReferralAsCurrentUser, accessErrorMessage, isAlreadyEnrolledError } from "../../../api/access";
 import { fetchPublicReferral, startReferralInvitation, type PublicReferral } from "../../../api/endpoints";
+import { fetchMyPrivacy, isNoticeOutdated, needsGeneralNotice, PRIVACY_NOTICE_OUTDATED } from "../../../api/privacy";
 import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useAuth } from "../../../auth/AuthContext";
 import { clearPendingReferral, savePendingReferral } from "../../../auth/pendingReferral";
 import { useSafeSignOut } from "../../../features/surveys/signOut";
 import { PhoneField } from "../../../components/account/PhoneField";
+import { StepNoticesView } from "../../../components/privacy/StepNoticesView";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { TextInput } from "../../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../../components/ui/theme";
 import { Logo } from "../../../design-system/icons/Logo";
+import { useAttemptId } from "../../../hooks/useAttemptId";
+import { useStepNotices } from "../../../hooks/useStepNotices";
 import { strings } from "../../../i18n";
 import { routes } from "../../../navigation/routes";
 import { useOrganization } from "../../../state/OrganizationContext";
@@ -45,6 +49,10 @@ export default function JoinScreen() {
   // session to signed in, and must not swap this form for the "join with your
   // account" view in the middle of it.
   const [mode] = useState<"visitor" | "member">(status === "signedIn" ? "member" : "visitor");
+  // API #91: a notice that changed while the form was open is read again from
+  // the same lookup; the form below stays mounted with what was typed.
+  const [lookupAttempt, setLookupAttempt] = useState(0);
+  const reloadReferral = () => setLookupAttempt((value) => value + 1);
 
   useEffect(() => {
     let active = true;
@@ -70,7 +78,7 @@ export default function JoinScreen() {
     return () => {
       active = false;
     };
-  }, [organizationId, code, key, mode]);
+  }, [organizationId, code, key, mode, lookupAttempt]);
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -81,9 +89,9 @@ export default function JoinScreen() {
         {loading ? <Text style={styles.info}>{strings.shared.loading}</Text> : null}
         {lookupError ? <Text style={styles.error}>{lookupError}</Text> : null}
         {referral && mode === "member" ? (
-          <JoinWithAccount organizationId={organizationId} code={code} referral={referral} />
+          <JoinWithAccount organizationId={organizationId} code={code} referral={referral} onNoticesChanged={reloadReferral} />
         ) : null}
-        {referral && mode === "visitor" ? <VisitorRegistration organizationId={organizationId} code={code} referral={referral} /> : null}
+        {referral && mode === "visitor" ? <VisitorRegistration organizationId={organizationId} code={code} referral={referral} onNoticesChanged={reloadReferral} /> : null}
         {lookupError && mode === "member" ? <BackHome /> : null}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -95,7 +103,39 @@ function BackHome() {
   return <Button label={strings.access.joinWithAccount.dismiss} variant="ghost" onPress={() => router.replace(routes.home as never)} />;
 }
 
-function JoinWithAccount({ organizationId, code, referral }: { organizationId: string; code: string; referral: PublicReferral }) {
+interface JoinProps {
+  organizationId: string;
+  code: string;
+  referral: PublicReferral;
+  onNoticesChanged: () => void;
+}
+
+/**
+ * Joining with a session shows the organization's supplement, and the general
+ * notice only when this account still has to see it (GET /me/privacy, contract
+ * §4 `needsGeneral`). Without that answer (an older API, offline) it is shown
+ * whenever the step requires notices: sending one already seen records nothing new.
+ */
+function useNeedsGeneral(enabled: boolean, required: boolean): boolean | null {
+  const [needs, setNeeds] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let current = true;
+    fetchMyPrivacy()
+      .then((status) => {
+        if (current) setNeeds(status ? status.privacy_notice.action_required !== "none" : required);
+      })
+      .catch(() => {
+        if (current) setNeeds(required);
+      });
+    return () => {
+      current = false;
+    };
+  }, [enabled, required]);
+  return enabled ? needs : false;
+}
+
+function JoinWithAccount({ organizationId, code, referral, onNoticesChanged }: JoinProps) {
   const router = useRouter();
   const { user } = useAuth();
   const signOut = useSafeSignOut();
@@ -119,9 +159,26 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
   const alreadyMember = presence === "present" || presence === "unknown";
   const memberWithoutProfile = presence === "absent";
   const [alreadyAffiliated, setAlreadyAffiliated] = useState(false);
+  const block = referral.privacy;
+  const needsGeneral = useNeedsGeneral(Boolean(block), Boolean(block?.required));
+  const notices = useStepNotices({
+    enabled: needsGeneral !== null,
+    withOrganization: true,
+    block,
+    general: "when-needed",
+    needsGeneral: Boolean(needsGeneral),
+  });
+  const attemptId = useAttemptId();
+  const busy = useRef(false);
+  const noticesReady = needsGeneral !== null && notices.status !== "loading" && !notices.blockedMessage;
 
   async function accept() {
-    if (submitting || !user) return;
+    if (busy.current || !user || !noticesReady) return;
+    if (!notices.allShown) {
+      setError(strings.privacyNotices.step.mustRead);
+      return;
+    }
+    busy.current = true;
     const startedFor = user.id;
     // A sign-out or account switch mid-request must not continue in the new session.
     const stillSameSession = () => mounted.current && userIdRef.current === startedFor;
@@ -130,7 +187,12 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
     try {
       const { token } = await startReferralInvitation(organizationId, code);
       if (!stillSameSession()) return;
-      const result = await acceptReferralAsCurrentUser(token);
+      const refs = notices.refs();
+      const sendsNotices = Boolean(refs.privacy_notice || refs.organization_notice);
+      const result = await acceptReferralAsCurrentUser(
+        token,
+        sendsNotices ? { ...refs, client_request_id: attemptId(`${startedFor}/${organizationId}/${code}`) } : {},
+      );
       if (!stillSameSession()) return;
       await clearPendingReferral();
       if (result?.already_affiliated) {
@@ -151,8 +213,16 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
         setAlreadyAffiliated(true);
         return;
       }
-      setError(isApiError(cause) && cause.kind === "conflict" ? copy.alreadyMember : accessErrorMessage(cause));
+      // API #91: nothing was written; show the current notices and keep the attempt.
+      if (isNoticeOutdated(cause)) {
+        onNoticesChanged();
+        notices.reload();
+      } else if (needsGeneralNotice(cause)) {
+        notices.reload({ requireGeneral: true });
+      }
+      setError(isApiError(cause) && cause.kind === "conflict" && cause.reason !== PRIVACY_NOTICE_OUTDATED ? copy.alreadyMember : accessErrorMessage(cause));
     } finally {
+      busy.current = false;
       if (mounted.current) setSubmitting(false);
     }
   }
@@ -179,15 +249,17 @@ function JoinWithAccount({ organizationId, code, referral }: { organizationId: s
       {user ? <Text style={styles.info}>{copy.description(`${user.first_name} ${user.last_name}`.trim())}</Text> : null}
       {alreadyMember ? <Text style={styles.info}>{copy.alreadyMember}</Text> : null}
       {memberWithoutProfile ? <Text style={styles.info}>{copy.memberWithoutProfile}</Text> : null}
+      {!alreadyMember && needsGeneral === null ? <Text style={styles.info}>{strings.privacyNotices.step.loading}</Text> : null}
+      {!alreadyMember && needsGeneral !== null ? <StepNoticesView notices={notices} /> : null}
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {!alreadyMember ? <Button label={copy.accept} size="lg" fullWidth loading={submitting} onPress={() => void accept()} /> : null}
+      {!alreadyMember ? <Button label={copy.accept} size="lg" fullWidth loading={submitting} disabled={!noticesReady} onPress={() => void accept()} /> : null}
       <Button label={copy.dismiss} variant="ghost" disabled={submitting} onPress={() => void dismiss()} />
       <Button label={copy.notYou} variant="ghost" disabled={submitting} onPress={() => void signOut()} />
     </Card>
   );
 }
 
-function VisitorRegistration({ organizationId, code, referral }: { organizationId: string; code: string; referral: PublicReferral }) {
+function VisitorRegistration({ organizationId, code, referral, onNoticesChanged }: JoinProps) {
   const router = useRouter();
   const { registerFromReferral } = useAuth();
   const key = `${organizationId}/${code}`;
@@ -201,8 +273,15 @@ function VisitorRegistration({ organizationId, code, referral }: { organizationI
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const invitationToken = useRef<{ key: string; token: string } | null>(null);
+  // API #91: the general notice and this organization's supplement, read from
+  // the referral's own block; without a block (an older API) nothing changes.
+  const notices = useStepNotices({ enabled: true, withOrganization: true, block: referral.privacy, general: "always" });
+  const noticesReady = notices.status !== "loading" && !notices.blockedMessage;
+  const attemptId = useAttemptId();
+  const busy = useRef(false);
 
   async function submit() {
+    if (busy.current || !noticesReady) return;
     const normalizedEmail = email.trim().toLowerCase();
     const typedPhone = phone.trim();
     const normalizedPhone = typedPhone ? normalizePhone(country, typedPhone) : null;
@@ -222,24 +301,42 @@ function VisitorRegistration({ organizationId, code, referral }: { organizationI
       setSubmitError(strings.auth.join.passwordMismatch);
       return;
     }
+    if (!notices.allShown) {
+      setSubmitError(strings.privacyNotices.step.mustRead);
+      return;
+    }
     setSubmitError(null);
+    busy.current = true;
     setSubmitting(true);
     try {
       if (invitationToken.current?.key !== key) {
         invitationToken.current = { key, token: (await startReferralInvitation(organizationId, code)).token };
       }
       if (!invitationToken.current.token) throw new Error("Missing invitation token");
-      await registerFromReferral(invitationToken.current.token, {
+      const input = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         ...(normalizedEmail ? { email: normalizedEmail } : {}),
         ...(normalizedPhone ? { phone: normalizedPhone } : {}),
         password,
+      };
+      const refs = notices.refs();
+      await registerFromReferral(invitationToken.current.token, {
+        ...input,
+        // Only with notices (an API with #91): the same id for every retry of this input.
+        ...(refs.privacy_notice || refs.organization_notice
+          ? { ...refs, client_request_id: attemptId(`${invitationToken.current.token}/${JSON.stringify(input)}`) }
+          : {}),
       });
       // The account was created already inside this organization: nothing is pending anymore.
       await clearPendingReferral();
       router.replace(routes.verifyAccount as never);
     } catch (error) {
+      // API #91: nothing was created; show the current notices, keep the form and the attempt.
+      if (isNoticeOutdated(error)) {
+        onNoticesChanged();
+        notices.reload();
+      }
       setSubmitError(
         isApiError(error)
           ? error.kind === "validation"
@@ -250,6 +347,7 @@ function VisitorRegistration({ organizationId, code, referral }: { organizationI
           : strings.shared.genericError,
       );
     } finally {
+      busy.current = false;
       setSubmitting(false);
     }
   }
@@ -272,8 +370,9 @@ function VisitorRegistration({ organizationId, code, referral }: { organizationI
       <Text style={styles.info}>{strings.access.register.description}</Text>
       <TextInput label={strings.auth.login.passwordLabel} value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" />
       <TextInput label={strings.auth.join.confirmPassword} value={confirmation} onChangeText={setConfirmation} secureTextEntry textContentType="newPassword" />
+      <StepNoticesView notices={notices} />
       {submitError ? <Text accessibilityRole="alert" style={styles.error}>{submitError}</Text> : null}
-      <Button label={strings.auth.join.submit} size="lg" fullWidth loading={submitting} onPress={() => void submit()} />
+      <Button label={strings.auth.join.submit} size="lg" fullWidth loading={submitting} disabled={!noticesReady} onPress={() => void submit()} />
       <Button label={strings.auth.join.signIn} variant="ghost" onPress={() => router.push(routes.login as never)} />
     </View>
   );

@@ -121,7 +121,8 @@ export default function ProfileScreen() {
           </View>
         ) : null}
       </Card>
-      {/* Privacy notice is always the last item on Profile. */}
+      {/* Privacy notices are always the last items on Profile. */}
+      <Button label={strings.privacyNotices.banner.myNotices} variant="secondary" onPress={() => router.push(routes.privacyReview as never)} />
       <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
     </ScrollView>
   );

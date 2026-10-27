@@ -1,6 +1,7 @@
 import { strings } from "../i18n";
 import type { LoginResponse, User } from "../types/api";
 import { apiRequest } from "./client";
+import type { StepNoticeRefs } from "./privacy";
 import { ApiError, friendlyMessage, isApiError } from "./errors";
 
 /**
@@ -46,7 +47,7 @@ import { ApiError, friendlyMessage, isApiError } from "./errors";
 /** Exactly one channel: phone is always E.164 (see utils/phone.ts). */
 export type AccessIdentifier = { email: string } | { phone: string };
 
-export interface AccountRegistration {
+export interface AccountRegistration extends StepNoticeRefs {
   first_name: string;
   last_name: string;
   email?: string;
@@ -163,10 +164,11 @@ export interface ReferralAcceptance {
   already_affiliated?: boolean;
 }
 
-export async function acceptReferralAsCurrentUser(invitationToken: string): Promise<ReferralAcceptance> {
+export async function acceptReferralAsCurrentUser(invitationToken: string, notices: StepNoticeRefs = {}): Promise<ReferralAcceptance> {
   const response = await apiRequest<{ data?: ReferralAcceptance } | null>(`/api/v1/invitations/${encodeURIComponent(invitationToken)}/accept`, {
     method: "POST",
-    body: {},
+    // API #91: the notices shown in this step; {} exactly as before when there are none.
+    body: notices,
     skipOrganization: true,
   });
   return response?.data ?? {};
@@ -237,6 +239,9 @@ export function accessErrorMessage(error: unknown): string {
 function validationMessage(error: ApiError): string {
   const copy = strings.access.errors;
   const fields = Object.keys(error.details ?? {});
+  // API #91: the step needs a notice it did not carry; the screen shows it.
+  if (fields.includes("privacy_notice")) return strings.privacyNotices.step.generalNeeded;
+  if (fields.includes("organization_notice")) return strings.privacyNotices.step.mustRead;
   if (fields.includes("code")) return copy.otpInvalid;
   if (fields.includes("channel")) return copy.channelRejected;
   if (fields.includes("token")) return copy.otpExpired;

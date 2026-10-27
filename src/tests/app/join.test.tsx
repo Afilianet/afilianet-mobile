@@ -182,7 +182,8 @@ describe("Join: later affiliation with the current account", () => {
     });
 
     expect(start).toHaveBeenCalledWith("org-1", "AFF100");
-    expect(accept).toHaveBeenCalledWith("private-token");
+    // Without a privacy block (an API before #91) the body stays {} exactly as before.
+    expect(accept).toHaveBeenCalledWith("private-token", {});
     expect(register).not.toHaveBeenCalled();
     expect(clearPendingReferral).toHaveBeenCalled();
     expect(refresh).toHaveBeenCalled();
@@ -218,7 +219,8 @@ describe("Join: later affiliation with the current account", () => {
     await act(async () => {
       fireEvent.press(view.getByText("Unirme con mi cuenta"));
     });
-    expect(accept).toHaveBeenCalledWith("private-token");
+    // Without a privacy block (an API before #91) the body stays {} exactly as before.
+    expect(accept).toHaveBeenCalledWith("private-token", {});
 
     await act(async () => {
       view.rerender(tree(memberAuth({ ...MEMBER, id: "user-2", first_name: "Otra" })));
@@ -258,7 +260,8 @@ describe("Join: later affiliation with the current account", () => {
     await act(async () => {
       fireEvent.press(view.getByText("Unirme con mi cuenta"));
     });
-    expect(accept).toHaveBeenCalledWith("private-token");
+    // Without a privacy block (an API before #91) the body stays {} exactly as before.
+    expect(accept).toHaveBeenCalledWith("private-token", {});
     expect(refresh).toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith("/(app)");
   });

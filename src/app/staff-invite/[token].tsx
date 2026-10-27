@@ -1,11 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { acceptStaffInvitation, fetchStaffInvitation, type StaffInvitation } from "../../api/endpoints";
 import { friendlyMessage, isApiError } from "../../api/errors";
+import { fetchMyPrivacy, isNoticeOutdated, needsGeneralNotice } from "../../api/privacy";
 import { useAuth } from "../../auth/AuthContext";
+import { StepNoticesView } from "../../components/privacy/StepNoticesView";
 import { Button } from "../../components/ui/Button";
 import { colors, spacing, typography } from "../../components/ui/theme";
+import { useAttemptId } from "../../hooks/useAttemptId";
+import { useStepNotices } from "../../hooks/useStepNotices";
 import { strings } from "../../i18n";
 import { routes } from "../../navigation/routes";
 import { useOrganization } from "../../state/OrganizationContext";
@@ -37,6 +41,26 @@ export default function StaffInviteScreen() {
   const [accepting, setAccepting] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [acceptError, setAcceptError] = useState("");
+  // API #91: a notice that changed while this was open is read again from the same lookup.
+  const [lookupAttempt, setLookupAttempt] = useState(0);
+  const signedIn = authStatus === "signedIn";
+  const block = invitation?.privacy;
+  const [fetchedNeedsGeneral, setFetchedNeedsGeneral] = useState<boolean | null>(null);
+  const hasBlock = Boolean(block);
+  const required = Boolean(block?.required);
+  // Without a block (an API before #91) nothing more is needed; otherwise GET /me/privacy says.
+  const needsGeneral = !signedIn || !invitation ? null : hasBlock ? fetchedNeedsGeneral : false;
+  const notices = useStepNotices({
+    enabled: signedIn && needsGeneral !== null,
+    withOrganization: true,
+    block,
+    organizationName: invitation?.organization.name,
+    general: "when-needed",
+    needsGeneral: Boolean(needsGeneral),
+  });
+  const attemptId = useAttemptId();
+  const busy = useRef(false);
+  const noticesReady = needsGeneral !== null && notices.status !== "loading" && !notices.blockedMessage;
 
   useEffect(() => {
     let current = true;
@@ -45,19 +69,48 @@ export default function StaffInviteScreen() {
       .then((data) => { if (current) setInvitation(data); })
       .catch(() => { if (current) setLoadError(strings.staffInvite.notFound); });
     return () => { current = false; };
-  }, [token]);
+  }, [token, lookupAttempt]);
+
+  // The general notice only when this account still has to see it (contract §4);
+  // without that answer, whenever the step requires notices.
+  useEffect(() => {
+    if (!signedIn || !hasBlock) return;
+    let current = true;
+    fetchMyPrivacy()
+      .then((status) => { if (current) setFetchedNeedsGeneral(status ? status.privacy_notice.action_required !== "none" : required); })
+      .catch(() => { if (current) setFetchedNeedsGeneral(required); });
+    return () => { current = false; };
+  }, [signedIn, hasBlock, required]);
 
   async function accept() {
-    if (!token || accepting) return;
+    if (!token || busy.current || !noticesReady) return;
+    if (!notices.allShown) {
+      setAcceptError(strings.privacyNotices.step.mustRead);
+      return;
+    }
+    busy.current = true;
     setAccepting(true);
     setAcceptError("");
     try {
-      await acceptStaffInvitation(token, { authenticated: true });
+      const refs = notices.refs();
+      const sendsNotices = Boolean(refs.privacy_notice || refs.organization_notice);
+      await acceptStaffInvitation(token, {
+        authenticated: true,
+        notices: sendsNotices ? { ...refs, client_request_id: attemptId(token) } : undefined,
+      });
       setAccepted(true);
       await refresh();
     } catch (cause) {
-      setAcceptError(isApiError(cause) ? friendlyMessage(cause) : strings.staffInvite.genericError);
+      // API #91: nothing was written; show the current notices and keep the attempt.
+      if (isNoticeOutdated(cause)) {
+        setLookupAttempt((value) => value + 1);
+        notices.reload();
+      } else if (needsGeneralNotice(cause)) {
+        notices.reload({ requireGeneral: true });
+      }
+      setAcceptError(isApiError(cause) ? (needsGeneralNotice(cause) ? strings.privacyNotices.step.generalNeeded : friendlyMessage(cause)) : strings.staffInvite.genericError);
     } finally {
+      busy.current = false;
       setAccepting(false);
     }
   }
@@ -83,12 +136,16 @@ export default function StaffInviteScreen() {
             <Text style={styles.meta}>
               {strings.staffInvite.roleLabel}: {invitation.role}
             </Text>
-            {authStatus === "signedIn" ? (
-              <Button
-                label={strings.staffInvite.acceptAs(invitation.organization.name)}
-                loading={accepting}
-                onPress={() => void accept()}
-              />
+            {signedIn ? (
+              <>
+                {needsGeneral === null ? <Text style={styles.body}>{strings.privacyNotices.step.loading}</Text> : <StepNoticesView notices={notices} />}
+                <Button
+                  label={strings.staffInvite.acceptAs(invitation.organization.name)}
+                  loading={accepting}
+                  disabled={!noticesReady}
+                  onPress={() => void accept()}
+                />
+              </>
             ) : (
               <>
                 <Text style={styles.body}>{strings.staffInvite.signInToAccept}</Text>

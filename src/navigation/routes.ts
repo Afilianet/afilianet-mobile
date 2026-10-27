@@ -24,6 +24,7 @@ export const routes = {
   surveys: "/surveys",
   organizationAffiliates: "/organization-affiliates",
   signOutPending: "/sign-out-pending",
+  privacyReview: "/privacy-review",
 } as const;
 
 // The only screen values afilianet-api's notification listeners ever put in

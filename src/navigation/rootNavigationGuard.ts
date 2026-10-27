@@ -16,6 +16,22 @@ const EXEMPT_SEGMENTS = new Set([
   "join",
   // Signing out with unsent surveys must work with or without an organization.
   "sign-out-pending",
+  // Reading and recording notices (API #91/#93).
+  "privacy-review",
+]);
+
+// What the server still answers while it blocks the session for a notice
+// review (API #93 EnsurePrivacyReviewed): the notices, signing out, leaving
+// an organization, requesting deletion, and the join steps that show the
+// notices themselves.
+const REVIEW_ALLOWED_SEGMENTS = new Set([
+  "privacy-review",
+  "privacy",
+  "delete-account",
+  "leave-organization",
+  "sign-out-pending",
+  "join",
+  "staff-invite",
 ]);
 
 /**
@@ -47,6 +63,8 @@ export interface ResolveRedirectParams {
   pendingReferralPath?: string | null;
   /** One-shot step right after a new session, e.g. "/verify-account" after sign-up. */
   onboardingRoute?: string | null;
+  /** The server blocks this session until a notice is reviewed (state/privacyReview.ts). */
+  privacyReviewBlocking?: boolean;
 }
 
 /**
@@ -65,6 +83,7 @@ export function resolveRedirect({
   segments,
   pendingReferralPath = null,
   onboardingRoute = null,
+  privacyReviewBlocking = false,
 }: ResolveRedirectParams): string | null {
   if (authStatus === "loading") return null;
 
@@ -84,6 +103,9 @@ export function resolveRedirect({
   // a pending referral, then Home. /join itself stays reachable so an
   // existing account can accept a referral without creating another one.
   if (inAuthGroup) return onboardingRoute ?? pendingReferralPath ?? routes.home;
+
+  // Before choosing an organization: every other request would answer 409.
+  if (privacyReviewBlocking && !REVIEW_ALLOWED_SEGMENTS.has(segments[0])) return routes.privacyReview;
 
   const needsOrganizationChoice = orgStatus === "ready" && !hasActiveOrganization && organizationsCount > 1;
   if (needsOrganizationChoice && !inOrganizationPicker && !inExemptRoute) return routes.organizationPicker;

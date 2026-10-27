@@ -24,13 +24,15 @@ export class ApiError extends Error {
   readonly reason?: string;
   /** Seconds to wait before retrying, from the payload's `retry_after` or the Retry-After header. */
   readonly retryAfterSeconds?: number;
+  /** The privacy refs a 409 carries: `pending` (review required) or `current` (notice outdated). */
+  readonly privacy?: { pending?: unknown; current?: unknown };
 
   constructor(
     kind: ApiErrorKind,
     message: string,
     status: number | null = null,
     details?: ApiErrorDetails,
-    extra: { reason?: string; retryAfterSeconds?: number } = {},
+    extra: { reason?: string; retryAfterSeconds?: number; privacy?: { pending?: unknown; current?: unknown } } = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -39,6 +41,7 @@ export class ApiError extends Error {
     this.details = details;
     this.reason = extra.reason;
     this.retryAfterSeconds = extra.retryAfterSeconds;
+    this.privacy = extra.privacy;
   }
 }
 
@@ -62,6 +65,11 @@ export function friendlyMessage(error: ApiError): string {
   // right away does not help, so they never read as a generic server error.
   if (error.reason === "email_unavailable") return strings.shared.apiErrors.emailUnavailable;
   if (error.reason === "kyc_unavailable") return strings.shared.apiErrors.kycUnavailable;
+  // Privacy notices (API #91/#93): each says what to do, never a plain retry.
+  if (error.reason === "privacy_notice_review_required") return strings.privacyNotices.errors.reviewRequired;
+  if (error.reason === "privacy_notice_outdated") return strings.privacyNotices.errors.outdated;
+  if (error.reason === "privacy_notice_unavailable") return strings.privacyNotices.errors.generalUnavailable;
+  if (error.reason === "organization_notice_unavailable") return strings.privacyNotices.errors.organizationUnavailable;
   switch (error.kind) {
     case "offline":
       return strings.shared.apiErrors.offline;
