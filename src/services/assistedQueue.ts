@@ -167,6 +167,11 @@ export async function retryBlockedAssisted(id: string): Promise<void> {
   }));
 }
 
+/** True while a sync may be sending a draft; a server lookup then could miss a creation about to commit. */
+export function isAssistedSyncInProgress(): boolean {
+  return syncing;
+}
+
 export async function syncPendingAssisted(
   sponsorUserId: string, organizationId: string,
 ): Promise<{ completed: AssistedEnrollmentResult[]; remaining: number; blocked: number; error?: string }> {

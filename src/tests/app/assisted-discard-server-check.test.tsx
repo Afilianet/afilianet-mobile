@@ -1,5 +1,5 @@
 import { configureApiClient } from "../../api/client";
-import type { PendingAssistedEnrollment } from "../../services/assistedQueue";
+import { isAssistedSyncInProgress, type PendingAssistedEnrollment } from "../../services/assistedQueue";
 import { checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 
 /**
@@ -8,6 +8,7 @@ import { checkServerBeforeDiscard, discardConfirmation } from "../../utils/assis
  * reason means "not found"; everything else stays "no pudimos confirmar".
  * The creation is never replayed to find out.
  */
+jest.mock("../../services/assistedQueue", () => ({ ...jest.requireActual("../../services/assistedQueue"), isAssistedSyncInProgress: jest.fn(() => false) }));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 50 } }));
 
 const originalFetch = global.fetch;
@@ -108,4 +109,10 @@ it("without a server answer, local knowledge still applies: a known enrollment e
   const unavailable = { kind: "unavailable" } as const;
   expect(discardConfirmation({ ...item, enrollmentId: "enrollment-a" }, unavailable)).toMatch(/^El registro de Ana López ya existe en la organización/);
   expect(discardConfirmation({ ...item, blocked: { reason: "assisted_enrollment_unavailable", at: "" } }, unavailable)).toMatch(/^No pudimos confirmar/);
+});
+
+it("a sync in progress could still be sending this draft: not asked, stays uncertain", async () => {
+  (isAssistedSyncInProgress as jest.Mock).mockReturnValueOnce(true);
+  expect(await checkServerBeforeDiscard(item)).toEqual({ kind: "unavailable" });
+  expect(fetchMock).not.toHaveBeenCalled();
 });

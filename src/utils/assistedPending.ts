@@ -1,6 +1,6 @@
 import { lookupAssistedEnrollmentByRequest, type AssistedEnrollmentResult } from "../api/assistedEnrollment";
 import { captureApiSessionGuard } from "../api/client";
-import { serverStateOf, type BlockingReason, type PendingAssistedEnrollment } from "../services/assistedQueue";
+import { isAssistedSyncInProgress, serverStateOf, type BlockingReason, type PendingAssistedEnrollment } from "../services/assistedQueue";
 
 /** Why a saved assisted enrollment stopped syncing: an organization setting, not a connection problem. */
 export function blockedExplanation(reason: BlockingReason): { title: string; description: string } {
@@ -36,6 +36,8 @@ export type ServerCheck =
  */
 export async function checkServerBeforeDiscard(item: PendingAssistedEnrollment): Promise<ServerCheck> {
   if (!item.createAttempted) return { kind: "not_needed" };
+  // A creation still in flight could commit after the read (API #92): don't ask mid-sync.
+  if (isAssistedSyncInProgress()) return { kind: "unavailable" };
   const stillCurrent = captureApiSessionGuard(item.organizationId);
   if (!stillCurrent()) return { kind: "unavailable" };
   try {
