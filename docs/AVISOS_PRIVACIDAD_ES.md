@@ -19,9 +19,15 @@
 | Invitación de personal con sesión | Igual que la fila anterior, con el bloque de `GET /staff-invitations/{token}` | lo mostrado + `client_request_id` |
 
 **Reglas comunes:**
-- **Lectura antes de enviar.** Cada aviso se abre con «Leer aviso» y queda «Leído»; sin abrirlos todos no se envía.
-- **No hay casilla.** Abrir el aviso es lo que se registra; no es un consentimiento.
-- **Se envían las referencias de lo que se mostró** (`version` y `content_sha256` del documento servido), nunca otras.
+- **Avisos a disposición.** Cada aviso tiene «Ver aviso», que abre el texto completo en la app. Abrirlo es opcional y no condiciona el envío.
+- **Una casilla explícita, sin preselección.** Es la condición para enviar: «Se pusieron a mi disposición el Aviso de privacidad de Afilianet (versión …) y el aviso de privacidad de … (versión …) antes de continuar.».
+  - Lleva debajo la nota fija «Marcar esta casilla no es un consentimiento ni la aceptación de términos.».
+  - Es el texto acordado con API, pendiente de revisión jurídica (J4).
+  - Vale solo para las versiones listadas: si cambia un documento (409 `privacy_notice_outdated`) o se añade otro (422 `privacy_notice`), se desmarca.
+- **Nada afirma lectura.** La app no registra «abierto» ni «leído» por marcar la casilla.
+  - API propuso el campo opcional `notice_presentation` (`method`, `opened`), que describe la acción real.
+  - Está pendiente de que API lo confirme e implemente. Hasta entonces la app no envía nada nuevo: el cuerpo es el mismo que antes (referencias y `client_request_id`).
+- **Se envían las referencias de las versiones listadas y confirmadas** (`version` y `content_sha256` del documento servido), nunca otras.
 - **Idempotencia:**
   - el mismo `client_request_id` para todos los reintentos de la misma entrada, y uno nuevo cuando la entrada cambia;
   - un doble toque no envía dos veces.
@@ -45,11 +51,12 @@
 **Por documento** (aviso general y suplemento de cada organización):
 - **Estado:** «Al día», «Actualización informativa» o «Revisión requerida».
 - **Detalle:** qué cambió (`summary_of_changes`) y la última versión que se le mostró.
-- **Registro:** «Leer aviso» abre el texto completo.
-  - Revisión: «Registrar que leí este aviso».
-  - Informativa: «Entendido».
+- **Registro:** «Ver aviso» abre el texto completo; es opcional.
+  - Una casilla sin preselección: «Se puso a mi disposición la versión … de este aviso.».
+  - Habilita «Registrar» en una revisión o «Entendido» en un cambio informativo.
+  - Sin abrir el documento se registra la versión vigente que lista `GET /me/privacy`.
   - Cada registro va por documento y, en un suplemento, con su `organization_id`.
-- **Versión cambiada mientras se leía:** no se registra la versión anterior y se muestra la nueva.
+- **Versión cambiada:** si el servidor tiene otra versión (409, o el documento abierto no coincide), no se registra la anterior y se vuelven a leer los estados. La tarjeta muestra la nueva versión con la casilla desmarcada.
 - **Consentimientos por finalidad:** solo si el documento declara finalidades.
   - Cada finalidad tiene «Sí, acepto» y «No acepto», sin preselección.
   - Se describe la decisión vigente.
@@ -165,9 +172,9 @@ Requiere un APK con esta rama. Ningún build está autorizado todavía.
    - la pantalla muestra el aviso general publicado;
    - la cuenta se crea igual.
 2. **Requisitos encendidos, registro:**
-   - intentar enviar sin abrir el aviso → «Abre y lee cada aviso para continuar.»;
-   - abrirlo y enviar → la cuenta se crea.
-3. **Unión por referido sin sesión:** se ven dos avisos (general y de la organización); tras abrir ambos, la cuenta se crea dentro de la organización.
+   - la casilla aparece desmarcada; intentar enviar sin marcarla → «Marca la casilla para continuar.»;
+   - marcarla (abrir el aviso es opcional) y enviar → la cuenta se crea.
+3. **Unión por referido sin sesión:** se ven dos avisos (general y de la organización) y una sola casilla; al marcarla, la cuenta se crea dentro de la organización.
 4. **Organización sin suplemento:**
    - mensaje «Esta organización todavía no publica su aviso de privacidad…»;
    - el botón queda inactivo y lo escrito se conserva.
@@ -180,7 +187,7 @@ Requiere un APK con esta rama. Ningún build está autorizado todavía.
    - al abrir la app se va a «Avisos de privacidad» con el texto de bloqueo;
    - en otra pantalla, el error ofrece «Revisar aviso de privacidad», no «Reintentar»;
    - cerrar sesión funciona sin revisar;
-   - volver a entrar, leer y «Registrar que leí este aviso» → «Continuar» → Inicio carga.
+   - volver a entrar, marcar la casilla y «Registrar» → «Continuar» → Inicio carga.
 8. **Dos organizaciones con suplemento pendiente solo en B:**
    - con A activa todo funciona;
    - al cambiar a B se pide la revisión de B;
@@ -190,3 +197,18 @@ Requiere un APK con esta rama. Ningún build está autorizado todavía.
    - no se crea nada.
 
 **Evidencia por paso:** captura, hora y versión del aviso mostrada.
+
+## Resultado de P1 (2026-10-27) y barra inferior
+
+**Registro con aviso:** correcto. Sin abrir el aviso aparecía «Abre y lee cada aviso…». Al abrirlo quedó «Leído». La cuenta `fisica-registro-a06-01@example.test` se creó.
+- **HTTP** (proxy): `POST auth/register` 201.
+- **Constancia** (consulta de solo lectura): general `prueba-general.1`, contexto `account_registration`.
+- **Captura** (Andrés): sin barra inferior tras omitir la verificación.
+
+**Barra inferior: estado previsto, no defecto.**
+- La cuenta tiene 0 membresías: `GET me/organizations` respondió con una lista vacía, y la base lo confirma.
+- La navegación la lleva a `no-organization`, que está fuera del grupo de pestañas a propósito (`docs/NAVEGACION_BARRA_INFERIOR_ES.md`, «Acceso»).
+- Esa pantalla ofrece unirse con un código o con el selector, ver el perfil y las notificaciones, y cerrar sesión.
+- **Mejora:** ahora explica que las secciones y su barra aparecen al unirse a una organización, para que no parezca incompleta.
+
+**Cambio posterior a P1** (este PR, sin build): la casilla sustituye la apertura obligatoria. El APK `d31ee445` de la ronda sigue con el comportamiento anterior.

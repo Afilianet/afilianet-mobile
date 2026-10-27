@@ -6,19 +6,25 @@ export interface StepNoticeItem {
   key: string;
   kind: "general" | "organization";
   title: string;
+  /** The organization's name when the step knows it (a referral lookup does not). */
+  organizationName?: string;
   document: NoticeDocument;
 }
 
 export interface StepNotices {
   status: "loading" | "error" | "ready";
   items: StepNoticeItem[];
-  isShown: (key: string) => boolean;
-  markShown: (key: string) => void;
-  /** Every listed notice was opened. */
-  allShown: boolean;
+  /** Opening a document is optional; it is only remembered to describe what happened. */
+  isOpened: (key: string) => boolean;
+  markOpened: (key: string) => void;
+  /** The explicit, never preselected confirmation, valid only for the exact versions listed. */
+  confirmed: boolean;
+  setConfirmed: (value: boolean) => void;
+  /** Nothing to confirm, or confirmed. */
+  canSend: boolean;
   /** Why the step cannot continue (a required document is not published), or null. */
   blockedMessage: string | null;
-  /** What the step sends: the refs of exactly what was shown, never of anything else. */
+  /** What the step sends: the refs of exactly the versions listed and confirmed, never of anything else. */
   refs: () => StepNoticeRefs;
   /** The server asked again (409 outdated, 422 privacy_notice): reload what is shown. */
   reload: (options?: { requireGeneral?: boolean }) => void;
@@ -54,7 +60,9 @@ export function useStepNotices(options: {
   // The answer for one request only (`key`): a reload or a change of mode shows "loading" until its own answer.
   const [answer, setAnswer] = useState<{ key: string; document?: NoticeDocument | null; failed?: boolean } | null>(null);
   const requestKey = `${attempt}:${wantsGeneral}`;
-  const [shown, setShown] = useState<Set<string>>(() => new Set());
+  const [opened, setOpened] = useState<Set<string>>(() => new Set());
+  // Bound to the exact versions it was given for: a reloaded or changed notice needs it again.
+  const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => () => {
     mounted.current = false;
@@ -88,7 +96,8 @@ export function useStepNotices(options: {
     items.push({
       key: keyOf(organizationDocument),
       kind: "organization",
-      title: strings.privacyNotices.step.organization(organizationName ?? ""),
+      title: strings.privacyNotices.step.organization(organizationName),
+      organizationName,
       document: organizationDocument,
     });
   }
@@ -103,14 +112,16 @@ export function useStepNotices(options: {
   const loading = enabled && blockKnown && wantsGeneral && !generalNotice && !failed;
   const status: StepNotices["status"] = loading ? "loading" : failed ? "error" : "ready";
 
-  const markShown = useCallback((key: string) => {
-    setShown((previous) => (previous.has(key) ? previous : new Set(previous).add(key)));
+  const markOpened = useCallback((key: string) => {
+    setOpened((previous) => (previous.has(key) ? previous : new Set(previous).add(key)));
   }, []);
+  const itemsKey = items.map((item) => item.key).join("|");
+  const confirmed = items.length > 0 && confirmedFor === itemsKey;
 
   const refs = () => {
     const result: StepNoticeRefs = {};
+    if (!confirmed) return result;
     for (const item of items) {
-      if (!shown.has(item.key)) continue;
       const ref = refOf(item.document);
       if (!ref) continue;
       if (item.kind === "general") result.privacy_notice = ref;
@@ -128,9 +139,11 @@ export function useStepNotices(options: {
   return {
     status,
     items,
-    isShown: (key) => shown.has(key),
-    markShown,
-    allShown: items.every((item) => shown.has(item.key)),
+    isOpened: (key) => opened.has(key),
+    markOpened,
+    confirmed,
+    setConfirmed: (value) => setConfirmedFor(value ? itemsKey : null),
+    canSend: items.length === 0 || confirmed,
     blockedMessage,
     refs,
     reload,

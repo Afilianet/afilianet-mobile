@@ -174,8 +174,8 @@ function JoinWithAccount({ organizationId, code, referral, onNoticesChanged }: J
 
   async function accept() {
     if (busy.current || !user || !noticesReady) return;
-    if (!notices.allShown) {
-      setError(strings.privacyNotices.step.mustRead);
+    if (!notices.canSend) {
+      setError(strings.privacyNotices.step.mustConfirm);
       return;
     }
     busy.current = true;
@@ -301,8 +301,8 @@ function VisitorRegistration({ organizationId, code, referral, onNoticesChanged 
       setSubmitError(strings.auth.join.passwordMismatch);
       return;
     }
-    if (!notices.allShown) {
-      setSubmitError(strings.privacyNotices.step.mustRead);
+    if (!notices.canSend) {
+      setSubmitError(strings.privacyNotices.step.mustConfirm);
       return;
     }
     setSubmitError(null);

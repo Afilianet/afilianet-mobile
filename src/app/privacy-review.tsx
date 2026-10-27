@@ -19,6 +19,7 @@ import {
 import { useAuth } from "../auth/AuthContext";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
+import { NoticeConfirmation } from "../components/privacy/NoticeConfirmation";
 import { NoticeDocumentView } from "../components/privacy/NoticeDocumentView";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -102,6 +103,7 @@ export default function PrivacyReviewScreen() {
           userId={userId}
           load={async () => fetchGeneralNotice()}
           onRecorded={apply}
+          onOutdated={() => void query.refetch()}
           acknowledge={(ref, id) => recordAcknowledgement({ privacy_notice: ref, client_request_id: id })}
         />
       ) : null}
@@ -114,6 +116,7 @@ export default function PrivacyReviewScreen() {
           userId={userId}
           load={() => fetchOrganizationNotice(organization.id)}
           onRecorded={apply}
+          onOutdated={() => void query.refetch()}
           acknowledge={(ref, id) => recordAcknowledgement({ organization_id: organization.id, organization_notice: ref, client_request_id: id })}
           organizationName={organization.name}
           onLeave={() => router.push({ pathname: "/leave-organization", params: { organizationId: organization.id } } as never)}
@@ -138,6 +141,7 @@ function NoticeCard({
   load,
   acknowledge,
   onRecorded,
+  onOutdated,
   onLeave,
 }: {
   title: string;
@@ -148,6 +152,8 @@ function NoticeCard({
   load: () => Promise<NoticeDocument | null>;
   acknowledge: (ref: { version: string; sha256: string }, clientRequestId: string) => Promise<MyPrivacy>;
   onRecorded: (status: MyPrivacy, forUser: string | undefined) => void;
+  /** The server has a newer version: reload the statuses, so the card shows (and confirms) that one. */
+  onOutdated: () => void;
   onLeave?: () => void;
 }) {
   const copy = strings.privacyNotices.review;
@@ -195,12 +201,14 @@ function NoticeCard({
    * shown instead. Answers that arrive after a session change are dropped.
    */
   async function write(run: (ref: { version: string; sha256: string }) => Promise<MyPrivacy>) {
-    const ref = refOf(document);
+    // Opening is optional: without it, the version made available is the current one the server listed.
+    const ref = document ? refOf(document) : status.current;
     if (!ref || busyRef.current) return;
     if (!sameRef(ref, status.current)) {
       setMessage(copy.changedWhileReading);
       setOpen(false);
       setDocument(null);
+      onOutdated();
       return;
     }
     busyRef.current = true;
@@ -217,6 +225,7 @@ function NoticeCard({
         setDocument(null);
         setOpen(false);
         setMessage(copy.changedWhileReading);
+        onOutdated();
       } else {
         setMessage(copy.saveFailed);
       }
@@ -227,6 +236,7 @@ function NoticeCard({
   }
 
   const shown = open && document && sameRef(refOf(document), status.current) ? document : null;
+  const [confirmed, setConfirmed] = useState(false);
   const purposes = shown?.purposes ?? [];
 
   return (
@@ -246,12 +256,17 @@ function NoticeCard({
       <Text style={styles.meta}>{status.last_acknowledged ? copy.lastSeen(status.last_acknowledged.version) : copy.neverSeen}</Text>
       <Button label={open ? strings.privacyNotices.step.hide : strings.privacyNotices.step.read} variant="secondary" loading={loading} onPress={() => void read()} />
       {shown ? <NoticeDocumentView document={shown} /> : null}
-      {shown && action !== "none" ? (
-        <Button
-          label={action === "review" ? copy.acknowledge : copy.informAcknowledge}
-          loading={busy}
-          onPress={() => void write((ref) => acknowledge(ref, attemptId(`ack/${ref.sha256}`)))}
-        />
+      {action !== "none" && status.current ? (
+        <>
+          {/* Never preselected; it states the version was made available, not that it was opened or read. */}
+          <NoticeConfirmation label={copy.confirmation(status.current.version)} checked={confirmed} disabled={busy} onChange={setConfirmed} />
+          <Button
+            label={action === "review" ? copy.acknowledge : copy.informAcknowledge}
+            loading={busy}
+            disabled={!confirmed}
+            onPress={() => void write((ref) => acknowledge(ref, attemptId(`ack/${ref.sha256}`)))}
+          />
+        </>
       ) : null}
       {purposes.length ? (
         <View style={styles.purposes}>

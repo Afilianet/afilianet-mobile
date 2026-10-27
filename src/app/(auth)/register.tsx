@@ -64,7 +64,7 @@ export default function RegisterScreen() {
     else if (nextFieldErrors.email || nextFieldErrors.phone) problem = strings.access.errors.checkFields;
     else if (password.length < 8) problem = copy.passwordTooShort;
     else if (password !== confirmation) problem = copy.passwordMismatch;
-    else if (!notices.allShown) problem = strings.privacyNotices.step.mustRead;
+    else if (!notices.canSend) problem = strings.privacyNotices.step.mustConfirm;
     setError(problem);
     if (problem) return;
 

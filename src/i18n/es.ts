@@ -761,6 +761,7 @@ export const es = {
     viewNotifications: "Ver notificaciones de Afilianet",
     viewProfile: "Ver mi perfil",
     acceptInvitationHint: "Si recibiste una invitación de una organización, ábrela para unirte.",
+    sectionsAfterJoining: "Las secciones Inicio, Red, Ventas y Monedero, con su barra inferior, aparecen cuando te unes a una organización. Mientras tanto puedes ver tu perfil, tus notificaciones y unirte con un código.",
     verifyPending: "Tienes datos de contacto sin verificar. Verifícalos para poder recuperar tu cuenta.",
     verifyAccount: "Verificar mi cuenta",
     pendingInvitation: "Tienes una invitación pendiente.",
@@ -1250,14 +1251,22 @@ export const es = {
     },
     step: {
       title: "Avisos de privacidad",
-      intro: "Antes de continuar, lee estos avisos. Se registrará qué versión se te mostró; no es un consentimiento ni la aceptación de un contrato.",
+      intro: "Antes de continuar, estos avisos están a tu disposición. Puedes abrirlos aquí.",
       general: "Aviso de privacidad general",
       organization: (name?: string) => (name ? `Aviso de privacidad de ${name}` : "Aviso de privacidad de la organización"),
       version: (version: string) => `Versión ${version}`,
-      read: "Leer aviso",
-      hide: "Ocultar texto",
-      shown: "Leído",
-      mustRead: "Abre y lee cada aviso para continuar.",
+      read: "Ver aviso",
+      hide: "Ocultar aviso",
+      mustConfirm: "Marca la casilla para continuar.",
+      // Availability, never reading (API agreed wording, pending legal review).
+      confirmation: (general: string | null, organization: { name: string; version: string } | null) =>
+        general && organization
+          ? `Se pusieron a mi disposición el Aviso de privacidad de Afilianet (versión ${general}) y el aviso de privacidad de ${organization.name} (versión ${organization.version}) antes de continuar.`
+          : general
+            ? `Se puso a mi disposición el Aviso de privacidad de Afilianet (versión ${general}) antes de continuar.`
+            : `Se puso a mi disposición el aviso de privacidad de ${organization?.name ?? ""} (versión ${organization?.version ?? ""}) antes de continuar.`,
+      anOrganization: "la organización",
+      notConsent: "Marcar esta casilla no es un consentimiento ni la aceptación de términos.",
       loading: "Cargando avisos de privacidad…",
       loadFailed: "No pudimos cargar el aviso de privacidad. Revisa tu conexión e inténtalo de nuevo.",
       retry: "Volver a cargar",
@@ -1279,7 +1288,9 @@ export const es = {
       whatChanged: "Qué cambió",
       neverSeen: "No hay registro de que se te haya mostrado una versión de este aviso.",
       lastSeen: (version: string) => `Última versión que se te mostró: ${version}`,
-      acknowledge: "Registrar que leí este aviso",
+      acknowledge: "Registrar",
+      confirmation: (version: string) => `Se puso a mi disposición la versión ${version} de este aviso.`,
+      mustConfirm: "Marca la casilla para registrarlo.",
       informAcknowledge: "Entendido",
       recorded: "Registrado",
       changedWhileReading: "El aviso cambió mientras lo leías. Te mostramos la versión nueva.",

@@ -190,8 +190,9 @@ describe("the review screen", () => {
   }
   afterEach(() => client?.clear());
   const press = async (view: Awaited<ReturnType<typeof render>>, text: string) => act(async () => fireEvent.press(view.getByText(text)));
+  const tick = async (view: Awaited<ReturnType<typeof render>>) => act(async () => fireEvent.press(view.getByTestId("notice-confirmation")));
 
-  it("required review: shows what changed, records the version read, and unblocks with «Continuar»", async () => {
+  it("required review: shows what changed; an unchecked box, not opening, gates «Registrar»; unblocks with «Continuar»", async () => {
     on("GET /me/privacy", ok(status("review", [{ id: "org-a", name: "Organización A", current: A1, action: "none" }])));
     on("GET /privacy/notice", ok({ data: document(G2) }));
     on("POST /me/privacy/acknowledgements", ok(status("none", [{ id: "org-a", name: "Organización A", current: A1, action: "none" }])));
@@ -200,11 +201,15 @@ describe("the review screen", () => {
     expect(view.getByText("Revisión requerida")).toBeTruthy();
     expect(view.getByText("Cambio FICTICIO de prueba-general.2.")).toBeTruthy();
     expect(view.getAllByText("Al día")).toHaveLength(1);
-    expect(view.queryByText("Registrar que leí este aviso")).toBeNull();
+    expect(view.getByTestId("notice-confirmation").props.accessibilityState.checked).toBe(false);
+    expect(view.getByText("Se puso a mi disposición la versión prueba-general.2 de este aviso.")).toBeTruthy();
+    await press(view, "Registrar");
+    expect(sent("POST /me/privacy/acknowledgements")).toEqual([]);
 
-    await act(async () => fireEvent.press(view.getAllByText("Leer aviso")[0]));
-    await waitFor(() => expect(view.getByText("Texto de prueba-general.2")).toBeTruthy());
-    await press(view, "Registrar que leí este aviso");
+    // Never opened: the box describes what happened, the document text was not loaded.
+    await tick(view);
+    await press(view, "Registrar");
+    expect(sent("GET /privacy/notice")).toEqual([]);
     expect(sent("POST /me/privacy/acknowledgements")).toEqual([{ privacy_notice: G2, client_request_id: expect.stringMatching(/^attempt-/) }]);
     expect(calls.find((call) => call.route === "POST /me/privacy/acknowledgements")?.headers["X-Organization-ID"]).toBeUndefined();
     await waitFor(() => expect(getPrivacyReview()).toBeNull());
@@ -220,8 +225,7 @@ describe("the review screen", () => {
     await waitFor(() => expect(view.getByText("Actualización informativa")).toBeTruthy());
     expect(getPrivacyReview()).toBeNull();
     expect(view.queryByText(/Antes de seguir usando la app/)).toBeNull();
-    await press(view, "Leer aviso");
-    await waitFor(() => expect(view.getByText("Entendido")).toBeTruthy());
+    await tick(view);
     await act(async () => {
       fireEvent.press(view.getByText("Entendido"));
       fireEvent.press(view.getByText("Entendido"));
@@ -236,13 +240,13 @@ describe("the review screen", () => {
     on("GET /privacy/notice", ok({ data: document(G2) }));
     on("POST /me/privacy/acknowledgements", () => ({ status: 409, body: { message: "El aviso de privacidad cambió.", reason: "privacy_notice_outdated", current: { privacy_notice: G1, organization_notice: null } } }));
     const { view } = await mount();
-    await waitFor(() => expect(view.getByText("Leer aviso")).toBeTruthy());
-    await press(view, "Leer aviso");
-    await waitFor(() => expect(view.getByText("Registrar que leí este aviso")).toBeTruthy());
-    await press(view, "Registrar que leí este aviso");
+    await waitFor(() => expect(view.getByText("Registrar")).toBeTruthy());
+    await tick(view);
+    await press(view, "Registrar");
     expect(view.getByText("El aviso cambió mientras lo leías. Te mostramos la versión nueva.")).toBeTruthy();
-    expect(view.queryByText("Texto de prueba-general.2")).toBeNull();
     expect(getPrivacyReview()).not.toBeNull();
+    // The statuses are read again, so the card offers (and confirms) the server's current version.
+    await waitFor(() => expect(sent("GET /me/privacy")).toHaveLength(2));
   });
 
   it("several organizations: only the active one's supplement blocks; each is recorded with its own organization", async () => {
@@ -260,10 +264,8 @@ describe("the review screen", () => {
     expect(reviewBlocks(getPrivacyReview(), "org-a")).toBe(false);
     expect(reviewBlocks(getPrivacyReview(), "org-b")).toBe(true);
     expect(view.getByText("Salir de Organización B")).toBeTruthy();
-    const readButtons = view.getAllByText("Leer aviso");
-    await act(async () => fireEvent.press(readButtons[2]));
-    await waitFor(() => expect(view.getByText("Registrar que leí este aviso")).toBeTruthy());
-    await press(view, "Registrar que leí este aviso");
+    await tick(view);
+    await press(view, "Registrar");
     expect(sent("POST /me/privacy/acknowledgements")).toEqual([{ organization_id: "org-b", organization_notice: B2, client_request_id: expect.any(String) }]);
     await waitFor(() => expect(getPrivacyReview()).toBeNull());
   });
@@ -278,7 +280,7 @@ describe("the review screen", () => {
     on("POST /me/privacy/consents", ok(withDecision("refused", sha("e"))));
     const { view } = await mount();
     await waitFor(() => expect(view.getByText("Lee el aviso para decidir sobre sus finalidades.")).toBeTruthy());
-    await press(view, "Leer aviso");
+    await press(view, "Ver aviso");
     await waitFor(() => expect(view.getByTestId("purpose-finalidad_ficticia")).toBeTruthy());
     expect(view.getByText("El texto de esta finalidad cambió: tu decisión anterior ya no aplica.")).toBeTruthy();
     expect(view.getByText("Sí, acepto")).toBeTruthy();
@@ -296,10 +298,9 @@ describe("the review screen", () => {
     on("GET /privacy/notice", ok({ data: document(G2) }));
     on("POST /me/privacy/acknowledgements", () => new Promise<Answer>((resolve) => { release = () => resolve({ status: 200, body: status("none") }); }));
     const { view, rerender } = await mount();
-    await waitFor(() => expect(view.getByText("Leer aviso")).toBeTruthy());
-    await press(view, "Leer aviso");
-    await waitFor(() => expect(view.getByText("Registrar que leí este aviso")).toBeTruthy());
-    await press(view, "Registrar que leí este aviso");
+    await waitFor(() => expect(view.getByText("Registrar")).toBeTruthy());
+    await tick(view);
+    await press(view, "Registrar");
     await rerender(auth({ ...user!, id: "user-b" }));
     await act(async () => release());
     // Still blocked: the late "none" of user-a did not clear it.

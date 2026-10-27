@@ -84,8 +84,8 @@ export default function StaffInviteScreen() {
 
   async function accept() {
     if (!token || busy.current || !noticesReady) return;
-    if (!notices.allShown) {
-      setAcceptError(strings.privacyNotices.step.mustRead);
+    if (!notices.canSend) {
+      setAcceptError(strings.privacyNotices.step.mustConfirm);
       return;
     }
     busy.current = true;

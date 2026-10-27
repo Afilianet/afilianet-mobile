@@ -1175,14 +1175,21 @@ export const en = {
     },
     step: {
       title: "Privacy notices",
-      intro: "Before continuing, read these notices. Which version you were shown is recorded; it is not consent or acceptance of a contract.",
+      intro: "Before continuing, these notices are available to you. You can open them here.",
       general: "General privacy notice",
       organization: (name?: string) => (name ? `${name} privacy notice` : "Organization privacy notice"),
       version: (version: string) => `Version ${version}`,
-      read: "Read notice",
-      hide: "Hide text",
-      shown: "Read",
-      mustRead: "Open and read each notice to continue.",
+      read: "View notice",
+      hide: "Hide notice",
+      mustConfirm: "Tick the box to continue.",
+      confirmation: (general: string | null, organization: { name: string; version: string } | null) =>
+        general && organization
+          ? `The Afilianet privacy notice (version ${general}) and the ${organization.name} privacy notice (version ${organization.version}) were made available to me before continuing.`
+          : general
+            ? `The Afilianet privacy notice (version ${general}) was made available to me before continuing.`
+            : `The ${organization?.name ?? ""} privacy notice (version ${organization?.version ?? ""}) was made available to me before continuing.`,
+      anOrganization: "the organization",
+      notConsent: "Ticking this box is not consent or acceptance of terms.",
       loading: "Loading privacy notices…",
       loadFailed: "We couldn't load the privacy notice. Check your connection and try again.",
       retry: "Load again",
@@ -1204,7 +1211,9 @@ export const en = {
       whatChanged: "What changed",
       neverSeen: "There is no record of you being shown a version of this notice.",
       lastSeen: (version: string) => `Last version shown to you: ${version}`,
-      acknowledge: "Record that I read this notice",
+      acknowledge: "Record",
+      confirmation: (version: string) => `Version ${version} of this notice was made available to me.`,
+      mustConfirm: "Tick the box to record it.",
       informAcknowledge: "Got it",
       recorded: "Recorded",
       changedWhileReading: "The notice changed while you were reading it. Here is the new version.",
