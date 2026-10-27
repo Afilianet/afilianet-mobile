@@ -44,6 +44,14 @@ describe("config/env", () => {
     expect(require("./env").config.apiTimeoutMs).toBe(15000);
   });
 
+  it("treats the store profile's \"disabled\" placeholder as no DSN and no key", () => {
+    process.env.EXPO_PUBLIC_SENTRY_DSN = "disabled";
+    process.env.EXPO_PUBLIC_POSTHOG_API_KEY = "disabled";
+    const { config } = require("./env");
+    expect(config.sentryDsn).toBe("");
+    expect(config.posthogApiKey).toBe("");
+  });
+
   it("leaves Sentry/PostHog blank so services can no-op", () => {
     delete process.env.EXPO_PUBLIC_SENTRY_DSN;
     delete process.env.EXPO_PUBLIC_POSTHOG_API_KEY;

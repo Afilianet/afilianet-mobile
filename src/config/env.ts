@@ -14,6 +14,14 @@ function parseAppEnvironment(value: string | undefined): AppEnvironment {
   return "development";
 }
 
+// eas.json rejects empty env values, so a store profile overrides the DSN its
+// EAS environment carries with this explicit placeholder instead of "".
+const DISABLED = "disabled";
+
+function configuredValue(value: string | undefined): string {
+  return value === undefined || value === DISABLED ? "" : value;
+}
+
 function parseTimeoutMs(value: string | undefined, fallbackMs: number): number {
   const parsed = value ? Number.parseInt(value, 10) : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
@@ -25,10 +33,10 @@ export const config = {
   apiTimeoutMs: parseTimeoutMs(process.env.EXPO_PUBLIC_API_TIMEOUT_MS, 15000),
   // Sentry needs an explicit "1" as well as a DSN: a DSN sitting in an EAS
   // environment must never switch error reporting on by itself. Store builds
-  // ship "0" and a blank DSN (scripts/check-build-env.mjs enforces both).
+  // ship "0" and DSN "disabled" (scripts/check-build-env.mjs enforces both).
   sentryEnabled: process.env.EXPO_PUBLIC_SENTRY_ENABLED === "1",
-  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
-  posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? "",
+  sentryDsn: configuredValue(process.env.EXPO_PUBLIC_SENTRY_DSN),
+  posthogApiKey: configuredValue(process.env.EXPO_PUBLIC_POSTHOG_API_KEY),
   posthogHost: process.env.EXPO_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
 };
 

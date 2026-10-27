@@ -17,8 +17,8 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
 | `EXPO_PUBLIC_APP_ENV` | `staging` | `staging` | `production` |
 | Encuestas | Vista previa con **datos de ejemplo** | **Apagadas** (`EXPO_PUBLIC_SURVEYS_PREVIEW=0`) | Apagadas |
 | Código por WhatsApp | No se ofrece (sin `EXPO_PUBLIC_PHONE_WHATSAPP`) | No se ofrece | No se ofrece |
-| Sentry | DSN de `preview`; apagado salvo `EXPO_PUBLIC_SENTRY_ENABLED=1` | **Apagado:** `EXPO_PUBLIC_SENTRY_ENABLED=0` y DSN vacío; el hook detiene el build si llega un DSN | Sin DSN |
-| PostHog | Sin clave: apagado | **Apagado:** clave vacía; el hook detiene el build si llega una | Sin clave |
+| Sentry | DSN de `preview`; apagado salvo `EXPO_PUBLIC_SENTRY_ENABLED=1` | **Apagado:** `EXPO_PUBLIC_SENTRY_ENABLED=0` y DSN `"disabled"`; el hook detiene el build si llega un DSN real | Sin DSN |
+| PostHog | Sin clave: apagado | **Apagado:** sin clave; el hook detiene el build si llega una | Sin clave |
 | Push (FCM) | `GOOGLE_SERVICES_JSON` en `preview` | Igual | **Sin archivo:** sin push |
 | Liga de referido | `https://staging-admin.afilianet.mx/join/…` | Igual | `afilianetmobile://` (solo con la app instalada) |
 | Identificador | `com.afilianet.mobile`; versión remota con autoincremento | Igual | Igual |
@@ -131,9 +131,9 @@ Sin encuestas, el audio no se recoge en store-beta. Todo viaja cifrado por HTTPS
 **APK 6115fedb (versionCode 12, `71f4fd3`), ya instalado en el Galaxy A06:** Sentry **activo**. Lleva el DSN del entorno `preview` (región US), `environment` `staging` y `tracesSampleRate` 1.0. No tiene consentimiento ni `beforeSend`. Los breadcrumbs de red guardan la URL completa, con tokens de invitación, códigos de referido y la búsqueda `q`. PostHog está apagado (sin clave). Este APK no cambia: solo un build nuevo lo corrige.
 
 **Candidato siguiente (este cambio):**
-- `EXPO_PUBLIC_SENTRY_ENABLED=0`, `EXPO_PUBLIC_SENTRY_DSN=""`, `EXPO_PUBLIC_POSTHOG_API_KEY=""` y `SENTRY_DISABLE_AUTO_UPLOAD=true` en `eas.json` (store-beta, heredado por store-beta-apk).
+- `EXPO_PUBLIC_SENTRY_ENABLED=0`, `EXPO_PUBLIC_SENTRY_DSN="disabled"` y `SENTRY_DISABLE_AUTO_UPLOAD=true` en `eas.json` (store-beta, heredado por store-beta-apk). `eas.json` no acepta valores vacíos, así que la app trata `"disabled"` como ausencia de DSN. Sin `EXPO_PUBLIC_POSTHOG_API_KEY`: `preview` no la define.
 - eas-cli da prioridad al `env` del perfil sobre el entorno de EAS, así que el DSN de `preview` no se compila.
-- `scripts/check-build-env.mjs` corre en el worker (`eas-build-pre-install`) con el entorno ya combinado. Detiene el build si llega un DSN, una clave de PostHog o el interruptor distinto de `"0"`.
+- `scripts/check-build-env.mjs` corre en el worker (`eas-build-pre-install`) con el entorno ya combinado. Detiene el build si llega un DSN distinto de `"disabled"`, una clave de PostHog o el interruptor distinto de `"0"`.
 - Sin `Sentry.init` no arranca nada nativo: el SDK trae `io.sentry.auto-init=false`. Quedan apagados la captura de crashes nativos (NDK), las sesiones y el rendimiento. Las bibliotecas nativas siguen dentro del APK, pero inactivas.
 
 **Si algún día se activa Sentry** (`EXPO_PUBLIC_SENTRY_ENABLED=1` y DSN, en otro perfil):
