@@ -116,6 +116,40 @@
 - **Términos y condiciones:** no existen en el producto y no se muestra nada.
 - **Lo que este cambio no hace:** borrar datos, consentimientos retroactivos ni registros a nombre de terceros.
 
+## APK de la prueba física (`privacy-test-apk`)
+
+Es un perfil preparado como draft. **El build todavía no está autorizado.**
+
+**Identidad separada:**
+- **App:** paquete `com.afilianet.mobile.privacytest`, nombre «Afilianet PRUEBA avisos» y esquema `afilianetprivacytest`.
+- **Instalación:** se instala junto a la beta (vc13) sin reemplazarla.
+- **Aislamiento:** cada paquete tiene su propio espacio en Android. El token de sesión, SecureStore, AsyncStorage, los archivos y la copia de seguridad no se comparten. Una sesión de staging nunca llega a la API de prueba.
+- **Sin `sharedUserId`.**
+- **Esquema `exp+afilianet-mobile`:** lo añade Expo y es el mismo en ambas apps. Solo lo usan las herramientas de desarrollo; nada en la prueba lo emite.
+
+**Sin servicios de la beta:**
+- **Variables de EAS:** el perfil usa el entorno `development`, que no tiene ninguna (verificado con `eas env:list`). Así no llegan el archivo de Firebase, el DSN ni el token de Sentry que trae `preview`.
+- **Telemetría:** `EXPO_PUBLIC_SENTRY_ENABLED=0`, DSN `disabled`, sin subida de mapas y sin PostHog.
+- **Comprobación previa al build:** rechaza Firebase, el token o DSN de Sentry, PostHog, las encuestas y cualquier origen distinto de `https://andres-desk.tail7be8f8.ts.net`.
+
+**API:** `https://andres-desk.tail7be8f8.ts.net`, API desechable accesible solo dentro de Tailscale. **Nunca staging.**
+
+**Selección de la variante:**
+- La elige `APP_VARIANT=privacy-test` en el `env` del perfil, no `EAS_BUILD_PROFILE`.
+- eas-cli resuelve la configuración localmente sin `EAS_BUILD_PROFILE`, y de ahí toma el paquete para las credenciales y el versionCode remoto.
+- Con `EAS_BUILD_PROFILE`, `eas config` resolvía `com.afilianet.mobile`, así que el build `8a8f51c` no se lanzó.
+
+**versionCode:**
+- EAS lo guarda por paquete. `eas build:version:get` no devuelve versión para `com.afilianet.mobile.privacytest` y devuelve 13 para `com.afilianet.mobile`.
+- El perfil no tiene `autoIncrement` ni `extends`.
+- Tras el build se vuelve a consultar que `store-beta-apk` siga en 13.
+
+**Comprobaciones del artefacto tras el build:**
+- paquete y versionCode;
+- ausencia de `google-services`;
+- ausencia de un DSN con clave y de `phc_`;
+- origen de la API dentro del bundle.
+
 ## Ronda física breve (cuando se autorice un build)
 
 Requiere un APK con esta rama. Ningún build está autorizado todavía.

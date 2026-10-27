@@ -95,3 +95,32 @@ test("eas.json: store-beta-apk is the same store beta as an installable APK (sam
   assert.deepEqual(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", ...eas.build["store-beta"].env }), []);
   assert.ok(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", ...eas.build["store-beta"].env, EXPO_PUBLIC_SURVEYS_PREVIEW: undefined }).length);
 });
+
+test("privacy-test-apk: only the disposable API, telemetry off and nothing of the beta's services", async () => {
+  const { PRIVACY_TEST_ORIGIN } = await import("./check-build-env.mjs");
+  const { readFileSync } = await import("node:fs");
+  const profile = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8")).build["privacy-test-apk"];
+  const env = { EAS_BUILD_PROFILE: "privacy-test-apk", ...profile.env };
+  assert.equal(profile.environment, "development");
+  assert.equal(env.EXPO_PUBLIC_API_BASE_URL, PRIVACY_TEST_ORIGIN);
+  assert.deepEqual(validateBuildEnvironment(env), []);
+  for (const url of ["https://staging-api.afilianet.mx", "https://api.afilianet.mx", "http://andres-desk.tail7be8f8.ts.net", "https://andres-desk.tail7be8f8.ts.net.attacker.test", "https://andres-desk.tail7be8f8.ts.net:8443"]) {
+    assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_API_BASE_URL: url }).length, url);
+  }
+  // Whatever an EAS environment would add: Firebase, Sentry, PostHog.
+  assert.ok(validateBuildEnvironment({ ...env, APP_VARIANT: undefined }).length);
+  assert.ok(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", EXPO_PUBLIC_APP_ENV: "staging", EXPO_PUBLIC_API_BASE_URL: "https://staging-api.afilianet.mx", EXPO_PUBLIC_SURVEYS_PREVIEW: "0", EXPO_PUBLIC_SENTRY_ENABLED: "0", APP_VARIANT: "privacy-test" }).length);
+  for (const extra of [{ GOOGLE_SERVICES_JSON: "/tmp/google-services.json" }, { SENTRY_AUTH_TOKEN: "x" }, { EXPO_PUBLIC_SENTRY_DSN: "https://k@o1.ingest.sentry.io/1" }, { EXPO_PUBLIC_SENTRY_ENABLED: "1" }, { EXPO_PUBLIC_POSTHOG_API_KEY: "phc_x" }, { SENTRY_DISABLE_AUTO_UPLOAD: undefined }, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1" }, { EXPO_PUBLIC_APP_ENV: "staging" }]) {
+    assert.ok(validateBuildEnvironment({ ...env, ...extra }).length, JSON.stringify(extra));
+  }
+});
+
+test("privacy-test-apk never bumps a remote versionCode and inherits nothing from the beta's profiles", async () => {
+  // EAS keeps the remote versionCode per package (`eas build:version:get`: none for
+  // com.afilianet.mobile.privacytest, 13 for com.afilianet.mobile). Without autoIncrement and
+  // without `extends`, this profile can never move the beta's counter.
+  const { readFileSync } = await import("node:fs");
+  const build = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8")).build;
+  assert.equal(build["privacy-test-apk"].autoIncrement, undefined);
+  assert.equal(build["privacy-test-apk"].extends, undefined);
+});
