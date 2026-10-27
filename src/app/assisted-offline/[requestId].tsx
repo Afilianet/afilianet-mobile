@@ -10,7 +10,7 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useDocumentCamera } from "../../hooks/useDocumentCamera";
-import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
+import { canRetryBlocked, listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
 import { identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
@@ -118,7 +118,7 @@ export default function AssistedOfflineScreen() {
     {item.blocked ? <Card style={styles.card} testID="assisted-blocked">
       <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation(item.blocked.reason).title}</Text>
       <Text style={styles.description}>{blockedExplanation(item.blocked.reason).description}</Text>
-      <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} />
+      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} /> : null}
       <Button label="Descartar" variant="danger" disabled={busy} onPress={discard} />
     </Card> : null}
     {captureAvailable ? null : <Card style={styles.card} testID="kyc-capture-unavailable">

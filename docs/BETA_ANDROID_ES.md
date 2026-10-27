@@ -171,7 +171,7 @@ El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture`
 - **Advertencias:** en Red, desde el día 7, «Se borrará de este teléfono el {fecha}». Recordatorio al abrir Red en los días 21 y 28. Sin notificaciones push.
 - **Al vencer:** se borra solo la copia local. El texto distingue «no se creó nada» de «el registro se conserva en el servidor».
 - **Datos ya sincronizados:** la app ya borra sus fotos locales en cuanto el servidor las acepta. Lo que existe en el servidor (registro, evidencias, ubicación) sigue la retención del servidor. La app no lo toca.
-- **Pendiente relacionado:** «la persona ya activó su cuenta» (`access_status` distinto de `pending`) también es permanente y hoy se reintenta. Se propone el mismo trato, sin aplicarlo todavía.
+- **La persona ya activó su cuenta** (`assisted_access_claimed`, API #92): es permanente. La captura responde 409 con ese motivo y la repetición de la creación devuelve `access_status: "ready"`. El pendiente se detiene igual, pero solo ofrece revisar y descartar, sin «Reintentar envío»: ya existe en el servidor y la persona continúa desde su propia sesión. Un 404 genérico (id ajeno) sigue siendo transitorio.
 
 ## Dos hitos
 

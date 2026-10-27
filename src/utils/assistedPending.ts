@@ -2,6 +2,12 @@ import { serverStateOf, type BlockingReason, type PendingAssistedEnrollment } fr
 
 /** Why a saved assisted enrollment stopped syncing: an organization setting, not a connection problem. */
 export function blockedExplanation(reason: BlockingReason): { title: string; description: string } {
+  if (reason === "assisted_access_claimed") {
+    return {
+      title: "La persona ya activó su cuenta",
+      description: "Ya no es posible capturar por ella desde este teléfono: debe continuar la verificación desde su propia sesión. Lo guardado aquí (fotos y ubicación sin enviar) no se enviará. Puedes revisarlo y descartarlo.",
+    };
+  }
   if (reason === "kyc_unavailable") {
     return {
       title: "Verificación de identidad pausada en esta organización",

@@ -5,7 +5,7 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
 import { hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
-import { listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
+import { canRetryBlocked, listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
 import { blockedExplanation, discardConfirmation } from "../../utils/assistedPending";
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
@@ -164,7 +164,7 @@ export default function NetworkScreen() {
                     <>
                       <Text accessibilityRole="alert" style={styles.pendingHeading}>{blockedExplanation(item.blocked.reason).title}</Text>
                       <Text style={styles.pendingText}>{blockedExplanation(item.blocked.reason).description}</Text>
-                      <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} />
+                      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} /> : null}
                       <Button label="Descartar" variant="danger" disabled={syncing} onPress={() => discardPending(item)} />
                     </>
                   ) : null}

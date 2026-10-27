@@ -96,6 +96,18 @@ it("kyc_unavailable is explained as paused identity verification", async () => {
   client.clear();
 });
 
+it("assisted_access_claimed: explains the person continues on their own, offers discard only", async () => {
+  mockItem = { ...base, createAttempted: true, enrollmentId: "enrollment-a", blocked: { reason: "assisted_access_claimed", at: "2026-10-27T12:00:00Z" } };
+  const alert = jest.spyOn(Alert, "alert");
+  const { screen, client } = await renderScreen();
+  await waitFor(() => expect(screen.getByText("La persona ya activó su cuenta")).toBeTruthy());
+  expect(screen.queryByText("Reintentar envío")).toBeNull();
+  await fireEvent.press(screen.getByText("Descartar"));
+  expect(alert.mock.calls[0][1]).toMatch(/ya existe en la organización.*se conservan en el servidor/);
+  await screen.unmount();
+  client.clear();
+});
+
 describe("the confirmation says what stays on the server", () => {
   it("nothing was ever sent, or the server confirmed nothing exists", () => {
     expect(discardConfirmation(base)).toMatch(/^No se creó ningún registro en la organización/);

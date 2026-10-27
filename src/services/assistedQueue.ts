@@ -16,13 +16,19 @@ let mutationTail: Promise<unknown> = Promise.resolve();
 let syncing = false;
 
 /**
- * Organization settings, not failures: the server answers the same on every
- * retry until an administrator changes them, so a draft that gets one stops
- * syncing instead of retrying (and holding a third party's data) forever.
- * API #92 answers creation with assisted_enrollment_unavailable; capture
- * after creation answers kyc_unavailable (API #86).
+ * Not failures: the server answers the same on every retry, so a draft that
+ * gets one stops syncing instead of retrying (and holding a third party's
+ * data) forever. API #92 answers creation with assisted_enrollment_unavailable
+ * and capture for a person who already activated their account with 409
+ * assisted_access_claimed (permanent); capture with KYC off answers
+ * kyc_unavailable (API #86) before that.
  */
-export const BLOCKING_REASONS = ["assisted_enrollment_unavailable", "kyc_unavailable"] as const;
+export const BLOCKING_REASONS = ["assisted_enrollment_unavailable", "kyc_unavailable", "assisted_access_claimed"] as const;
+
+/** Only an explicit retry makes sense once an organization re-enables a setting; activation never goes back. */
+export function canRetryBlocked(reason: BlockingReason): boolean {
+  return reason !== "assisted_access_claimed";
+}
 export type BlockingReason = (typeof BLOCKING_REASONS)[number];
 
 export function blockingReason(error: unknown): BlockingReason | null {
@@ -54,7 +60,9 @@ export interface PendingAssistedEnrollment {
 export function serverStateOf(item: PendingAssistedEnrollment): "created" | "not_created" | "unknown" {
   if (item.enrollmentId) return "created";
   if (!item.createAttempted) return "not_created";
-  if (item.blocked && item.blocked.reason !== "kyc_unavailable") return "not_created";
+  // Only a creation refusal says nothing exists; an activated person has an enrollment by definition.
+  if (item.blocked?.reason === "assisted_enrollment_unavailable") return "not_created";
+  if (item.blocked?.reason === "assisted_access_claimed") return "created";
   return "unknown";
 }
 
@@ -154,7 +162,9 @@ async function updateItem(id: string, change: (item: PendingAssistedEnrollment) 
 
 /** Manual retry after the organization changes its setting: the next sync sends the draft again. */
 export async function retryBlockedAssisted(id: string): Promise<void> {
-  return mutate(() => updateItem(id, (item) => { delete item.blocked; }));
+  return mutate(() => updateItem(id, (item) => {
+    if (item.blocked && canRetryBlocked(item.blocked.reason)) delete item.blocked;
+  }));
 }
 
 export async function syncPendingAssisted(
@@ -192,7 +202,11 @@ export async function syncPendingAssisted(
           await secureStorage.set(ITEM_PREFIX + item.input.client_request_id, JSON.stringify(item));
           const photos = item.photos ?? [];
           if (photos.length || item.geolocation) {
-            if (result.access_status !== "pending") throw new ApiError("conflict", "La persona ya activó su cuenta. Debe continuar la captura de su ID desde su propia sesión.");
+            // The replay answers "ready" once the person activated: the same permanent state the
+            // capture endpoints answer with 409 assisted_access_claimed, so it is not sent again.
+            if (result.access_status !== "pending") {
+              throw new ApiError("conflict", "La persona ya activó su cuenta; ya no es posible capturar por ella.", 409, undefined, { reason: "assisted_access_claimed" });
+            }
             if (photos.length && (!photos.some((photo) => photo.evidenceType === "id_document_front")
               || !photos.some((photo) => photo.evidenceType === "id_document_back"))) {
               throw new ApiError("validation", "Falta una cara de la INE guardada. Completa las fotos antes de sincronizarlas.");
