@@ -19,10 +19,10 @@ let syncing = false;
  * Organization settings, not failures: the server answers the same on every
  * retry until an administrator changes them, so a draft that gets one stops
  * syncing instead of retrying (and holding a third party's data) forever.
- * API #92 names the creation switch assisted_enrollment_unavailable; the
- * assisted_registration_unavailable spelling is accepted as well.
+ * API #92 answers creation with assisted_enrollment_unavailable; capture
+ * after creation answers kyc_unavailable (API #86).
  */
-export const BLOCKING_REASONS = ["assisted_enrollment_unavailable", "assisted_registration_unavailable", "kyc_unavailable"] as const;
+export const BLOCKING_REASONS = ["assisted_enrollment_unavailable", "kyc_unavailable"] as const;
 export type BlockingReason = (typeof BLOCKING_REASONS)[number];
 
 export function blockingReason(error: unknown): BlockingReason | null {

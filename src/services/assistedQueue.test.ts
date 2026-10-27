@@ -127,7 +127,8 @@ describe("organization refusals (API #92 assisted_enrollment_unavailable, API #8
     await replaceAssistedPhoto("sponsor-a", "org-a", id, { ...back, fileName: `${id}-back.sealed`, keyName: `${id}-back-key` });
   }
 
-  it.each(["assisted_enrollment_unavailable", "assisted_registration_unavailable"])("creation refused (%s): kept with its photos, never sent again on its own, nothing on the server", async (reason) => {
+  it("creation refused (assisted_enrollment_unavailable): kept with its photos, never sent again on its own, nothing on the server", async () => {
+    const reason = "assisted_enrollment_unavailable";
     await draftWithPhotos();
     (createAssistedEnrollment as jest.Mock).mockRejectedValue(refusal(reason));
     const first = await syncPendingAssisted("sponsor-a", "org-a");
