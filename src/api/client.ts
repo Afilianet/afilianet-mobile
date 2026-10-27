@@ -1,4 +1,5 @@
 import { config } from "../config/env";
+import { markPrivacyReviewRequired } from "../state/privacyReview";
 import { ApiError, ApiErrorDetails, kindForStatus } from "./errors";
 
 type TokenGetter = () => string | null;
@@ -76,6 +77,14 @@ export function extractRetryAfter(payload: unknown, header: string | null): numb
   return undefined;
 }
 
+/** Only the privacy refs of a 409 (`pending`, `current`); nothing else of the body is kept. */
+function extractPrivacy(payload: unknown): { pending?: unknown; current?: unknown } | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const { pending, current } = payload as { pending?: unknown; current?: unknown };
+  if (pending === undefined && current === undefined) return undefined;
+  return { ...(pending !== undefined ? { pending } : {}), ...(current !== undefined ? { current } : {}) };
+}
+
 function extractDetails(payload: unknown): ApiErrorDetails | undefined {
   if (payload && typeof payload === "object" && "errors" in payload) {
     const errors = (payload as { errors?: unknown }).errors;
@@ -108,10 +117,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers["Content-Type"] = "application/json";
   }
 
-  if (!options.skipAuth) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+  const requestToken = options.skipAuth ? null : getToken();
+  if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
 
   if (!options.skipOrganization) {
     const organizationId = getOrganizationId();
@@ -142,12 +149,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload), {
       reason: extractReason(payload),
       retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
+      privacy: response.status === 409 ? extractPrivacy(payload) : undefined,
     });
     if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
     // API #86: capture is off in the organization this request was sent for
     // (its header, not whichever is active by the time a late answer lands).
     const requestOrganizationId = headers["X-Organization-ID"];
     if (error.reason === "kyc_unavailable" && requestOrganizationId) onKycUnavailable(requestOrganizationId);
+    // API #93: the server blocks this account until it reviews a notice. Only
+    // an answer for the session still signed in may raise the review screen.
+    if (error.reason === "privacy_notice_review_required" && requestToken && requestToken === getToken()) {
+      markPrivacyReviewRequired(error.privacy?.pending, requestOrganizationId ?? null);
+    }
     throw error;
   }
 

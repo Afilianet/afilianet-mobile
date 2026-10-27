@@ -216,14 +216,16 @@ describe("Profile: notification settings", () => {
 });
 
 describe("Profile: account actions order", () => {
-  it("keeps the privacy notice as the very last action, after sign out and the protected account options", async () => {
+  it("keeps the privacy notices as the very last actions, after sign out and the protected account options", async () => {
     const { findByText, getAllByRole, queryByText } = await renderProfile();
     await findByText("Aviso de privacidad");
 
     const buttons = getAllByRole("button");
     expect(within(buttons[buttons.length - 1]).getByText("Aviso de privacidad")).toBeTruthy();
-    expect(within(buttons[buttons.length - 2]).getByText("Mostrar opciones de cuenta")).toBeTruthy();
-    expect(within(buttons[buttons.length - 3]).getByText(/cerrar sesión/i)).toBeTruthy();
+    // API #91/#93: the account's own notices (review, informative changes, consents) right before it.
+    expect(within(buttons[buttons.length - 2]).getByText("Mis avisos de privacidad")).toBeTruthy();
+    expect(within(buttons[buttons.length - 3]).getByText("Mostrar opciones de cuenta")).toBeTruthy();
+    expect(within(buttons[buttons.length - 4]).getByText(/cerrar sesión/i)).toBeTruthy();
     // Leaving an organization and deleting the account stay hidden until explicitly expanded.
     expect(queryByText("Eliminar mi cuenta")).toBeNull();
   });

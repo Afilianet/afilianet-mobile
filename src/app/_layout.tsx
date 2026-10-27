@@ -18,6 +18,9 @@ import { LoadingState } from "../components/LoadingState";
 import { isExemptRoute, resolveRedirect } from "../navigation/rootNavigationGuard";
 import { initSentry } from "../services/sentry";
 import { OrganizationProvider } from "../state/OrganizationProvider";
+import { reviewBlocks, syncPrivacyReview, usePrivacyReview } from "../state/privacyReview";
+import { fetchMyPrivacy, myPrivacyKey } from "../api/privacy";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { useOrganization } from "../state/OrganizationContext";
 
 initSentry();
@@ -67,8 +70,23 @@ export default function RootLayout() {
   );
 }
 
+/**
+ * API #93: whether the server blocks this account until it reviews a notice,
+ * read once per session from GET /me/privacy (exempt from the block); every
+ * 409 privacy_notice_review_required also raises it (api/client.ts). An API
+ * without the route (404) leaves everything as before.
+ */
+function usePrivacyReviewSync(signedIn: boolean, userId: string | undefined) {
+  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: signedIn && Boolean(userId) });
+  useEffect(() => {
+    if (signedIn && query.data !== undefined) syncPrivacyReview(query.data);
+  }, [signedIn, query.data]);
+}
+
 function RootNavigation() {
-  const { status: authStatus, onboardingRoute } = useAuth();
+  const { status: authStatus, onboardingRoute, user } = useAuth();
+  usePrivacyReviewSync(authStatus === "signedIn", user?.id);
+  const privacyReview = usePrivacyReview();
   const pendingReferral = usePendingReferral();
   const pendingPath = pendingReferral ? pendingReferralPath(pendingReferral) : null;
   const { status: orgStatus, organizations, activeOrganization, error: orgError, refresh: refreshOrganizations } = useOrganization();
@@ -84,11 +102,12 @@ function RootNavigation() {
       segments,
       pendingReferralPath: pendingPath,
       onboardingRoute,
+      privacyReviewBlocking: authStatus === "signedIn" && reviewBlocks(privacyReview, activeOrganization?.id),
     });
     if (target) {
       router.replace(target as never);
     }
-  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute]);
+  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute, privacyReview]);
 
   if (authStatus === "loading") {
     return <LoadingState message={strings.app.startingUp} />;

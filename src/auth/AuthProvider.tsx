@@ -9,6 +9,7 @@ import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
 import { clearPendingReferral, hydratePendingReferral, watchPendingReferralExpiry } from "./pendingReferral";
 import { tokenStorage } from "./tokenStorage";
+import { clearPrivacyReview } from "../state/privacyReview";
 import { forgetOfflineUser, restoreOfflineUser, saveOfflineUser } from "../services/offlineSession";
 import type { ApiError } from "../api/errors";
 
@@ -29,7 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [onboardingRoute, setOnboardingRoute] = useState<string | null>(null);
 
   async function establishSession(token: string) {
-    if (tokenRef.current !== token) queryClient.clear();
+    if (tokenRef.current !== token) {
+      queryClient.clear();
+      // A notice review belongs to the account that was asked for it.
+      clearPrivacyReview();
+    }
     tokenRef.current = token;
     await tokenStorage.setToken(token);
     const me = await fetchMe();
@@ -52,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     tokenRef.current = null;
     queryClient.clear();
+    clearPrivacyReview();
     // An unaccepted referral and any post-sign-up step belong to this session only.
     setOnboardingRoute(null);
     await clearPendingReferral();
@@ -123,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const result = await acceptReferralInvitation(invitationToken, registration);
         if (!result.token) throw new Error("The registration did not return a session token.");
         queryClient.clear();
+        clearPrivacyReview();
         tokenRef.current = result.token;
         await tokenStorage.setToken(result.token);
         await saveOfflineUser(result.token, result.user, sessionGuard(tokenRef, result.token)).catch(() => undefined);
