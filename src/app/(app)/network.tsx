@@ -5,8 +5,8 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
 import { hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
-import { listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
-import { blockedExplanation, discardConfirmation } from "../../utils/assistedPending";
+import { canRetryBlocked, listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
+import { blockedExplanation, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -53,6 +53,7 @@ export default function NetworkScreen() {
   const [pendingItems, setPendingItems] = useState<PendingAssistedEnrollment[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     if (!user || !activeOrganization || !hasPersonalAffiliateAccess(activeOrganization)) return;
@@ -83,8 +84,16 @@ export default function NetworkScreen() {
     setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
   }
 
-  function discardPending(item: PendingAssistedEnrollment) {
-    Alert.alert("Descartar registro guardado", discardConfirmation(item), [
+  async function discardPending(item: PendingAssistedEnrollment) {
+    if (checkingId) return;
+    setCheckingId(item.input.client_request_id);
+    let check: Awaited<ReturnType<typeof checkServerBeforeDiscard>>;
+    try {
+      check = await checkServerBeforeDiscard(item);
+    } finally {
+      setCheckingId(null);
+    }
+    Alert.alert("Descartar registro guardado", discardConfirmation(item, check), [
       { text: "Cancelar", style: "cancel" },
       { text: "Descartar", style: "destructive", onPress: () => {
         void removePendingAssisted(item.input.client_request_id).then(reloadPending).catch(() => setSyncMessage("No se pudo eliminar la copia local."));
@@ -164,8 +173,9 @@ export default function NetworkScreen() {
                     <>
                       <Text accessibilityRole="alert" style={styles.pendingHeading}>{blockedExplanation(item.blocked.reason).title}</Text>
                       <Text style={styles.pendingText}>{blockedExplanation(item.blocked.reason).description}</Text>
-                      <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} />
-                      <Button label="Descartar" variant="danger" disabled={syncing} onPress={() => discardPending(item)} />
+                      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} /> : null}
+                      {checkingId === item.input.client_request_id ? <Text accessibilityLiveRegion="polite" style={styles.pendingText}>Comprobando en el servidor…</Text> : null}
+                      <Button label="Descartar" variant="danger" disabled={syncing || Boolean(checkingId)} loading={checkingId === item.input.client_request_id} onPress={() => void discardPending(item)} />
                     </>
                   ) : null}
                   <Button label="Capturar o revisar INE guardada" variant="secondary" disabled={syncing}

@@ -221,6 +221,48 @@ describe("organization refusals (API #92 assisted_enrollment_unavailable, API #8
     expect(createAssistedEnrollment).toHaveBeenNthCalledWith(2, draft.input);
   });
 
+  it("person already activated (replay answers access_status ready): stopped as assisted_access_claimed, photos kept, nothing uploaded, never retried", async () => {
+    await draftWithPhotos();
+    (createAssistedEnrollment as jest.Mock).mockResolvedValue({ ...enrollment, access_status: "ready" });
+    expect((await syncPendingAssisted("sponsor-a", "org-a")).blocked).toBe(1);
+    const [item] = await listPendingAssisted("sponsor-a", "org-a");
+    expect(item).toMatchObject({ enrollmentId: "enrollment-a", blocked: { reason: "assisted_access_claimed" } });
+    expect(item.photos).toHaveLength(2);
+    expect(serverStateOf(item)).toBe("created");
+    expect(fetchMyCompliance).not.toHaveBeenCalled();
+    expect(requestEvidenceUpload).not.toHaveBeenCalled();
+    // Permanent: an explicit retry does not reopen it either.
+    await retryBlockedAssisted("request-a");
+    expect((await listPendingAssisted("sponsor-a", "org-a"))[0].blocked?.reason).toBe("assisted_access_claimed");
+    await syncPendingAssisted("sponsor-a", "org-a");
+    expect(createAssistedEnrollment).toHaveBeenCalledTimes(1);
+  });
+
+  it("capture endpoints answering 409 assisted_access_claimed stop it the same way", async () => {
+    await draftWithPhotos();
+    (fetchMyCompliance as jest.Mock).mockRejectedValue(new ApiError("conflict", "La persona ya activó su cuenta; ya no es posible capturar por ella.", 409, undefined, { reason: "assisted_access_claimed" }));
+    expect((await syncPendingAssisted("sponsor-a", "org-a")).blocked).toBe(1);
+    expect(serverStateOf((await listPendingAssisted("sponsor-a", "org-a"))[0])).toBe("created");
+    await syncPendingAssisted("sponsor-a", "org-a");
+    expect(fetchMyCompliance).toHaveBeenCalledTimes(1);
+  });
+
+  it("a generic 404 (wrong id, other organization or sponsor) stays transient", async () => {
+    await draftWithPhotos();
+    // (A 404 from fetchMyCompliance means "no case yet" and starts one; uploads are where a wrong id shows.)
+    (fetchMyCompliance as jest.Mock).mockResolvedValue({ id: "case-a" });
+    (fetchComplianceSteps as jest.Mock).mockResolvedValue([{ id: "document-a", step_type: "identity_document" }]);
+    (requestEvidenceUpload as jest.Mock).mockRejectedValueOnce(new ApiError("not_found", "No encontrado.", 404));
+    expect((await syncPendingAssisted("sponsor-a", "org-a")).blocked).toBe(0);
+    expect((await listPendingAssisted("sponsor-a", "org-a"))[0].blocked).toBeUndefined();
+  });
+
+  it("a person activated after the draft was saved, with nothing left to send, completes as before", async () => {
+    await savePendingAssisted(draft);
+    (createAssistedEnrollment as jest.Mock).mockResolvedValue({ ...enrollment, access_status: "ready" });
+    expect(await syncPendingAssisted("sponsor-a", "org-a")).toMatchObject({ remaining: 0, blocked: 0 });
+  });
+
   it("discarding deletes only this draft's own photos, never one another pending draft references", async () => {
     await draftWithPhotos("request-a");
     await savePendingAssisted({ ...draft, input: { ...draft.input, client_request_id: "request-b" } });

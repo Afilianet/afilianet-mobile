@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import { isApiError } from "./errors";
 
 /**
  * POST /api/v1/affiliates/me/assisted-enrollments (API contract
@@ -44,4 +45,28 @@ export async function fetchPendingAssistedEnrollments(page = 1): Promise<{
   meta: { current_page: number; last_page: number };
 }> {
   return apiRequest(`/api/v1/affiliates/me/assisted-enrollments?page=${page}`);
+}
+
+/** The reason API #92 puts on this route's 404; a reasonless 404 is an older API or a missing route. */
+export const ASSISTED_ENROLLMENT_NOT_FOUND = "assisted_enrollment_not_found";
+
+/**
+ * GET /api/v1/affiliates/me/assisted-enrollments/by-request/{client_request_id}
+ * (API #92): read-only lookup of this sponsor's enrollment in the active
+ * organization. Never replays the creation to find out, since a replay can
+ * create it. Resolves null only for the route's own "not found"; anything
+ * else (timeout, 401/403, 5xx, a reasonless 404) rejects so callers stay
+ * uncertain.
+ */
+export async function lookupAssistedEnrollmentByRequest(clientRequestId: string): Promise<AssistedEnrollmentResult | null> {
+  try {
+    const { data } = await apiRequest<{ data: AssistedEnrollmentResult }>(
+      `/api/v1/affiliates/me/assisted-enrollments/by-request/${encodeURIComponent(clientRequestId)}`,
+      { skipUnauthorizedHandling: true },
+    );
+    return data;
+  } catch (error) {
+    if (isApiError(error) && error.status === 404 && error.reason === ASSISTED_ENROLLMENT_NOT_FOUND) return null;
+    throw error;
+  }
 }

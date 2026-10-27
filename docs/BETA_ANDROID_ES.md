@@ -162,6 +162,11 @@ Descartar pide confirmación y dice qué queda en el servidor:
 
 Descartar borra solo la copia de este teléfono y nunca registros remotos. No borra fotos que otro pendiente use.
 
+**Antes de confirmar el descarte** (si alguna solicitud salió del teléfono), la app pregunta al servidor con la consulta de solo lectura de API #92: `GET /api/v1/affiliates/me/assisted-enrollments/by-request/{client_request_id}`, con la organización del pendiente. Nunca reenvía la creación para averiguarlo. Según la respuesta:
+- **200:** el registro existe (sin activar o ya activado). Descartar borra solo la copia local.
+- **404 con el motivo propio de la ruta:** «el servidor no tiene ahora un registro para esta solicitud». No se presenta como prueba de que nunca existió.
+- **Timeout, sin conexión, 401/403, 5xx, 404 sin motivo (API antigua) o cambio de sesión u organización:** «no pudimos confirmar». Solo un `enrollmentId` conocido permite decir «ya existe».
+
 Siguen siendo transitorios y se reintentan: sin conexión, timeout, 5xx sin motivo, otros motivos y cambio de sesión u organización.
 
 El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture` rechaza la captura. La app solo deja de insistir.
@@ -171,7 +176,7 @@ El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture`
 - **Advertencias:** en Red, desde el día 7, «Se borrará de este teléfono el {fecha}». Recordatorio al abrir Red en los días 21 y 28. Sin notificaciones push.
 - **Al vencer:** se borra solo la copia local. El texto distingue «no se creó nada» de «el registro se conserva en el servidor».
 - **Datos ya sincronizados:** la app ya borra sus fotos locales en cuanto el servidor las acepta. Lo que existe en el servidor (registro, evidencias, ubicación) sigue la retención del servidor. La app no lo toca.
-- **Pendiente relacionado:** «la persona ya activó su cuenta» (`access_status` distinto de `pending`) también es permanente y hoy se reintenta. Se propone el mismo trato, sin aplicarlo todavía.
+- **La persona ya activó su cuenta** (`assisted_access_claimed`, API #92): es permanente. La captura responde 409 con ese motivo y la repetición de la creación devuelve `access_status: "ready"`. El pendiente se detiene igual, pero solo ofrece revisar y descartar, sin «Reintentar envío»: ya existe en el servidor y la persona continúa desde su propia sesión. Un 404 genérico (id ajeno) sigue siendo transitorio.
 
 ## Dos hitos
 
