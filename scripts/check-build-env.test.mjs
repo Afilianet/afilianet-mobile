@@ -60,6 +60,9 @@ test("store beta: fails with Sentry switched on, a DSN or a PostHog key, whateve
     // The DSN that the EAS "preview" environment carries: the profile's blank value must win.
     assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SENTRY_DSN: "https://publickey@o0.ingest.us.sentry.io/0" }).length);
     assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_POSTHOG_API_KEY: "phc_example" }).length);
+    assert.deepEqual(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SENTRY_DSN: "disabled" }), []);
+    assert.deepEqual(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SENTRY_DSN: undefined }), []);
+    assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SENTRY_DSN: "Disabled" }).length);
   }
   // Other profiles keep deciding Sentry through their own switch.
   assert.deepEqual(validateBuildEnvironment({ ...production, EXPO_PUBLIC_SENTRY_ENABLED: "1", EXPO_PUBLIC_SENTRY_DSN: "https://publickey@o0.ingest.us.sentry.io/0" }), []);
@@ -71,10 +74,12 @@ test("eas.json: the store beta ships without sample surveys and without the What
   const env = { EAS_BUILD_PROFILE: "store-beta", ...eas.build["store-beta"].env };
   assert.equal(env.EXPO_PUBLIC_SURVEYS_PREVIEW, "0");
   assert.notEqual(env.EXPO_PUBLIC_PHONE_WHATSAPP, "1");
-  // Blank values override the "preview" environment's DSN (eas-cli merges { ...server, ...profile.env }).
+  // The profile value overrides the "preview" environment's DSN (eas-cli merges { ...server, ...profile.env });
+  // eas.json rejects "" so the override is the explicit "disabled".
   assert.equal(env.EXPO_PUBLIC_SENTRY_ENABLED, "0");
-  assert.equal(env.EXPO_PUBLIC_SENTRY_DSN, "");
-  assert.equal(env.EXPO_PUBLIC_POSTHOG_API_KEY, "");
+  assert.equal(env.EXPO_PUBLIC_SENTRY_DSN, "disabled");
+  assert.equal(env.EXPO_PUBLIC_POSTHOG_API_KEY, undefined);
+  for (const value of Object.values(eas.build["store-beta"].env)) assert.notEqual(value, "", "eas.json rejects empty env values");
   assert.equal(env.SENTRY_DISABLE_AUTO_UPLOAD, "true");
   assert.deepEqual(validateBuildEnvironment(env), []);
 });

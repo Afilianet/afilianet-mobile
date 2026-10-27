@@ -10,12 +10,13 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useDocumentCamera } from "../../hooks/useDocumentCamera";
-import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation } from "../../services/assistedQueue";
+import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
 import { identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
 import { strings } from "../../i18n";
 import { assistedAccessInstructions } from "../../utils/assistedAccess";
+import { blockedExplanation, discardConfirmation } from "../../utils/assistedPending";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
 
 import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
@@ -92,12 +93,17 @@ export default function AssistedOfflineScreen() {
   }
 
   function discard() {
-    Alert.alert("Eliminar copia local", "Se eliminarán los datos y fotos guardados en este teléfono. Si el afiliado ya se creó al sincronizar, su registro en la organización se conserva.", [
+    if (!query.data) return;
+    Alert.alert(query.data.blocked ? "Descartar registro guardado" : "Eliminar copia local", discardConfirmation(query.data), [
       { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: () => {
+      { text: query.data.blocked ? "Descartar" : "Eliminar", style: "destructive", onPress: () => {
         void removePendingAssisted(requestId).then(() => router.back()).catch(() => setError("No se pudo eliminar la copia local."));
       } },
     ]);
+  }
+
+  function retry() {
+    void retryBlockedAssisted(requestId).then(() => query.refetch()).catch(() => setError("No se pudo reactivar el envío."));
   }
 
   if (query.isPending) return <LoadingState message="Abriendo registro guardado…" />;
@@ -109,6 +115,12 @@ export default function AssistedOfflineScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text style={styles.heading}>{savedCount === 2 ? "INE guardada en este teléfono" : "Capturar INE sin conexión"}</Text>
     <Text style={styles.description}>{item.input.first_name} {item.input.last_name}</Text>
+    {item.blocked ? <Card style={styles.card} testID="assisted-blocked">
+      <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation(item.blocked.reason).title}</Text>
+      <Text style={styles.description}>{blockedExplanation(item.blocked.reason).description}</Text>
+      <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} />
+      <Button label="Descartar" variant="danger" disabled={busy} onPress={discard} />
+    </Card> : null}
     {captureAvailable ? null : <Card style={styles.card} testID="kyc-capture-unavailable">
       <Text accessibilityRole="alert" style={styles.label}>{strings.compliance.captureUnavailable.title}</Text>
       <Text style={styles.description}>{strings.compliance.captureUnavailable.description}</Text>
@@ -139,7 +151,7 @@ export default function AssistedOfflineScreen() {
     <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. {assistedAccessInstructions(item.input)} Después completará la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />
-    <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />
+    {item.blocked ? null : <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />}
   </ScrollView>;
 }
 

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { Alert } from "react-native";
 import { ApiError } from "../../../api/errors";
 import {
   fetchMyAffiliateProfile,
@@ -28,8 +29,11 @@ jest.mock("../../../api/assistedEnrollment", () => ({
   fetchPendingAssistedEnrollments: jest.fn().mockResolvedValue({ data: [], meta: { current_page: 1, last_page: 1 } }),
 }));
 jest.mock("../../../services/assistedQueue", () => ({
+  ...jest.requireActual("../../../services/assistedQueue"),
   listPendingAssisted: jest.fn().mockResolvedValue([]),
   syncPendingAssisted: jest.fn(),
+  removePendingAssisted: jest.fn().mockResolvedValue(undefined),
+  retryBlockedAssisted: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../../../api/endpoints", () => ({
@@ -513,5 +517,55 @@ describe("Mi red: search and assisted registrations stay inside the active accou
     expect(screen.getByLabelText("Buscar por nombre en referidos directos").props.value).toBe("");
     expect(screen.queryByText("Ana Buscada")).toBeNull();
     router.useFocusEffect.mockReset();
+  });
+});
+
+describe("Mi red: a pending registration stopped by the organization (API #92, API #86)", () => {
+  const queue = () => jest.requireMock("../../../services/assistedQueue") as Record<"listPendingAssisted" | "syncPendingAssisted" | "removePendingAssisted" | "retryBlockedAssisted", jest.Mock>;
+  const stopped = {
+    sponsorUserId: "sponsor-user", organizationId: "org-a", createAttempted: true,
+    blocked: { reason: "assisted_enrollment_unavailable", at: "2026-10-26T12:00:00Z" },
+    input: { client_request_id: "ra", first_name: "Ana", last_name: "Detenida", consent_confirmed: true },
+  };
+
+  beforeEach(() => {
+    const router = jest.requireMock("expo-router") as { useFocusEffect: jest.Mock };
+    const React = jest.requireActual("react") as typeof import("react");
+    router.useFocusEffect.mockImplementation((effect: () => void) => React.useEffect(effect, [effect]));
+    queue().listPendingAssisted.mockResolvedValue([stopped]);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("shows why it stopped and only discards after confirmation", async () => {
+    const alert = jest.spyOn(Alert, "alert");
+    const screen = await renderNetwork();
+    expect(await screen.findByText("Registro asistido no disponible en esta organización")).toBeTruthy();
+    expect(screen.getByText(/No se volverá a enviar automáticamente/)).toBeTruthy();
+
+    await act(async () => { fireEvent.press(screen.getByText("Descartar")); });
+    const [title, message, buttons] = alert.mock.calls[0] as [string, string, { text: string; onPress?: () => void }[]];
+    expect(title).toBe("Descartar registro guardado");
+    expect(message).toMatch(/^No se creó ningún registro en la organización/);
+    buttons.find((button) => button.text === "Cancelar")?.onPress?.();
+    expect(queue().removePendingAssisted).not.toHaveBeenCalled();
+
+    queue().listPendingAssisted.mockResolvedValue([]);
+    await act(async () => { buttons.find((button) => button.text === "Descartar")?.onPress?.(); });
+    expect(queue().removePendingAssisted).toHaveBeenCalledWith("ra");
+    expect(screen.queryByText("Ana Detenida")).toBeNull();
+  });
+
+  it("the sync message tells stopped drafts apart from connection problems", async () => {
+    queue().syncPendingAssisted.mockResolvedValue({ completed: [], remaining: 1, blocked: 1 });
+    const screen = await renderNetwork();
+    await act(async () => { fireEvent.press(await screen.findByText("Sincronizar registros pendientes")); });
+    expect(await screen.findByText("Sin registros por enviar. 1 detenido(s) por la configuración de la organización; no se reintentarán solos.")).toBeTruthy();
+    expect(screen.queryByText(/Revisa la conexión/)).toBeNull();
+  });
+
+  it("retry clears the stop for that draft only", async () => {
+    const screen = await renderNetwork();
+    await act(async () => { fireEvent.press(await screen.findByText("Reintentar envío")); });
+    expect(queue().retryBlockedAssisted).toHaveBeenCalledWith("ra");
   });
 });

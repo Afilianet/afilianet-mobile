@@ -414,7 +414,7 @@ Neither existed before Internal Alpha — both were newly established this phase
 
 Both are wired up but **disabled by default**. To enable:
 
-- Sentry: set `EXPO_PUBLIC_SENTRY_ENABLED=1` **and** `EXPO_PUBLIC_SENTRY_DSN` to your project's DSN. A DSN alone does nothing. Store-beta builds must ship `0` and a blank DSN (`scripts/check-build-env.mjs` fails the build otherwise). Everything sent passes through `src/services/telemetryScrub.ts`: tokens, codes, query strings, contact data, bodies and headers are removed.
+- Sentry: set `EXPO_PUBLIC_SENTRY_ENABLED=1` **and** `EXPO_PUBLIC_SENTRY_DSN` to your project's DSN. A DSN alone does nothing. Store-beta builds must ship `0` and DSN `"disabled"` (eas.json rejects empty values; the app reads `"disabled"` as no DSN, and `scripts/check-build-env.mjs` fails the build otherwise). Events built in JavaScript (errors, breadcrumbs, transactions, spans and the sampling context) pass through `src/services/telemetryScrub.ts`, which removes tokens, codes, query strings, contact data, bodies and headers. **This is not complete protection:** native crashes (Java/NDK) are written by the native SDK and skip these JavaScript filters. They carry only the scope synced from JavaScript (already scrubbed) plus device context, and free-text names can't be detected. Any reactivation has to account for both.
 - PostHog: set `EXPO_PUBLIC_POSTHOG_API_KEY` (and `EXPO_PUBLIC_POSTHOG_HOST` if you're not using PostHog Cloud US).
 
 Leaving these blank is safe — the app runs normally, it just doesn't send any data anywhere.

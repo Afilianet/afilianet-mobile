@@ -24,8 +24,9 @@ export function validateBuildEnvironment(env) {
   // EAS worker with the merged environment, so a DSN or key inherited from an EAS environment fails the build.
   if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE)) {
     if (env.EXPO_PUBLIC_SENTRY_ENABLED !== "0") errors.push("store-beta requiere EXPO_PUBLIC_SENTRY_ENABLED=\"0\".");
-    if (env.EXPO_PUBLIC_SENTRY_DSN) errors.push("store-beta no debe incluir EXPO_PUBLIC_SENTRY_DSN.");
-    if (env.EXPO_PUBLIC_POSTHOG_API_KEY) errors.push("store-beta no debe incluir EXPO_PUBLIC_POSTHOG_API_KEY.");
+    // eas.json rejects empty values: "disabled" is the only accepted override of the environment's DSN.
+    if (![undefined, "", "disabled"].includes(env.EXPO_PUBLIC_SENTRY_DSN)) errors.push("store-beta requiere EXPO_PUBLIC_SENTRY_DSN ausente o \"disabled\".");
+    if (![undefined, "", "disabled"].includes(env.EXPO_PUBLIC_POSTHOG_API_KEY)) errors.push("store-beta no debe incluir EXPO_PUBLIC_POSTHOG_API_KEY.");
   }
   let url;
   try {

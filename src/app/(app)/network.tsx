@@ -5,8 +5,9 @@ import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
 import { hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
-import { listPendingAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
+import { blockedExplanation, discardConfirmation } from "../../utils/assistedPending";
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
 import { EmptyState } from "../../components/EmptyState";
@@ -66,9 +67,10 @@ export default function NetworkScreen() {
     if (!user || !activeOrganization) return;
     setSyncing(true);
     try {
-      const { completed, remaining, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id);
+      const { completed, remaining, blocked, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id);
       setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
-      setSyncMessage(syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : "No se pudo sincronizar aún. Revisa la conexión y los datos."));
+      const blockedNote = blocked ? ` ${blocked} detenido(s) por la configuración de la organización; no se reintentarán solos.` : "";
+      setSyncMessage((syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : blocked ? "Sin registros por enviar." : "No se pudo sincronizar aún. Revisa la conexión y los datos.")) + blockedNote);
       if (completed.length) await Promise.all([sponsoredQuery.refetch(), placementChildrenQuery.refetch(), assistedQuery.refetch()]);
     } catch {
       setSyncMessage("No se pudo sincronizar. Los registros siguen guardados en este teléfono.");
@@ -76,6 +78,24 @@ export default function NetworkScreen() {
       setSyncing(false);
     }
   }
+  async function reloadPending() {
+    if (!user || !activeOrganization) return;
+    setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
+  }
+
+  function discardPending(item: PendingAssistedEnrollment) {
+    Alert.alert("Descartar registro guardado", discardConfirmation(item), [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Descartar", style: "destructive", onPress: () => {
+        void removePendingAssisted(item.input.client_request_id).then(reloadPending).catch(() => setSyncMessage("No se pudo eliminar la copia local."));
+      } },
+    ]);
+  }
+
+  function retryPending(item: PendingAssistedEnrollment) {
+    void retryBlockedAssisted(item.input.client_request_id).then(reloadPending).catch(() => setSyncMessage("No se pudo reactivar el envío."));
+  }
+
   const affiliateQuery = useAffiliateProfile();
   const sponsorQuery = useMySponsor();
   const placementParentQuery = useMyPlacementParent();
@@ -140,6 +160,14 @@ export default function NetworkScreen() {
               {visiblePending.map((item) => (
                 <View key={item.input.client_request_id} style={styles.pendingCard}>
                   <Text style={styles.pendingText}>{item.input.first_name} {item.input.last_name}</Text>
+                  {item.blocked ? (
+                    <>
+                      <Text accessibilityRole="alert" style={styles.pendingHeading}>{blockedExplanation(item.blocked.reason).title}</Text>
+                      <Text style={styles.pendingText}>{blockedExplanation(item.blocked.reason).description}</Text>
+                      <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} />
+                      <Button label="Descartar" variant="danger" disabled={syncing} onPress={() => discardPending(item)} />
+                    </>
+                  ) : null}
                   <Button label="Capturar o revisar INE guardada" variant="secondary" disabled={syncing}
                     onPress={() => router.push(`/assisted-offline/${item.input.client_request_id}` as never)} />
                 </View>
