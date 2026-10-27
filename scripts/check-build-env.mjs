@@ -1,9 +1,12 @@
 import { pathToFileURL } from "node:url";
 
+// The disposable API of the physical privacy test (Tailscale, tailnet only). Never staging.
+export const PRIVACY_TEST_ORIGIN = "https://andres-desk.tail7be8f8.ts.net";
+
 export function validateBuildEnvironment(env) {
   const errors = [];
   const appEnv = env.EXPO_PUBLIC_APP_ENV;
-  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", "store-beta-apk": "staging", internal: "internal", development: "development" };
+  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", "store-beta-apk": "staging", "privacy-test-apk": "internal", internal: "internal", development: "development" };
   if (!["development", "internal", "staging", "production"].includes(appEnv)) {
     errors.push("Define EXPO_PUBLIC_APP_ENV explícitamente.");
   }
@@ -22,11 +25,19 @@ export function validateBuildEnvironment(env) {
   }
   // The store beta's privacy notice describes no diagnostics or analytics. This runs on the
   // EAS worker with the merged environment, so a DSN or key inherited from an EAS environment fails the build.
-  if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE)) {
+  if (["store-beta", "store-beta-apk", "privacy-test-apk"].includes(env.EAS_BUILD_PROFILE)) {
     if (env.EXPO_PUBLIC_SENTRY_ENABLED !== "0") errors.push("store-beta requiere EXPO_PUBLIC_SENTRY_ENABLED=\"0\".");
     // eas.json rejects empty values: "disabled" is the only accepted override of the environment's DSN.
     if (![undefined, "", "disabled"].includes(env.EXPO_PUBLIC_SENTRY_DSN)) errors.push("store-beta requiere EXPO_PUBLIC_SENTRY_DSN ausente o \"disabled\".");
     if (![undefined, "", "disabled"].includes(env.EXPO_PUBLIC_POSTHOG_API_KEY)) errors.push("store-beta no debe incluir EXPO_PUBLIC_POSTHOG_API_KEY.");
+  }
+  // A separate app against a disposable API: nothing of the beta's services may come along,
+  // whichever EAS environment would supply it.
+  if (env.EAS_BUILD_PROFILE === "privacy-test-apk") {
+    if (env.EXPO_PUBLIC_SURVEYS_PREVIEW !== "0") errors.push("privacy-test-apk requiere EXPO_PUBLIC_SURVEYS_PREVIEW=\"0\".");
+    if (env.GOOGLE_SERVICES_JSON) errors.push("privacy-test-apk no debe recibir GOOGLE_SERVICES_JSON (Firebase).");
+    if (env.SENTRY_AUTH_TOKEN) errors.push("privacy-test-apk no debe recibir SENTRY_AUTH_TOKEN.");
+    if (env.SENTRY_DISABLE_AUTO_UPLOAD !== "true") errors.push("privacy-test-apk requiere SENTRY_DISABLE_AUTO_UPLOAD=\"true\".");
   }
   let url;
   try {
@@ -46,6 +57,9 @@ export function validateBuildEnvironment(env) {
     }
     if (["staging", "store-beta", "store-beta-apk", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
       errors.push("El perfil de pruebas requiere https://staging-api.afilianet.mx.");
+    }
+    if (env.EAS_BUILD_PROFILE === "privacy-test-apk" && url.origin !== PRIVACY_TEST_ORIGIN) {
+      errors.push(`privacy-test-apk requiere ${PRIVACY_TEST_ORIGIN}; nunca staging ni producción.`);
     }
   }
   return errors;

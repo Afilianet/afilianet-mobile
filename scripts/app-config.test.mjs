@@ -45,3 +45,22 @@ test("development, staging and local builds keep their manifest unchanged", () =
     assert.equal(resolve({ EAS_BUILD_PROFILE: profile, EXPO_PUBLIC_SURVEYS_PREVIEW: "0" }).android.blockedPermissions, undefined, String(profile));
   }
 });
+
+test("privacy-test-apk is a separate app: own package, name and scheme, no Firebase file, store permissions", () => {
+  const profile = eas.build["privacy-test-apk"];
+  const resolved = resolve({ EAS_BUILD_PROFILE: "privacy-test-apk", ...profile.env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+  assert.equal(resolved.android.package, "com.afilianet.mobile.privacytest");
+  assert.equal(resolved.scheme, "afilianetprivacytest");
+  assert.equal(resolved.name, "Afilianet PRUEBA avisos");
+  assert.equal(resolved.android.googleServicesFile, undefined);
+  assert.deepEqual([...resolved.android.blockedPermissions].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", ...AUDIO].sort());
+});
+
+test("every other profile keeps the beta's identity and its Firebase file", () => {
+  for (const profile of ["store-beta", "store-beta-apk", "staging", "production"]) {
+    const resolved = resolve({ EAS_BUILD_PROFILE: profile, ...eas.build[profile].env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+    assert.equal(resolved.android.package, "com.afilianet.mobile", profile);
+    assert.equal(resolved.scheme, undefined, profile);
+    assert.equal(resolved.android.googleServicesFile, "/tmp/google-services.json", profile);
+  }
+});

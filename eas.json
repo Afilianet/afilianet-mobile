@@ -72,6 +72,22 @@
         "buildType": "apk"
       }
     },
+    "privacy-test-apk": {
+      "distribution": "internal",
+      "environment": "development",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "internal",
+        "EXPO_PUBLIC_API_BASE_URL": "https://andres-desk.tail7be8f8.ts.net",
+        "EXPO_NO_DOTENV": "1",
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "0",
+        "EXPO_PUBLIC_SENTRY_ENABLED": "0",
+        "EXPO_PUBLIC_SENTRY_DSN": "disabled",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
+    },
     "development-staging": {
       "extends": "staging",
       "developmentClient": true,
