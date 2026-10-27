@@ -134,9 +134,14 @@ Es un perfil preparado como draft. **El build todavía no está autorizado.**
 
 **API:** `https://andres-desk.tail7be8f8.ts.net`, API desechable accesible solo dentro de Tailscale. **Nunca staging.**
 
+**Selección de la variante:**
+- La elige `APP_VARIANT=privacy-test` en el `env` del perfil, no `EAS_BUILD_PROFILE`.
+- eas-cli resuelve la configuración localmente sin `EAS_BUILD_PROFILE`, y de ahí toma el paquete para las credenciales y el versionCode remoto.
+- Con `EAS_BUILD_PROFILE`, `eas config` resolvía `com.afilianet.mobile`, así que el build `8a8f51c` no se lanzó.
+
 **versionCode:**
-- `eas build:version:get` devuelve **13** tanto para este perfil como para `store-beta-apk`. EAS no separa el contador por paquete en este proyecto.
-- El perfil **no** tiene `autoIncrement`: el APK de prueba usará versionCode 13 sin incrementarlo. La beta conserva su siguiente número (14, reservado para #97).
+- EAS lo guarda por paquete. `eas build:version:get` no devuelve versión para `com.afilianet.mobile.privacytest` y devuelve 13 para `com.afilianet.mobile`.
+- El perfil no tiene `autoIncrement` ni `extends`.
 - Tras el build se vuelve a consultar que `store-beta-apk` siga en 13.
 
 **Comprobaciones del artefacto tras el build:**

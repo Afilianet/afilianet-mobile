@@ -48,7 +48,8 @@ test("development, staging and local builds keep their manifest unchanged", () =
 
 test("privacy-test-apk is a separate app: own package, name and scheme, no Firebase file, store permissions", () => {
   const profile = eas.build["privacy-test-apk"];
-  const resolved = resolve({ EAS_BUILD_PROFILE: "privacy-test-apk", ...profile.env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+  // Exactly what eas-cli resolves locally: the profile's env, WITHOUT EAS_BUILD_PROFILE.
+  const resolved = resolve({ ...profile.env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
   assert.equal(resolved.android.package, "com.afilianet.mobile.privacytest");
   assert.equal(resolved.scheme, "afilianetprivacytest");
   assert.equal(resolved.name, "Afilianet PRUEBA avisos");

@@ -33,6 +33,10 @@ export function validateBuildEnvironment(env) {
   }
   // A separate app against a disposable API: nothing of the beta's services may come along,
   // whichever EAS environment would supply it.
+  // The variant (not the profile name) selects the separate package in app.config.js.
+  if ((env.EAS_BUILD_PROFILE === "privacy-test-apk") !== (env.APP_VARIANT === "privacy-test")) {
+    errors.push("APP_VARIANT=\"privacy-test\" solo y siempre con el perfil privacy-test-apk.");
+  }
   if (env.EAS_BUILD_PROFILE === "privacy-test-apk") {
     if (env.EXPO_PUBLIC_SURVEYS_PREVIEW !== "0") errors.push("privacy-test-apk requiere EXPO_PUBLIC_SURVEYS_PREVIEW=\"0\".");
     if (env.GOOGLE_SERVICES_JSON) errors.push("privacy-test-apk no debe recibir GOOGLE_SERVICES_JSON (Firebase).");

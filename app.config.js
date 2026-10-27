@@ -4,11 +4,14 @@
 const STORE_PROFILES = new Set(["store-beta", "store-beta-apk", "privacy-test-apk"]);
 
 // The physical privacy test (Mobile #75) runs against a disposable API, never
-// staging. Its APK is a separate app: its own package (own sandbox: token,
+// staging. It is selected by APP_VARIANT from the profile's env, NOT by
+// EAS_BUILD_PROFILE: eas-cli resolves this config locally (package for
+// credentials and the remote versionCode) without EAS_BUILD_PROFILE, and both
+// sides must see the same app. Its APK is a separate app: its own package (own sandbox: token,
 // SecureStore, AsyncStorage and files are not shared with the installed beta)
 // and its own scheme (it never opens the beta's links). No Firebase file: the
 // EAS project's file is registered for com.afilianet.mobile only.
-const PRIVACY_TEST_PROFILE = "privacy-test-apk";
+const PRIVACY_TEST_VARIANT = "privacy-test";
 const PRIVACY_TEST_IDENTITY = {
   name: "Afilianet PRUEBA avisos",
   scheme: "afilianetprivacytest",
@@ -16,7 +19,7 @@ const PRIVACY_TEST_IDENTITY = {
 };
 
 function storeBlockedPermissions(env) {
-  if (!STORE_PROFILES.has(env.EAS_BUILD_PROFILE)) return [];
+  if (!STORE_PROFILES.has(env.EAS_BUILD_PROFILE) && env.APP_VARIANT !== PRIVACY_TEST_VARIANT) return [];
   const blocked = [
     // Expo template "optional" permission: only the development overlay uses it.
     "android.permission.SYSTEM_ALERT_WINDOW",
@@ -33,7 +36,7 @@ function storeBlockedPermissions(env) {
 
 module.exports = ({ config }) => {
   const blocked = storeBlockedPermissions(process.env);
-  const privacyTest = process.env.EAS_BUILD_PROFILE === PRIVACY_TEST_PROFILE;
+  const privacyTest = process.env.APP_VARIANT === PRIVACY_TEST_VARIANT;
   return {
     ...config,
     ...(privacyTest ? { name: PRIVACY_TEST_IDENTITY.name, scheme: PRIVACY_TEST_IDENTITY.scheme } : {}),

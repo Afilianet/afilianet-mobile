@@ -108,14 +108,17 @@ test("privacy-test-apk: only the disposable API, telemetry off and nothing of th
     assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_API_BASE_URL: url }).length, url);
   }
   // Whatever an EAS environment would add: Firebase, Sentry, PostHog.
+  assert.ok(validateBuildEnvironment({ ...env, APP_VARIANT: undefined }).length);
+  assert.ok(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", EXPO_PUBLIC_APP_ENV: "staging", EXPO_PUBLIC_API_BASE_URL: "https://staging-api.afilianet.mx", EXPO_PUBLIC_SURVEYS_PREVIEW: "0", EXPO_PUBLIC_SENTRY_ENABLED: "0", APP_VARIANT: "privacy-test" }).length);
   for (const extra of [{ GOOGLE_SERVICES_JSON: "/tmp/google-services.json" }, { SENTRY_AUTH_TOKEN: "x" }, { EXPO_PUBLIC_SENTRY_DSN: "https://k@o1.ingest.sentry.io/1" }, { EXPO_PUBLIC_SENTRY_ENABLED: "1" }, { EXPO_PUBLIC_POSTHOG_API_KEY: "phc_x" }, { SENTRY_DISABLE_AUTO_UPLOAD: undefined }, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1" }, { EXPO_PUBLIC_APP_ENV: "staging" }]) {
     assert.ok(validateBuildEnvironment({ ...env, ...extra }).length, JSON.stringify(extra));
   }
 });
 
-test("privacy-test-apk never bumps the remote versionCode it shares with the beta", async () => {
-  // EAS answers the same remote versionCode for this package as for com.afilianet.mobile
-  // (checked with `eas build:version:get`): incrementing here would consume the beta's next one.
+test("privacy-test-apk never bumps a remote versionCode and inherits nothing from the beta's profiles", async () => {
+  // EAS keeps the remote versionCode per package (`eas build:version:get`: none for
+  // com.afilianet.mobile.privacytest, 13 for com.afilianet.mobile). Without autoIncrement and
+  // without `extends`, this profile can never move the beta's counter.
   const { readFileSync } = await import("node:fs");
   const build = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8")).build;
   assert.equal(build["privacy-test-apk"].autoIncrement, undefined);
