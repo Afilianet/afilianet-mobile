@@ -148,7 +148,7 @@ Es un perfil preparado como draft. **El build todavía no está autorizado.**
 
 **versionCode:**
 - EAS lo guarda por paquete. `eas build:version:get` no devuelve versión para `com.afilianet.mobile.privacytest` y devuelve 13 para `com.afilianet.mobile`.
-- El perfil no tiene `extends`. Desde la actualización in situ tiene `autoIncrement: true`, que sube solo el contador de `com.afilianet.mobile.privacytest` (1 → 2): Android solo instala una actualización con un versionCode mayor. El build `d31ee445` se hizo sin él (versionCode 1).
+- El perfil no tiene `extends`. Desde la actualización in situ tiene `autoIncrement: true`, que sube solo el contador de `com.afilianet.mobile.privacytest` (1 → 2), porque una actualización necesita un versionCode mayor (se verifica explícitamente; ver más abajo). El build `d31ee445` se hizo sin él (versionCode 1).
 - Tras el build se vuelve a consultar que `store-beta-apk` siga en 13.
 
 **Comprobaciones del artefacto tras el build:**
@@ -156,6 +156,29 @@ Es un perfil preparado como draft. **El build todavía no está autorizado.**
 - ausencia de `google-services`;
 - ausencia de un DSN con clave y de `phc_`;
 - origen de la API dentro del bundle.
+
+### Actualización in situ de la app de prueba (sin depender de que Android la rechace)
+
+Que Android rechace una firma distinta o un versionCode menor **no se usa como control**. Antes de entregar el enlace a Andrés, cada punto se verifica explícitamente sobre el APK descargado, y cualquier discrepancia detiene la entrega.
+
+1. **Integridad:** el sha256 del archivo descargado coincide con el que se entrega junto al enlace.
+2. **Paquete:** el manifiesto dice `com.afilianet.mobile.privacytest` y nunca `com.afilianet.mobile`.
+3. **versionCode:** mayor que el instalado. El instalado se consulta en EAS (build anterior) y, en el teléfono, en Ajustes → Aplicaciones → «Afilianet PRUEBA avisos».
+4. **Firma:**
+   - El SHA-256 del certificado firmante (bloque de firma v2/v3) debe ser **idéntico** al del APK instalado.
+   - Referencia de `d31ee445`: `3d448074ff7c3b8b48ccf1c5b054ff61864a8e7ef968fedb494a40b9c8bd6961`.
+   - Se compara con un lector del bloque de firma, no con la instalación.
+5. **Contenido:**
+   - nombre «Afilianet PRUEBA avisos» y esquema `afilianetprivacytest`;
+   - origen de la API `https://andres-desk.tail7be8f8.ts.net` en el bundle;
+   - sin claves de Firebase en los recursos;
+   - `io.sentry.auto-init = 0`, sin DSN con clave y sin `phc_`;
+   - permisos iguales a los de vc13.
+6. **Contadores:** después del build, `com.afilianet.mobile` sigue en 13.
+7. **En el teléfono:**
+   - Andrés instala encima de la app existente, sin desinstalarla, porque desinstalar borra la sesión y los datos locales.
+   - Antes y después comprueba en Ajustes la versión instalada. La beta «Afilianet» (vc13) no se toca.
+   - Si el teléfono pidiera desinstalar o mostrara un error de firma, **se detiene** sin aceptar: es una discrepancia que las comprobaciones anteriores debieron detectar.
 
 ## Ronda física breve (cuando se autorice un build)
 
