@@ -75,17 +75,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
+      // No request after this one can carry the session's token.
       tokenRef.current = null;
-      queryClient.clear();
-      clearPrivacyReview();
+      // Signed out is published BEFORE the cache goes (physical round P3, 2026-10-28):
+      // clearing it first, with the session's screens still mounted and the user
+      // still set, made them ask for their data again right after auth/logout.
+      setUser(null);
+      setError(null);
       // An unaccepted referral and any post-sign-up step belong to this session only.
       setOnboardingRoute(null);
+      setStatus("signedOut");
       await clearPendingReferral();
       await tokenStorage.clearToken();
       await forgetOfflineUser().catch(() => undefined);
-      setUser(null);
-      setError(null);
-      setStatus("signedOut");
+      // By now every session query is disabled: emptying the cache asks for nothing,
+      // and an answer still in flight lands in a cache that is then cleared.
+      clearPrivacyReview();
+      queryClient.clear();
     }
     signingOut.current ??= runSignOut(options).finally(() => {
       signingOut.current = null;
