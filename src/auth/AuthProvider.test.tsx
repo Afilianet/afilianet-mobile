@@ -4,6 +4,7 @@ import { ApiError } from "../api/errors";
 import * as SecureStore from "expo-secure-store";
 import { registerAccount, signInWith } from "../api/access";
 import { acceptReferralInvitation, fetchMe, signOutRequest } from "../api/endpoints";
+import { unregisterPush } from "../services/push";
 import { AuthProvider } from "./AuthProvider";
 import { useAuth, type AuthContextValue } from "./AuthContext";
 
@@ -17,6 +18,20 @@ jest.mock("../api/access", () => ({
   signInWith: jest.fn(),
   registerAccount: jest.fn(),
 }));
+
+// The client's real configuration, plus a handle on the 401 handler AuthProvider installs.
+let mockOnUnauthorized: ((requestToken: string | null) => void) | undefined;
+jest.mock("../api/client", () => {
+  const actual = jest.requireActual("../api/client");
+  return {
+    ...actual,
+    configureApiClient: (options: { onUnauthorized?: (requestToken: string | null) => void }) => {
+      if (options.onUnauthorized) mockOnUnauthorized = options.onUnauthorized;
+      actual.configureApiClient(options);
+    },
+  };
+});
+jest.mock("../services/push", () => ({ unregisterPush: jest.fn() }));
 
 jest.mock("../api/endpoints", () => ({
   fetchMe: jest.fn(),
@@ -32,6 +47,7 @@ const mockedSignIn = signInWith as jest.Mock;
 const mockedRegisterAccount = registerAccount as jest.Mock;
 const mockedSignOutRequest = signOutRequest as jest.Mock;
 const mockedAcceptReferral = acceptReferralInvitation as jest.Mock;
+const mockedUnregisterPush = unregisterPush as jest.Mock;
 
 let authValue: AuthContextValue;
 
@@ -365,5 +381,88 @@ describe("AuthProvider: the offline profile write losing a race", () => {
     expect(authValue.user?.id).toBe("user-b");
     const offlineWrites = mockedSetItem.mock.calls.filter(([key]) => key === OFFLINE_KEY).map(([, value]) => JSON.parse(value as string).user.id);
     expect(offlineWrites[offlineWrites.length - 1]).toBe("user-b");
+  });
+});
+
+describe("AuthProvider: one sign-out, and never with a revoked token", () => {
+  // Physical round P3 window (2026-10-28): after logout 200, a query's 401 started a second sign-out that
+  // sent DELETE push/devices and auth/logout again with the revoked token (both 401).
+  async function signedIn() {
+    mockedSignIn.mockResolvedValue({ token: "tok-a", user: { id: "user-a" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-a", first_name: "A" });
+    await renderAuth();
+    await act(async () => {
+      await authValue.signIn("person@example.com", "hunter2");
+    });
+  }
+  beforeEach(() => {
+    mockedUnregisterPush.mockResolvedValue(undefined);
+    mockedSignOutRequest.mockResolvedValue(undefined);
+  });
+
+  it("two sign-outs at once (double tap) run the requests once", async () => {
+    await signedIn();
+    await act(async () => {
+      await Promise.all([authValue.signOut(), authValue.signOut()]);
+    });
+    expect(mockedUnregisterPush).toHaveBeenCalledTimes(1);
+    expect(mockedSignOutRequest).toHaveBeenCalledTimes(1);
+    expect(authValue.status).toBe("signedOut");
+  });
+
+  it("a 401 while signing out does not start another sign-out", async () => {
+    await signedIn();
+    let finishLogout!: () => void;
+    mockedSignOutRequest.mockImplementationOnce(() => new Promise<void>((resolve) => { finishLogout = resolve; }));
+    const signedOut = authValue.signOut();
+    await waitFor(() => expect(mockedSignOutRequest).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      mockOnUnauthorized?.("tok-a");
+      finishLogout();
+      await signedOut;
+    });
+    expect(mockedUnregisterPush).toHaveBeenCalledTimes(1);
+    expect(mockedSignOutRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("a 401 of the current session clears it locally without sending the revoked token again", async () => {
+    await signedIn();
+    await act(async () => {
+      mockOnUnauthorized?.("tok-a");
+    });
+    await waitFor(() => expect(authValue.status).toBe("signedOut"));
+    expect(mockedUnregisterPush).not.toHaveBeenCalled();
+    expect(mockedSignOutRequest).not.toHaveBeenCalled();
+    expect(mockedDeleteItem).toHaveBeenCalled();
+  });
+
+  it("a late 401 of an earlier session never signs out the current one", async () => {
+    await signedIn();
+    await act(async () => {
+      mockOnUnauthorized?.("tok-old");
+      mockOnUnauthorized?.(null);
+    });
+    expect(authValue.status).toBe("signedIn");
+    expect(mockedSignOutRequest).not.toHaveBeenCalled();
+  });
+
+  it("a 409 unregistering push (an API that blocks it during a review) still logs out", async () => {
+    await signedIn();
+    mockedUnregisterPush.mockRejectedValueOnce(new ApiError("conflict", "x", 409, undefined, { reason: "privacy_notice_review_required" }));
+    await act(async () => {
+      await authValue.signOut();
+    });
+    expect(mockedSignOutRequest).toHaveBeenCalledTimes(1);
+    expect(authValue.status).toBe("signedOut");
+  });
+
+  it("a 401 unregistering push means the session is gone: no logout call, local cleanup", async () => {
+    await signedIn();
+    mockedUnregisterPush.mockRejectedValueOnce(new ApiError("unauthorized", "Unauthenticated.", 401));
+    await act(async () => {
+      await authValue.signOut();
+    });
+    expect(mockedSignOutRequest).not.toHaveBeenCalled();
+    expect(authValue.status).toBe("signedOut");
   });
 });

@@ -4,7 +4,8 @@ import { ApiError, ApiErrorDetails, kindForStatus } from "./errors";
 
 type TokenGetter = () => string | null;
 type OrganizationIdGetter = () => string | null;
-type UnauthorizedHandler = () => void;
+/** Receives the token the refused request carried, so a late 401 of an earlier session is recognizable. */
+type UnauthorizedHandler = (requestToken: string | null) => void;
 type KycUnavailableHandler = (organizationId: string) => void;
 
 let getToken: TokenGetter = () => null;
@@ -151,7 +152,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
       privacy: response.status === 409 ? extractPrivacy(payload) : undefined,
     });
-    if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
+    if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized(requestToken);
     // API #86: capture is off in the organization this request was sent for
     // (its header, not whichever is active by the time a late answer lands).
     const requestOrganizationId = headers["X-Organization-ID"];
