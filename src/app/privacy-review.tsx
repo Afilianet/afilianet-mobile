@@ -75,6 +75,12 @@ export default function PrivacyReviewScreen() {
     syncPrivacyReview(status);
   }
 
+  /** Not blocked: back to where the screen was opened from (banner, Profile), else Home. */
+  function goBack() {
+    if (router.canGoBack()) router.back();
+    else router.replace(routes.home as never);
+  }
+
   function leave() {
     // Whatever the review blocked is loaded again, now that it may answer.
     void queryClient.invalidateQueries();
@@ -86,12 +92,25 @@ export default function PrivacyReviewScreen() {
   if (query.isPending) return <LoadingState message={strings.privacyNotices.step.loading} />;
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   const status = query.data;
+  // What the server blocks on: the general notice, and the active organization's supplement only.
+  const blockingTitles = blocking && status
+    ? [
+        ...(status.privacy_notice.action_required === "review" ? [copy.general] : []),
+        ...status.organizations
+          .filter((organization) => organization.action_required === "review" && organization.id === activeOrganization?.id)
+          .map((organization) => copy.organization(organization.name)),
+      ]
+    : [];
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.heading} accessibilityRole="header">{copy.title}</Text>
       {blocking ? (
-        <Text accessibilityRole="alert" style={styles.alert}>{copy.blockingIntro}</Text>
+        <>
+          <Text accessibilityRole="alert" style={styles.alert}>{copy.blockingIntro}</Text>
+          {/* Exactly which documents hold the session, so an informative card is never mistaken for the cause. */}
+          {blockingTitles.length ? <Text style={styles.alert} testID="privacy-blocking-documents">{copy.blockingDocuments(blockingTitles.join(", "))}</Text> : null}
+        </>
       ) : (
         <Text style={styles.description}>{copy.intro}</Text>
       )}
@@ -124,6 +143,8 @@ export default function PrivacyReviewScreen() {
         />
       ))}
       {wasBlocking && !blocking ? <Button label={copy.continue} size="lg" fullWidth onPress={leave} /> : null}
+      {/* An informative change, or a visit from the banner or Profile, never locks the person in. */}
+      {!blocking && !wasBlocking ? <Button label={copy.back} variant="secondary" fullWidth onPress={goBack} /> : null}
       <View style={styles.actions}>
         <Button label={copy.readNotice} variant="ghost" onPress={() => router.push("/privacy" as never)} />
         {blocking ? <Button label={copy.deleteAccount} variant="ghost" onPress={() => router.push("/delete-account" as never)} /> : null}

@@ -1295,6 +1295,8 @@ export const es = {
       recorded: "Registrado",
       changedWhileReading: "El aviso cambió mientras lo leías. Te mostramos la versión nueva.",
       continue: "Continuar",
+      back: "Volver",
+      blockingDocuments: (names: string) => `Falta registrar: ${names}.`,
       purposesTitle: "Consentimientos por finalidad",
       purposesHint: "Cada finalidad es independiente y tú decides. Puedes cambiar tu decisión después.",
       grant: "Sí, acepto",

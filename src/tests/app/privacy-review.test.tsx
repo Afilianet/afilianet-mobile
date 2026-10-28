@@ -17,8 +17,10 @@ import PrivacyReviewScreen from "../../app/privacy-review";
  */
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
+const mockBack = jest.fn();
+let mockCanGoBack = false;
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace, back: jest.fn(), canGoBack: () => false }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }),
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 200 } }));
@@ -77,6 +79,7 @@ let token: string | null = "session-a";
 let organizationId: string | null = "org-a";
 const originalFetch = global.fetch;
 beforeEach(() => {
+  mockCanGoBack = false;
   routes = {};
   calls.length = 0;
   jest.clearAllMocks();
@@ -318,5 +321,74 @@ describe("the review screen", () => {
     expect(mockPush).toHaveBeenCalledWith("/delete-account");
     await press(view, "Leer aviso completo");
     expect(mockPush).toHaveBeenCalledWith("/privacy");
+  });
+});
+
+describe("the review screen always has a way out unless the server blocks", () => {
+  // Physical round P2 (2026-10-28): opened for an informative change, the screen only offered «Cerrar sesión».
+  const user = { id: "user-a", first_name: "Carla", last_name: "Prueba" } as AuthContextValue["user"];
+  const auth: AuthContextValue = {
+    status: "signedIn", user, error: null, signIn: jest.fn(), register: jest.fn(), registerFromReferral: jest.fn(),
+    refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn(),
+  };
+  const orgA = { id: "org-a", name: "Organización A" } as OrganizationContextValue["organizations"][number];
+  const orgB = { id: "org-b", name: "Organización B" } as OrganizationContextValue["organizations"][number];
+  let client: QueryClient;
+  async function mount(active = orgA) {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    const organizations: OrganizationContextValue = { status: "ready", organizations: [orgA, orgB], activeOrganization: active, error: null, selectOrganization: jest.fn(), refresh: jest.fn() };
+    let view!: Awaited<ReturnType<typeof render>>;
+    await act(async () => {
+      view = await render(
+        <QueryClientProvider client={client}>
+          <AuthContext.Provider value={auth}>
+            <OrganizationContext.Provider value={organizations}><PrivacyReviewScreen /></OrganizationContext.Provider>
+          </AuthContext.Provider>
+        </QueryClientProvider>,
+      );
+    });
+    return view;
+  }
+  afterEach(() => client?.clear());
+
+  it("opened from the banner for an informative change: «Volver» returns to Home, nothing blocks", async () => {
+    mockCanGoBack = true;
+    on("GET /me/privacy", ok(status("inform", [{ id: "org-a", name: "Organización A", current: A1, action: "none" }])));
+    const view = await mount();
+    await waitFor(() => expect(view.getByText("Actualización informativa")).toBeTruthy());
+    expect(view.queryByTestId("privacy-blocking-documents")).toBeNull();
+    expect(view.queryByText("Continuar")).toBeNull();
+    await act(async () => fireEvent.press(view.getByText("Volver")));
+    expect(mockBack).toHaveBeenCalled();
+  });
+
+  it("opened from Profile with everything up to date: «Volver», and Home when there is no screen behind", async () => {
+    on("GET /me/privacy", ok(status("none", [{ id: "org-a", name: "Organización A", current: A1, action: "none" }])));
+    const view = await mount();
+    await waitFor(() => expect(view.getAllByText("Al día")).toHaveLength(2));
+    await act(async () => fireEvent.press(view.getByText("Volver")));
+    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+  });
+
+  it("a pending review elsewhere does not lock the active organization: «Volver» stays", async () => {
+    on("GET /me/privacy", ok(status("none", [
+      { id: "org-a", name: "Organización A", current: A1, action: "none" },
+      { id: "org-b", name: "Organización B", current: B2, action: "review" },
+    ])));
+    const view = await mount(orgA);
+    await waitFor(() => expect(view.getByText("Revisión requerida")).toBeTruthy());
+    expect(view.getByText("Volver")).toBeTruthy();
+  });
+
+  it("required review with server blocking: names exactly the blocking document, no «Volver», and the allowed exits", async () => {
+    on("GET /me/privacy", ok(status("review", [{ id: "org-a", name: "Organización A", current: A1, action: "inform" }])));
+    const view = await mount();
+    await waitFor(() => expect(view.getByTestId("privacy-blocking-documents")).toBeTruthy());
+    // Only the general notice blocks; organization A's informative change is not listed.
+    expect(view.getByText("Falta registrar: Aviso de privacidad general.")).toBeTruthy();
+    expect(view.queryByText("Volver")).toBeNull();
+    expect(view.getByText("Cerrar sesión")).toBeTruthy();
+    expect(view.getByText("Solicitar eliminación de mi cuenta")).toBeTruthy();
+    expect(view.getByText("Leer aviso completo")).toBeTruthy();
   });
 });

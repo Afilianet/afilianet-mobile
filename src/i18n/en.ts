@@ -1218,6 +1218,8 @@ export const en = {
       recorded: "Recorded",
       changedWhileReading: "The notice changed while you were reading it. Here is the new version.",
       continue: "Continue",
+      back: "Back",
+      blockingDocuments: (names: string) => `Still to record: ${names}.`,
       purposesTitle: "Consent per purpose",
       purposesHint: "Each purpose is separate and up to you. You can change your decision later.",
       grant: "Yes, I agree",
