@@ -241,7 +241,7 @@ function validationMessage(error: ApiError): string {
   const fields = Object.keys(error.details ?? {});
   // API #91: the step needs a notice it did not carry; the screen shows it.
   if (fields.includes("privacy_notice")) return strings.privacyNotices.step.generalNeeded;
-  if (fields.includes("organization_notice")) return strings.privacyNotices.step.mustRead;
+  if (fields.includes("organization_notice")) return strings.privacyNotices.step.mustConfirm;
   if (fields.includes("code")) return copy.otpInvalid;
   if (fields.includes("channel")) return copy.channelRejected;
   if (fields.includes("token")) return copy.otpExpired;

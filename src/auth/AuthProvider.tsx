@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { unregisterPush } from "../services/push";
 import { queryClient } from "../api/queryClient";
 import { configureApiClient } from "../api/client";
@@ -45,37 +45,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus("signedIn");
   }
 
-  async function signOut() {
-    await unregisterPush().catch(() => undefined);
-    try {
-      // Best-effort: revoke the token server-side. If this fails (offline,
-      // token already invalid, ...) we still tear down the local session below --
-      // a user must always be able to sign out of their device.
-      await signOutRequest();
-    } catch {
-      // ignored -- local logout below always proceeds regardless.
+  // One sign-out at a time: a second call (a double tap, or a 401 of a query
+  // still in flight) joins the running one instead of repeating the requests.
+  const signingOut = useRef<Promise<void> | null>(null);
+
+  // Stable: it only touches refs, state setters and module-level services.
+  const signOut = useCallback((options: { tokenRevoked?: boolean } = {}): Promise<void> => {
+    async function runSignOut({ tokenRevoked = false }: { tokenRevoked?: boolean }) {
+      // A token the server already refused (401) is never sent again: DELETE
+      // push/devices and auth/logout would only answer 401. The server drops the
+      // device together with the session anyway.
+      if (!tokenRevoked && tokenRef.current) {
+        let revoked = false;
+        try {
+          await unregisterPush();
+        } catch (cause) {
+          // A 409 (an API that still blocks it during a notice review) or offline:
+          // the logout itself still runs. A 401: the session is gone already.
+          revoked = isApiError(cause) && cause.kind === "unauthorized";
+        }
+        if (!revoked) {
+          try {
+            // Best-effort: revoke the token server-side. If this fails (offline,
+            // token already invalid, ...) we still tear down the local session below --
+            // a user must always be able to sign out of their device.
+            await signOutRequest();
+          } catch {
+            // ignored -- local logout below always proceeds regardless.
+          }
+        }
+      }
+      tokenRef.current = null;
+      queryClient.clear();
+      clearPrivacyReview();
+      // An unaccepted referral and any post-sign-up step belong to this session only.
+      setOnboardingRoute(null);
+      await clearPendingReferral();
+      await tokenStorage.clearToken();
+      await forgetOfflineUser().catch(() => undefined);
+      setUser(null);
+      setError(null);
+      setStatus("signedOut");
     }
-    tokenRef.current = null;
-    queryClient.clear();
-    clearPrivacyReview();
-    // An unaccepted referral and any post-sign-up step belong to this session only.
-    setOnboardingRoute(null);
-    await clearPendingReferral();
-    await tokenStorage.clearToken();
-    await forgetOfflineUser().catch(() => undefined);
-    setUser(null);
-    setError(null);
-    setStatus("signedOut");
-  }
+    signingOut.current ??= runSignOut(options).finally(() => {
+      signingOut.current = null;
+    });
+    return signingOut.current;
+  }, []);
 
   useEffect(() => {
     configureApiClient({
       getToken: () => tokenRef.current,
-      onUnauthorized: () => {
-        void signOut();
+      onUnauthorized: (requestToken) => {
+        // Only the session still signed in, and never while it is already signing out.
+        if (!requestToken || requestToken !== tokenRef.current || signingOut.current) return;
+        void signOut({ tokenRevoked: true });
       },
     });
-  }, []);
+  }, [signOut]);
 
   useEffect(() => {
     (async () => {
@@ -90,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await establishSession(storedToken);
       } catch (err) {
         if (isApiError(err) && err.kind === "unauthorized") {
-          await signOut();
+          await signOut({ tokenRevoked: true });
           return;
         }
         // Offline or server error while restoring: keep the token so the
@@ -103,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(isApiError(err) ? err : null);
       }
     })();
-  }, []);
+  }, [signOut]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -162,9 +189,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consumeOnboardingRoute() {
         setOnboardingRoute(null);
       },
-      signOut,
+      // Callers sign out by hand: the server calls run (no event can pass as options).
+      signOut: () => signOut(),
     }),
-    [status, user, error, onboardingRoute],
+    [status, user, error, onboardingRoute, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

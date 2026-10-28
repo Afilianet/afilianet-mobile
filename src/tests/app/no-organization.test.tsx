@@ -58,6 +58,11 @@ describe("No-organization empty state", () => {
     expect(await findByText(/Tu cuenta sigue activa/)).toBeTruthy();
   });
 
+  it("explains why there is no bottom bar yet (intended in this state) and what is available meanwhile", async () => {
+    const { findByText } = await renderScreen();
+    expect(await findByText(/Las secciones Inicio, Red, Ventas y Monedero, con su barra inferior, aparecen cuando te unes a una organización/)).toBeTruthy();
+  });
+
   it("offers a path to platform-wide notifications and to the profile", async () => {
     const { findByText } = await renderScreen();
     expect(await findByText("Ver notificaciones de Afilianet")).toBeTruthy();

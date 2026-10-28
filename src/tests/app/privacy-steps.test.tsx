@@ -100,6 +100,10 @@ const press = async (view: Awaited<ReturnType<typeof render>>, text: string | Re
     fireEvent.press(view.getByText(text));
   });
 };
+/** The one confirmation box of a step: never preselected. */
+const box = (view: Awaited<ReturnType<typeof render>>) => view.getByTestId("notice-confirmation");
+const checked = (view: Awaited<ReturnType<typeof render>>) => Boolean(box(view).props.accessibilityState?.checked);
+const tick = async (view: Awaited<ReturnType<typeof render>>) => act(async () => { fireEvent.press(box(view)); });
 async function fillRegister(view: Awaited<ReturnType<typeof render>>, name = "Ana") {
   await act(async () => {
     fireEvent.changeText(view.getByLabelText("Nombre"), name);
@@ -123,7 +127,7 @@ describe("Sign-up without an organization", () => {
     });
   });
 
-  it("published: the notice must be opened; its ref travels with one id, reused on retry and renewed when the input changes", async () => {
+  it("published: an explicit, unchecked box is required, opening is not; the ref travels with one id, reused on retry and renewed when the input changes", async () => {
     on("GET /privacy/notice", ok({ data: G1 }));
     const register = jest.fn()
       .mockRejectedValueOnce(new ApiError("timeout", "The request timed out."))
@@ -132,12 +136,17 @@ describe("Sign-up without an organization", () => {
     await waitFor(() => expect(view.getByTestId("step-notices")).toBeTruthy());
     await fillRegister(view);
 
+    expect(checked(view)).toBe(false);
+    expect(view.getByText("Se puso a mi disposición el Aviso de privacidad de Afilianet (versión prueba-general.1) antes de continuar.")).toBeTruthy();
+    expect(view.getByText("Marcar esta casilla no es un consentimiento ni la aceptación de términos.")).toBeTruthy();
     await press(view, "Crear cuenta");
     expect(register).not.toHaveBeenCalled();
-    expect(view.getAllByText("Abre y lee cada aviso para continuar.").length).toBeGreaterThan(0);
+    expect(view.getByText("Marca la casilla para continuar.")).toBeTruthy();
 
-    await press(view, "Leer aviso");
-    expect(view.getByText("Texto de prueba-general.1")).toBeTruthy();
+    // Never opened: the box alone is enough, and nothing claims it was read.
+    await tick(view);
+    expect(checked(view)).toBe(true);
+    expect(view.queryByText("Texto de prueba-general.1")).toBeNull();
     await press(view, "Crear cuenta");
     await press(view, "Crear cuenta");
     expect(register).toHaveBeenCalledTimes(2);
@@ -162,7 +171,7 @@ describe("Sign-up without an organization", () => {
     expect(view.getByLabelText("Nombre").props.value).toBe("Ana");
   });
 
-  it("the notice changed while filling in the form (409 outdated): the new version has to be read; same attempt", async () => {
+  it("the notice changed while filling in the form (409 outdated): the box clears for the new version; same attempt", async () => {
     on("GET /privacy/notice", ok({ data: G1 }), ok({ data: G2 }));
     const register = jest.fn()
       .mockRejectedValueOnce(new ApiError("conflict", "x", 409, undefined, { reason: "privacy_notice_outdated", privacy: { current: { privacy_notice: ref(G2) } } }))
@@ -170,16 +179,18 @@ describe("Sign-up without an organization", () => {
     const view = await mount(<RegisterScreen />, authValue({ register }));
     await waitFor(() => expect(view.getByTestId("step-notices")).toBeTruthy());
     await fillRegister(view);
-    await press(view, "Leer aviso");
+    await press(view, "Ver aviso");
+    expect(view.getByText("Texto de prueba-general.1")).toBeTruthy();
+    await tick(view);
     await press(view, "Crear cuenta");
     expect(view.getByText(/El aviso de privacidad cambió/)).toBeTruthy();
     expect(view.getByLabelText("Nombre").props.value).toBe("Ana");
 
-    await waitFor(() => expect(view.queryByText("Leído")).toBeNull());
+    await waitFor(() => expect(view.getByText(/versión prueba-general.2/)).toBeTruthy());
+    expect(checked(view)).toBe(false);
     await press(view, "Crear cuenta");
     expect(register).toHaveBeenCalledTimes(1);
-    await press(view, "Leer aviso");
-    expect(view.getByText("Texto de prueba-general.2")).toBeTruthy();
+    await tick(view);
     await press(view, "Crear cuenta");
     const [first, second] = register.mock.calls.map(([body]) => body);
     expect(second.privacy_notice).toEqual(ref(G2));
@@ -209,13 +220,14 @@ describe("Joining by referral link", () => {
     });
   }
 
-  it("a visitor reads both documents; both refs and the attempt id are sent, the invitation itself stays {}", async () => {
+  it("a visitor confirms both documents with one box; both refs and the attempt id are sent, the invitation itself stays {}", async () => {
     on(LOOKUP, ok(block(O1)));
     const auth = authValue();
     const view = await mount(<JoinScreen />, auth);
-    await waitFor(() => expect(view.getAllByText("Leer aviso")).toHaveLength(2));
+    await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
     await fillVisitor(view);
-    for (const button of view.getAllByText("Leer aviso")) await act(async () => fireEvent.press(button));
+    expect(view.getByText("Se pusieron a mi disposición el Aviso de privacidad de Afilianet (versión prueba-general.1) y el aviso de privacidad de la organización (versión prueba-suplemento-org-1.1) antes de continuar.")).toBeTruthy();
+    await tick(view);
     await press(view, "Crear cuenta");
     expect(sent("POST /organizations/org-1/referrals/AFF100/invitations")).toEqual([{}]);
     const [, body] = (auth.registerFromReferral as jest.Mock).mock.calls[0];
@@ -251,8 +263,8 @@ describe("Joining by referral link", () => {
       on("GET /me/privacy", myPrivacy("review"));
       on(ACCEPT, ok({ data: { organization_role: "affiliate" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Leer aviso")).toHaveLength(2));
-      for (const button of view.getAllByText("Leer aviso")) await act(async () => fireEvent.press(button));
+      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
+      await tick(view);
       await press(view, "Unirme con mi cuenta");
       expect(sent(ACCEPT)[0]).toEqual({ privacy_notice: ref(G1), organization_notice: ref(O1), client_request_id: expect.any(String) });
     });
@@ -262,9 +274,9 @@ describe("Joining by referral link", () => {
       on("GET /me/privacy", myPrivacy("none"));
       on(ACCEPT, ok({ data: { organization_role: "affiliate" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Leer aviso")).toHaveLength(1));
+      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(1));
       expect(view.queryByText("Aviso de privacidad general")).toBeNull();
-      await press(view, "Leer aviso");
+      await tick(view);
       await press(view, "Unirme con mi cuenta");
       expect(sent(ACCEPT)[0]).toEqual({ organization_notice: ref(O1), client_request_id: expect.any(String) });
     });
@@ -278,14 +290,16 @@ describe("Joining by referral link", () => {
         ok({ data: { organization_role: "affiliate" } }),
       );
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Leer aviso")).toHaveLength(1));
-      await press(view, "Leer aviso");
+      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(1));
+      await tick(view);
       await press(view, "Unirme con mi cuenta");
       expect(view.getByText("Para unirte, primero lee el aviso de privacidad general vigente.")).toBeTruthy();
       await waitFor(() => expect(view.getByText("Aviso de privacidad general")).toBeTruthy());
+      // A new document joined the list: the earlier confirmation does not cover it.
+      expect(checked(view)).toBe(false);
       await press(view, "Unirme con mi cuenta");
       expect(sent(ACCEPT)).toHaveLength(1);
-      await press(view, "Leer aviso");
+      await tick(view);
       await press(view, "Unirme con mi cuenta");
       const [first, second] = sent(ACCEPT) as { client_request_id: string }[];
       expect(first.client_request_id).toMatch(/^attempt-/);
@@ -296,7 +310,7 @@ describe("Joining by referral link", () => {
       on(LOOKUP, ok(block(O1)));
       on("GET /me/privacy", () => ({ status: 404, body: { message: "Not Found" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Leer aviso")).toHaveLength(2));
+      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
       expect(view.getByText("Aviso de privacidad general")).toBeTruthy();
     });
   });
@@ -317,7 +331,7 @@ describe("Staff invitation with a session", () => {
     }));
   });
 
-  it("the supplement changed meanwhile (409 outdated): the invitation is read again and the new version must be opened", async () => {
+  it("the supplement changed meanwhile (409 outdated): the invitation is read again and the new version must be confirmed again", async () => {
     const O2 = notice("prueba-suplemento-org-1.2", sha("d"), "organization:org-1");
     const invitation = (organization_notice: unknown) => ok({
       data: { organization: { id: "org-1", name: "Organización ficticia" }, role: "manager", privacy: { required: true, privacy_notice: ref(G1), organization_notice } },
@@ -330,12 +344,13 @@ describe("Staff invitation with a session", () => {
     );
     const view = await mount(<StaffInviteScreen />, authValue({ status: "signedIn", user: member }));
     await waitFor(() => expect(view.getByText("Aviso de privacidad de Organización ficticia")).toBeTruthy());
-    await press(view, "Leer aviso");
+    expect(view.getByText(/aviso de privacidad de Organización ficticia \(versión prueba-suplemento-org-1.1\)/)).toBeTruthy();
+    await tick(view);
     await press(view, "Unirme a Organización ficticia");
     expect(view.getByText(/El aviso de privacidad cambió/)).toBeTruthy();
-    await waitFor(() => expect(view.queryByText("Leído")).toBeNull());
-    await press(view, "Leer aviso");
-    expect(view.getByText("Texto de prueba-suplemento-org-1.2")).toBeTruthy();
+    await waitFor(() => expect(view.getByText(/versión prueba-suplemento-org-1.2/)).toBeTruthy());
+    expect(checked(view)).toBe(false);
+    await tick(view);
     await press(view, "Unirme a Organización ficticia");
     const [first, second] = sent(ACCEPT) as { organization_notice: unknown; client_request_id: string }[];
     expect(first.organization_notice).toEqual(ref(O1));

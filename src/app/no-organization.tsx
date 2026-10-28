@@ -44,6 +44,8 @@ export default function NoOrganizationScreen() {
         <Text style={styles.title}>{strings.noOrganization.title}</Text>
         <Text style={styles.body}>{strings.noOrganization.description}</Text>
         <Text style={styles.body}>{strings.noOrganization.acceptInvitationHint}</Text>
+        {/* No bottom bar here on purpose (docs/NAVEGACION_BARRA_INFERIOR_ES.md): say why, so it doesn't look unfinished. */}
+        <Text style={styles.body}>{strings.noOrganization.sectionsAfterJoining}</Text>
       </Card>
 
       {pendingReferral ? (
