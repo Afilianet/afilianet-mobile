@@ -157,7 +157,7 @@ export const es = {
       sendLink: "Enviar enlace",
       sendCode: "Enviar código por SMS",
       emailDoneTitle: "Revisa tu correo",
-      emailDone: "Si el correo corresponde a una cuenta, recibirás un enlace para crear una contraseña nueva.",
+      emailDone: "Si el correo corresponde a una cuenta, solicitamos el envío de un enlace para crear una contraseña nueva. Si no llega en unos minutos, revisa la carpeta de spam o vuelve a intentarlo.",
       codeStepDescription: (masked: string) => `Si el número corresponde a una cuenta, pedimos el envío de un código por SMS al ${masked}. Si no llega en unos minutos, pide otro.`,
       smsUnavailableEmailHint: "Si tu cuenta también tiene correo, puedes recuperarla por correo. Si solo tiene celular, inténtalo más tarde.",
       useEmail: "Recuperar con correo",
