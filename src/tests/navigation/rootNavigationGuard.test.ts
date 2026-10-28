@@ -106,3 +106,20 @@ describe("resolveRedirect: access MVP (registration, verification, later affilia
     expect(resolveRedirect(params({ ...signedOut, segments: ["verify-account"] }))).toBe("/(auth)/login");
   });
 });
+
+describe("resolveRedirect: leaving the no-organization screen once there are organizations", () => {
+  // Physical round P1 (2026-10-27): after signing out of an account without organizations and into one
+  // with two, router.back() from the picker landed on the previous account's no-organization screen.
+  it("goes Home with one organization (already active)", () => {
+    expect(resolveRedirect(params({ segments: ["no-organization"], organizationsCount: 1, hasActiveOrganization: true }))).toBe("/(app)");
+  });
+
+  it("asks to choose when there are several and none is active yet", () => {
+    expect(resolveRedirect(params({ segments: ["no-organization"], organizationsCount: 2 }))).toBe("/organization-picker");
+  });
+
+  it("stays while the list is loading or failed, and with zero organizations", () => {
+    expect(resolveRedirect(params({ segments: ["no-organization"], organizationsCount: 2, orgStatus: "loading" }))).toBeNull();
+    expect(resolveRedirect(params({ segments: ["no-organization"], organizationsCount: 0 }))).toBeNull();
+  });
+});

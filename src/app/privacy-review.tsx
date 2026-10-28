@@ -78,8 +78,9 @@ export default function PrivacyReviewScreen() {
   function leave() {
     // Whatever the review blocked is loaded again, now that it may answer.
     void queryClient.invalidateQueries();
-    if (router.canGoBack()) router.back();
-    else router.replace(routes.home as never);
+    // Never back(): this screen was reached by a redirect, and the history may
+    // hold a screen from another state or account (physical round P1).
+    router.replace(routes.home as never);
   }
 
   if (query.isPending) return <LoadingState message={strings.privacyNotices.step.loading} />;

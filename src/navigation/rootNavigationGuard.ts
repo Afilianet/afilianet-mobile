@@ -108,13 +108,20 @@ export function resolveRedirect({
   if (privacyReviewBlocking && !REVIEW_ALLOWED_SEGMENTS.has(segments[0])) return routes.privacyReview;
 
   const needsOrganizationChoice = orgStatus === "ready" && !hasActiveOrganization && organizationsCount > 1;
+  const inNoOrganizationScreen = segments[0] === "no-organization";
+
+  // The no-organization screen only fits zero memberships. Reached with some
+  // (history left by a previous account or state, then router.back()), it has
+  // no bottom bar and looks like an unfinished Home: leave it.
+  if (inNoOrganizationScreen && orgStatus === "ready" && organizationsCount > 0) {
+    return needsOrganizationChoice ? routes.organizationPicker : routes.home;
+  }
   if (needsOrganizationChoice && !inOrganizationPicker && !inExemptRoute) return routes.organizationPicker;
 
   // Zero organizations is a real, stable account state (not "still loading
   // a choice") -- see MembershipService::leave() on the backend, which
   // lets a user leave their last organization and keep their account.
   const needsNoOrganizationScreen = orgStatus === "ready" && organizationsCount === 0;
-  const inNoOrganizationScreen = segments[0] === "no-organization";
   if (needsNoOrganizationScreen && !inNoOrganizationScreen && !inExemptRoute) return routes.noOrganization;
 
   return null;
