@@ -115,12 +115,14 @@ test("privacy-test-apk: only the disposable API, telemetry off and nothing of th
   }
 });
 
-test("privacy-test-apk never bumps a remote versionCode and inherits nothing from the beta's profiles", async () => {
-  // EAS keeps the remote versionCode per package (`eas build:version:get`: none for
-  // com.afilianet.mobile.privacytest, 13 for com.afilianet.mobile). Without autoIncrement and
-  // without `extends`, this profile can never move the beta's counter.
+test("privacy-test-apk increments only its own versionCode and inherits nothing from the beta's profiles", async () => {
+  // EAS keeps the remote versionCode per package (`eas build:version:get`, 2026-10-28: 1 for
+  // com.afilianet.mobile.privacytest after build d31ee445, 13 for com.afilianet.mobile, unchanged).
+  // Updating the installed test app in place needs a higher versionCode, so this profile increments
+  // its own counter; without `extends` it can never touch the beta's.
   const { readFileSync } = await import("node:fs");
   const build = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8")).build;
-  assert.equal(build["privacy-test-apk"].autoIncrement, undefined);
+  assert.equal(build["privacy-test-apk"].autoIncrement, true);
   assert.equal(build["privacy-test-apk"].extends, undefined);
+  assert.equal(build["privacy-test-apk"].env.APP_VARIANT, "privacy-test");
 });

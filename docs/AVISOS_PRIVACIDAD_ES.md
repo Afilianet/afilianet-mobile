@@ -148,7 +148,7 @@ Es un perfil preparado como draft. **El build todavía no está autorizado.**
 
 **versionCode:**
 - EAS lo guarda por paquete. `eas build:version:get` no devuelve versión para `com.afilianet.mobile.privacytest` y devuelve 13 para `com.afilianet.mobile`.
-- El perfil no tiene `autoIncrement` ni `extends`.
+- El perfil no tiene `extends`. Desde la actualización in situ tiene `autoIncrement: true`, que sube solo el contador de `com.afilianet.mobile.privacytest` (1 → 2): Android solo instala una actualización con un versionCode mayor. El build `d31ee445` se hizo sin él (versionCode 1).
 - Tras el build se vuelve a consultar que `store-beta-apk` siga en 13.
 
 **Comprobaciones del artefacto tras el build:**
