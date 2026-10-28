@@ -62,8 +62,9 @@ function EmailRecovery() {
     {done ? <Card style={styles.confirmation}>
       <View style={styles.mailBadge}><Text style={styles.mailSymbol}>@</Text></View>
       <Text accessibilityLiveRegion="polite" style={styles.confirmationTitle}>Revisa tu correo</Text>
-      <Text style={styles.body}>Si el correo corresponde a una cuenta, recibirás un enlace para crear una contraseña nueva.</Text>
-      <Text style={styles.body}>Revisa también la carpeta de spam. Después de cambiar tu contraseña, vuelve a iniciar sesión en Afilianet.</Text>
+      {/* Requested, never promised: the API only knows the send was requested (API #100). */}
+      <Text style={styles.body}>{strings.access.recovery.emailDone}</Text>
+      <Text style={styles.body}>Después de cambiar tu contraseña, vuelve a iniciar sesión en Afilianet.</Text>
     </Card> : <>
       <Text style={styles.body}>Escribe el correo con el que registraste tu cuenta.</Text>
       <TextInput label="Correo electrónico" value={email} onChangeText={setEmail} editable={!pending} maxLength={254} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" />

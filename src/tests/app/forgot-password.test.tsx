@@ -27,6 +27,9 @@ it("requests recovery anonymously and tells the user to check their email", asyn
     headers: { Accept: "application/json", "Content-Type": "application/json" },
   })));
   await waitFor(() => expect(screen.getByText(/Si el correo corresponde a una cuenta/)).toBeTruthy());
+  // The send was requested, never promised (API #100): no «recibirás».
+  expect(screen.getByText("Si el correo corresponde a una cuenta, solicitamos el envío de un enlace para crear una contraseña nueva. Si no llega en unos minutos, revisa la carpeta de spam o vuelve a intentarlo.")).toBeTruthy();
+  expect(screen.queryByText(/recibirás/)).toBeNull();
 });
 
 
