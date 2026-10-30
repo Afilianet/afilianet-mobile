@@ -35,29 +35,36 @@
 - **Privacidad apagada** (`PRIVACY_NOTICE_PUBLISHED` falso): `GET /privacy/notice` responde 503 y la app lo trata como «no publicado»; no hay pasos de aviso ni bloqueo de revisión.
 - **Términos sin publicar:** `terms_document: null` en las dos versiones.
 
-### Qué hay que desplegar primero en staging (en este orden; nada autorizado todavía)
-1. **API #106:** fusionar y desplegar en API y Horizon, con el procedimiento de #104. El pin por digest de Infra se hace después del deploy, antes del siguiente apply de Terraform; no es requisito de la ronda.
-2. **Lectura de solo lectura de la organización de prueba,** por Infra o mediante Admin autenticado y coordinado con Andrés. Debe confirmar:
-   - `capture_enabled`;
-   - `assisted_enrollment.enabled`;
-   - `required_steps` y su orden.
-   - **Lo único registrado** es la organización beta (`02959601-…`) con la captura **apagada** el 2026-10-26. Con la captura apagada no se llega al paso de términos: la app muestra el bloqueo de KYC y la captura asistida responde 503.
-3. **Fase de correo,** con Infra y autorización de Andrés:
-   - encender el canal de correo en API y Horizon (hoy está apagado desde el cierre de la ronda de mensajería);
-   - añadir el hash del destinatario a `EMAIL_RECIPIENT_ALLOWLIST_SHA256`.
-   - Hash = `sha256("afilianet-allowlist|" + minúsculas(sin_espacios(correo)))`. El `+` **no** se normaliza.
-   - **Tiene que estar hecho antes de crear el alta asistida:** la API envía el correo de activación **al crear el alta**, y si el correo no está disponible lo omite para siempre (`email.assisted_activation.skipped`).
-4. **APK de #83** construido, verificado e instalado (ver más abajo).
+### Orden coordinado con API e Infra (nada autorizado todavía)
+**Documento conjunto:** `docs/identity/KYC_TERMS_RELEASE_106_83.md` en API #106 (`981f191`). Recoge el procedimiento de despliegue, las verificaciones y el correo. Esta sección solo resume y detalla la parte de Mobile.
+
+Cada fase se autoriza por separado y se detiene ante cualquier fallo.
+
+| Fase | Quién | Qué |
+|---|---|---|
+| F0 | Infra, lectura | Imágenes vivas, cola, inventario de privacidad, `messaging:status`. Hoy el correo de la API está apagado y la lista vacía |
+| F1 | API + Infra | Merge de #106 (sin migraciones) y despliegue de API, Horizon e identidad con la misma imagen. Restauración a lo vivo antes (API `:62`, Horizon `:45`) |
+| F1b | Infra | PR de fijación por digest, **sin aplicar** hasta F6. Ningún apply de Terraform durante la ronda |
+| F2 | Andrés (Admin), recomendado | Lectura de la organización de prueba: `capture_enabled`, `assisted_enrollment.enabled`, `required_steps` y su orden. **No hay vía sin sesión.** Lo único registrado es la organización beta con la captura **apagada** (2026-10-26) |
+| F3 | Infra + Andrés | Correo solo para la prueba: PR de Infra con las fases `stage-email` y `enable-api-email`, el secreto del hash y dos despachos. Verificado con `messaging:status` en API y Horizon. **Después de F1 y antes de A1** |
+| F4 | Mobile | Volver a comprobar el contador (13) → build `store-beta-apk` @ `d957a46` (vc14) → verificar el APK. **Instalar después de S0**, si se hace S0 |
+| F5 | Andrés + todos | S0 opcional con vc13 → instalar → S1–S5 (S5 = parte A de API; A1 = el único envío) |
+| F6 | Infra + Andrés | `disable-api` y `clear` (quitan el hash de API y Horizon), borrado del secreto; después, el apply del pin |
+
+**Por qué F3 va antes de A1:** la API decide el correo de activación **al crear el alta**.
+- Si el correo no está disponible, lo omite para siempre (`email.assisted_activation.skipped`).
+- Si el hash falta, Horizon lo descarta (`not_allowlisted`).
+- Sin celular, la única salida es otra alta con otra dirección y otro hash.
 
 ### Datos para autorizar la prueba de activación (un único envío)
 **Propuesta, no decidida.** Andrés confirma los datos, e Infra confirma la lista y el canal.
 
 | Rol | Cuenta | Estado |
 |---|---|---|
-| Patrocinador | `simmple.pruebas@gmail.com` (cuenta `850ebd31-…`), la cuenta de prueba ya usada en la beta | **Hay que confirmar** que es afiliado activo de una organización de prueba que cumpla el punto 2. Si la organización beta sigue con la captura apagada, se necesita otra organización de prueba o un cambio de configuración, que decide Andrés |
+| Patrocinador | `simmple.pruebas@gmail.com` (cuenta `850ebd31-…`), la cuenta de prueba ya usada en la beta | **Hay que confirmar** que es afiliado activo de una organización de prueba que cumpla la lectura de F2. Si la organización beta sigue con la captura apagada, se necesita otra organización de prueba o un cambio de configuración, que decide Andrés |
 | Persona verificada (cuenta nueva, ficticia) | Nombre ficticio «Prueba Términos Uno»; correo **`simmple.pruebas+kyc-terminos-01@gmail.com`** | El correo llega al mismo buzón de pruebas que ya controla el equipo. Necesita **su propio hash** en la lista. Sin teléfono, para que no haya ningún SMS |
 
-- **Si la organización exige pasos de identidad antes de los términos** (fotos, INE, prueba de vida), el patrocinador tiene que capturarlos de una **persona real del equipo que dé su consentimiento**. Unos datos ficticios no sirven para la captura. Lo decide Andrés al ver la lectura del punto 2.
+- **Si la organización exige pasos de identidad antes de los términos** (fotos, INE, prueba de vida), el patrocinador tiene que capturarlos de una **persona real del equipo que dé su consentimiento**. Unos datos ficticios no sirven para la captura. Lo decide Andrés al ver la lectura de F2.
 - **El envío** es el que dispara el paso A1 al crear el alta. No se crea ninguna otra alta con correo durante la ronda.
 
 ### Alcance del APK respecto a vc13 (`e2e8de1`)
@@ -88,7 +95,7 @@ Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría ap
   npx eas-cli build --platform android --profile store-beta-apk --non-interactive --no-wait --json
   ```
 - **versionCode 14: disponible.** Comprobado el 2026-10-30, solo con lecturas:
-  - `eas build:version:get -p android -e store-beta-apk` → contador remoto de `com.afilianet.mobile` = **13**;
+  - `eas build:version:get -p android -e store-beta-apk` → contador remoto de `com.afilianet.mobile` = **13** (vuelto a leer a las 23:56 UTC);
   - `eas build:list`: ningún build de ese paquete después de vc13 (`ae0e4ba8`, 2026-10-27), y ninguno en cola.
   - El build lo asigna solo, con `autoIncrement`. No hace falta reservarlo ni cambiar EAS.
   - **Consecuencia:** el AAB de producción sería el 15 o posterior.
@@ -108,7 +115,7 @@ Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría ap
 **Durante toda la ronda, anotar la imagen de API activa.** Si la ronda se hiciera todavía con `c653ae5`, las diferencias están en la tabla de compatibilidad. En ese caso, A1 no puede mostrar `requires_own_session` en el GET, y el intento del patrocinador no se probaría.
 
 **Requisitos:**
-- los puntos 1 a 3 del despliegue previo, hechos;
+- F0 a F3 hechos (F4 antes de S1);
 - el registro de peticiones de API (CloudWatch), leído por API o Infra.
 
 **Evidencia:** HTTP del servidor, capturas y notas del teléfono, en categorías separadas.
