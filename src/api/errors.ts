@@ -65,6 +65,9 @@ export function friendlyMessage(error: ApiError): string {
   // right away does not help, so they never read as a generic server error.
   if (error.reason === "email_unavailable") return strings.shared.apiErrors.emailUnavailable;
   if (error.reason === "kyc_unavailable") return strings.shared.apiErrors.kycUnavailable;
+  // KYC terms (API A5): nothing was recorded; the case is reloaded to show what is current.
+  if (error.reason === "terms_document_changed") return strings.compliance.terms.documentChanged;
+  if (error.reason === "terms_not_published") return strings.compliance.terms.notPublishedError;
   // Privacy notices (API #91/#93): each says what to do, never a plain retry.
   if (error.reason === "privacy_notice_review_required") return strings.privacyNotices.errors.reviewRequired;
   if (error.reason === "privacy_notice_outdated") return strings.privacyNotices.errors.outdated;

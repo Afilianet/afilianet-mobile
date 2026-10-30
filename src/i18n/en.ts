@@ -864,15 +864,18 @@ export const en = {
     },
     manualReviewNotice: "Your submission is under manual review. No action is needed from you right now.",
     terms: {
-      acceptedText: "You've accepted the required terms.",
+      acceptedText: "You accepted the terms of this verification.",
       failedText: "Your terms acceptance couldn't be recorded.",
-      alertTitle: "Accept terms?",
-      alertMessage:
-        "This organization hasn't published a reviewable terms document yet. Accepting now records your acceptance -- you'll be asked to review the full terms once they're published.",
+      version: (version: string) => `Version ${version}`,
+      alertTitle: "Accept these terms?",
+      alertMessage: (title: string, version: string) => `You're about to accept "${title}", version ${version}, as shown on this screen.`,
       alertAccept: "Accept",
-      bodyText:
-        "A terms document hasn't been published for this organization yet. Accepting now records your acceptance; you'll be asked to review the full terms once they're available.",
-      acceptButton: "Accept terms",
+      acceptButton: "Accept these terms",
+      notPublished:
+        "The terms of this verification aren't published yet, so they can't be accepted. The organization can publish them or remove this step.",
+      notPublishedError: "The terms of this verification are no longer published. No acceptance was recorded.",
+      documentChanged: "The terms changed. Review the new version before accepting; no acceptance was recorded.",
+      assistedNote: "These terms are accepted by the person whose identity is being verified, not by whoever registers them. Hand them the phone so they can read and decide.",
     },
     verbalConsent: {
       recordedText: "Your verbal consent was recorded.",

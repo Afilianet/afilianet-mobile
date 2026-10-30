@@ -930,15 +930,20 @@ export const es = {
     },
     manualReviewNotice: "Tu envío está en revisión manual. No necesitas hacer nada por ahora.",
     terms: {
-      acceptedText: "Aceptaste los términos requeridos.",
+      acceptedText: "Aceptaste los términos de esta verificación.",
       failedText: "Tu aceptación de términos no pudo ser registrada.",
-      alertTitle: "¿Aceptar términos?",
-      alertMessage:
-        "Esta organización aún no ha publicado un documento de términos para revisar. Aceptar ahora registra tu aceptación -- se te pedirá revisar los términos completos una vez que se publiquen.",
+      version: (version: string) => `Versión ${version}`,
+      alertTitle: "¿Aceptar estos términos?",
+      alertMessage: (title: string, version: string) => `Vas a aceptar «${title}», versión ${version}, tal como se muestra en esta pantalla.`,
       alertAccept: "Aceptar",
-      bodyText:
-        "Aún no se ha publicado un documento de términos para esta organización. Aceptar ahora registra tu aceptación; se te pedirá revisar los términos completos en cuanto estén disponibles.",
-      acceptButton: "Aceptar términos",
+      acceptButton: "Aceptar estos términos",
+      // Never an acceptance of nothing (API A5): without a published document there is no button.
+      notPublished:
+        "Los términos de esta verificación aún no están publicados, así que todavía no se pueden aceptar. La organización puede publicarlos o quitar este paso.",
+      notPublishedError: "Los términos de esta verificación ya no están publicados. No se registró ninguna aceptación.",
+      documentChanged: "Los términos cambiaron. Revisa la versión nueva antes de aceptar; no se registró ninguna aceptación.",
+      // Registro asistido: acepta quien se verifica, no quien sostiene el teléfono (API A5 registra accepted_via).
+      assistedNote: "Estos términos los acepta la persona cuya identidad se verifica, no quien la registra. Entrégale el teléfono para que los lea y decida.",
     },
     verbalConsent: {
       recordedText: "Tu consentimiento verbal fue registrado.",

@@ -201,6 +201,20 @@ export interface ComplianceStep {
   configured_provider: VerificationProvider | null;
   provider_actionable: boolean;
   provider_unavailable_reason: ProviderUnavailableReason | null;
+  /**
+   * Only on terms_acceptance (API A5): the approved, published terms to show
+   * and accept, or null while none is published. Absent on an API before A5:
+   * treated as not published -- nothing is ever accepted without a document.
+   */
+  terms_document?: TermsDocument | null;
+}
+
+/** The KYC terms exactly as served; version and content_sha256 go back with the acceptance. */
+export interface TermsDocument {
+  version: string;
+  title: string;
+  sections: { title: string; text: string }[];
+  content_sha256: string;
 }
 
 // ComplianceCaseResource -- deliberately excludes `metadata` (may carry
@@ -231,7 +245,12 @@ export interface ComplianceCase {
 // `outcome`/`score` only ever exercise afilianet-api's Fake verification
 // providers (no real vendor integrated) -- never presented to a real user
 // as a genuine verification action, see DevelopmentStepSimulator.
-export type AttemptStepPayload = { accepted: boolean } | { outcome: "pass" | "fail"; score?: number } | Record<string, never>;
+// terms_acceptance always names the document that was shown (API A5); a bare
+// { accepted } would accept nothing and is not representable here.
+export type AttemptStepPayload =
+  | { accepted: true; document_version: string; document_sha256: string }
+  | { outcome: "pass" | "fail"; score?: number }
+  | Record<string, never>;
 
 export interface Commission {
   id: string;
