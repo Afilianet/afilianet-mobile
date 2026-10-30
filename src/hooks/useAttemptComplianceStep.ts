@@ -32,7 +32,10 @@ export function useAttemptComplianceStep() {
       attemptComplianceStep(stepId, payload, ...assistedScopeArgs(assistedId)),
     onSuccess: refreshComplianceSurface,
     onError: (error) => {
-      if (isApiError(error) && (error.kind === "not_found" || error.kind === "validation")) {
+      // The KYC terms were withdrawn or replaced (API A5): reload, so the step shows
+      // the current document (or none) instead of the one that was refused.
+      const termsChanged = isApiError(error) && (error.reason === "terms_document_changed" || error.reason === "terms_not_published");
+      if (isApiError(error) && (error.kind === "not_found" || error.kind === "validation" || termsChanged)) {
         refreshComplianceSurface();
       }
     },

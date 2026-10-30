@@ -22,10 +22,19 @@ jobs:
       - run: npm run lint
       # Other identity capture suites contain failures reproduced on unchanged main.
       - run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/document-capture-accepted.test.tsx src/tests/app/document-pass-details.test.tsx src/tests/app/document-review-status.test.tsx
+      # compliance-document-capture.test.tsx / compliance.test.tsx: both now fixed
+      # (a stale expo-file-system/expo-fetch upload mock, and step-card test
+      # fixtures not updated for the current_step step-locking feature /
+      # retryNeeded copy) and added to the gate.
+      - name: Verify identity document processing (an older attempt never replaces a newer one; recovery without a new upload) (Mobile #45)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-document-capture.test.tsx src/tests/app/compliance.test.tsx
       - name: Verify public registration and account creation
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/register.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/join.test.tsx
       - name: Verify account email and recovery
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/email-verification.test.tsx src/tests/app/forgot-password.test.tsx 'src/tests/app/(app)/profile.test.tsx' src/tests/app/account-deletion.test.tsx
+
+      - name: Verify referral sharing (share sheet, copy, WhatsApp link only for a public HTTPS link)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/referral.test.tsx src/tests/app/referral-whatsapp.test.tsx src/tests/app/referral-email-and-context.test.tsx src/utils/referral.test.ts
 
       - name: Verify first release scope and build environment
         run: |
@@ -34,3 +43,27 @@ jobs:
 
       - name: Verify organization exit and optional promotional consent
         run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/organization-exit.test.tsx src/tests/push/preferences.test.tsx
+
+      - name: Verify notification inbox, detail (incl. session/organization isolation), settings, push opening and native liveness copy
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/notifications-http.test.tsx src/tests/app/notifications.test.tsx src/tests/app/notification-detail.test.tsx src/tests/app/notification-settings.test.tsx src/components/PushLifecycleOpen.test.tsx src/components/compliance/recaptureRequest.test.ts src/tests/native/livenessNativeStrings.test.ts
+      # Stale fixtures fixed: a review verdict is a passed step (#24 recapture
+      # semantics), terms must be the case's current_step (enforced order, #2)
+      # and the assisted-enrollment tenant domains are invalidated too.
+      - name: Verify liveness (incl. staff-requested recapture), production safety and tenant query isolation
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-liveness.test.tsx src/tests/app/compliance-production-safety.test.tsx src/state/OrganizationProvider.test.tsx
+      - name: Verify face match (processing ahead of current_step, recapture lock, upload and log safety)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/compliance-face-match.test.tsx
+      - name: Verify access by email or mobile, verification, recovery, later affiliation and session races
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/utils/phone.test.ts src/api/access.test.ts src/auth/pendingReferral.test.ts src/auth/AuthProvider.test.tsx src/services/offlineSession.test.ts src/tests/navigation/rootNavigationGuard.test.ts src/tests/app/register.test.tsx src/tests/app/invitation.test.tsx 'src/tests/app/(auth)/login.test.tsx' src/tests/app/verify-account.test.tsx src/tests/app/forgot-password.test.tsx src/tests/app/join.test.tsx src/tests/app/no-organization.test.tsx src/tests/app/notification-settings.test.tsx src/tests/app/platform-notifications.test.tsx src/components/PushLifecycle.test.tsx src/tests/app/sms-availability.test.tsx src/tests/app/phone-verification-whatsapp.test.tsx
+      - name: Verify assisted registration by phone, email or both (form errors, offline queue, scope)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/assisted-enrollment.test.tsx src/services/assistedQueue.test.ts src/tests/app/assisted-offline-feedback.test.tsx src/tests/app/assisted-compliance-scope.test.tsx src/tests/app/assisted-blocked.test.tsx src/tests/app/assisted-discard-server-check.test.tsx 'src/tests/app/(app)/network.test.tsx'
+      - name: Verify server availability answers (API #84 email_unavailable, API #86 identity_verification_available and kyc_unavailable)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/email-availability.test.tsx src/tests/app/kyc-capture-control.test.tsx
+      - name: Verify telemetry is off in the store beta and scrubbed if ever switched on (local harness, nothing sent)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/services/telemetryScrub.test.ts src/services/sentry.test.ts src/config/env.test.ts
+      - name: Verify surveys against the API contract (offline queue, protected storage, recording, origin isolation, sign-out with pending data, push)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/navigation/bottom-bar.test.tsx src/tests/app/survey-staff-interview.test.tsx src/features/surveys/flags.test.ts src/features/surveys/origin.test.ts src/features/surveys/outbox.test.ts src/features/surveys/apiSource.test.ts src/features/surveys/library.test.ts src/features/surveys/vault.test.ts src/features/surveys/useInterviewRecorder.test.tsx src/tests/app/survey-response.test.tsx src/tests/app/surveys-inbox.test.tsx src/tests/app/survey-draft-resume.test.tsx src/features/surveys/sourceIsolation.test.ts src/tests/app/sign-out-pending.test.tsx src/components/PushLifecycleOpen.test.tsx
+      - name: Verify network lists and server-side name search (old API, confirmed filter, late answers, pagination, isolation, staff without affiliate profile)
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath 'src/tests/app/(app)/network.test.tsx' src/tests/app/network-search.test.tsx src/tests/app/staff-without-profile.test.tsx
+      - name: Verify the app still opens on the previous APK (no expo-audio native module) through Metro
+        run: npm test -- --runInBand --watch=false --forceExit --runTestsByPath src/tests/app/old-apk-startup.test.ts

@@ -5,6 +5,7 @@ import {
   attemptComplianceStep,
   completeEvidenceUpload,
   fetchComplianceSteps,
+  fetchDocumentResult,
   fetchFaceMatchResult,
   fetchMyAffiliateProfile,
   fetchMyCompliance,
@@ -46,6 +47,7 @@ jest.mock("../../api/endpoints", () => ({
   completeEvidenceUpload: jest.fn(),
   triggerFaceMatchProcessing: jest.fn(),
   fetchFaceMatchResult: jest.fn(),
+  fetchDocumentResult: jest.fn(),
 }));
 
 jest.mock("../../services/analytics", () => ({
@@ -60,7 +62,7 @@ jest.mock("expo-image-picker", () => ({
   CameraType: { back: "back", front: "front" },
 }));
 
-const mockFileUpload = jest.fn();
+const mockExpoFetch = jest.fn();
 const mockFileDelete = jest.fn();
 // The REAL, current on-disk byte count `new File(uri).size` reports --
 // deliberately a SEPARATE value from whatever a test's mocked
@@ -70,6 +72,9 @@ const mockFileDelete = jest.fn();
 // (what the hook now measures right before upload) may ever reach the
 // backend as the declared size.
 let mockFileSize = 400_000;
+// Optional real bytes for the selfie body (the log-safety test fills it with
+// a recognizable sentinel); otherwise a zero-filled buffer of mockFileSize.
+let mockFileBytes: Uint8Array | null = null;
 jest.mock("expo-file-system", () => ({
   // A plain class, not a jest.fn() -- jest.resetAllMocks() (used in
   // beforeEach below) would otherwise wipe a jest.fn().mockImplementation()
@@ -82,15 +87,45 @@ jest.mock("expo-file-system", () => ({
     get size() {
       return mockFileSize;
     }
-    upload(...args: unknown[]) {
-      return mockFileUpload(...args);
+    // useEvidenceUploadFlow.ts reads the body via arrayBuffer() (never
+    // File.upload()/UploadType -- a physical Android device had both
+    // File.upload() and handing the File object to expo/fetch reject
+    // before an HTTP response was produced). The exact byte CONTENT here
+    // is never asserted on -- only that an ArrayBuffer of the declared
+    // size is what gets handed to the PUT.
+    async arrayBuffer() {
+      if (mockFileBytes) return mockFileBytes.slice().buffer;
+      return new ArrayBuffer(mockFileSize);
     }
     delete(...args: unknown[]) {
       return mockFileDelete(...args);
     }
   },
-  UploadType: { BINARY_CONTENT: 0, MULTIPART: 1 },
 }));
+
+// expo/fetch's own `fetch` -- the native-bridge HTTP client
+// useEvidenceUploadFlow.ts PUTs the evidence body through.
+jest.mock("expo/fetch", () => ({
+  fetch: (...args: unknown[]) => mockExpoFetch(...args),
+}));
+
+// A minimal, real-shaped stand-in for the global Response expoFetch resolves
+// with -- only the members useEvidenceUploadFlow.ts actually reads.
+interface FakeUploadResponse {
+  status: number;
+  headers: { get: (name: string) => string | null };
+  clone: () => FakeUploadResponse;
+  text: () => Promise<string>;
+}
+
+function fakeUploadResponse(status: number, body = ""): FakeUploadResponse {
+  return {
+    status,
+    headers: { get: () => null },
+    clone: () => fakeUploadResponse(status, body),
+    text: async () => body,
+  };
+}
 
 jest.mock("expo-image", () => {
   const { Image: RNImage } = jest.requireActual("react-native");
@@ -106,6 +141,7 @@ const mockedRequestEvidenceUpload = requestEvidenceUpload as jest.Mock;
 const mockedCompleteEvidenceUpload = completeEvidenceUpload as jest.Mock;
 const mockedTriggerFaceMatchProcessing = triggerFaceMatchProcessing as jest.Mock;
 const mockedFetchFaceMatchResult = fetchFaceMatchResult as jest.Mock;
+const mockedFetchDocumentResult = fetchDocumentResult as jest.Mock;
 const mockedCapture = analytics.capture as jest.Mock;
 
 const ORG_A: Organization = {
@@ -195,6 +231,23 @@ function biometricStep(overrides: Partial<ComplianceStep> = {}): ComplianceStep 
     configured_provider: null,
     provider_actionable: false,
     provider_unavailable_reason: "provider_not_implemented",
+    ...overrides,
+  };
+}
+
+function identityDocumentStep(overrides: Partial<ComplianceStep> = {}): ComplianceStep {
+  return {
+    id: "identity-document-step-1",
+    step_type: "identity_document",
+    status: "passed",
+    provider: "afilianet",
+    score: null,
+    attempt_count: 1,
+    completed_at: "2026-01-02T00:00:00Z",
+    created_at: "2026-01-01T00:00:00Z",
+    configured_provider: "afilianet",
+    provider_actionable: true,
+    provider_unavailable_reason: null,
     ...overrides,
   };
 }
@@ -290,6 +343,7 @@ async function renderCompliance(org: OrganizationContextValue = orgValue()) {
 beforeEach(() => {
   jest.resetAllMocks();
   mockFileSize = 400_000;
+  mockFileBytes = null;
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   mockedFetchMyAffiliateProfile.mockResolvedValue(AFFILIATE);
   mockedFetchMyCompliance.mockResolvedValue(complianceCase());
@@ -297,8 +351,9 @@ beforeEach(() => {
   mockedAttemptComplianceStep.mockResolvedValue(complianceCase());
   mockedFetchComplianceSteps.mockResolvedValue(DEFAULT_STEPS);
   mockedFetchFaceMatchResult.mockRejectedValue(NOT_FOUND);
+  mockedFetchDocumentResult.mockRejectedValue(NOT_FOUND);
   mockedRequestEvidenceUpload.mockResolvedValue(uploadAuthorization());
-  mockFileUpload.mockResolvedValue({ status: 200, headers: {}, body: "" });
+  mockExpoFetch.mockResolvedValue(fakeUploadResponse(200));
   mockedCompleteEvidenceUpload.mockResolvedValue(evidence());
   mockedTriggerFaceMatchProcessing.mockResolvedValue(faceMatchResult({ status: "pending" }));
 });
@@ -414,29 +469,95 @@ describe("Face match: failed-step retry gating (real physical-device case 72 reg
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
     const { queryByText, findByText } = await renderCompliance();
 
-    expect(await findByText("Tu rostro coincidió con tu documento de identidad.")).toBeTruthy();
+    // A passed step with a match shows the same verification badge as the
+    // other resolved steps (#33).
+    expect(await findByText("Rostro coincidente")).toBeTruthy();
+    expect(await findByText("Tu selfie coincidió con la foto de tu documento de identidad.")).toBeTruthy();
     expect(queryByText("Selfie")).toBeNull();
     expect(queryByText("Enviar para verificación")).toBeNull();
     expect(queryByText("Volver a tomar selfie")).toBeNull();
   });
 
-  it("current_step never gates this step's own actionability -- a failed, actionable face_match step is retryable even when current_step points elsewhere", async () => {
-    // The mobile app never reads ComplianceCase.current_step to decide
-    // whether a step's own card is interactive -- ordering is entirely
-    // backend-enforced (provider_actionable/step-specific gates). This
-    // guards against a future regression adding such a client-side gate,
-    // which would reintroduce exactly the "cannot be clicked" bug this
-    // phase fixed.
-    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "verbal_consent" }));
-    mockedFetchComplianceSteps.mockResolvedValue([
-      faceMatchStep({ status: "failed", configured_provider: "afilianet", provider_actionable: true }),
-      biometricStep({ status: "passed" }),
-    ]);
-    mockedFetchFaceMatchResult.mockRejectedValue(NOT_FOUND);
-    const { findByText } = await renderCompliance();
+  // afilianet-api #61: FaceMatchProcessingService::trigger() is deliberately
+  // not gated on current_step -- only an Afilianet, actionable provider and a
+  // completed identity_document processing (the portrait source). The result
+  // is applied only once face_match becomes current. The case's current_step
+  // is the first pending/failed step, so current_step "biometric_liveness"
+  // with a passed identity_document is the real "document ready, liveness
+  // not done yet" state.
+  describe("face_match ahead of current_step (processing only)", () => {
+    function aheadOfLivenessSteps(overrides: { faceMatch?: Partial<ComplianceStep>; biometric?: Partial<ComplianceStep>; identityDocument?: Partial<ComplianceStep> } = {}) {
+      return [
+        identityDocumentStep({ status: "passed", ...overrides.identityDocument }),
+        biometricStep({ status: "pending", configured_provider: "aws_rekognition", provider_actionable: true, provider_unavailable_reason: null, ...overrides.biometric }),
+        faceMatchStep({ status: "pending", ...overrides.faceMatch }),
+      ];
+    }
 
-    expect(await findByText("Selfie")).toBeTruthy();
-    expect(await findByText("Enviar para verificación")).toBeTruthy();
+    it("offers selfie capture and processing once the document is ready, even while current_step is biometric_liveness", async () => {
+      mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+      mockLaunchCamera.mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
+      });
+      mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "biometric_liveness" }));
+      mockedFetchComplianceSteps.mockResolvedValue(aheadOfLivenessSteps());
+      const { getByText, findByText, queryAllByText } = await renderCompliance();
+
+      await captureAndUseSelfie(getByText, findByText);
+      await act(async () => {
+        fireEvent.press(getByText("Enviar para verificación"));
+      });
+
+      await waitFor(() => expect(mockedTriggerFaceMatchProcessing).toHaveBeenCalledWith("face-match-step-1"));
+      expect(mockedRequestEvidenceUpload).toHaveBeenCalledWith("face-match-step-1", expect.objectContaining({ evidence_type: "selfie" }));
+      // Only the dedicated processing flow: the generic attempt endpoint,
+      // which resolves the step and is strictly sequential, is never used.
+      expect(mockedAttemptComplianceStep).not.toHaveBeenCalled();
+      // The development simulator (generic attempt) belongs to the current
+      // liveness step only, never to face_match ahead of its turn.
+      expect(queryAllByText("Development simulator")).toHaveLength(1);
+    });
+
+    it("stays locked when the face-match provider is unavailable", async () => {
+      mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "biometric_liveness" }));
+      mockedFetchComplianceSteps.mockResolvedValue(
+        aheadOfLivenessSteps({ faceMatch: { provider_actionable: false, provider_unavailable_reason: "engine_unavailable" } }),
+      );
+      const { findByText, queryByText } = await renderCompliance();
+
+      expect(await findByText("Completa el paso anterior para continuar.")).toBeTruthy();
+      expect(queryByText("Selfie")).toBeNull();
+      expect(queryByText("Enviar para verificación")).toBeNull();
+      expect(mockedFetchFaceMatchResult).not.toHaveBeenCalled();
+    });
+
+    it("stays locked while the identity document is not ready", async () => {
+      mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "identity_document" }));
+      mockedFetchComplianceSteps.mockResolvedValue(
+        aheadOfLivenessSteps({ identityDocument: { status: "pending" }, biometric: { status: "pending" } }),
+      );
+      const { findAllByText, queryByText } = await renderCompliance();
+
+      // Both liveness and face_match wait for the document.
+      expect(await findAllByText("Completa el paso anterior para continuar.")).toHaveLength(2);
+      expect(queryByText("Selfie")).toBeNull();
+      expect(mockedTriggerFaceMatchProcessing).not.toHaveBeenCalled();
+    });
+
+    it("stays locked during a staff-requested liveness recapture: the new comparison comes from the new liveness frame", async () => {
+      mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "biometric_liveness" }));
+      mockedFetchComplianceSteps.mockResolvedValue(
+        aheadOfLivenessSteps({ biometric: { attempt_count: 1 }, faceMatch: { attempt_count: 1 } }),
+      );
+      mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
+      const { findByTestId, findByText, queryByText } = await renderCompliance();
+
+      expect(await findByTestId("recapture-request")).toBeTruthy();
+      expect(await findByText("Completa el paso anterior para continuar.")).toBeTruthy();
+      expect(queryByText("Selfie")).toBeNull();
+      expect(queryByText("Rostro coincidente")).toBeNull();
+    });
   });
 
   it("an unavailable provider blocks the flow even when the step itself is already failed", async () => {
@@ -657,7 +778,7 @@ describe("Face match: selfie evidence upload", () => {
   });
 
   it("surfaces a clean error and keeps the local photo when the direct PUT fails", async () => {
-    mockFileUpload.mockResolvedValue({ status: 500, headers: {}, body: "" });
+    mockExpoFetch.mockResolvedValue(fakeUploadResponse(500));
     mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
     mockLaunchCamera.mockResolvedValue({
       canceled: false,
@@ -726,23 +847,111 @@ describe("Face match: selfie evidence upload", () => {
     expect(await findByText("Toma una selfie")).toBeTruthy();
   });
 
-  it("never logs the file's bytes, the presigned URL, or any upload header -- only safe diagnostics", async () => {
-    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
-    mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
-    mockLaunchCamera.mockResolvedValue({
-      canceled: false,
-      assets: [{ uri: "file:///tmp/selfie.jpg", width: 1200, height: 1200, fileSize: 400_000, mimeType: "image/jpeg" }],
-    });
-    const { getByText, findByText } = await renderCompliance();
-    await captureAndUseSelfie(getByText, findByText);
+  describe("diagnostic logs", () => {
+    // Distinguishable sentinels for every value that must never reach a log:
+    // the presigned URL's credential/signature, the signed header VALUES, the
+    // local file URI and the image bytes. Header NAMES and the upload host
+    // are allowed development diagnostics.
+    const SIGNATURE = "SENTINEL-SIGNATURE-7f3a";
+    const CREDENTIAL = "SENTINEL-CREDENTIAL-91c2";
+    const SECURITY_TOKEN = "SENTINEL-SECURITY-TOKEN-5d1e";
+    const ACL_VALUE = "SENTINEL-ACL-b8f0";
+    const LOCAL_URI = "file:///data/user/0/com.afilianet.mobile/cache/SENTINEL-URI-4c2b.jpg";
+    const BYTES_TEXT = "SENTINEL-IMAGE-BYTES-e61d";
+    const SIGNED_URL = `https://afilianet-evidence.s3.us-east-1.amazonaws.com/org-a/selfie.jpg?X-Amz-Credential=${CREDENTIAL}&X-Amz-Signature=${SIGNATURE}`;
+    const SENSITIVE = [SIGNATURE, CREDENTIAL, SECURITY_TOKEN, ACL_VALUE, LOCAL_URI, "SENTINEL-URI-4c2b", BYTES_TEXT, SIGNED_URL];
 
-    for (const call of logSpy.mock.calls) {
-      const raw = JSON.stringify(call);
-      expect(raw).not.toContain("file:///tmp/selfie.jpg");
-      expect(raw).not.toContain(uploadAuthorization().upload.url);
-      expect(raw).not.toContain("Content-Type");
+    function useSentinelUpload() {
+      const bytes = new TextEncoder().encode(BYTES_TEXT.repeat(64));
+      mockFileBytes = bytes;
+      mockFileSize = bytes.byteLength;
+      mockedRequestEvidenceUpload.mockResolvedValue({
+        evidence: evidence({ status: "pending_upload" }),
+        upload: {
+          url: SIGNED_URL,
+          method: "PUT",
+          headers: { "Content-Type": "image/jpeg", "x-amz-security-token": SECURITY_TOKEN, "x-amz-acl": ACL_VALUE },
+          expires_at: "2026-01-01T00:05:00Z",
+        },
+      });
+      mockRequestCameraPermission.mockResolvedValue({ granted: true, canAskAgain: true, status: "granted" });
+      mockLaunchCamera.mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: LOCAL_URI, width: 1200, height: 1200, fileSize: bytes.byteLength, mimeType: "image/jpeg" }],
+      });
     }
-    logSpy.mockRestore();
+
+    function containsBinary(value: unknown): boolean {
+      if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return true;
+      if (value && typeof value === "object") return Object.values(value).some(containsBinary);
+      return false;
+    }
+
+    function expectNoSensitiveValues(calls: unknown[][]) {
+      for (const call of calls) {
+        const raw = JSON.stringify(call);
+        for (const sentinel of SENSITIVE) expect(raw).not.toContain(sentinel);
+        expect(containsBinary(call)).toBe(false);
+      }
+    }
+
+    it("logs only safe diagnostics in development: header names and host, never values, signed URL, local URI or bytes", async () => {
+      const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        useSentinelUpload();
+        const { getByText, findByText } = await renderCompliance();
+        await captureAndUseSelfie(getByText, findByText);
+
+        // The real PUT still carried the signed URL and header values.
+        expect(mockExpoFetch).toHaveBeenCalledWith(SIGNED_URL, expect.objectContaining({ method: "PUT" }));
+        // The allowed diagnostic exists and carries header names only.
+        expect(logSpy).toHaveBeenCalledWith("[evidence-upload] put-start", {
+          uploadHost: "afilianet-evidence.s3.us-east-1.amazonaws.com",
+          uploadProtocol: "https:",
+          signedHeaderNames: ["Content-Type", "x-amz-acl", "x-amz-security-token"],
+        });
+        expectNoSensitiveValues(logSpy.mock.calls);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it("redacts the signed URL from a native PUT error before logging it", async () => {
+      const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+      try {
+        useSentinelUpload();
+        mockExpoFetch.mockRejectedValue(new Error(`Network request to ${SIGNED_URL} failed`));
+        const { findByText } = await renderCompliance();
+        fireEvent.press((await findByText("Selfie")) as never);
+        fireEvent.press((await findByText("Abrir cámara")) as never);
+        fireEvent.press((await findByText("Usar esta foto")) as never);
+
+        expect(await findByText(/la carga no se completó/i)).toBeTruthy();
+        expect(logSpy).toHaveBeenCalledWith("[evidence-upload] put-threw", expect.objectContaining({ errorType: "Error" }));
+        expectNoSensitiveValues(logSpy.mock.calls);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it("emits no upload diagnostics outside development", async () => {
+      const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+      const globals = globalThis as { __DEV__?: boolean };
+      const previousDev = globals.__DEV__;
+      globals.__DEV__ = false;
+      try {
+        useSentinelUpload();
+        const { getByText, findByText } = await renderCompliance();
+        await captureAndUseSelfie(getByText, findByText);
+
+        expect(mockExpoFetch).toHaveBeenCalledWith(SIGNED_URL, expect.objectContaining({ method: "PUT" }));
+        const uploadLogs = logSpy.mock.calls.filter(([first]) => typeof first === "string" && first.startsWith("[evidence-upload]"));
+        expect(uploadLogs).toEqual([]);
+      } finally {
+        globals.__DEV__ = previousDev;
+        logSpy.mockRestore();
+      }
+    });
   });
 });
 
@@ -768,6 +977,10 @@ describe("Face match: processing and polling", () => {
       expect(await findByText("Comparando tu selfie")).toBeTruthy();
       expect(mockedFetchFaceMatchResult.mock.calls.length).toBeGreaterThan(firstCallCount);
 
+      // The API passes face_match when the match completes; the steps
+      // refetch triggered by that completion returns it as passed. A match
+      // on a still-pending step is a reopened recapture and stays hidden.
+      mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep({ status: "passed" }), biometricStep()]);
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });
@@ -902,6 +1115,9 @@ describe("Face match: missing document prerequisite (409)", () => {
 
 describe("Face match: result UX", () => {
   it("shows 'Face matched', never 'Identity verified', and no retry action for a match", async () => {
+    // A completed match passes the step; on a pending step it would be a
+    // reopened recapture and is hidden on purpose.
+    mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep({ status: "passed" }), biometricStep()]);
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
     const { findByText, queryByText } = await renderCompliance();
 
@@ -1028,8 +1244,9 @@ describe("Face match: result UX", () => {
 
   it("maps an engine-unavailable technical failure to a temporarily-unavailable message", async () => {
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "failed", failure_reason: "unreachable" }));
-    const { findByText } = await renderCompliance();
-    expect(await findByText(/no está disponible temporalmente/i)).toBeTruthy();
+    const { findByText, queryByText } = await renderCompliance();
+    expect(await findByText("Verificación temporalmente no disponible")).toBeTruthy();
+    expect(queryByText("No se pudo confirmar la coincidencia")).toBeNull();
   });
 
   it("never renders a raw similarity score or internal failure_reason string", async () => {
@@ -1090,13 +1307,12 @@ describe("Face match: Compliance semantics", () => {
     ]);
     mockedFetchFaceMatchResult.mockResolvedValue(faceMatchResult({ status: "completed", verdict: "match" }));
 
-    const { findByText, findAllByText } = await renderCompliance();
+    const { findByText, findAllByText, queryByText } = await renderCompliance();
 
-    // Once the step itself is `passed`, FaceMatchStep shows its own
-    // resolved-step sentence (never "Identity verified", never re-showing
-    // FaceMatchResultView's "Rostro coincidente" match badge -- see
-    // FaceMatchStep.tsx's docblock).
-    expect(await findByText("Tu rostro coincidió con tu documento de identidad.")).toBeTruthy();
+    // Once the step itself is `passed` with a match, FaceMatchStep shows the
+    // consistent verification badge (#33) -- never "Identity verified".
+    expect(await findByText("Rostro coincidente")).toBeTruthy();
+    expect(queryByText(/identidad verificada/i)).toBeNull();
     // "Aprobado" appears exactly twice: the case-level status badge, and the
     // "Aprobado el <date>" line below it -- never a third time from a step
     // badge (both steps are `passed`, which must render "Completado").
@@ -1153,7 +1369,9 @@ describe("Face match: no stale result flash after a new attempt starts", () => {
       expect(queryByText("No se pudo confirmar la coincidencia")).toBeNull();
       expect(await findByText(/Esperando la selfie|Comparando tu selfie/)).toBeTruthy();
 
-      // Polling still converges normally once the backend genuinely catches up.
+      // Polling still converges normally once the backend genuinely catches
+      // up and passes the step.
+      mockedFetchComplianceSteps.mockResolvedValue([faceMatchStep({ status: "passed" }), biometricStep()]);
       await act(async () => {
         await jest.advanceTimersByTimeAsync(3000);
       });

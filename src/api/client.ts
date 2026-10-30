@@ -1,13 +1,17 @@
 import { config } from "../config/env";
+import { markPrivacyReviewRequired } from "../state/privacyReview";
 import { ApiError, ApiErrorDetails, kindForStatus } from "./errors";
 
 type TokenGetter = () => string | null;
 type OrganizationIdGetter = () => string | null;
-type UnauthorizedHandler = () => void;
+/** Receives the token the refused request carried, so a late 401 of an earlier session is recognizable. */
+type UnauthorizedHandler = (requestToken: string | null) => void;
+type KycUnavailableHandler = (organizationId: string) => void;
 
 let getToken: TokenGetter = () => null;
 let getOrganizationId: OrganizationIdGetter = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
+let onKycUnavailable: KycUnavailableHandler = () => {};
 
 /**
  * Wires the API client to the current auth/organization state. Called once
@@ -18,10 +22,12 @@ export function configureApiClient(options: {
   getToken?: TokenGetter;
   getOrganizationId?: OrganizationIdGetter;
   onUnauthorized?: UnauthorizedHandler;
+  onKycUnavailable?: KycUnavailableHandler;
 }) {
   if (options.getToken) getToken = options.getToken;
   if (options.getOrganizationId) getOrganizationId = options.getOrganizationId;
   if (options.onUnauthorized) onUnauthorized = options.onUnauthorized;
+  if (options.onKycUnavailable) onKycUnavailable = options.onKycUnavailable;
 }
 
 export interface ApiRequestOptions {
@@ -52,6 +58,32 @@ function extractMessage(payload: unknown): string | undefined {
     if (typeof message === "string") return message;
   }
   return undefined;
+}
+
+function extractReason(payload: unknown): string | undefined {
+  if (payload && typeof payload === "object" && "reason" in payload) {
+    const reason = (payload as { reason?: unknown }).reason;
+    if (typeof reason === "string") return reason;
+  }
+  return undefined;
+}
+
+/** Seconds from the JSON body's `retry_after`, else the Retry-After header (seconds form only). */
+export function extractRetryAfter(payload: unknown, header: string | null): number | undefined {
+  if (payload && typeof payload === "object" && "retry_after" in payload) {
+    const value = Number((payload as { retry_after?: unknown }).retry_after);
+    if (Number.isFinite(value) && value >= 0) return Math.ceil(value);
+  }
+  if (header && /^\d+$/.test(header.trim())) return Number(header.trim());
+  return undefined;
+}
+
+/** Only the privacy refs of a 409 (`pending`, `current`); nothing else of the body is kept. */
+function extractPrivacy(payload: unknown): { pending?: unknown; current?: unknown } | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const { pending, current } = payload as { pending?: unknown; current?: unknown };
+  if (pending === undefined && current === undefined) return undefined;
+  return { ...(pending !== undefined ? { pending } : {}), ...(current !== undefined ? { current } : {}) };
 }
 
 function extractDetails(payload: unknown): ApiErrorDetails | undefined {
@@ -86,10 +118,8 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     headers["Content-Type"] = "application/json";
   }
 
-  if (!options.skipAuth) {
-    const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
-  }
+  const requestToken = options.skipAuth ? null : getToken();
+  if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
 
   if (!options.skipOrganization) {
     const organizationId = getOrganizationId();
@@ -117,8 +147,21 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   if (!response.ok) {
     const kind = kindForStatus(response.status);
-    const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload));
-    if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized();
+    const error = new ApiError(kind, extractMessage(payload) ?? response.statusText, response.status, extractDetails(payload), {
+      reason: extractReason(payload),
+      retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
+      privacy: response.status === 409 ? extractPrivacy(payload) : undefined,
+    });
+    if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized(requestToken);
+    // API #86: capture is off in the organization this request was sent for
+    // (its header, not whichever is active by the time a late answer lands).
+    const requestOrganizationId = headers["X-Organization-ID"];
+    if (error.reason === "kyc_unavailable" && requestOrganizationId) onKycUnavailable(requestOrganizationId);
+    // API #93: the server blocks this account until it reviews a notice. Only
+    // an answer for the session still signed in may raise the review screen.
+    if (error.reason === "privacy_notice_review_required" && requestToken && requestToken === getToken()) {
+      markPrivacyReviewRequired(error.privacy?.pending, requestOrganizationId ?? null);
+    }
     throw error;
   }
 

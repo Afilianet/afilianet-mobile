@@ -1,0 +1,72 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+const require = createRequire(import.meta.url);
+const appConfig = require("../app.config.js");
+const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
+const storeBetaEnv = eas.build["store-beta"].env;
+const AUDIO = ["android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS"];
+
+function resolve(env) {
+  const saved = process.env;
+  process.env = { ...env };
+  try {
+    return appConfig({ config: { android: { package: "com.afilianet.mobile" } } });
+  } finally {
+    process.env = saved;
+  }
+}
+
+test("store builds drop permissions no enabled feature uses: overlay, storage reads and (without surveys) audio", () => {
+  for (const profile of ["store-beta", "store-beta-apk"]) {
+    const blocked = resolve({ EAS_BUILD_PROFILE: profile, ...storeBetaEnv }).android.blockedPermissions;
+    assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", ...AUDIO].sort(), profile);
+  }
+});
+
+test("store builds keep the camera, its Android 7–9 storage write, location, notifications and vibration", () => {
+  const blocked = resolve({ EAS_BUILD_PROFILE: "store-beta", ...storeBetaEnv }).android.blockedPermissions;
+  for (const kept of ["CAMERA", "WRITE_EXTERNAL_STORAGE", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "POST_NOTIFICATIONS", "VIBRATE", "INTERNET"]) {
+    assert.ok(!blocked.includes(`android.permission.${kept}`), kept);
+  }
+});
+
+test("audio stays whenever surveys may be on, even in a store build", () => {
+  for (const preview of ["1", undefined]) {
+    const blocked = resolve({ EAS_BUILD_PROFILE: "store-beta", ...storeBetaEnv, EXPO_PUBLIC_SURVEYS_PREVIEW: preview }).android.blockedPermissions;
+    for (const permission of AUDIO) assert.ok(!blocked.includes(permission), `${permission} with preview=${preview}`);
+  }
+});
+
+test("the publishable production build drops the same permissions as the store beta", () => {
+  const blocked = resolve({ EAS_BUILD_PROFILE: "production", ...eas.build.production.env }).android.blockedPermissions;
+  assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", ...AUDIO].sort());
+});
+
+test("development, staging and local builds keep their manifest unchanged", () => {
+  for (const profile of ["development", "development-staging", "staging", "internal", undefined]) {
+    assert.equal(resolve({ EAS_BUILD_PROFILE: profile, EXPO_PUBLIC_SURVEYS_PREVIEW: "0" }).android.blockedPermissions, undefined, String(profile));
+  }
+});
+
+test("privacy-test-apk is a separate app: own package, name and scheme, no Firebase file, store permissions", () => {
+  const profile = eas.build["privacy-test-apk"];
+  // Exactly what eas-cli resolves locally: the profile's env, WITHOUT EAS_BUILD_PROFILE.
+  const resolved = resolve({ ...profile.env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+  assert.equal(resolved.android.package, "com.afilianet.mobile.privacytest");
+  assert.equal(resolved.scheme, "afilianetprivacytest");
+  assert.equal(resolved.name, "Afilianet PRUEBA avisos");
+  assert.equal(resolved.android.googleServicesFile, undefined);
+  assert.deepEqual([...resolved.android.blockedPermissions].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", ...AUDIO].sort());
+});
+
+test("every other profile keeps the beta's identity and its Firebase file", () => {
+  for (const profile of ["store-beta", "store-beta-apk", "staging", "production"]) {
+    const resolved = resolve({ EAS_BUILD_PROFILE: profile, ...eas.build[profile].env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+    assert.equal(resolved.android.package, "com.afilianet.mobile", profile);
+    assert.equal(resolved.scheme, undefined, profile);
+    assert.equal(resolved.android.googleServicesFile, "/tmp/google-services.json", profile);
+  }
+});

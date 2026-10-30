@@ -1,8 +1,10 @@
+import { router } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { Icon } from "../design-system/icons/Icon";
 import { strings } from "../i18n";
 import { RetryButton } from "./RetryButton";
+import { Button } from "./ui/Button";
 import { colors, radius, spacing, typography } from "./ui/theme";
 
 /**
@@ -14,6 +16,7 @@ import { colors, radius, spacing, typography } from "./ui/theme";
 export function ErrorState({ error, onRetry, retrying }: { error: unknown; onRetry?: () => void; retrying?: boolean }) {
   const message = isApiError(error) ? friendlyMessage(error) : strings.shared.errorState.fallbackMessage;
   const status = isApiError(error) && error.status ? error.status : "UNKNOWN";
+  const reviewRequired = isApiError(error) && error.reason === "privacy_notice_review_required";
   const time = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date());
 
   return (
@@ -26,7 +29,12 @@ export function ErrorState({ error, onRetry, retrying }: { error: unknown; onRet
         <Text style={styles.message}>{message}{strings.shared.errorState.dataSafeSuffix}</Text>
         <Text style={styles.technical}>ERR-{status} · {time}</Text>
       </View>
-      {onRetry ? <RetryButton onPress={onRetry} loading={retrying} /> : null}
+      {/* API #93: retrying repeats the same refusal; the review screen resolves it. */}
+      {reviewRequired ? (
+        <Button label={strings.privacyNotices.banner.reviewCta} onPress={() => router.push("/privacy-review" as never)} />
+      ) : onRetry ? (
+        <RetryButton onPress={onRetry} loading={retrying} />
+      ) : null}
     </View>
   );
 }

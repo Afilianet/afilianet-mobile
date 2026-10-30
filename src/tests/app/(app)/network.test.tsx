@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render } from "@testing-library/react-native";
+import { Alert } from "react-native";
 import { ApiError } from "../../../api/errors";
 import {
   fetchMyAffiliateProfile,
@@ -26,10 +27,15 @@ jest.mock("../../../auth/AuthContext", () => ({
 }));
 jest.mock("../../../api/assistedEnrollment", () => ({
   fetchPendingAssistedEnrollments: jest.fn().mockResolvedValue({ data: [], meta: { current_page: 1, last_page: 1 } }),
+  lookupAssistedEnrollmentByRequest: jest.fn().mockResolvedValue(null),
 }));
+jest.mock("../../../api/client", () => ({ ...jest.requireActual("../../../api/client"), captureApiSessionGuard: () => () => true }));
 jest.mock("../../../services/assistedQueue", () => ({
+  ...jest.requireActual("../../../services/assistedQueue"),
   listPendingAssisted: jest.fn().mockResolvedValue([]),
   syncPendingAssisted: jest.fn(),
+  removePendingAssisted: jest.fn().mockResolvedValue(undefined),
+  retryBlockedAssisted: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../../../api/endpoints", () => ({
@@ -440,5 +446,129 @@ describe("Network: privacy", () => {
     const { queryByText } = await renderNetwork();
     expect(queryByText(/@example\.com/)).toBeNull();
     expect(queryByText(/\$\d/)).toBeNull();
+  });
+});
+
+describe("Mi red: search and assisted registrations stay inside the active account and organization", () => {
+  it("switching organization clears the search and its results, and only the active organization's pending registrations are listed", async () => {
+    const router = jest.requireMock("expo-router") as { useFocusEffect: jest.Mock };
+    const React = jest.requireActual("react") as typeof import("react");
+    router.useFocusEffect.mockImplementation((effect: () => void) => React.useEffect(effect, [effect]));
+    const { listPendingAssisted } = jest.requireMock("../../../services/assistedQueue") as { listPendingAssisted: jest.Mock };
+    // Device storage holds drafts from two organizations; the screen must show only the active one's.
+    listPendingAssisted.mockResolvedValue([
+      { sponsorUserId: "sponsor-user", organizationId: "org-a", input: { client_request_id: "ra", first_name: "Ana", last_name: "Pendiente" } },
+      { sponsorUserId: "sponsor-user", organizationId: "org-b", input: { client_request_id: "rb", first_name: "Beto", last_name: "Pendiente" } },
+    ]);
+    mockedFetchMySponsored.mockImplementation(async (_page: number, _perPage: number, search?: string) =>
+      search
+        ? { ...page([affiliate({ id: "aff-hit", user: { id: "u-hit", first_name: "Ana", last_name: "Buscada" } })], 1, 1), meta: { current_page: 1, last_page: 1, total: 1, search } }
+        : page([affiliate({ id: "aff-s1", affiliate_code: "SPOD0001" })], 1, 1),
+    );
+
+    const screen = await renderNetwork(orgValue({ organizations: [ORG_A, ORG_B] }));
+    expect(await screen.findByText("Ana Pendiente")).toBeTruthy();
+    expect(screen.queryByText("Beto Pendiente")).toBeNull();
+
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText("Buscar por nombre en referidos directos"), "Ana");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(await screen.findByText("Ana Buscada")).toBeTruthy();
+    expect(mockedFetchMySponsored).toHaveBeenCalledWith(1, 20, "Ana");
+
+    await act(async () => {
+      screen.rerender(
+        <QueryClientProvider client={queryClient}>
+          <OrganizationContext.Provider value={orgValue({ organizations: [ORG_A, ORG_B], activeOrganization: ORG_B })}>
+            <NetworkScreen />
+          </OrganizationContext.Provider>
+        </QueryClientProvider>,
+      );
+    });
+    // Organization B reloads its profile first; then the sections come back with an empty search.
+    expect((await screen.findByLabelText("Buscar por nombre en referidos directos")).props.value).toBe("");
+    expect(screen.queryByText("Ana Buscada")).toBeNull();
+    expect(await screen.findByText("Beto Pendiente")).toBeTruthy();
+    expect(screen.queryByText("Ana Pendiente")).toBeNull();
+
+    // Both organizations are now cached (no loading state in between): the
+    // search must still be cleared by the switch itself.
+    const tree = (org: Organization) => (
+      <QueryClientProvider client={queryClient}>
+        <OrganizationContext.Provider value={orgValue({ organizations: [ORG_A, ORG_B], activeOrganization: org })}>
+          <NetworkScreen />
+        </OrganizationContext.Provider>
+      </QueryClientProvider>
+    );
+    await act(async () => {
+      screen.rerender(tree(ORG_A));
+    });
+    await act(async () => {
+      fireEvent.changeText(await screen.findByLabelText("Buscar por nombre en referidos directos"), "Ana");
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(await screen.findByText("Ana Buscada")).toBeTruthy();
+    await act(async () => {
+      screen.rerender(tree(ORG_B));
+    });
+    expect(screen.getByLabelText("Buscar por nombre en referidos directos").props.value).toBe("");
+    expect(screen.queryByText("Ana Buscada")).toBeNull();
+    router.useFocusEffect.mockReset();
+  });
+});
+
+describe("Mi red: a pending registration stopped by the organization (API #92, API #86)", () => {
+  const queue = () => jest.requireMock("../../../services/assistedQueue") as Record<"listPendingAssisted" | "syncPendingAssisted" | "removePendingAssisted" | "retryBlockedAssisted", jest.Mock>;
+  const stopped = {
+    sponsorUserId: "sponsor-user", organizationId: "org-a", createAttempted: true,
+    blocked: { reason: "assisted_enrollment_unavailable", at: "2026-10-26T12:00:00Z" },
+    input: { client_request_id: "ra", first_name: "Ana", last_name: "Detenida", consent_confirmed: true },
+  };
+
+  beforeEach(() => {
+    const router = jest.requireMock("expo-router") as { useFocusEffect: jest.Mock };
+    const React = jest.requireActual("react") as typeof import("react");
+    router.useFocusEffect.mockImplementation((effect: () => void) => React.useEffect(effect, [effect]));
+    queue().listPendingAssisted.mockResolvedValue([stopped]);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("shows why it stopped and only discards after confirmation", async () => {
+    const alert = jest.spyOn(Alert, "alert");
+    const screen = await renderNetwork();
+    expect(await screen.findByText("Registro asistido no disponible en esta organización")).toBeTruthy();
+    expect(screen.getByText(/No se volverá a enviar automáticamente/)).toBeTruthy();
+
+    await act(async () => { fireEvent.press(screen.getByText("Descartar")); });
+    const [title, message, buttons] = alert.mock.calls[0] as [string, string, { text: string; onPress?: () => void }[]];
+    expect(title).toBe("Descartar registro guardado");
+    // Asked the server first (read-only): it holds no enrollment for this request now.
+    expect(message).toMatch(/^El servidor no tiene ahora un registro para esta solicitud/);
+    buttons.find((button) => button.text === "Cancelar")?.onPress?.();
+    expect(queue().removePendingAssisted).not.toHaveBeenCalled();
+
+    queue().listPendingAssisted.mockResolvedValue([]);
+    await act(async () => { buttons.find((button) => button.text === "Descartar")?.onPress?.(); });
+    expect(queue().removePendingAssisted).toHaveBeenCalledWith("ra");
+    expect(screen.queryByText("Ana Detenida")).toBeNull();
+  });
+
+  it("the sync message tells stopped drafts apart from connection problems", async () => {
+    queue().syncPendingAssisted.mockResolvedValue({ completed: [], remaining: 1, blocked: 1 });
+    const screen = await renderNetwork();
+    await act(async () => { fireEvent.press(await screen.findByText("Sincronizar registros pendientes")); });
+    expect(await screen.findByText("Sin registros por enviar. 1 detenido(s) por la configuración de la organización; no se reintentarán solos.")).toBeTruthy();
+    expect(screen.queryByText(/Revisa la conexión/)).toBeNull();
+  });
+
+  it("retry clears the stop for that draft only", async () => {
+    const screen = await renderNetwork();
+    await act(async () => { fireEvent.press(await screen.findByText("Reintentar envío")); });
+    expect(queue().retryBlockedAssisted).toHaveBeenCalledWith("ra");
   });
 });

@@ -20,13 +20,28 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status: number | null;
   readonly details?: ApiErrorDetails;
+  /** Machine-readable cause from the payload's top-level `reason` (e.g. "otp_expired"), when the API sends one. */
+  readonly reason?: string;
+  /** Seconds to wait before retrying, from the payload's `retry_after` or the Retry-After header. */
+  readonly retryAfterSeconds?: number;
+  /** The privacy refs a 409 carries: `pending` (review required) or `current` (notice outdated). */
+  readonly privacy?: { pending?: unknown; current?: unknown };
 
-  constructor(kind: ApiErrorKind, message: string, status: number | null = null, details?: ApiErrorDetails) {
+  constructor(
+    kind: ApiErrorKind,
+    message: string,
+    status: number | null = null,
+    details?: ApiErrorDetails,
+    extra: { reason?: string; retryAfterSeconds?: number; privacy?: { pending?: unknown; current?: unknown } } = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = status;
     this.details = details;
+    this.reason = extra.reason;
+    this.retryAfterSeconds = extra.retryAfterSeconds;
+    this.privacy = extra.privacy;
   }
 }
 
@@ -46,6 +61,18 @@ export function kindForStatus(status: number): ApiErrorKind {
 }
 
 export function friendlyMessage(error: ApiError): string {
+  // 503s whose `reason` says exactly what is off (API #84, #86): retrying
+  // right away does not help, so they never read as a generic server error.
+  if (error.reason === "email_unavailable") return strings.shared.apiErrors.emailUnavailable;
+  if (error.reason === "kyc_unavailable") return strings.shared.apiErrors.kycUnavailable;
+  // KYC terms (API A5): nothing was recorded; the case is reloaded to show what is current.
+  if (error.reason === "terms_document_changed") return strings.compliance.terms.documentChanged;
+  if (error.reason === "terms_not_published") return strings.compliance.terms.notPublishedError;
+  // Privacy notices (API #91/#93): each says what to do, never a plain retry.
+  if (error.reason === "privacy_notice_review_required") return strings.privacyNotices.errors.reviewRequired;
+  if (error.reason === "privacy_notice_outdated") return strings.privacyNotices.errors.outdated;
+  if (error.reason === "privacy_notice_unavailable") return strings.privacyNotices.errors.generalUnavailable;
+  if (error.reason === "organization_notice_unavailable") return strings.privacyNotices.errors.organizationUnavailable;
   switch (error.kind) {
     case "offline":
       return strings.shared.apiErrors.offline;
