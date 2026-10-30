@@ -137,6 +137,19 @@ Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría ap
 
 **Con esta ronda, A5 queda probado en teléfono solo en el estado «no publicado».** No se considera probado en físico hasta cubrir la parte bloqueada.
 
+**Variante con «sesión propia»** (Mobile #83 `d957a46` sobre #82, API #106). Solo aplica si Andrés decide que el APK salga de #83 en lugar de #82.
+- **Se puede probar ahora:**
+  - El patrocinador ve «Falta que <nombre> acepte los términos desde su propia cuenta», **sin botón**, también con el documento en `null`. Con #83 la app lo muestra aunque staging siga en `c653ae5`, sin #106.
+  - En el registro de API, ningún `POST …/attempt` de términos desde la sesión del patrocinador.
+  - Con #106 desplegado:
+    - la lectura asistida trae `requires_own_session: true`;
+    - un intento forzado (por ejemplo, con vc13) recibe 409 `terms_require_own_session`, sin aceptación.
+  - **`case_expired`:** solo si API prepara un caso vencido en una organización de prueba. Esperado: el texto «Esta verificación venció…» y nada registrado.
+- **Bloqueado hasta publicar los términos aprobados:**
+  - la persona activa su cuenta (enlace o recuperación por SMS, B9), ve el documento y acepta desde su sesión: `accepted_via = own_session`;
+  - después, el patrocinador ve «La persona aceptó los términos desde su propia cuenta».
+- **No hay recordatorios automáticos:** el caso vence en `expires_at`.
+
 ## 0. Inventario de PR abiertos y cómo integrarlos
 
 ### La cadena
