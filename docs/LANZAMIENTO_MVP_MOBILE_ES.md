@@ -8,63 +8,93 @@
 - **«Probado en físico»:** solo lo ejecutado en un teléfono con un APK concreto. Las pruebas automáticas se nombran aparte.
 - **SHA:** se dan a 7 caracteres. Los SHA completos están en cada PR.
 
-## S. Candidata de staging (2026-10-30)
+## S. Candidata de staging (actualizada 2026-10-30)
 
 **Va primero:** esta sección prevalece sobre §0–§5 en lo que respecta a staging. El resto del documento sigue describiendo el lanzamiento final.
 
 ### Qué es
-- **PR #82, base `main`, head `7ad78b6`** (SHA completo `7ad78b6a09efb57ea2a1015a2e744598d167e881`). Borrador.
-- **Contiene #81 completo** (`97e0347`: #79 + merge de #78 + perfil `production`) más un commit, A5. Lo comprueba `git merge-base --is-ancestor`.
-- **Sin PR nuevo:** no se creó otro. Ninguna rama se modificó; solo cambió la base de #82, de `release/mvp-mobile` a `main`, para revisar el diff completo.
-- **CI:** ✅ run 40990377563 sobre ese SHA.
-- **Local sobre ese SHA:** `tsc` 0, `eslint` 0, Jest 1090/1090, configuración de build (node:test) en verde.
-- **`check-build-env` simulado para `store-beta-apk`:** sin errores. `eas config` (solo lectura) resuelve la API de staging, la telemetría y las encuestas apagadas, y el entorno `preview`.
+- **Candidata elegida:** PR **#83**, head `d957a46` (SHA completo `d957a463aa8f0061fd6544e29dd03b4010a9803f`). Borrador.
+- **Base:** está apilado sobre #82 (`7ad78b6`), que tiene base `main`.
+- **Contenido** (comprobado con `git merge-base --is-ancestor`):
+  - #82 completo, que a su vez contiene #81 completo (`97e0347`);
+  - más un commit: la regla de «sesión propia».
+- **Integración:** al fusionar, #83 se une a #82 y #82 a `main`, siempre con commit de merge. Ninguna rama original se modificó.
+- **CI:** ✅ run 41140861452 sobre `d957a46`.
+- **Local:** `tsc` 0, `eslint` 0, Jest 1099/1099, configuración de build 21/21.
+- **`check-build-env` simulado para `store-beta-apk`:** sin errores. `eas config` (solo lectura): API de staging, telemetría y encuestas apagadas, entorno `preview`.
 
-### Compatibilidad con la API desplegada
-- **Staging:** API :62 y Horizon :45 corren `c653ae5`, el merge de API #104 fijado por digest en Infra #179.
-- **Mismo código que la prueba de A5:** el árbol de `c653ae5` es idéntico al de `f7f9498`, contra el que se hizo la prueba conjunta local de A5 (4/4).
-- **Rutas:** `route:list` de ese árbol (contenedor sin red ni base de datos) frente a todas las llamadas de la app. Cada llamada tiene ruta con el mismo método.
-- **Privacidad apagada** (`PRIVACY_NOTICE_PUBLISHED` falso): `GET /privacy/notice` responde 503 y la app lo trata como «no publicado». No hay pasos de aviso ni bloqueo de revisión.
-- **Términos KYC sin publicar:** el paso trae `terms_document: null`. La app muestra «todavía no están publicados», **sin botón y sin enviar nada**.
-- **Contrato confirmado hoy por API** (en #105, `KYC_TERMS_DECISIONS.md` §5):
-  - 409 `terms_not_published` y 409 `terms_document_changed` (releer);
-  - 503 `kyc_unavailable`, porque el middleware de captura va antes del controlador;
-  - 409 `assisted_access_claimed`.
-  - `GET /compliance` no pasa por la captura.
-- **Propuesta pendiente de Andrés, fuera de esta candidata:** que en el alta asistida solo acepte la persona desde su propia cuenta (`terms_require_own_session`). En Mobile es un cambio pequeño, de unos 5 archivos más pruebas, y exigiría **otro APK**.
+### Compatibilidad con la API
+| | Desplegada hoy: `c653ae5` (#104) | Necesaria para la ronda: API #106 `cddcf33` (borrador; mismo código que `09cd508`, CI ✅; solo cambia el guion) |
+|---|---|---|
+| Rutas | Cada llamada de la app tiene ruta con el mismo método (`route:list` del árbol, sin red ni base de datos) | #106 no toca rutas: solo controlador, recurso, pruebas y documentación |
+| `requires_own_session` / `accepted_via` | No los envía. La app con #83 **no ofrece el botón al patrocinador** igualmente (falla cerrado) | Los envía. Los tipos de #83 coinciden con `ComplianceStepResource` |
+| Intento de términos del patrocinador | El servidor **lo aceptaría** si hubiera documento. Con `null` responde 409 `terms_not_published` | 409 `terms_require_own_session`, con o sin documento |
+| `case_expired` | No existe | 409. Solo prueba automática (Pest y Jest) |
+| Orden de rechazos | — | `kyc_unavailable` → `assisted_access_claimed` → `terms_require_own_session` → `case_expired` → `terms_not_published` → `terms_document_changed`. La app mapea por `reason` |
 
-### Alcance del próximo APK de staging respecto a vc13 (`e2e8de1`)
+- **Privacidad apagada** (`PRIVACY_NOTICE_PUBLISHED` falso): `GET /privacy/notice` responde 503 y la app lo trata como «no publicado»; no hay pasos de aviso ni bloqueo de revisión.
+- **Términos sin publicar:** `terms_document: null` en las dos versiones.
+
+### Qué hay que desplegar primero en staging (en este orden; nada autorizado todavía)
+1. **API #106:** fusionar y desplegar en API y Horizon, con el procedimiento de #104. El pin por digest de Infra se hace después del deploy, antes del siguiente apply de Terraform; no es requisito de la ronda.
+2. **Lectura de solo lectura de la organización de prueba,** por Infra o mediante Admin autenticado y coordinado con Andrés. Debe confirmar:
+   - `capture_enabled`;
+   - `assisted_enrollment.enabled`;
+   - `required_steps` y su orden.
+   - **Lo único registrado** es la organización beta (`02959601-…`) con la captura **apagada** el 2026-10-26. Con la captura apagada no se llega al paso de términos: la app muestra el bloqueo de KYC y la captura asistida responde 503.
+3. **Fase de correo,** con Infra y autorización de Andrés:
+   - encender el canal de correo en API y Horizon (hoy está apagado desde el cierre de la ronda de mensajería);
+   - añadir el hash del destinatario a `EMAIL_RECIPIENT_ALLOWLIST_SHA256`.
+   - Hash = `sha256("afilianet-allowlist|" + minúsculas(sin_espacios(correo)))`. El `+` **no** se normaliza.
+   - **Tiene que estar hecho antes de crear el alta asistida:** la API envía el correo de activación **al crear el alta**, y si el correo no está disponible lo omite para siempre (`email.assisted_activation.skipped`).
+4. **APK de #83** construido, verificado e instalado (ver más abajo).
+
+### Datos para autorizar la prueba de activación (un único envío)
+**Propuesta, no decidida.** Andrés confirma los datos, e Infra confirma la lista y el canal.
+
+| Rol | Cuenta | Estado |
+|---|---|---|
+| Patrocinador | `simmple.pruebas@gmail.com` (cuenta `850ebd31-…`), la cuenta de prueba ya usada en la beta | **Hay que confirmar** que es afiliado activo de una organización de prueba que cumpla el punto 2. Si la organización beta sigue con la captura apagada, se necesita otra organización de prueba o un cambio de configuración, que decide Andrés |
+| Persona verificada (cuenta nueva, ficticia) | Nombre ficticio «Prueba Términos Uno»; correo **`simmple.pruebas+kyc-terminos-01@gmail.com`** | El correo llega al mismo buzón de pruebas que ya controla el equipo. Necesita **su propio hash** en la lista. Sin teléfono, para que no haya ningún SMS |
+
+- **Si la organización exige pasos de identidad antes de los términos** (fotos, INE, prueba de vida), el patrocinador tiene que capturarlos de una **persona real del equipo que dé su consentimiento**. Unos datos ficticios no sirven para la captura. Lo decide Andrés al ver la lectura del punto 2.
+- **El envío** es el que dispara el paso A1 al crear el alta. No se crea ninguna otra alta con correo durante la ronda.
+
+### Alcance del APK respecto a vc13 (`e2e8de1`)
 | Cambio | PR | Estado de la prueba física |
 |---|---|---|
 | Cola asistida: `assisted_access_claimed` y consulta `by-request` antes de descartar | #74 | **Sin prueba física.** Solo la prueba conjunta local 11/11 |
 | Avisos de privacidad | #75 | P1–P3 en la app de prueba vc2, contra el entorno desechable. **En staging están apagados:** no se ven |
 | Casilla, salida de «Sin organización», selector forzado, cierre único | #77 | Parcial en vc2. **Sin cobertura física:** el cambio de una cuenta sin organización a una con dos, y el registro directo con casilla |
 | Texto de recuperación «solicitamos el envío» | #78 | **Solo automático** |
-| Orden del cierre de sesión (sin peticiones después) | #79 | **Solo automático** |
-| Perfil `production` y landing de referidos configurable | #81 | No afecta a staging: `store-beta-apk` no define la landing, así que el enlace sigue siendo el de staging, igual que en vc13 |
-| A5: términos publicados y versionados | #82 | **Solo prueba local** con un documento ficticio. En staging solo se puede ver «no publicados» |
+| Orden del cierre de sesión | #79 | **Solo automático** |
+| Perfil `production` y landing configurable | #81 | No afecta a staging: el enlace sigue siendo el de staging, como en vc13 |
+| A5: términos publicados y versionados | #82 | Solo prueba local con un documento ficticio |
+| Sesión propia: el patrocinador no acepta, `accepted_via`, `case_expired` | #83 | **Solo automático** |
 | Perfil `privacy-test-apk` | #76 | No forma parte de este APK (es otro paquete) |
 
 Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría apagada) ya tiene la prueba física del hito A y la prueba breve de vc13.
 
 ### Build propuesto (no ejecutado; requiere autorización)
 - **Perfil `store-beta-apk`,** el mismo de vc13:
-  - `com.afilianet.mobile`, APK de distribución interna;
-  - entorno EAS `preview`, con Firebase, así que hay push;
+  - `com.afilianet.mobile`, distribución interna;
+  - entorno EAS `preview`, con Firebase;
   - API de staging;
-  - Sentry y PostHog apagados, encuestas apagadas, WhatsApp apagado (solo SMS).
+  - Sentry y PostHog apagados, encuestas apagadas, WhatsApp apagado.
 - **Comando,** desde una copia de trabajo limpia en el SHA exacto:
   ```bash
-  git worktree add --detach .claude/worktrees/build-7ad78b6 7ad78b6a09efb57ea2a1015a2e744598d167e881
-  cd .claude/worktrees/build-7ad78b6 && npm ci
+  git worktree add --detach .claude/worktrees/build-d957a46 d957a463aa8f0061fd6544e29dd03b4010a9803f
+  cd .claude/worktrees/build-d957a46 && npm ci
   npx eas-cli build --platform android --profile store-beta-apk --non-interactive --no-wait --json
   ```
+- **versionCode 14: disponible.** Comprobado el 2026-10-30, solo con lecturas:
+  - `eas build:version:get -p android -e store-beta-apk` → contador remoto de `com.afilianet.mobile` = **13**;
+  - `eas build:list`: ningún build de ese paquete después de vc13 (`ae0e4ba8`, 2026-10-27), y ninguno en cola.
+  - El build lo asigna solo, con `autoIncrement`. No hace falta reservarlo ni cambiar EAS.
+  - **Consecuencia:** el AAB de producción sería el 15 o posterior.
+  - **Volver a comprobarlo justo antes de lanzar:** otro build de `store-beta`, `staging` o `production` lo consumiría.
 - **EAS:** sin cambios. Ni variables, ni perfiles, ni credenciales.
 - **Firma:** sin cambios. Es el keystore remoto de `com.afilianet.mobile`, el de vc12 y vc13.
-- **versionCode:** sin cambio previo, pero **el build consume el 14**. Lo asigna `autoIncrement` remoto; el contador es por paquete y lo comparten `store-beta`, `staging` y `production`.
-  - Por tanto, el AAB final de producción sería el 15 o posterior.
-  - Esto **contradice la idea de reservar el 14 para el MVP** (decisión 3 de §7): Andrés tiene que aceptarlo al autorizar.
-  - No hay forma de evitarlo sin cambiar EAS.
 - **Verificar en el APK antes de instalarlo:**
   - paquete;
   - versionCode 14;
@@ -74,86 +104,68 @@ Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría ap
   - API de staging.
 - **Instalar** sobre vc13 en el Galaxy A06, **nunca en la tablet de desarrollo**.
 
-### Guion de prueba en staging
+### Guion de prueba en staging (con #106 desplegado)
+**Durante toda la ronda, anotar la imagen de API activa.** Si la ronda se hiciera todavía con `c653ae5`, las diferencias están en la tabla de compatibilidad. En ese caso, A1 no puede mostrar `requires_own_session` en el GET, y el intento del patrocinador no se probaría.
+
 **Requisitos:**
-- cuentas de prueba de staging que entregue API, sin datos reales;
-- una organización de prueba con **captura KYC encendida** y `terms_acceptance` exigido, porque en la organización beta, con la captura apagada, la app muestra el bloqueo de KYC y no se llega al paso;
-- registro de peticiones del lado de API (CloudWatch), leído por API o Infra.
+- los puntos 1 a 3 del despliegue previo, hechos;
+- el registro de peticiones de API (CloudWatch), leído por API o Infra.
 
 **Evidencia:** HTTP del servidor, capturas y notas del teléfono, en categorías separadas.
 
-**S0. Antes de actualizar, con vc13 instalado (solo se puede hacer ahora):**
-- abrir el paso de términos en la organización con captura encendida;
-- vc13 muestra el botón antiguo y envía `{accepted:true}`;
-- **esperado:** 409 `terms_not_published`, con el texto del servidor legible y **sin aceptación registrada**; API lo confirma en el registro.
+**S0. Antes de actualizar, con vc13 (opcional):**
+- vc13 como **patrocinador** en el paso de términos: 409 `terms_require_own_session`, con el texto del servidor legible y sin aceptación;
+- vc13 en la **sesión propia** de una cuenta de prueba: 409 `terms_not_published`.
 
 **S1. Actualización:** instalar encima de vc13, sin desinstalar. La sesión y los datos se conservan.
 
 **S2. Acceso:**
 1. Entrar con correo y con celular.
-2. Registrar una cuenta nueva con correo: no aparece ningún paso de aviso de privacidad, porque está apagada. Un 422 aquí es un hallazgo.
+2. Registrar una cuenta nueva con correo (sin enviar correos fuera de la lista): no aparece ningún paso de aviso de privacidad. Un 422 aquí es un hallazgo.
 3. Verificación por SMS:
-   - con el sandbox actual (B9), comprobar el texto de `503 sms_unavailable` o el de «si no llega en unos minutos…»;
-   - un **SMS real** solo con autorización de Andrés y a un número de la lista de #100.
-4. Recuperación por correo (#78): el texto «solicitamos el envío…». No se espera que el correo llegue, porque en staging la lista permitida está vacía.
-5. Cierre de sesión (#79): en el registro de API debe haber un `DELETE push/devices` y un `auth/logout`, y **ninguna petición después** con ese token.
+   - con el sandbox (B9), comprobar el texto de `503 sms_unavailable` o el de «si no llega…»;
+   - un SMS real solo con autorización.
+4. Recuperación por correo (#78): el texto «solicitamos el envío…». No llega correo a direcciones que no estén en la lista.
+5. Cierre de sesión (#79): en el registro de API, `DELETE push/devices` y `auth/logout`, y **ninguna petición después** con ese token.
 
 **S3. Cambio de cuenta y de organización:**
-1. Cuenta **sin organización**: se ve la pantalla «Sin organización» con salida (buscar invitación, cerrar sesión).
-2. Cerrar sesión y entrar con una cuenta **con dos organizaciones**: el selector es obligatorio y lleva a Inicio **con la barra inferior**. Es el punto sin cobertura física en vc2.
-3. Cambiar de organización: Inicio, Red y Cartera muestran la nueva, sin restos de la anterior.
-4. Volver a la cuenta sin organización: no aparecen datos de la cuenta anterior.
-5. En el registro de API, **ninguna petición con el token de la cuenta anterior**.
+1. Cuenta sin organización: «Sin organización» con salida.
+2. Cerrar sesión y entrar con una cuenta con dos organizaciones: el selector es obligatorio y lleva a Inicio **con la barra inferior**. Es el punto sin cobertura física en vc2.
+3. Cambiar de organización: Inicio, Red y Cartera muestran la nueva, sin restos.
+4. Volver a la cuenta sin organización: no quedan datos de la anterior.
+5. En el registro de API, ninguna petición con el token anterior.
 
 **S4. Referidos:**
-1. Compartir desde un afiliado activo:
-   - el enlace es `https://staging-admin.afilianet.mx/join/{org}/{código}`;
-   - WhatsApp se abre con el mensaje prellenado.
-2. Abrir el enlace en otro dispositivo: la landing de Admin (:36) permite registrarse con el referido.
-   - Sin App Links, el enlace https abre el navegador y no la app. Es lo esperado.
-3. Con una cuenta existente, unirse desde la app: se une la **cuenta actual**, sin crear otra. Si ya pertenece, aparece `already_affiliated`.
-4. Desde «Sin organización», escribir el código (buscador de invitaciones) y unirse.
+1. Compartir desde un afiliado activo: el enlace es `https://staging-admin.afilianet.mx/join/{org}/{código}` y WhatsApp se abre con el mensaje prellenado.
+2. Abrir el enlace en otro dispositivo: la landing de Admin permite registrarse. Sin App Links, se abre el navegador; es lo esperado.
+3. Con una cuenta existente, unirse desde la app con la **cuenta actual**. Si ya pertenece, aparece `already_affiliated`.
+4. Desde «Sin organización», escribir el código y unirse.
 
-**S5. A5. Términos de la verificación.**
+**S5. Términos KYC con sesión propia** (sección A de `docs/identity/KYC_TERMS_PHYSICAL_TEST.md`, API #106):
+- **A1. El patrocinador crea el alta asistida** con los datos aprobados. **Esto dispara el único correo.** Avanza hasta el paso de términos.
+  - Ve «Falta que Prueba acepte los términos desde su propia cuenta, cuando la active. Desde el registro asistido no se pueden aceptar.», **sin botón** (`testID terms-requires-own-session`).
+  - El GET asistido trae `requires_own_session: true`, `terms_document: null` y `accepted_via: null`.
+  - En el registro de API, ningún `POST …/attempt` de términos.
+- **A2. La persona recibe el correo** (hora y remitente), activa su cuenta y entra en la app.
+- **A3. Su verificación:** el mismo caso, en el paso de términos, con «no publicados» y sin botón. El GET propio trae `requires_own_session: false`.
+- **A4. El patrocinador intenta reabrir el alta:** «la persona ya activó su cuenta» (409 `assisted_access_claimed`), sin opción de captura.
+- **A5. Lectura final de solo lectura:**
+  - el paso de términos sigue pendiente, con `attempt_count` 0;
+  - el caso sigue en curso;
+  - no hay ninguna aceptación.
+- **Detenerse** ante un 5xx, ante una aceptación registrada por el patrocinador, o ante una respuesta que no esté en el guion.
 
-*Se puede probar ahora:*
-- S0 con vc13: el 409 legible de un build antiguo.
-- **Flujo propio:** el paso muestra «Los términos de esta verificación todavía no están publicados», **sin botón**. En el registro de API **no hay ningún `POST …/attempt`** de ese paso.
-- Los pasos de identidad anteriores a los términos siguen funcionando.
-- **Flujo asistido** (si la organización de prueba tiene activa el alta asistida): el patrocinador ve el mismo «no publicados», sin botón ni aviso de aceptación.
-- **Organización con la captura apagada:** la app muestra el bloqueo de KYC. El 503 `kyc_unavailable` del paso de términos **no se puede observar con este APK**, porque no envía nada sin documento.
+*Solo automático:* `terms_require_own_session` con documento, `case_expired`, documento retirado entre la lectura y la aceptación, y registros anteriores con `assisted_enrollment`.
 
-*Requiere publicar el documento aprobado (bloqueado hoy):*
-- **Flujo propio:**
-  - ver el documento completo;
-  - aceptar;
-  - el registro guarda exactamente la versión y el fingerprint, con `accepted_via = own_session`.
-- **Flujo asistido:**
-  - aparece el aviso;
-  - la auditoría distingue al actor (el patrocinador) del sujeto (la persona verificada);
-  - si Andrés aprueba la propuesta de #105, este flujo cambia y necesita otro APK.
-- **409 por cambio de versión y por retiro,** con el paso abierto: sin aceptación y con recarga correcta.
-- Completar un caso hasta la revisión, y volver a aceptar cuando haya una versión nueva.
+*Bloqueado hasta publicar los términos aprobados:*
+- la persona lee y acepta desde su sesión (`accepted_via = own_session`, versión y hash);
+- 409 `terms_document_changed` con recarga;
+- el patrocinador ve «La persona aceptó los términos desde su propia cuenta»;
+- completar un caso hasta la revisión.
 
-**Con esta ronda, A5 queda probado en teléfono solo en el estado «no publicado».** No se considera probado en físico hasta cubrir la parte bloqueada.
+*No hay recordatorios automáticos:* el caso vence en `expires_at`.
 
-**Variante con «sesión propia»** (Mobile #83 `d957a46` sobre #82, API #106). Solo aplica si Andrés decide que el APK salga de #83 en lugar de #82.
-- **Se puede probar ahora:**
-  - El patrocinador ve «Falta que <nombre> acepte los términos desde su propia cuenta», **sin botón**, también con el documento en `null`. Con #83 la app lo muestra aunque staging siga en `c653ae5`, sin #106.
-  - En el registro de API, ningún `POST …/attempt` de términos desde la sesión del patrocinador.
-  - Con #106 desplegado:
-    - la lectura asistida trae `requires_own_session: true`;
-    - un intento forzado (por ejemplo, con vc13) recibe 409 `terms_require_own_session`, sin aceptación.
-  - **Activación de la persona,** con el enlace por correo. Es un único envío y requiere autorización. Es la sección A de `docs/identity/KYC_TERMS_PHYSICAL_TEST.md` en API #106.
-    - La persona activa su cuenta y entra: su caso está en el paso de términos, con «no publicados» y sin botón.
-    - Después, el patrocinador recibe 409 `assisted_access_claimed`.
-    - La activación por recuperación SMS depende de B9.
-- **Solo automático:** `case_expired` (Pest en API y Jest en Mobile). Preparar un caso vencido en staging implicaría tocar datos, y no está autorizado.
-- **Bloqueado hasta publicar los términos aprobados:**
-  - la persona acepta desde su sesión, con `accepted_via = own_session`;
-  - después, el patrocinador ve «La persona aceptó los términos desde su propia cuenta».
-- **Durante la ronda, anotar la imagen de API desplegada:** con #106, vc13 como patrocinador recibe en S0 el 409 `terms_require_own_session`.
-- **No hay recordatorios automáticos:** el caso vence en `expires_at`.
+**Con esta ronda, A5 queda probado en teléfono solo sin documento publicado** (pendiente del patrocinador, activación y «no publicados» de la persona). No se considera probado en físico hasta cubrir la parte bloqueada.
 
 ## 0. Inventario de PR abiertos y cómo integrarlos
 
@@ -194,7 +206,7 @@ CI se ejecuta por `workflow_dispatch`, porque los PR apilados no disparan CI.
   - #46: propuestas visuales (demo).
 
 ### Integración propuesta (sin ejecutar)
-**Actualización del 2026-10-30:** el PR único es ahora **#82**, con base `main`, porque contiene #81 completo más A5 (ver §S). Los pasos siguientes se mantienen, aplicados a #82.
+**Actualización del 2026-10-30:** la candidata es **#83** (sobre #82, que tiene base `main`); contiene #81 y A5 (ver §S). Se fusiona #83 en #82 y #82 en `main`, con commits de merge.
 
 **Principio:** conservar todos los commits y no duplicar ramas.
 
@@ -387,7 +399,7 @@ Solo integración y lo no cubierto; no repite la evidencia aprobada de P1–P3 n
 ## 7. Decisiones para Andrés
 1. **Entorno del lanzamiento** (B2), y con él la API, Firebase y los enlaces.
 2. **KYC `terms_acceptance`** (B1): retirarlo del MVP o publicar un documento real.
-3. **Versión y canal:** ¿el MVP ocupa vc14? API no lo reserva y recomienda que sí. **Atención:** el APK de staging de §S consumiría el 14.
+3. **Versión y canal:** propuesto que el APK de staging de §S (#83) ocupe vc14 (disponible, contador remoto en 13); el AAB de producción sería el 15 o posterior.
 4. **Play Console y firma** (B5).
 5. **Cuándo activar REQUIRED/ENFORCE** y cómo asegurar que no quedan clientes vc≤13 (B6).
 6. **Pruebas reales autorizadas:** SMS real, push real, solicitud de eliminación en entorno real.
