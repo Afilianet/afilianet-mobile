@@ -182,6 +182,20 @@ Solo integración y lo no cubierto; no repite la evidencia aprobada de P1–P3 n
 8. **INE:**
    - con #99 apagado por defecto: captura y envío, sin extracción;
    - si Andrés activa la extracción con IA: una sola captura de prueba, con la decisión documentada.
+9. **Términos de la verificación (A5, Mobile #82).**
+   - **Prueba local cerrada:** #82 `7ad78b6` frente a API #104 `f7f9498`, 4/4.
+   - **En físico:** con el **documento definitivo aprobado** que publique API, no el de prueba ni la propuesta pendiente (#105).
+   - **Flujo propio:**
+     - el documento se ve completo, con título, versión y secciones;
+     - la aceptación registra exactamente esa versión y su fingerprint, con `accepted_via = own_session`.
+   - **Flujo asistido:**
+     - en el teléfono del patrocinador aparece el aviso de que acepta la persona que se verifica;
+     - el registro distingue a esa persona (sujeto) del patrocinador autenticado (actor de la auditoría), con `accepted_via = assisted_enrollment`.
+     - Límite que se mantiene: el sistema no demuestra que la persona leyó ni aceptó.
+   - **Errores, coordinados con API**, cambiando el documento servido con el paso abierto:
+     - **cambio de versión:** 409 `terms_document_changed`, sin aceptación registrada; al recargar se ve la versión nueva;
+     - **retiro:** 409 `terms_not_published`, sin aceptación; al recargar no hay botón.
+   - **Sin documento publicado:** el paso no ofrece aceptar ni envía nada.
 
 **Evidencia por paso:** HTTP del entorno, registros del servidor y capturas, en categorías separadas.
 
@@ -209,6 +223,7 @@ Solo integración y lo no cubierto; no repite la evidencia aprobada de P1–P3 n
   - **Criterio:** prueba física autorizada del paso 4.
 
 ### Límites de cobertura (se conservan)
+- **A5 (términos de la verificación):** solo prueba local conjunta (4/4) con un documento ficticio. Hay que repetirla en físico con el documento definitivo aprobado (paso 9).
 - **#79:** probado solo de forma automática. La prueba falla con el orden anterior y pasa con el nuevo. **No está en ningún APK físico.**
 - **#78:** solo pruebas automáticas.
 - **Cambio entre cuentas** (sin organización → dos organizaciones, selector forzado): **sin cobertura física en vc2**; solo pruebas automáticas (adenda §8 del cierre P2/P3).
