@@ -40,8 +40,13 @@ test("audio stays whenever surveys may be on, even in a store build", () => {
   }
 });
 
+test("the publishable production build drops the same permissions as the store beta", () => {
+  const blocked = resolve({ EAS_BUILD_PROFILE: "production", ...eas.build.production.env }).android.blockedPermissions;
+  assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE", ...AUDIO].sort());
+});
+
 test("development, staging and local builds keep their manifest unchanged", () => {
-  for (const profile of ["development", "development-staging", "staging", "internal", "production", undefined]) {
+  for (const profile of ["development", "development-staging", "staging", "internal", undefined]) {
     assert.equal(resolve({ EAS_BUILD_PROFILE: profile, EXPO_PUBLIC_SURVEYS_PREVIEW: "0" }).android.blockedPermissions, undefined, String(profile));
   }
 });

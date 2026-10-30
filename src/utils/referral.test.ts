@@ -10,6 +10,13 @@ describe("buildReferralUrl", () => {
   it("URL-encodes organization and affiliate code", () => {
     expect(buildReferralUrl("org/a", "AFF 100/ x", "staging")).toBe("https://staging-admin.afilianet.mx/join/org%2Fa/AFF%20100%2F%20x");
   });
+  it("uses the build's own HTTPS landing when it has one (fictitious host here), in any environment", () => {
+    expect(buildReferralUrl("org-1", "AFF100", "production", "https://enlaces.afilianet-ficticio.invalid/join")).toBe("https://enlaces.afilianet-ficticio.invalid/join/org-1/AFF100");
+    expect(buildReferralUrl("org-1", "AFF100", "staging", "https://enlaces.afilianet-ficticio.invalid/join")).toBe("https://enlaces.afilianet-ficticio.invalid/join/org-1/AFF100");
+  });
+  it("without a configured landing, production never guesses a host", () => {
+    expect(buildReferralUrl("org-1", "AFF100", "production", "")).toBe("afilianetmobile://join/org-1/AFF100");
+  });
 });
 
 describe("canShareReferral", () => {
