@@ -1,10 +1,11 @@
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { strings } from "../../../i18n";
 import { analytics } from "../../../services/analytics";
-import { useAssistedComplianceId } from "../../../state/ComplianceScopeContext";
+import { useAssistedComplianceId, useAssistedPersonName } from "../../../state/ComplianceScopeContext";
 import { Button } from "../../ui/Button";
 import { colors, spacing, typography } from "../../ui/theme";
 import { styles as sharedStyles } from "./styles";
+import type { TermsAcceptedVia } from "../../../types/api";
 import type { StepDetailProps } from "./types";
 
 /**
@@ -15,14 +16,28 @@ import type { StepDetailProps } from "./types";
  * API before A5 that does not send the field -- there is nothing to accept and
  * no button: an acceptance of nothing is never recorded. A 409 for a changed
  * or withdrawn document reloads the case (useAttemptComplianceStep).
+ *
+ * Only the person verified accepts, from their own session (API #106): in a
+ * sponsor's assisted verification the step says who still has to accept and
+ * never offers the button -- also on an API that does not send
+ * `requires_own_session` yet, since the server refuses the sponsor anyway.
+ * Once accepted, `accepted_via` says from whose session it was done.
  */
 export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProps) {
   const assisted = Boolean(useAssistedComplianceId());
+  const personName = useAssistedPersonName();
   if (step.status === "passed") {
-    return <Text style={sharedStyles.description}>{strings.compliance.terms.acceptedText}</Text>;
+    return <Text style={sharedStyles.description} testID="terms-accepted">{acceptedText(step.accepted_via, assisted)}</Text>;
   }
   if (step.status === "failed") {
     return <Text style={sharedStyles.description}>{strings.compliance.terms.failedText}</Text>;
+  }
+  if (assisted || step.requires_own_session) {
+    return (
+      <Text style={sharedStyles.description} testID="terms-requires-own-session">
+        {strings.compliance.terms.requiresOwnSession(personName)}
+      </Text>
+    );
   }
   const document = step.terms_document;
   if (!document) {
@@ -46,8 +61,6 @@ export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProp
 
   return (
     <View style={styles.container} testID="terms-document">
-      {/* In an assisted verification the sponsor holds the phone: the person verified is the one who accepts. */}
-      {assisted ? <Text style={styles.assisted} testID="terms-assisted-note">{strings.compliance.terms.assistedNote}</Text> : null}
       <Text style={styles.title}>{document.title}</Text>
       <Text style={styles.meta}>{strings.compliance.terms.version(document.version)}</Text>
       {document.sections.map((section, index) => (
@@ -61,11 +74,16 @@ export function TermsAcceptanceStep({ step, attempt, isPending }: StepDetailProp
   );
 }
 
+/** The actor is never blurred with the person verified: a record made from a sponsor's session says so. */
+function acceptedText(acceptedVia: TermsAcceptedVia | null | undefined, assisted: boolean): string {
+  if (acceptedVia === "assisted_enrollment") return strings.compliance.terms.acceptedViaSponsor;
+  return assisted ? strings.compliance.terms.acceptedByPerson : strings.compliance.terms.acceptedText;
+}
+
 const styles = StyleSheet.create({
   container: { gap: spacing.xs },
   section: { gap: spacing.xs },
   title: { ...typography.bodyStrong, color: colors.textPrimary },
   sectionTitle: { ...typography.bodyStrong, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textTertiary },
-  assisted: { ...typography.bodyStrong, color: colors.textPrimary },
 });

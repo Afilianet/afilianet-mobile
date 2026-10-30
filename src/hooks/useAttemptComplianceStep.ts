@@ -14,6 +14,8 @@ import type { AttemptStepPayload } from "../types/api";
  * resolved) the local view is known-stale, so the same refresh happens on
  * error too -- not just success.
  */
+const RELOAD_REASONS = ["terms_document_changed", "terms_not_published", "terms_require_own_session", "case_expired"];
+
 export function useAttemptComplianceStep() {
   const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
@@ -32,9 +34,9 @@ export function useAttemptComplianceStep() {
       attemptComplianceStep(stepId, payload, ...assistedScopeArgs(assistedId)),
     onSuccess: refreshComplianceSurface,
     onError: (error) => {
-      // The KYC terms were withdrawn or replaced (API A5): reload, so the step shows
-      // the current document (or none) instead of the one that was refused.
-      const termsChanged = isApiError(error) && (error.reason === "terms_document_changed" || error.reason === "terms_not_published");
+      // The KYC terms were withdrawn or replaced (API A5), only the person can accept them, or
+      // the case expired (API #106): reload, so the screen shows what is current instead.
+      const termsChanged = isApiError(error) && RELOAD_REASONS.includes(error.reason ?? "");
       if (isApiError(error) && (error.kind === "not_found" || error.kind === "validation" || termsChanged)) {
         refreshComplianceSurface();
       }

@@ -859,6 +859,8 @@ export const es = {
     unknown: "Desconocido",
   },
   compliance: {
+    // API #106: un caso pasado su expires_at no registra nada.
+    caseExpired: "Esta verificación venció. Inicia una nueva para continuar.",
     captureUnavailable: {
       title: "Verificación de identidad no disponible en esta organización",
       description: "Por ahora no se pueden tomar fotos, capturar documentos ni hacer la prueba de vida aquí. Lo que ya enviaste se conserva y puedes consultarlo.",
@@ -942,8 +944,13 @@ export const es = {
         "Los términos de esta verificación aún no están publicados, así que todavía no se pueden aceptar. La organización puede publicarlos o quitar este paso.",
       notPublishedError: "Los términos de esta verificación ya no están publicados. No se registró ninguna aceptación.",
       documentChanged: "Los términos cambiaron. Revisa la versión nueva antes de aceptar; no se registró ninguna aceptación.",
-      // Registro asistido: acepta quien se verifica, no quien sostiene el teléfono (API A5 registra accepted_via).
-      assistedNote: "Estos términos los acepta la persona cuya identidad se verifica, no quien la registra. Entrégale el teléfono para que los lea y decida.",
+      // Registro asistido (API #106): solo la persona acepta, desde su propia cuenta; aquí no hay botón.
+      requiresOwnSession: (name?: string) =>
+        `Falta que ${name || "esta persona"} acepte los términos desde su propia cuenta, cuando la active. Desde el registro asistido no se pueden aceptar.`,
+      requiresOwnSessionError: "Esta persona debe aceptar los términos desde su propia cuenta. No se registró ninguna aceptación.",
+      // accepted_via distingue quién ejecutó la aceptación; los registros anteriores a API #106 pueden decir assisted_enrollment.
+      acceptedByPerson: "La persona aceptó los términos desde su propia cuenta.",
+      acceptedViaSponsor: "Los términos se aceptaron durante el registro asistido, desde la sesión de quien registró a la persona.",
     },
     verbalConsent: {
       recordedText: "Tu consentimiento verbal fue registrado.",

@@ -207,7 +207,17 @@ export interface ComplianceStep {
    * treated as not published -- nothing is ever accepted without a document.
    */
   terms_document?: TermsDocument | null;
+  /**
+   * Only on terms_acceptance (API #106): true when read through a sponsor's
+   * assisted enrollment, with or without a document -- only the person
+   * verified accepts, from their own session. Absent on an earlier API.
+   */
+  requires_own_session?: boolean;
+  /** Who accepted, as recorded; `assisted_enrollment` only on records before API #106. */
+  accepted_via?: TermsAcceptedVia | null;
 }
+
+export type TermsAcceptedVia = "own_session" | "assisted_enrollment";
 
 /** The KYC terms exactly as served; version and content_sha256 go back with the acceptance. */
 export interface TermsDocument {
