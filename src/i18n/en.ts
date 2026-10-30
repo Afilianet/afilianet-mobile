@@ -137,7 +137,7 @@ export const en = {
       sendLink: "Send link",
       sendCode: "Send code by SMS",
       emailDoneTitle: "Check your email",
-      emailDone: "If the email belongs to an account, you'll receive a link to create a new password.",
+      emailDone: "If the email belongs to an account, we requested a link to create a new password. If it doesn't arrive in a few minutes, check your spam folder or try again.",
       codeStepDescription: (masked: string) => `If the number belongs to an account, we requested an SMS code to ${masked}. If it doesn't arrive in a few minutes, request another.`,
       smsUnavailableEmailHint: "If your account also has an email, you can recover it by email. If it only has a mobile number, try again later.",
       useEmail: "Recover by email",
