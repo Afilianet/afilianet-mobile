@@ -144,10 +144,15 @@ Lo heredado de vc13 (acceso por correo o celular, bloqueo de KYC, telemetría ap
   - Con #106 desplegado:
     - la lectura asistida trae `requires_own_session: true`;
     - un intento forzado (por ejemplo, con vc13) recibe 409 `terms_require_own_session`, sin aceptación.
-  - **`case_expired`:** solo si API prepara un caso vencido en una organización de prueba. Esperado: el texto «Esta verificación venció…» y nada registrado.
+  - **Activación de la persona,** con el enlace por correo. Es un único envío y requiere autorización. Es la sección A de `docs/identity/KYC_TERMS_PHYSICAL_TEST.md` en API #106.
+    - La persona activa su cuenta y entra: su caso está en el paso de términos, con «no publicados» y sin botón.
+    - Después, el patrocinador recibe 409 `assisted_access_claimed`.
+    - La activación por recuperación SMS depende de B9.
+- **Solo automático:** `case_expired` (Pest en API y Jest en Mobile). Preparar un caso vencido en staging implicaría tocar datos, y no está autorizado.
 - **Bloqueado hasta publicar los términos aprobados:**
-  - la persona activa su cuenta (enlace o recuperación por SMS, B9), ve el documento y acepta desde su sesión: `accepted_via = own_session`;
+  - la persona acepta desde su sesión, con `accepted_via = own_session`;
   - después, el patrocinador ve «La persona aceptó los términos desde su propia cuenta».
+- **Durante la ronda, anotar la imagen de API desplegada:** con #106, vc13 como patrocinador recibe en S0 el 409 `terms_require_own_session`.
 - **No hay recordatorios automáticos:** el caso vence en `expires_at`.
 
 ## 0. Inventario de PR abiertos y cómo integrarlos
