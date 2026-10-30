@@ -10,9 +10,13 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useDocumentCamera } from "../../hooks/useDocumentCamera";
-import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation } from "../../services/assistedQueue";
+import { canRetryBlocked, listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
+import { identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
+import { strings } from "../../i18n";
+import { assistedAccessInstructions } from "../../utils/assistedAccess";
+import { blockedExplanation, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
 
 import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
@@ -23,9 +27,14 @@ export default function AssistedOfflineScreen() {
   const { activeOrganization } = useOrganization();
   const router = useRouter();
   const camera = useDocumentCamera();
+  // API #86: no new photo or location while capture is off in this
+  // organization. What is already saved here stays, and is only sent by a
+  // later sync, which the server refuses without losing it while it is off.
+  const captureAvailable = identityCaptureAvailable(activeOrganization);
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const query = useApiQuery(
     ["assisted-local", user?.id, activeOrganization?.id, requestId],
     async () => (await listPendingAssisted(user!.id, activeOrganization!.id))
@@ -34,7 +43,7 @@ export default function AssistedOfflineScreen() {
   );
 
   async function capture(type: AssistedPhoto["evidenceType"]) {
-    if (!user || !activeOrganization || !query.data || busyRef.current) return;
+    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -64,7 +73,7 @@ export default function AssistedOfflineScreen() {
   }
 
   async function captureLocation() {
-    if (!user || !activeOrganization || !query.data || busyRef.current) return;
+    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -84,13 +93,31 @@ export default function AssistedOfflineScreen() {
     }
   }
 
-  function discard() {
-    Alert.alert("Eliminar copia local", "Se eliminarán los datos y fotos guardados en este teléfono. Si el afiliado ya se creó al sincronizar, su registro en la organización se conserva.", [
+  async function discard() {
+    const item = query.data;
+    if (!item || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    setChecking(true);
+    let check: Awaited<ReturnType<typeof checkServerBeforeDiscard>>;
+    try {
+      check = await checkServerBeforeDiscard(item);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+      setChecking(false);
+    }
+    Alert.alert(item.blocked ? "Descartar registro guardado" : "Eliminar copia local", discardConfirmation(item, check), [
       { text: "Cancelar", style: "cancel" },
-      { text: "Eliminar", style: "destructive", onPress: () => {
+      { text: item.blocked ? "Descartar" : "Eliminar", style: "destructive", onPress: () => {
         void removePendingAssisted(requestId).then(() => router.back()).catch(() => setError("No se pudo eliminar la copia local."));
       } },
     ]);
+  }
+
+  function retry() {
+    void retryBlockedAssisted(requestId).then(() => query.refetch()).catch(() => setError("No se pudo reactivar el envío."));
   }
 
   if (query.isPending) return <LoadingState message="Abriendo registro guardado…" />;
@@ -102,6 +129,16 @@ export default function AssistedOfflineScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text style={styles.heading}>{savedCount === 2 ? "INE guardada en este teléfono" : "Capturar INE sin conexión"}</Text>
     <Text style={styles.description}>{item.input.first_name} {item.input.last_name}</Text>
+    {item.blocked ? <Card style={styles.card} testID="assisted-blocked">
+      <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation(item.blocked.reason).title}</Text>
+      <Text style={styles.description}>{blockedExplanation(item.blocked.reason).description}</Text>
+      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} /> : null}
+      <Button label="Descartar" variant="danger" disabled={busy} loading={checking} onPress={() => void discard()} />
+    </Card> : null}
+    {captureAvailable ? null : <Card style={styles.card} testID="kyc-capture-unavailable">
+      <Text accessibilityRole="alert" style={styles.label}>{strings.compliance.captureUnavailable.title}</Text>
+      <Text style={styles.description}>{strings.compliance.captureUnavailable.description}</Text>
+    </Card>}
     <Text style={styles.description}>Fotografía la INE completa, con luz y sin reflejos. Las fotos quedan cifradas en este teléfono; su calidad se validará al enviarlas.</Text>
     <Card style={savedCount === 2 ? styles.savedCard : styles.card}>
       <Text accessibilityLiveRegion="polite" style={savedCount === 2 ? styles.savedLabel : styles.label}>{savedCount} de 2 fotos guardadas en este teléfono</Text>
@@ -113,22 +150,23 @@ export default function AssistedOfflineScreen() {
       return <Card key={type} style={saved ? styles.savedCard : styles.card}>
         <Text style={styles.label}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={saved ? styles.savedLabel : styles.description}>{saved ? "✓ Foto guardada en este teléfono" : "Sin foto guardada"}</Text>
-        <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} />
+        {captureAvailable ? <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} /> : null}
       </Card>;
     })}
     <Card style={styles.card}>
       <Text style={styles.label}>Ubicación opcional</Text>
       <Text style={styles.description}>Con el consentimiento de la persona, guarda la ubicación de este teléfono durante el registro asistido. No acredita su domicilio. Se conservará protegida y se enviará al sincronizar, junto con la fecha original de captura.</Text>
       <Text accessibilityLiveRegion="polite" style={styles.description}>{item.geolocation?.capture_status === "captured" ? `Ubicación guardada: ${new Date(item.geolocation.captured_at!).toLocaleString("es-MX")}` : "Sin ubicación guardada. Puedes continuar sin compartirla."}</Text>
-      <Button label={item.geolocation ? "Actualizar ubicación con consentimiento" : "Compartir ubicación con consentimiento"} loading={busy} onPress={() => void captureLocation()} />
+      {captureAvailable ? <Button label={item.geolocation ? "Actualizar ubicación con consentimiento" : "Compartir ubicación con consentimiento"} loading={busy} onPress={() => void captureLocation()} /> : null}
       {item.geolocation && <Button label="Quitar ubicación guardada" variant="secondary" disabled={busy} onPress={() => {
         void replaceAssistedGeolocation(user!.id, activeOrganization!.id, requestId, undefined).then(() => query.refetch()).catch(() => setError("No se pudo quitar la ubicación."));
       }} />}
     </Card>
-    <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. El afiliado recibirá un correo para crear su contraseña y completar la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
+    <Text style={styles.description}>Al volver la conexión, sincroniza desde Red. {assistedAccessInstructions(item.input)} Después completará la verificación desde su propia app. La prueba de vida requiere conexión; también pueden realizarla en este teléfono si siguen juntos y aún no ha activado su cuenta.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     <Button label="Guardar y volver a Red" disabled={busy} onPress={() => router.back()} />
-    <Button label="Eliminar copia local" variant="danger" disabled={busy} onPress={discard} />
+    {checking ? <Text accessibilityLiveRegion="polite" style={styles.description}>Comprobando en el servidor…</Text> : null}
+    {item.blocked ? null : <Button label="Eliminar copia local" variant="danger" disabled={busy} loading={checking} onPress={() => void discard()} />}
   </ScrollView>;
 }
 

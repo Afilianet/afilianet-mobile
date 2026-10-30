@@ -1,8 +1,10 @@
 import { useRouter } from "expo-router";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
+import { recaptureRequest } from "../components/compliance/recaptureRequest";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { RetryButton } from "../components/RetryButton";
@@ -20,13 +22,26 @@ import { useCompliance } from "../hooks/useCompliance";
 import { useComplianceSteps } from "../hooks/useComplianceSteps";
 import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
+import { identityCaptureAvailable } from "../state/membership";
+import { useOrganization } from "../state/OrganizationContext";
 import { formatDate } from "../utils/date";
 import type { ComplianceCase, ComplianceStep } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
 
 export default function ComplianceScreen() {
+  return (
+    <PersonalAffiliateGate>
+      <ComplianceScreenContent />
+    </PersonalAffiliateGate>
+  );
+}
+
+function ComplianceScreenContent() {
   const router = useRouter();
+  // API #86. Checked on every render, so a deep link, a pull-to-refresh or a
+  // refusal recorded mid-session all land on the same read-only screen.
+  const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();
   const hasCase = complianceQuery.data !== undefined;
@@ -49,6 +64,7 @@ export default function ComplianceScreen() {
   }
 
   async function handleStart() {
+    if (!captureAvailable) return;
     setStartError(null);
     try {
       await startMutation.mutateAsync();
@@ -90,16 +106,29 @@ export default function ComplianceScreen() {
             onRetry={() => void complianceQuery.refetch()}
             retrying={complianceQuery.isFetching}
           />
+        ) : notStarted && !captureAvailable ? (
+          <CaptureUnavailableCard />
         ) : notStarted ? (
           <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} />
         ) : complianceQuery.data ? (
           <>
+            {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} captureAvailable={captureAvailable} />
           </>
         ) : null}
       </ScrollView>
     </View>
+  );
+}
+
+function CaptureUnavailableCard() {
+  const copy = strings.compliance.captureUnavailable;
+  return (
+    <Card style={styles.card} testID="kyc-capture-unavailable">
+      <Text accessibilityRole="alert" style={styles.unavailableTitle}>{copy.title}</Text>
+      <Text style={styles.description}>{copy.description}</Text>
+    </Card>
   );
 }
 
@@ -150,11 +179,13 @@ function StepsCard({
   currentStep,
   identityDataStatus,
   caseSteps,
+  captureAvailable,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
   identityDataStatus: ComplianceCase["identity_data_status"];
   caseSteps?: ComplianceStep[];
+  captureAvailable: boolean;
 }) {
   // Case status, current step and rows must come from one server snapshot.
   // The separate steps query may finish before or after a staff update.
@@ -173,12 +204,21 @@ function StepsCard({
   } else if (steps && steps.length > 0) {
     body = (
       <View>
-        {currentStep === "biometric_liveness" && steps.some((step) =>
-          step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
-        ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
+        {captureAvailable && recaptureRequest(currentStep, steps) ? (
+          <View testID="recapture-request" style={styles.recaptureBox} accessible accessibilityRole="alert">
+            <View style={styles.recaptureHeader}>
+              <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+              <Text style={styles.recaptureNotice}>{strings.compliance.recaptureRequest.title}</Text>
+            </View>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.reason}</Text>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.action}</Text>
+            <Text style={styles.description}>{strings.compliance.livenessRecaptureNotice}</Text>
+            <Text style={styles.meta}>{strings.compliance.recaptureRequest.history}</Text>
+          </View>
+        ) : null}
         {steps.map((step) => (
           <View key={step.id}>
-            <ComplianceStepCard step={step} currentStep={currentStep} />
+            <ComplianceStepCard step={step} currentStep={currentStep} steps={steps} />
             {step.step_type === "identity_document" && identityDataStatus ? (
               <View style={styles.identityDataRow} accessible
                 accessibilityLabel={`${strings.compliance.identityData.title}: ${strings.compliance.identityData.status[identityDataStatus]}`}>
@@ -253,10 +293,22 @@ const styles = StyleSheet.create({
   identityDataRow: { gap: spacing.xs, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   identityDataHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   identityDataLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  recaptureBox: {
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  recaptureHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   recaptureNotice: {
     ...typography.bodyStrong,
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
+    flexShrink: 1,
+  },
+  unavailableTitle: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
   },
   error: {
     ...typography.body,

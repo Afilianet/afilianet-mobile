@@ -1,5 +1,7 @@
 import { fetchSponsoredAffiliates } from "../api/endpoints";
 import { useOrganization } from "../state/OrganizationContext";
+// Personal affiliate data: never requested when the account has no profile in this organization (API #75).
+import { hasPersonalAffiliateAccess } from "../state/membership";
 import { useApiQuery } from "./useApiQuery";
 
 /**
@@ -12,6 +14,6 @@ export function useSponsoredAffiliates(affiliateId: string | undefined, perPage 
   return useApiQuery(
     ["affiliate", "sponsored", activeOrganization?.id, affiliateId],
     () => fetchSponsoredAffiliates(affiliateId as string, perPage),
-    { enabled: Boolean(activeOrganization) && Boolean(affiliateId) },
+    { enabled: hasPersonalAffiliateAccess(activeOrganization) && Boolean(affiliateId) },
   );
 }

@@ -186,7 +186,7 @@ describe("Referral: share", () => {
   it("opens the native share sheet with the referral URL and neutral text, and fires referral_share_opened with no properties", async () => {
     const shareSpy = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" } as never);
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
-    const { findByText } = await renderReferral();
+    const { findByText, queryByText } = await renderReferral();
 
     const shareButton = await findByText("Compartir");
     await act(async () => {
@@ -196,6 +196,9 @@ describe("Referral: share", () => {
     expect(shareSpy).toHaveBeenCalledTimes(1);
     const [shareContent] = shareSpy.mock.calls[0];
     expect(shareContent.message).toContain("afilianetmobile://join/org-1/AFF100");
+    // Outside staging the link is the installed-app scheme, not tappable in a
+    // WhatsApp chat: no WhatsApp button is offered (see referral-whatsapp.test).
+    expect(queryByText("Compartir por WhatsApp")).toBeNull();
 
     expect(mockedCapture).toHaveBeenCalledWith("referral_share_opened");
     const shareCall = mockedCapture.mock.calls.find(([event]) => event === "referral_share_opened");

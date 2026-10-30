@@ -31,7 +31,12 @@
       },
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_NO_DOTENV": "1"
+        "EXPO_NO_DOTENV": "1",
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "0",
+        "EXPO_PUBLIC_PHONE_WHATSAPP": "0",
+        "EXPO_PUBLIC_SENTRY_ENABLED": "0",
+        "EXPO_PUBLIC_SENTRY_DSN": "disabled",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       },
       "environment": "production"
     },
@@ -58,7 +63,36 @@
       "env": {
         "EXPO_PUBLIC_APP_ENV": "staging",
         "EXPO_PUBLIC_API_BASE_URL": "https://staging-api.afilianet.mx",
-        "EXPO_NO_DOTENV": "1"
+        "EXPO_NO_DOTENV": "1",
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "0",
+        "EXPO_PUBLIC_SENTRY_ENABLED": "0",
+        "EXPO_PUBLIC_SENTRY_DSN": "disabled",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      }
+    },
+    "store-beta-apk": {
+      "extends": "store-beta",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "privacy-test-apk": {
+      "distribution": "internal",
+      "environment": "development",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "APP_VARIANT": "privacy-test",
+        "EXPO_PUBLIC_APP_ENV": "internal",
+        "EXPO_PUBLIC_API_BASE_URL": "https://andres-desk.tail7be8f8.ts.net",
+        "EXPO_NO_DOTENV": "1",
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "0",
+        "EXPO_PUBLIC_SENTRY_ENABLED": "0",
+        "EXPO_PUBLIC_SENTRY_DSN": "disabled",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "development-staging": {

@@ -27,6 +27,13 @@ jest.mock("../../api/endpoints", () => ({
   markAllNotificationsRead: jest.fn(),
 }));
 
+jest.mock("../../components/PushPreferences", () => ({
+  PushPreferences: () => {
+    const { Text } = jest.requireActual("react-native");
+    return <Text>push-preferences-section</Text>;
+  },
+}));
+
 jest.mock("../../services/analytics", () => ({
   analytics: { capture: jest.fn(), identify: jest.fn(), reset: jest.fn() },
 }));
@@ -171,86 +178,34 @@ describe("Notifications: all 14 types render safely", () => {
   });
 });
 
-describe("Notifications: whitelisted navigation", () => {
-  it.each([
-    ["compliance_started", { screen: "compliance" }, "/compliance"],
-    ["affiliate_activated", { screen: "profile" }, "/(app)/profile"],
-    ["invitation_accepted", { screen: "network" }, "/(app)/network"],
-    ["commission_earned", { screen: "commissions" }, "/commissions"],
-    ["payout_paid", { screen: "payouts" }, "/payouts"],
-  ] as const)("navigates to the whitelisted destination for %s", async (type, payload, expectedRoute) => {
-    mockedFetchNotifications.mockResolvedValue(page([notification({ type, payload })]));
+describe("Notifications: opening one notification", () => {
+  it("opens the notification's own detail screen, never its destination directly", async () => {
     const { findByText } = await renderNotifications();
 
     await act(async () => {
       fireEvent.press(await findByText("Commission earned"));
     });
 
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith(expectedRoute));
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith("/notification/notif-1");
   });
 
-  it("does not navigate anywhere when payload.screen is missing or unrecognized -- fails safe", async () => {
-    mockedFetchNotifications.mockResolvedValue(page([notification({ payload: { screen: "some-other-app://danger" } })]));
+  it("never marks anything read just by opening the inbox or tapping a row -- the detail screen does that", async () => {
     const { findByText } = await renderNotifications();
 
     await act(async () => {
       fireEvent.press(await findByText("Commission earned"));
     });
 
-    await waitFor(() => expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(1));
-    expect(mockPush).not.toHaveBeenCalled();
-  });
-});
-
-describe("Notifications: mark as read", () => {
-  it("marks the notification read when opened", async () => {
-    const { findByText } = await renderNotifications();
-
-    await act(async () => {
-      fireEvent.press(await findByText("Commission earned"));
-    });
-
-    expect(mockedMarkNotificationRead.mock.calls[0][0]).toBe("notif-1");
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+    expect(mockedMarkAllNotificationsRead).not.toHaveBeenCalled();
   });
 
-  it("still navigates when the read mutation fails -- a stale read must never block an otherwise-valid notification", async () => {
-    mockedMarkNotificationRead.mockRejectedValue(new ApiError("server", "Server error.", 500));
-    const { findByText } = await renderNotifications();
-
-    await act(async () => {
-      fireEvent.press(await findByText("Commission earned"));
-    });
-
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/commissions"));
-  });
-
-  it("refreshes the feed and unread count after marking read, even on failure", async () => {
-    mockedMarkNotificationRead.mockRejectedValue(new ApiError("server", "Server error.", 500));
-    const { findByText } = await renderNotifications();
+  it("does not show push settings -- those live under Profile", async () => {
+    const { findByText, queryByText } = await renderNotifications();
     await findByText("Commission earned");
-    const feedCallsBefore = mockedFetchNotifications.mock.calls.length;
-    const countCallsBefore = mockedFetchUnreadNotificationCount.mock.calls.length;
 
-    await act(async () => {
-      fireEvent.press(await findByText("Commission earned"));
-    });
-
-    await waitFor(() => expect(mockedFetchNotifications.mock.calls.length).toBeGreaterThan(feedCallsBefore));
-    await waitFor(() => expect(mockedFetchUnreadNotificationCount.mock.calls.length).toBeGreaterThan(countCallsBefore));
-  });
-
-  it("is safe to open repeatedly -- reading an already-read notification never errors visibly", async () => {
-    mockedFetchNotifications.mockResolvedValue(page([notification({ read_at: "2026-01-01T09:00:00Z" })]));
-    const { findByText } = await renderNotifications();
-
-    await act(async () => {
-      fireEvent.press(await findByText("Commission earned"));
-    });
-    await act(async () => {
-      fireEvent.press(await findByText("Commission earned"));
-    });
-
-    expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(2);
+    expect(queryByText("push-preferences-section")).toBeNull();
   });
 });
 

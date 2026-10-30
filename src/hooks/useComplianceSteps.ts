@@ -1,6 +1,8 @@
 import { assistedScopeArgs, scopedComplianceKey, useAssistedComplianceId } from "../state/ComplianceScopeContext";
 import { fetchComplianceSteps } from "../api/endpoints";
 import { useOrganization } from "../state/OrganizationContext";
+// Personal affiliate data: never requested when the account has no profile in this organization (API #75).
+import { hasPersonalAffiliateAccess } from "../state/membership";
 import { useApiQuery } from "./useApiQuery";
 
 /**
@@ -13,6 +15,6 @@ export function useComplianceSteps(enabled: boolean) {
   const assistedId = useAssistedComplianceId();
   const { activeOrganization } = useOrganization();
   return useApiQuery(scopedComplianceKey(["compliance", "steps", activeOrganization?.id], assistedId), () => fetchComplianceSteps(...assistedScopeArgs(assistedId)), {
-    enabled: Boolean(activeOrganization) && enabled,
+    enabled: hasPersonalAffiliateAccess(activeOrganization) && enabled,
   });
 }

@@ -1,4 +1,5 @@
 import { apiRequest } from "./client";
+import type { StepNoticeRefs, StepPrivacy } from "./privacy";
 import type {
   AffiliateProfile,
   AttemptStepPayload,
@@ -358,22 +359,34 @@ export async function fetchMyPlacementParent(): Promise<AffiliateProfile | null>
   return data;
 }
 
+/**
+ * `search` (name only, trimmed) is the network-search contract in
+ * docs/BUSQUEDA_RED_CONTRATO_ES.md: same direct scope and permissions, the
+ * server echoes it in `meta.search`. Omitted, the request is unchanged, so
+ * servers without search keep working for the plain list.
+ */
 export async function fetchMySponsored(
   page = 1,
   perPage = 20,
+  search?: string,
 ): Promise<PaginatedResponse<AffiliateProfile>> {
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
-    `/api/v1/affiliates/me/sponsored?per_page=${perPage}&page=${page}`,
+    `/api/v1/affiliates/me/sponsored?per_page=${perPage}&page=${page}${searchParam(search)}`,
   );
 }
 
 export async function fetchMyPlacementChildren(
   page = 1,
   perPage = 20,
+  search?: string,
 ): Promise<PaginatedResponse<AffiliateProfile>> {
   return apiRequest<PaginatedResponse<AffiliateProfile>>(
-    `/api/v1/affiliates/me/placement-children?per_page=${perPage}&page=${page}`,
+    `/api/v1/affiliates/me/placement-children?per_page=${perPage}&page=${page}${searchParam(search)}`,
   );
+}
+
+function searchParam(search: string | undefined): string {
+  return search ? `&search=${encodeURIComponent(search)}` : "";
 }
 
 /**
@@ -401,6 +414,17 @@ export async function fetchMyInvitations(perPage = 10): Promise<PaginatedRespons
 export async function fetchAffiliateDetails(affiliateId: string): Promise<AffiliateProfile> {
   const { data } = await apiRequest<{ data: AffiliateProfile }>(`/api/v1/affiliates/${affiliateId}`);
   return data;
+}
+
+/**
+ * GET /api/v1/affiliates -- the ACTIVE organization's affiliates, for its
+ * staff (owner/admin/manager; anyone else gets 403 from the API). Server-side
+ * search by name or affiliate code (every word must match), newest first.
+ * The management entry point to the organization's network: each row opens
+ * GET /affiliates/{uuid} and its own network endpoints (API #75 contract).
+ */
+export async function fetchOrganizationAffiliates(page = 1, perPage = 20, search?: string): Promise<PaginatedResponse<AffiliateProfile>> {
+  return apiRequest<PaginatedResponse<AffiliateProfile>>(`/api/v1/affiliates?per_page=${perPage}&page=${page}${searchParam(search)}`);
 }
 
 /** Same endpoint/shape as fetchSponsoredAffiliates -- named separately for the drill-down call sites' clarity. */
@@ -558,16 +582,21 @@ export interface PublicReferral {
   id: string;
   affiliate_code: string;
   referrer_first_name: string;
+  /** API #91: absent on an API before it. */
+  privacy?: StepPrivacy;
 }
 
 export interface PublicInvitation {
   token: string;
 }
 
-export interface ReferralRegistration {
+// The API accepts email, phone (E.164) or both -- at least one. API #91 adds
+// the notices shown in the step and the attempt's client_request_id.
+export interface ReferralRegistration extends StepNoticeRefs {
   first_name: string;
   last_name: string;
-  email: string;
+  email?: string;
+  phone?: string;
   password: string;
 }
 
@@ -628,4 +657,127 @@ export async function fetchRegistrationOrganizations(search = "", page = 1): Pro
     `/api/v1/registration/organizations?q=${encodeURIComponent(search)}&page=${page}`,
     { skipAuth: true, skipOrganization: true, skipUnauthorizedHandling: true },
   );
+}
+
+// --- Platform-wide (organization-independent) notifications ----------------
+// Same backend contract as fetchNotifications/etc. above, minus the
+// organization dimension -- GET /platform/notifications/* has no `tenant`
+// middleware and never consults X-Organization-ID, so every call here is
+// skipOrganization: true, reachable identically whether the caller
+// currently belongs to zero, one, or many organizations.
+
+export async function fetchPlatformNotifications(page = 1, perPage = 25): Promise<PaginatedResponse<Notification>> {
+  return apiRequest<PaginatedResponse<Notification>>(`/api/v1/platform/notifications?per_page=${perPage}&page=${page}`, {
+    skipOrganization: true,
+  });
+}
+
+export async function fetchPlatformUnreadNotificationCount(): Promise<number> {
+  const { data } = await apiRequest<{ data: { count: number } }>("/api/v1/platform/notifications/unread-count", {
+    skipOrganization: true,
+  });
+  return data.count;
+}
+
+export async function markPlatformNotificationRead(notificationId: string): Promise<Notification> {
+  const { data } = await apiRequest<{ data: Notification }>(`/api/v1/platform/notifications/${notificationId}/read`, {
+    method: "POST",
+    skipOrganization: true,
+  });
+  return data;
+}
+
+export async function markAllPlatformNotificationsRead(): Promise<void> {
+  await apiRequest<{ message: string }>("/api/v1/platform/notifications/read-all", {
+    method: "POST",
+    skipOrganization: true,
+  });
+}
+
+export interface PlatformNotificationPreferences {
+  push_enabled: boolean;
+  service_push: boolean;
+  promotions: boolean;
+  consent_version: string;
+}
+
+export async function fetchPlatformNotificationPreferences(): Promise<PlatformNotificationPreferences> {
+  const { data } = await apiRequest<{ data: PlatformNotificationPreferences }>("/api/v1/platform/notifications/preferences", {
+    skipOrganization: true,
+  });
+  return data;
+}
+
+export async function updatePlatformNotificationPreferences(input: {
+  service_push: boolean;
+  promotions: boolean;
+  consent_version: string;
+}): Promise<PlatformNotificationPreferences> {
+  const { data } = await apiRequest<{ data: PlatformNotificationPreferences }>("/api/v1/platform/notifications/preferences", {
+    method: "PUT",
+    body: input,
+    skipOrganization: true,
+  });
+  return data;
+}
+
+// --- Staff invitations (owner invites staff to a second organization) ------
+// Deliberately separate from the referral/registration invitation functions
+// above (fetchPublicReferral/startReferralInvitation/acceptReferralInvitation,
+// which enroll a NEW affiliate) -- a staff invitation only ever creates/
+// updates an OrganizationMembership for owner/admin/manager roles. Public
+// (no auth required to view), but accept() recognizes an already-signed-in
+// caller automatically if an Authorization header is present (the backend
+// branches on $request->user('sanctum') -- see
+// PublicStaffInvitationController::accept() in afilianet-api) -- so an
+// authenticated call here must NOT set skipAuth, unlike the referral flow.
+
+export interface StaffInvitation {
+  organization: { id: string; name: string };
+  role: string;
+  /** API #91: absent on an API before it. */
+  privacy?: StepPrivacy;
+}
+
+export async function fetchStaffInvitation(token: string): Promise<StaffInvitation> {
+  const { data } = await apiRequest<{ data: StaffInvitation }>(`/api/v1/staff-invitations/${encodeURIComponent(token)}`, {
+    skipAuth: true,
+    skipOrganization: true,
+    skipUnauthorizedHandling: true,
+  });
+  return data;
+}
+
+export interface StaffInvitationAcceptResult {
+  user: User;
+  organization: { id: string; name: string };
+  role: string;
+  /** Only present for a brand-new (previously signed-out) acceptance --
+   * an already-authenticated acceptance returns null here since the
+   * caller's existing session is reused as-is. */
+  token: string | null;
+}
+
+/**
+ * Accepts a staff invitation. Pass `authenticated: true` when the caller
+ * already has a session (the request then carries the normal Authorization
+ * header and the backend identity-matches by email, never a registration
+ * body); pass `authenticated: false` with `registration` for a signed-out
+ * visitor, mirroring acceptReferralInvitation's shape.
+ */
+export async function acceptStaffInvitation(
+  token: string,
+  options: { authenticated: true; notices?: StepNoticeRefs } | { authenticated: false; registration: ReferralRegistration },
+): Promise<StaffInvitationAcceptResult> {
+  const { data } = await apiRequest<{ data: StaffInvitationAcceptResult }>(
+    `/api/v1/staff-invitations/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+      body: options.authenticated ? options.notices ?? {} : options.registration,
+      skipAuth: options.authenticated ? false : true,
+      skipOrganization: true,
+      skipUnauthorizedHandling: true,
+    },
+  );
+  return data;
 }

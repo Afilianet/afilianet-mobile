@@ -44,7 +44,19 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const activeOrgIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    configureApiClient({ getOrganizationId: () => activeOrgIdRef.current });
+    configureApiClient({
+      getOrganizationId: () => activeOrgIdRef.current,
+      // A capture route answered 503 `kyc_unavailable` (API #86) for that
+      // organization: stop offering capture there at once, before the next
+      // list arrives. Only that organization is touched, and the next list
+      // the server returns replaces this with its own value.
+      onKycUnavailable: (organizationId) => {
+        const refuse = (org: Organization) =>
+          org.id === organizationId && org.identity_verification_available !== false ? { ...org, identity_verification_available: false } : org;
+        setOrganizations((orgs) => (orgs.some((org) => refuse(org) !== org) ? orgs.map(refuse) : orgs));
+        setActiveOrganization((active) => (active ? refuse(active) : active));
+      },
+    });
   }, []);
 
   const selectOrganization = useCallback(
