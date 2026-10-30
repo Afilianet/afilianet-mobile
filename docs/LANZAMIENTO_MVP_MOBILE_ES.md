@@ -101,7 +101,7 @@ API `main` = `4cb952c`.
 | Contrato de API | Estado en API | Lo que hace el candidato Mobile |
 |---|---|---|
 | #84 `email_unavailable`, #86 `kyc_unavailable`, #78 `already_affiliated`, #75 `has_affiliate_profile`, #95 | Fusionado | Implementado |
-| #100: límites y listas de prueba de SMS y correo | Fusionado | 429 con `retry_after` y 503 por canal: manejados. **Confirmar con API** si #100 añade otros `reason` que la app deba mostrar |
+| #100: límites y listas de prueba de SMS y correo | Fusionado | Compatible, **confirmado por API**: no añade `reason` visibles. `503 sms_unavailable` también cubre el freno horario global. Los rechazos por número (país, lista, tope diario) son invisibles a propósito: 200/202 `delivery: "queued"` sin código, y la app mantiene «si no llega en unos minutos…». Los 429 traen `retry_after` |
 | #79: WhatsApp | Abierto, sin fusionar | Envía `{channel:"sms"}`. Una API sin #79 ignora el campo y manda SMS |
 | #91 + #93: avisos, clase de cambio, bloqueo 409 | Abiertos; #93 en `33eeb4d` | Implementado y probado en físico con `a7ba4d6` (mismo código que `5167671`) |
 | #93 `5d9e566`: `DELETE push/devices` exento del bloqueo | En #93, no en la imagen física | Ignora el 409 y sigue con el logout; con la exención recibe 204. **Sin prueba física** |
@@ -138,7 +138,7 @@ Hoy **no hay un perfil listo** para publicar fuera de staging.
 | **API** | `store-beta`: `https://staging-api.afilianet.mx`. `production`: sin URL en `eas.json` y su entorno EAS está vacío, así que `check-build-env` lo rechazaría | Decidir si el MVP sale contra staging (beta cerrada) o contra producción (`https://api.afilianet.mx`, que aún no existe: D7) |
 | **Paquete** | `com.afilianet.mobile`, versión 1.0.0 | Sin cambio. La app de prueba sigue separada y no se publica |
 | **Firma** | Keystore EAS remoto de `com.afilianet.mobile`, el de vc12/vc13 | Para Play: crear la app en Play Console, decidir Play App Signing y la clave de subida, y verificar que el certificado coincide con vc13 antes de publicar |
-| **Versiones** | Contador remoto 13; `store-beta`/`production` con `autoIncrement`, el próximo es **14** | **14 queda reservado** como inicio de las rutas nuevas de #97 de API; confirmar con API si el candidato del MVP ocupa el 14 |
+| **Versiones** | Contador remoto 13; `store-beta`/`production` con `autoIncrement`, el próximo es **14** | **API no reserva el 14:** #97 es solo diseño y convivirá con las rutas actuales. Su recomendación es que el MVP ocupe el siguiente versionCode y #97 uno posterior. Lo decide Andrés |
 | **Enlaces** | Referidos: en staging `https://staging-admin.afilianet.mx/join/…`; en otros entornos `afilianetmobile://join/…`, que no es HTTPS | Para producción hace falta la landing HTTPS de producción. Sin App Links: la app no abre enlaces `https` |
 | **Permisos** | Perfiles de tienda: sin `SYSTEM_ALERT_WINDOW` ni `READ_EXTERNAL_STORAGE`; sin `RECORD_AUDIO`/`MODIFY_AUDIO_SETTINGS` mientras las encuestas estén apagadas | Añadir `production` a la lista de perfiles de tienda en `app.config.js`; hoy solo bloquea en `store-beta`/`store-beta-apk` |
 | **Push** | Token de Expo (`getExpoPushTokenAsync`). En Android exige Firebase; solo el entorno `preview` lo trae | Producción: `GOOGLE_SERVICES_JSON` en su entorno EAS, credenciales FCM en Expo, y `PUSH_ENABLED` y el token de Expo en la API |
@@ -189,6 +189,8 @@ Solo integración y lo no cubierto; no repite la evidencia aprobada de P1–P3 n
 
 ### Bloqueantes
 - **B1. Paso KYC `terms_acceptance`:** registra la aceptación de «términos» que la propia pantalla dice que no están publicados (`{accepted:true}`, sin texto ni versión). Esto contradice «no inventar términos».
+  - **Confirmado por API en `4cb952c`:** las organizaciones nuevas lo exigen por defecto (`OrganizationController@store`, `Organization::DEFAULT_REQUIRED_COMPLIANCE_STEPS`), y la API solo pide `accepted`.
+  - **Responsables:** API, con la decisión de Andrés.
   - **Criterio de cierre:** quitar el paso de las políticas KYC del MVP (API/Admin) o definir un documento real y versionado. En la app, no mostrarlo mientras no exista.
 - **B2. Entorno de lanzamiento sin decidir:** ¿staging como beta cerrada o producción (D7)? El perfil `production` no tiene API.
   - **Criterio:** decisión de Andrés, más un perfil con URL, Firebase y telemetría verificados por `check-build-env`.
@@ -221,7 +223,7 @@ Solo integración y lo no cubierto; no repite la evidencia aprobada de P1–P3 n
 ## 7. Decisiones para Andrés
 1. **Entorno del lanzamiento** (B2), y con él la API, Firebase y los enlaces.
 2. **KYC `terms_acceptance`** (B1): retirarlo del MVP o publicar un documento real.
-3. **Versión y canal:** ¿el MVP ocupa vc14? Se coordina con #97 de API.
+3. **Versión y canal:** ¿el MVP ocupa vc14? API no lo reserva y recomienda que sí.
 4. **Play Console y firma** (B5).
 5. **Cuándo activar REQUIRED/ENFORCE** y cómo asegurar que no quedan clientes vc≤13 (B6).
 6. **Pruebas reales autorizadas:** SMS real, push real, solicitud de eliminación en entorno real.
