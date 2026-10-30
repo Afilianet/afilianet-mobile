@@ -798,6 +798,7 @@ export const en = {
     unknown: "Unknown",
   },
   compliance: {
+    caseExpired: "This verification expired. Start a new one to continue.",
     captureUnavailable: {
       title: "Identity verification isn't available in this organization",
       description: "Photos, document capture and the liveness check can't be done here for now. What you already sent is kept and you can still see it.",
@@ -875,7 +876,11 @@ export const en = {
         "The terms of this verification aren't published yet, so they can't be accepted. The organization can publish them or remove this step.",
       notPublishedError: "The terms of this verification are no longer published. No acceptance was recorded.",
       documentChanged: "The terms changed. Review the new version before accepting; no acceptance was recorded.",
-      assistedNote: "These terms are accepted by the person whose identity is being verified, not by whoever registers them. Hand them the phone so they can read and decide.",
+      requiresOwnSession: (name?: string) =>
+        `${name || "This person"} still needs to accept the terms from their own account, once they activate it. They can't be accepted from an assisted registration.`,
+      requiresOwnSessionError: "This person must accept the terms from their own account. No acceptance was recorded.",
+      acceptedByPerson: "The person accepted the terms from their own account.",
+      acceptedViaSponsor: "The terms were accepted during the assisted registration, from the session of whoever registered the person.",
     },
     verbalConsent: {
       recordedText: "Your verbal consent was recorded.",

@@ -68,6 +68,9 @@ export function friendlyMessage(error: ApiError): string {
   // KYC terms (API A5): nothing was recorded; the case is reloaded to show what is current.
   if (error.reason === "terms_document_changed") return strings.compliance.terms.documentChanged;
   if (error.reason === "terms_not_published") return strings.compliance.terms.notPublishedError;
+  // API #106: a sponsor never accepts the terms, and an expired case records nothing.
+  if (error.reason === "terms_require_own_session") return strings.compliance.terms.requiresOwnSessionError;
+  if (error.reason === "case_expired") return strings.compliance.caseExpired;
   // Privacy notices (API #91/#93): each says what to do, never a plain retry.
   if (error.reason === "privacy_notice_review_required") return strings.privacyNotices.errors.reviewRequired;
   if (error.reason === "privacy_notice_outdated") return strings.privacyNotices.errors.outdated;

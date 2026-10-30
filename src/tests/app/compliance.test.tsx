@@ -480,6 +480,9 @@ describe("Compliance: terms acceptance (API A5: a published, versioned document 
   it.each([
     ["terms_document_changed", "Los términos cambiaron. Revisa la versión nueva antes de aceptar; no se registró ninguna aceptación."],
     ["terms_not_published", "Los términos de esta verificación ya no están publicados. No se registró ninguna aceptación."],
+    // API #106: also reload -- the step then shows the pending state, or the expired case.
+    ["terms_require_own_session", "Esta persona debe aceptar los términos desde su propia cuenta. No se registró ninguna aceptación."],
+    ["case_expired", "Esta verificación venció. Inicia una nueva para continuar."],
   ])("409 %s: says nothing was recorded and reloads the case to show what is current", async (reason, message) => {
     mockedFetchComplianceSteps.mockResolvedValue([termsStep({ terms_document: terms })]);
     mockedAttemptComplianceStep.mockRejectedValue(new ApiError("conflict", "x", 409, undefined, { reason }));
