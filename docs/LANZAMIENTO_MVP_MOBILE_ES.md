@@ -88,12 +88,25 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
 | Cuenta | `simmple.pruebas@gmail.com`, afiliado de «Afilianet Beta Android» | **Cuenta nueva** `simmple.pruebas+kyc-terminos-01@gmail.com`, creada por el alta asistida |
 | Dispositivo | Galaxy A06 con vc14 | El mismo A06, con un cierre de sesión real entre medias, **o** otro teléfono con vc14 si Andrés autoriza instalarlo |
 | Encabezado | `X-Assisted-Enrollment-ID` en `/compliance` | Ninguno; sesión propia |
-| Ve en términos | «Falta que Andrés acepte los términos desde su propia cuenta…», sin botón; `requires_own_session: true` | «no publicados», sin botón; `requires_own_session: false` |
+| Ve en términos (con la captura **encendida**) | «Falta que Andrés acepte los términos desde su propia cuenta…», sin botón; `requires_own_session: true` | «no publicados», sin botón; `requires_own_session: false` |
 
 - **En el mismo dispositivo:** antes de cada paso, comprobar en pantalla qué cuenta está activa (Perfil).
 - **El cambio de cuenta cubre también S3:**
   - el cierre de sesión de #79: `DELETE push/devices`, después `auth/logout`, y nada más con ese token;
   - ningún dato del patrocinador en la sesión de la persona.
+
+**Comportamiento de vc14 con la captura apagada** (según el código de `d957a46`; respondido a API):
+- **La app lee `identity_verification_available` solo al iniciar sesión** (`/me/organizations`); deslizar para recargar no lo actualiza.
+  - Tras encender la captura, el patrocinador **cierra la sesión y vuelve a entrar** antes de A1.
+  - Andrés, al entrar en A3, recibe el valor vigente en ese momento.
+- **Con la captura apagada,** `GET /compliance` y `/compliance/steps` se piden igualmente, pero la pantalla muestra:
+  - la tarjeta «Verificación de identidad no disponible»;
+  - cada paso no aprobado solo con su nombre y su estado. **El texto de términos no aparece:** ni «Falta que…» ni «no publicados».
+- **Ventana de la captura:**
+  - Para ver los textos **en pantalla**, la captura sigue encendida hasta después de A3 (paso 10 de #107) y se apaga justo después.
+  - Si se apaga tras A1, A3 solo deja evidencia HTTP (`requires_own_session: false`, `terms_document: null`), con la pantalla de bloqueo.
+  - Lo decide Andrés.
+  - A4 no depende de la captura.
 
 **Secuencia:**
 1. **Patrocinador, A1:** crea el alta con el nombre de la INE, el alias y **sin celular**. Esto dispara el **único** correo. Con Andrés presente, captura documento, liveness y facematch.
@@ -106,7 +119,8 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
    - Es el mismo caso y el **mismo id de paso**, con «no publicados» y sin botón.
    - **Evidencia:** el GET sin encabezado asistido, con la cuenta de Andrés.
 5. **Andrés, cierre de sesión.** Vuelve a entrar el patrocinador.
-6. **Patrocinador, A4:** reabre el alta y ve «la persona ya activó su cuenta» (409 `assisted_access_claimed`), sin opción de captura.
+6. **Patrocinador, A4:** reabre el alta. La app pide primero `GET /affiliates/me/assisted-enrollments/{id}`; con `access_status: "ready"` muestra «Esta persona ya activó su cuenta. Puede continuar su verificación desde su propia sesión.» y no ofrece captura.
+   - **No llama a `/compliance` ni muestra un 409.** El 409 `assisted_access_claimed` solo aparece en la app con capturas en la cola sin conexión o con una pantalla abierta antes de la activación.
 7. **A5:** lectura final.
    - El paso de términos está pendiente, con `attempt_count` 0, y no hay ninguna aceptación.
    - La captura está **apagada** y la configuración es igual a la inicial.
