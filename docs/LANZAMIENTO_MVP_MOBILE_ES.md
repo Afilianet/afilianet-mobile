@@ -102,15 +102,11 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
 - **Con la captura apagada,** `GET /compliance` y `/compliance/steps` se piden igualmente, pero la pantalla muestra:
   - la tarjeta «Verificación de identidad no disponible»;
   - cada paso no aprobado solo con su nombre y su estado. **El texto de términos no aparece:** ni «Falta que…» ni «no publicados».
-- **Ventana de la captura:**
-  - Para ver los textos **en pantalla**, la captura sigue encendida hasta después de A3 (paso 10 de #107) y se apaga justo después.
-  - Si se apaga tras A1, A3 solo deja evidencia HTTP (`requires_own_session: false`, `terms_document: null`), con la pantalla de bloqueo.
-  - Lo decide Andrés.
-  - A4 no depende de la captura.
+- **Ventana de la captura, acordada con API (#107):** se enciende en el paso 7 y se apaga en el paso 11, justo después de A4. Así A1 y A3 muestran sus textos en pantalla. A4 no depende de la captura.
 
 **Secuencia:**
 1. **Patrocinador, A1:** crea el alta con el nombre de la INE, el alias y **sin celular**. Esto dispara el **único** correo. Con Andrés presente, captura documento, liveness y facematch.
-   - En cuanto el caso llega a términos, se apaga la captura.
+   - La captura sigue encendida hasta después de A4 (paso 11 de #107).
    - El patrocinador ve el pendiente.
    - **Evidencia:** el GET `/compliance` con el encabezado asistido, la cuenta del patrocinador y el id del paso de términos.
 2. **Patrocinador, cierre de sesión.**
@@ -125,20 +121,22 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
    - El paso de términos está pendiente, con `attempt_count` 0, y no hay ninguna aceptación.
    - La captura está **apagada** y la configuración es igual a la inicial.
 
-#### Orden único de la ronda: API #107 `1ea6e3a`
+#### Orden único de la ronda: API #107 `5decb69`
 **Fuente:** el orden y los responsables de cada paso están en `docs/identity/KYC_TERMS_PHYSICAL_TEST.md`, sección «Procedimiento final de la ronda». Prevalece sobre la «Secuencia» de arriba, que solo detalla las sesiones.
 
 - **Datos:**
   - organización `02959601-fb55-4ff5-8d1a-beb5a18ff1d8`;
   - staging vivo con **#106 desplegado** (API `:64`, Horizon `:46`, identidad `:46`);
   - correo mediante Infra #182.
-- **Pasos de Mobile:**
-  - **6:** instalar vc14 (`7a6258ca…`, sha256 `fb34afc3…`) sobre vc13 en el A06 y entrar como patrocinador. **Requiere autorizar la instalación.**
-  - **8, 10 y 11:** apoyo con las sesiones. Antes de cada GET, comprobar en pantalla la cuenta activa y anotar si la petición lleva el encabezado asistido.
-- **Diferencia en el paso 7:**
-  - El procedimiento dice «Admin → ajustes → captura = activada». Pero **ninguna versión de Admin tiene ese control**: ni la fijada en staging (`d20cf67`), ni otras ramas, ni el historial. La pestaña Compliance solo edita los pasos requeridos.
-  - Tampoco muestra `ai_extraction_enabled` (lectura L4) ni una lista de usuarios de plataforma (lectura L1), al menos en `d20cf67`.
-  - **Conclusión:** los pasos 7 y 9 se hacen con la llamada a la API del bloque siguiente, y L1/L4 deben confirmarse con la imagen real de Admin `:36` antes de la ronda.
+
+| Paso #107 | Qué (parte de Mobile y sesiones) |
+|---|---|
+| 6 | [M]/[A] Instalar vc14 (`7a6258ca…`, sha256 `fb34afc3…`) sobre vc13 en el A06 y entrar como patrocinador. **Requiere autorizar la instalación** |
+| 7 | **Encender la captura** con la llamada a la API del bloque siguiente. Admin no tiene ese control en ninguna versión |
+| 8 | Patrocinador: **cerrar sesión y volver a entrar** (la app lee la captura solo al iniciar sesión). Después, A1: alta, documento, liveness y facematch; en términos, «Falta que Andrés…», sin botón |
+| 9 | A2 y A3: Andrés activa la cuenta desde el correo, entra con el alias y ve su caso con «no publicados», sin botón (la captura sigue encendida) |
+| 10 | A4: patrocinador. `GET …/assisted-enrollments/{id}` 200 con `access_status: "ready"` y el texto «Esta persona ya activó su cuenta…». **No es un 409**: el 409 solo se cubre con pruebas automáticas |
+| 11 | **Apagar la captura** justo después del paso 10. A partir del paso 7, apagarla también ante cualquier interrupción |
 
 #### Encender la captura temporalmente y restaurarla (procedimiento exacto; no ejecutar sin autorización)
 - **Vía:** Admin **no tiene** el control (solo edita los pasos requeridos), así que se hace con la API:
@@ -168,7 +166,7 @@ curl -sS "$API/organizations/settings" "${H[@]}" -H "X-Organization-ID: $ORG" > 
 curl -sS -X POST "$API/auth/logout" "${H[@]}" -o /dev/null -w '%{http_code}\n'; unset TOKEN
 ```
 
-- **Ventana:** la captura se enciende justo antes de A1 y se apaga en cuanto el caso llega a términos, antes de A2.
+- **Ventana:** se enciende en el paso 7 de #107 y se apaga en el paso 11, después de A4.
   - Mientras está encendida, **cualquier afiliado** de «Afilianet Beta Android» podría capturar su KYC. Conviene una ventana corta y avisar a los testers.
 - **Restaurar siempre:** el paso 2 se ejecuta igualmente si algo falla, si hay un 5xx o si la ronda se interrumpe. El criterio de cierre es el `diff` del paso 3 sin diferencias.
 - **Datos reales:**
