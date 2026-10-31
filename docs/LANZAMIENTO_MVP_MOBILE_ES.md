@@ -35,6 +35,124 @@
 - **Privacidad apagada** (`PRIVACY_NOTICE_PUBLISHED` falso): `GET /privacy/notice` responde 503 y la app lo trata como «no publicado»; no hay pasos de aviso ni bloqueo de revisión.
 - **Términos sin publicar:** `terms_document: null` en las dos versiones.
 
+### Estado al 2026-10-31 y ronda con Andrés (preparación; nada autorizado)
+- **APK vc14 construido** (F4, autorizado):
+  - build EAS `7a6258ca-ff1d-470b-88c8-eed3a0682564`, `store-beta-apk` @ `d957a46`;
+  - sha256 `fb34afc3a67030bb65a2a15b0c131ca31e1f45ccd9f2ac4cadc8e8478d338e38`;
+  - mismo certificado y mismos permisos que vc13, apunta a staging, sin claves de telemetría.
+  - **Sin instalar.** Evidencia en el comentario de #83.
+- **S0 con vc13:** omitido por decisión de Andrés.
+- **F2, leído por Andrés en Admin, sin modificar nada.** Organización «Afilianet Beta Android»:
+  - `assisted_enrollment.enabled = true`;
+  - **`compliance.capture_enabled = false`**;
+  - pasos requeridos, en orden: documento, liveness, facematch, términos.
+- **Parte A (S5): BLOQUEADA POR CONFIGURACIÓN.** Con la captura apagada, la app muestra el bloqueo de KYC, la captura asistida responde 503 `kyc_unavailable` y no se llega a los términos.
+  - **Siguen autorizados:** el despliegue de #106 y el build de #83 (ya hecho).
+  - **No autorizados:** encender la captura y el envío de correo.
+- **Persona verificada:** Andrés, con su INE y su liveness reales. El guion de API está en #107 («Ronda con Andrés»).
+
+#### ¿Ya existe la identidad de Andrés en la organización? ¿Impide una verificación nueva?
+**Según el código de API #106 (`981f191`), no lo impide.**
+- **Lo único que bloquea** crear el alta es una cuenta existente, **en todo staging** (no solo en la organización), con el mismo correo (comparado en minúsculas y sin espacios) o con el mismo celular: 422 «Ya existe una cuenta con este correo electrónico».
+  - Además: la unicidad de perfil afiliado por usuario y organización, y el 503 si el alta asistida está apagada.
+- **No hay deduplicación por identidad:**
+  - no se busca el CURP, la clave de elector ni el número de documento en otras cuentas;
+  - no hay búsqueda facial entre usuarios;
+  - el nombre extraído de la INE no se compara con el de la cuenta.
+- **Por tanto:** una cuenta nueva de Andrés (otro usuario, con su propio caso) **no choca** con sus cuentas ni con sus constancias anteriores, y **nada se borra ni se modifica**.
+
+**Comprobación previa, de solo lectura, antes de A1:**
+1. En Admin, si Andrés tiene acceso de plataforma: buscar `simmple.pruebas+kyc-terminos-01@gmail.com` entre los usuarios de plataforma. **Debe no existir.**
+   - Sin acceso de plataforma, buscarlo entre los afiliados de la organización: esto solo cubre esa organización.
+   - Si ya existe, usar `…+kyc-terminos-02@…`, con su propio hash.
+2. Buscar a Andrés por nombre entre los afiliados de la organización, **solo para anotarlo** como evidencia: qué cuentas y qué casos tiene. No se tocan.
+
+**Nombre en el alta:** el de la INE de Andrés, tal como aparece. Así el caso es coherente para quien lo revise en Admin. La API no lo compara.
+
+#### Alias de correo
+**Se puede mantener `simmple.pruebas+kyc-terminos-01@gmail.com`:**
+- `email:rfc` acepta el `+`;
+- la API lo guarda en minúsculas y sin espacios, sin quitar el `+`, así que es distinto de `simmple.pruebas@gmail.com`;
+- llega al buzón de pruebas que ya controla el equipo.
+
+**Condiciones:**
+- que no exista ya (comprobación previa);
+- que **su propio hash** esté en la lista: `sha256("afilianet-allowlist|simmple.pruebas+kyc-terminos-01@gmail.com")`;
+- que **no** sea `andres@lunilabs.mx`.
+
+Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro alias y otro hash.
+
+#### Dos sesiones: patrocinador y persona verificada
+| | Patrocinador | Persona verificada (Andrés) |
+|---|---|---|
+| Cuenta | `simmple.pruebas@gmail.com`, afiliado de «Afilianet Beta Android» | **Cuenta nueva** `simmple.pruebas+kyc-terminos-01@gmail.com`, creada por el alta asistida |
+| Dispositivo | Galaxy A06 con vc14 | El mismo A06, con un cierre de sesión real entre medias, **o** otro teléfono con vc14 si Andrés autoriza instalarlo |
+| Encabezado | `X-Assisted-Enrollment-ID` en `/compliance` | Ninguno; sesión propia |
+| Ve en términos | «Falta que Andrés acepte los términos desde su propia cuenta…», sin botón; `requires_own_session: true` | «no publicados», sin botón; `requires_own_session: false` |
+
+- **En el mismo dispositivo:** antes de cada paso, comprobar en pantalla qué cuenta está activa (Perfil).
+- **El cambio de cuenta cubre también S3:**
+  - el cierre de sesión de #79: `DELETE push/devices`, después `auth/logout`, y nada más con ese token;
+  - ningún dato del patrocinador en la sesión de la persona.
+
+**Secuencia:**
+1. **Patrocinador, A1:** crea el alta con el nombre de la INE, el alias y **sin celular**. Esto dispara el **único** correo. Con Andrés presente, captura documento, liveness y facematch.
+   - En cuanto el caso llega a términos, se apaga la captura.
+   - El patrocinador ve el pendiente.
+   - **Evidencia:** el GET `/compliance` con el encabezado asistido, la cuenta del patrocinador y el id del paso de términos.
+2. **Patrocinador, cierre de sesión.**
+3. **Andrés, A2:** abre el correo y entra en `https://staging-admin.afilianet.mx/activate/<token>` (página de Admin) para fijar su contraseña. Después entra en la app con el alias.
+4. **Andrés, A3:** abre su verificación.
+   - Es el mismo caso y el **mismo id de paso**, con «no publicados» y sin botón.
+   - **Evidencia:** el GET sin encabezado asistido, con la cuenta de Andrés.
+5. **Andrés, cierre de sesión.** Vuelve a entrar el patrocinador.
+6. **Patrocinador, A4:** reabre el alta y ve «la persona ya activó su cuenta» (409 `assisted_access_claimed`), sin opción de captura.
+7. **A5:** lectura final.
+   - El paso de términos está pendiente, con `attempt_count` 0, y no hay ninguna aceptación.
+   - La captura está **apagada** y la configuración es igual a la inicial.
+
+#### Encender la captura temporalmente y restaurarla (procedimiento exacto; no ejecutar sin autorización)
+- **Vía:** Admin **no tiene** el control (solo edita los pasos requeridos), así que se hace con la API:
+  - `GET/PATCH /api/v1/organizations/settings`, con `X-Organization-ID`;
+  - solo un **owner o admin** con membresía activa (`OrganizationPolicy::updateSettings`);
+  - cada cambio queda auditado como `organization.settings_updated`, con el valor anterior y el nuevo.
+- **Quién:** Andrés, desde su terminal y con **su** cuenta owner o admin. La contraseña se escribe en el terminal (`read -s`), nunca en el chat. El token solo vive en la variable de esa terminal y se revoca al final; solo se cierra esa sesión, nunca todas.
+
+```bash
+API=https://staging-api.afilianet.mx/api/v1
+read -r -p "Correo owner/admin: " EMAIL; read -r -s -p "Contraseña: " PASS; echo
+TOKEN=$(curl -sS -X POST "$API/auth/login" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg e "$EMAIL" --arg p "$PASS" '{identifier:$e,email:$e,password:$p}')" | jq -r .token); unset PASS
+H=(-H 'Accept: application/json' -H "Authorization: Bearer $TOKEN")
+ORG=$(curl -sS "$API/me/organizations" "${H[@]}" | jq -r '.data[] | select(.name=="Afilianet Beta Android") | .id'); echo "ORG=$ORG"
+# 0. Lectura previa (se guarda): debe mostrar capture_enabled=false, los 4 pasos y assisted.enabled=true
+curl -sS "$API/organizations/settings" "${H[@]}" -H "X-Organization-ID: $ORG" | tee settings-antes.json | jq '{c:.data.compliance, a:.data.assisted_enrollment}'
+# 1. ENCENDER (justo antes de A1): solo este campo
+curl -sS -X PATCH "$API/organizations/settings" "${H[@]}" -H "X-Organization-ID: $ORG" -H 'Content-Type: application/json' \
+  -d '{"compliance":{"capture_enabled":true}}' | jq '.data.compliance'
+# 2. APAGAR (en cuanto el caso llega a términos, o si la ronda se interrumpe)
+curl -sS -X PATCH "$API/organizations/settings" "${H[@]}" -H "X-Organization-ID: $ORG" -H 'Content-Type: application/json' \
+  -d '{"compliance":{"capture_enabled":false}}' | jq '.data.compliance'
+# 3. Verificar que todo coincide con la lectura previa
+curl -sS "$API/organizations/settings" "${H[@]}" -H "X-Organization-ID: $ORG" > settings-despues.json && diff <(jq -S .data settings-antes.json) <(jq -S .data settings-despues.json) && echo "RESTAURADO"
+# 4. Revocar solo este token
+curl -sS -X POST "$API/auth/logout" "${H[@]}" -o /dev/null -w '%{http_code}\n'; unset TOKEN
+```
+
+- **Ventana:** la captura se enciende justo antes de A1 y se apaga en cuanto el caso llega a términos, antes de A2.
+  - Mientras está encendida, **cualquier afiliado** de «Afilianet Beta Android» podría capturar su KYC. Conviene una ventana corta y avisar a los testers.
+- **Restaurar siempre:** el paso 2 se ejecuta igualmente si algo falla, si hay un 5xx o si la ronda se interrumpe. El criterio de cierre es el `diff` del paso 3 sin diferencias.
+- **Datos reales:**
+  - la INE y el rostro de Andrés se procesan en staging con los motores reales: identity-engine (documento), face match y liveness de AWS;
+  - quedan como evidencia del caso;
+  - no se borran, conforme a la instrucción.
+
+**Pendientes de autorización:**
+- encender la captura (y en qué ventana);
+- el envío de correo (F3);
+- instalar vc14 (en el A06 y, si hace falta, en otro teléfono);
+- el despliegue de #106 (ya autorizado, a cargo de API e Infra).
+
 ### Orden coordinado con API e Infra (nada autorizado todavía)
 **Documento conjunto:** `docs/identity/KYC_TERMS_RELEASE_106_83.md` en API #106 (`981f191`). Recoge el procedimiento de despliegue, las verificaciones y el correo. Esta sección solo resume y detalla la parte de Mobile.
 
@@ -62,7 +180,7 @@ Cada fase se autoriza por separado y se detiene ante cualquier fallo.
 | Rol | Cuenta | Estado |
 |---|---|---|
 | Patrocinador | `simmple.pruebas@gmail.com` (cuenta `850ebd31-…`), la cuenta de prueba ya usada en la beta | **Hay que confirmar** que es afiliado activo de una organización de prueba que cumpla la lectura de F2. Si la organización beta sigue con la captura apagada, se necesita otra organización de prueba o un cambio de configuración, que decide Andrés |
-| Persona verificada (cuenta nueva, ficticia) | Nombre ficticio «Prueba Términos Uno»; correo **`simmple.pruebas+kyc-terminos-01@gmail.com`** | El correo llega al mismo buzón de pruebas que ya controla el equipo. Necesita **su propio hash** en la lista. Sin teléfono, para que no haya ningún SMS |
+| Persona verificada (cuenta nueva; la persona es Andrés) | Nombre según la INE de Andrés; correo **`simmple.pruebas+kyc-terminos-01@gmail.com`** | El correo llega al mismo buzón de pruebas que ya controla el equipo. Necesita **su propio hash** en la lista. Sin teléfono, para que no haya ningún SMS |
 
 - **Si la organización exige pasos de identidad antes de los términos** (fotos, INE, prueba de vida), el patrocinador tiene que capturarlos de una **persona real del equipo que dé su consentimiento**. Unos datos ficticios no sirven para la captura. Lo decide Andrés al ver la lectura de F2.
 - **El envío** es el que dispara el paso A1 al crear el alta. No se crea ninguna otra alta con correo durante la ronda.
