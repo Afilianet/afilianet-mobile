@@ -111,6 +111,21 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
    - El paso de términos está pendiente, con `attempt_count` 0, y no hay ninguna aceptación.
    - La captura está **apagada** y la configuración es igual a la inicial.
 
+#### Orden único de la ronda: API #107 `1ea6e3a`
+**Fuente:** el orden y los responsables de cada paso están en `docs/identity/KYC_TERMS_PHYSICAL_TEST.md`, sección «Procedimiento final de la ronda». Prevalece sobre la «Secuencia» de arriba, que solo detalla las sesiones.
+
+- **Datos:**
+  - organización `02959601-fb55-4ff5-8d1a-beb5a18ff1d8`;
+  - staging vivo con **#106 desplegado** (API `:64`, Horizon `:46`, identidad `:46`);
+  - correo mediante Infra #182.
+- **Pasos de Mobile:**
+  - **6:** instalar vc14 (`7a6258ca…`, sha256 `fb34afc3…`) sobre vc13 en el A06 y entrar como patrocinador. **Requiere autorizar la instalación.**
+  - **8, 10 y 11:** apoyo con las sesiones. Antes de cada GET, comprobar en pantalla la cuenta activa y anotar si la petición lleva el encabezado asistido.
+- **Diferencia en el paso 7:**
+  - El procedimiento dice «Admin → ajustes → captura = activada». Pero **ninguna versión de Admin tiene ese control**: ni la fijada en staging (`d20cf67`), ni otras ramas, ni el historial. La pestaña Compliance solo edita los pasos requeridos.
+  - Tampoco muestra `ai_extraction_enabled` (lectura L4) ni una lista de usuarios de plataforma (lectura L1), al menos en `d20cf67`.
+  - **Conclusión:** los pasos 7 y 9 se hacen con la llamada a la API del bloque siguiente, y L1/L4 deben confirmarse con la imagen real de Admin `:36` antes de la ronda.
+
 #### Encender la captura temporalmente y restaurarla (procedimiento exacto; no ejecutar sin autorización)
 - **Vía:** Admin **no tiene** el control (solo edita los pasos requeridos), así que se hace con la API:
   - `GET/PATCH /api/v1/organizations/settings`, con `X-Organization-ID`;
