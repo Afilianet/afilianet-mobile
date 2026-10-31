@@ -121,7 +121,7 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
    - El paso de términos está pendiente, con `attempt_count` 0, y no hay ninguna aceptación.
    - La captura está **apagada** y la configuración es igual a la inicial.
 
-#### Orden único de la ronda: API #107 `5decb69`
+#### Orden único de la ronda: API #107 `deb9815`
 **Fuente:** el orden y los responsables de cada paso están en `docs/identity/KYC_TERMS_PHYSICAL_TEST.md`, sección «Procedimiento final de la ronda». Prevalece sobre la «Secuencia» de arriba, que solo detalla las sesiones.
 
 - **Datos:**
@@ -129,10 +129,15 @@ Una vez usado queda ocupado. Si la ronda hay que repetirla, se necesita otro ali
   - staging vivo con **#106 desplegado** (API `:64`, Horizon `:46`, identidad `:46`);
   - correo mediante Infra #182.
 
+- **Lecturas L1 y L4 en Admin `:36`** (`main` `94ebf51`, no `d20cf67`):
+  - L1 usa `/superadmin/users`, que busca en todos los usuarios (`GET /api/v1/platform/users?search=`);
+  - L4 se lee en DevTools → Network → `settings`, porque la interfaz no muestra `ai_extraction_enabled`.
+- **Resultado incierto** (5xx o error de red): volver a leer antes de repetir cualquier paso.
+
 | Paso #107 | Qué (parte de Mobile y sesiones) |
 |---|---|
 | 6 | [M]/[A] Instalar vc14 (`7a6258ca…`, sha256 `fb34afc3…`) sobre vc13 en el A06 y entrar como patrocinador. **Requiere autorizar la instalación** |
-| 7 | **Encender la captura** con la llamada a la API del bloque siguiente. Admin no tiene ese control en ninguna versión |
+| 7 | **Encender la captura** con la llamada a la API del bloque siguiente. Admin no tiene ese control en ninguna versión, tampoco en `:36` (`main` `94ebf51`) |
 | 8 | Patrocinador: **cerrar sesión y volver a entrar** (la app lee la captura solo al iniciar sesión). Después, A1: alta, documento, liveness y facematch; en términos, «Falta que Andrés…», sin botón |
 | 9 | A2 y A3: Andrés activa la cuenta desde el correo, entra con el alias y ve su caso con «no publicados», sin botón (la captura sigue encendida) |
 | 10 | A4: patrocinador. `GET …/assisted-enrollments/{id}` 200 con `access_status: "ready"` y el texto «Esta persona ya activó su cuenta…». **No es un 409**: el 409 solo se cubre con pruebas automáticas |
