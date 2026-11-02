@@ -35,6 +35,23 @@
 - **Privacidad apagada** (`PRIVACY_NOTICE_PUBLISHED` falso): `GET /privacy/notice` responde 503 y la app lo trata como «no publicado»; no hay pasos de aviso ni bloqueo de revisión.
 - **Términos sin publicar:** `terms_document: null` en las dos versiones.
 
+### Estado del caso de Andrés (2026-11-02; nada más autorizado)
+- **Ronda del 2026-11-02 en staging**, con vc14:
+  - una sola alta (17:03:38 UTC), un solo correo;
+  - captura encendida de 16:35 a 17:21;
+  - correo cerrado a las 17:33.
+- **El caso quedó detenido en face match** por los fallos del motor. El diagnóstico está en Mobile #84, API #108 e identity-engine #3, todos en borrador.
+- **Andrés activó la cuenta `simmple.pruebas+kyc-terminos-01@gmail.com` con el enlace recibido.** No hizo ninguna otra captura ni inició otra verificación.
+- **A partir de aquí:**
+  - **El patrocinador ya no actúa sobre este caso.** Si abre el alta: `access_status: "ready"` y el texto «Esta persona ya activó su cuenta…»; las capturas asistidas responden 409 `assisted_access_claimed`.
+  - **La continuación es solo desde la propia cuenta.** En el A06: cerrar cualquier otra sesión (cierre real, #79), entrar con el alias y comprobar en Perfil la cuenta activa antes de cada paso.
+- **Lectura del caso sin tocarlo:**
+  - en Admin → Cumplimiento → el caso, en DevTools → Network → `cases/{id}` → Preview: `status`, `attempt_count`, `score`, `reason` y `manual_review` por paso;
+  - **no** abrir `review-evidence` (imágenes) ni usar reintentos o aceptaciones;
+  - `attempt_count` es el contador del paso, **no** el número de comparaciones de face match. Los fallos técnicos y `no_face_probe` no lo incrementan, así que no se da por confirmado ningún valor;
+  - las comparaciones no aparecen en Admin. El último intento solo puede leerse desde la sesión propia (`GET …/face-match-result`, solo lectura) o en la base de datos.
+- **Correcciones generales** (#84, #108 e identity-engine #3) **separadas** de cualquier cambio para recuperar este caso. Ninguna está desplegada ni incluida en un APK.
+
 ### Estado al 2026-10-31 y ronda con Andrés (preparación; nada autorizado)
 - **APK vc14 construido** (F4, autorizado):
   - build EAS `7a6258ca-ff1d-470b-88c8-eed3a0682564`, `store-beta-apk` @ `d957a46`;
