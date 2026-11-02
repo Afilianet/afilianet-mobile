@@ -45,11 +45,22 @@
 - **A partir de aquí:**
   - **El patrocinador ya no actúa sobre este caso.** Si abre el alta: `access_status: "ready"` y el texto «Esta persona ya activó su cuenta…»; las capturas asistidas responden 409 `assisted_access_claimed`.
   - **La continuación es solo desde la propia cuenta.** En el A06: cerrar cualquier otra sesión (cierre real, #79), entrar con el alias y comprobar en Perfil la cuenta activa antes de cada paso.
-- **Lectura del caso sin tocarlo:**
-  - en Admin → Cumplimiento → el caso, en DevTools → Network → `cases/{id}` → Preview: `status`, `attempt_count`, `score`, `reason` y `manual_review` por paso;
-  - **no** abrir `review-evidence` (imágenes) ni usar reintentos o aceptaciones;
-  - `attempt_count` es el contador del paso, **no** el número de comparaciones de face match. Los fallos técnicos y `no_face_probe` no lo incrementan, así que no se da por confirmado ningún valor;
-  - las comparaciones no aparecen en Admin. El último intento solo puede leerse desde la sesión propia (`GET …/face-match-result`, solo lectura) o en la base de datos.
+- **Lectura del caso sin tocarlo.** Es el mismo procedimiento que la lectura L-caso de API #107 (`5fd4509`, «Lecturas previas»).
+  - **No abrir el caso en Cumplimiento.** Admin confirmó que pulsar la fila descarga automáticamente las imágenes y deja un registro `ComplianceEvidenceViewed`.
+  - **No llamar a `review-evidence`** ni generar enlaces firmados. Por eso tampoco se usa la lectura opcional L-evidencia de #107.
+  - **No usar** reintentos ni aceptaciones, ni «Copiar como cURL/fetch», ni exportar HAR.
+  1. **Identificar el caso sin abrirlo:**
+     - en Cumplimiento, **sin seleccionar ninguna fila**, ir a DevTools → Network → petición `cases?...` → Preview;
+     - en `data[]`, el caso del 2026-11-02 con el nombre de Andrés → su `id`;
+     - la lista no carga imágenes.
+  2. **Lectura básica (L-caso)**, en la consola de DevTools de esa misma pestaña de staging-admin. La primera vez Chrome pide escribir «permitir pegar». La lectura no cambia nada: solo autoriza y carga el caso.
+     ```js
+     const org='02959601-fb55-4ff5-8d1a-beb5a18ff1d8', id='<uuid del caso>'; fetch('/api/bff/compliance/cases/'+id,{headers:{'X-Organization-ID':org}}).then(r=>r.json()).then(({data:d})=>console.log(JSON.stringify({status:d.status,current_step:d.current_step,expires_at:d.expires_at,identity_data_status:d.identity_data_status,steps:d.steps.map(s=>({type:s.step_type,status:s.status,score:s.score,attempts:s.attempt_count,provider:s.provider,reason:s.reason,manual_review:s.manual_review}))},null,2)))
+     ```
+  3. **Cómo interpretarla:**
+     - `attempts` es el contador del paso, **no** el número de comparaciones de face match. Los fallos técnicos y `no_face_probe` no lo incrementan, así que no se da por confirmado ningún valor;
+     - el `score` del liveness es el valor mapeado del veredicto, no la confianza de AWS. No se ha leído y no se asume;
+     - qué selfie usó cada comparación **no** se ve en esta lectura.
 - **Correcciones generales** (#84, #108 e identity-engine #3) **separadas** de cualquier cambio para recuperar este caso. Ninguna está desplegada ni incluida en un APK.
 
 ### Estado al 2026-10-31 y ronda con Andrés (preparación; nada autorizado)
