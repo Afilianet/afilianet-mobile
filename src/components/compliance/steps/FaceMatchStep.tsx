@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useFaceMatchResult } from "../../../hooks/useFaceMatchResult";
 import { strings } from "../../../i18n";
@@ -39,6 +40,17 @@ export function FaceMatchStep({ step, attempt, isPending, processingOnly }: Step
   // in history. The new comparison is triggered from the liveness result.
   const result = step.status === "pending" && resultQuery.data?.verdict === "match"
     ? null : resultQuery.data;
+
+  // Becoming the current step is when the server may have started an attempt
+  // on its own (after liveness or the document result): a "no attempt" read
+  // while this step was processing-only is checked again before the selfie
+  // capture is offered.
+  const wasProcessingOnly = useRef(processingOnly);
+  const { refetch } = resultQuery;
+  useEffect(() => {
+    if (wasProcessingOnly.current && !processingOnly && isAfilianetActionable) void refetch();
+    wasProcessingOnly.current = processingOnly;
+  }, [processingOnly, isAfilianetActionable, refetch]);
 
   function handleCheckAgain() {
     void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", activeOrganization?.id] });
