@@ -140,6 +140,8 @@ const UNAVAILABLE_REASONS = new Set([
   "timeout",
   "malformed_response",
   "engine_error",
+  // identity-engine #3: no OCR slot within its queue wait; transient, like a timeout.
+  "engine_busy",
 ]);
 
 export function isUnavailableFailureReason(reason: string | null): boolean {
