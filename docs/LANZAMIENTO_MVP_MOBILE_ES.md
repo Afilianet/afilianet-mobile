@@ -8,6 +8,81 @@
 - **«Probado en físico»:** solo lo ejecutado en un teléfono con un APK concreto. Las pruebas automáticas se nombran aparte.
 - **SHA:** se dan a 7 caracteres. Los SHA completos están en cada PR.
 
+## T. Candidato KYC #87 y siguiente APK (2026-11-03; nada autorizado)
+
+**Va primero:** prevalece sobre §S y §0 en integración y en el siguiente APK.
+
+### Candidato
+- **PR #87** `integration/kyc-mobile-candidate` @ `19cdea6` (SHA completo `19cdea6ad1990ccd6332e98e734de9fe0c1815db`). Draft, CI ✅ 41571803921, Jest 1170/1170.
+- **Contenido:** #84 `ee1c38e` (vc15, instalado en el A06) más dos merges `--no-ff`:
+  - **#85** `2f6e6fc`: aceptación propia de términos en un paso ya resuelto (API #109).
+  - **#86** `81ffcc4`: reprocesar las mismas fotos tras un fallo técnico, con el texto según el estado del caso y `extracted_fields`/`validation_checks` nulos (API #112).
+- **Conflictos de #87:** dos, en `ComplianceStepCard.tsx` y `steps/types.ts`, resueltos con la unión de las props `captureAvailable`, `caseStatus` y `currentStep`.
+- **Prueba de contrato:** `kyc-candidate-contract.test.tsx` reproduce las respuestas reales del candidato API #115 @ `29dc5a1`.
+- **Ascendencia comprobada:** `main` `c95faeb`, #81 `97e0347`, #82 `7ad78b6`, #83 `d957a46` (vc14), #84 `ee1c38e` (vc15), #85 y #86 son ancestros de `19cdea6`. Son 102 commits sobre `main`.
+- **Respecto a vc15:** solo cambia `src/`. Sin cambios en `eas.json`, `app.config.js`, `app.json`, dependencias, Metro, módulos nativos ni CI.
+
+### Ruta de integración a `main` (propuesta, sin ejecutar)
+1. **Antes:** confirmar que #87 sigue en `19cdea6` y con CI verde. No hace falta repetir la suite si el head no cambió.
+2. **Cambiar la base de #87 a `main`.** Solo cambia la base: los commits y sus SHA no cambian. Al ser un PR contra `main`, CI se dispara solo.
+3. **Fusionar #87 con commit de merge**, nunca squash ni rebase. `main` es ancestro de #87, así que no hay conflictos. El árbol resultante es el de `19cdea6`, y todos los SHA probados (`e2e8de1` vc13, `d957a46` vc14, `ee1c38e` vc15) siguen en `main`.
+4. **Después, #80 (esta documentación):** cambiar su base a `main`; su diferencia queda solo en este archivo. Fusionarlo con commit de merge.
+5. **Cerrar sin fusionar, como «incluido en #87»:** #43, #47, #49–#79 y #81–#86. GitHub solo marca solos como fusionados los que tienen base `main` (#81, #82 y los anteriores con esa base); los demás hay que cerrarlos a mano.
+6. **Cerrar como sustituidos:** #45 (sus commits están en la cadena por equivalencia) y #54 (su formulario de celular o correo está en la cadena).
+7. **No necesarios para el MVP:** #1 (modelo de entorno antiguo, sustituido) y #46 (propuestas visuales).
+8. **No hacer:** rebase de la cadena ni cambiar la base de los PR intermedios.
+
+### Dependencias
+- **Fusionar Mobile no depende del despliegue de API.** Sin los campos nuevos, la app se comporta como vc15; las pruebas «campo ausente» de #85 y #86 lo fijan:
+  - sin `needs_own_acceptance`, el paso de términos no cambia;
+  - sin `retry_available`, no hay botón de reintento.
+- **La ronda física sí depende de API:** el candidato #115 desplegado en staging (#109, #112, #113 con #111), con su migración (columnas `evidence_ids`, `capture_key`, `retry_kind`) y la protección frente a resultados tardíos. API las está cerrando.
+- **Infra:** despliegue de API y de su migración; los tiempos del motor (#3 y la propuesta #184) siguen pendientes de decisión.
+
+### Siguiente APK (lectura del 2026-11-03; sin reservar ni incrementar)
+- **versionCode:** el contador remoto está en **15** (vc15 `2f65bffa`). El siguiente build con `autoIncrement` tomará **16**.
+- **Perfil:** `store-beta-apk`, que extiende `store-beta`:
+  - entorno EAS `preview`;
+  - API `https://staging-api.afilianet.mx`;
+  - encuestas de ejemplo apagadas, Sentry apagado con DSN `disabled`, sin subida de mapas.
+- **Variables de `preview`** (solo nombres): `EXPO_PUBLIC_SENTRY_DSN`, que el perfil reemplaza por `disabled`; `GOOGLE_SERVICES_JSON`; `SENTRY_AUTH_TOKEN`; `SENTRY_DISABLE_AUTO_UPLOAD`. Son las mismas que en vc14 y vc15.
+- **Firma:** credenciales remotas de EAS (sin `credentialsSource` local), el mismo keystore que vc14 y vc15 (certificado v2 `5d3974b9…20ca`). Se verifica en el APK tras el build.
+- **SHA a construir:** `19cdea6`, o el commit de merge en `main`, que tiene el mismo árbol.
+
+### Guion físico del siguiente APK (vc16)
+**Siempre:** solo staging. Sin imágenes, datos de identificación, tokens ni credenciales en los reportes. Nada en el caso de Andrés sin autorización expresa.
+
+**A. Ya cubierto con datos sintéticos** (pruebas automáticas, sin teléfono):
+- **#85, 21 pruebas:** aceptación propia en paso aprobado u omitido; versión y hash enviados; cada error; sin botón para el patrocinador; campo ausente sin cambios.
+- **#86, 33 pruebas:** fotos conservadas y ninguna subida; reintento; doble pulsación; cada código de error; reintento automático; límite con el texto según el estado del caso; patrocinador antes y después de activar.
+- **#87, contrato, 12 pruebas:** las mismas decisiones con las respuestas reales del candidato API #115.
+
+**B. En el teléfono sin términos publicados, sin captura y sin llamadas a proveedores** (solo lecturas):
+1. **Actualización:** vc15 → vc16 en el Galaxy A06 sin desinstalar ni borrar datos. Android debe decir «actualizar» y la sesión debe seguir abierta.
+2. **Pantalla de verificación de un caso existente:** abrir y mirar, sin pulsar acciones.
+   - Debe cargar sin error en una compilación release, aunque el documento llegue sin datos extraídos.
+   - Términos: «no publicados» y sin botón.
+3. **Patrocinador** (`simmple.pruebas@gmail.com`): abrir el alta asistida ya activada.
+   - Ni botón de términos ni de reintento.
+   - Si la API responde `assisted_access_claimed`: «La persona ya activó su cuenta».
+
+**C. Requieren términos publicados** (decisión de Andrés y revisión legal; la app no inventa términos):
+4. **Aceptación propia en un paso ya resuelto:** un caso con `needs_own_acceptance: true`.
+   - Desde la cuenta de la persona: documento completo y «Aceptar estos términos».
+   - Tras aceptar: «Registramos tu aceptación desde tu cuenta» y, en revisión manual, «Tu verificación sigue pendiente de la revisión de la organización». Nunca «aprobado».
+   - Antes, leer el caso con L-caso (§S). Si el caso es el de Andrés, hace falta su autorización expresa.
+5. **Precedencia del patrocinador:** el mismo caso desde la sesión de quien registró a la persona debe mostrar «Falta que <nombre> acepte…» y ningún botón.
+
+**D. Requieren captura encendida y llamadas reales al motor o a proveedores** (autorización por ronda):
+6. **Documento sin datos extraídos:** captura nueva. Debe mostrar «Fotos de identificación guardadas» sin error mientras el OCR está pendiente.
+7. **Reintento técnico conservando las fotos:** necesita un fallo técnico real del motor, que solo se provoca de forma controlada con Infra. Debe mostrar «Volver a procesar las fotos» y los intentos restantes. Al pulsar, no se abre la cámara ni se sube nada.
+8. **Límite alcanzado:** tras 3 ejecuciones fallidas, sin botón.
+   - Caso en curso: «Tus fotos quedaron guardadas…», «Siguiente paso: <paso>».
+   - Revisión manual: «La organización revisará tu credencial». Nunca «rechazo».
+9. **Patrocinador tras activar la cuenta**, con un documento en fallo técnico: sin botón. Si la pantalla estaba abierta desde antes: «La persona ya activó su cuenta…» y ningún reintento.
+
+**Riesgo de D:** 7–9 dependen de provocar fallos reales del motor en staging. Si no se autoriza, quedan cubiertos solo por A y se registran como límite de cobertura, nunca como «probado en físico».
+
 ## S. Candidata de staging (actualizada 2026-10-30)
 
 **Va primero:** esta sección prevalece sobre §0–§5 en lo que respecta a staging. El resto del documento sigue describiendo el lanzamiento final.
@@ -391,6 +466,8 @@ CI se ejecuta por `workflow_dispatch`, porque los PR apilados no disparan CI.
   - #46: propuestas visuales (demo).
 
 ### Integración propuesta (sin ejecutar)
+**Actualización del 2026-11-03:** la ruta vigente es la de §T (#87 → `main`). Lo siguiente queda como historial.
+
 **Actualización del 2026-10-30:** la candidata es **#83** (sobre #82, que tiene base `main`); contiene #81 y A5 (ver §S). Se fusiona #83 en #82 y #82 en `main`, con commits de merge.
 
 **Principio:** conservar todos los commits y no duplicar ramas.
