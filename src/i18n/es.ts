@@ -1143,6 +1143,18 @@ export const es = {
     couldNotProcess: "No se pudo procesar",
     retakePhoto: "Volver a tomar foto",
     retakeDocument: "Tomar nuevas fotos",
+    // API #110 (F1): fallo técnico tras guardar las fotos; se reprocesan las mismas, nunca se vuelven a pedir.
+    technicalRetry: {
+      title: "No pudimos procesar las fotos",
+      description: "Fue un problema técnico, no de las fotos. Se conservan: puedes volver a procesarlas sin tomarlas de nuevo.",
+      button: "Volver a procesar las fotos",
+      processing: "Estamos procesando de nuevo las fotos guardadas. Puedes continuar y consultar el estado después.",
+      notAvailable: "No pudimos procesar las fotos por un problema técnico. Se conservan y la organización revisará el caso.",
+      inProgress: "Ya hay un procesamiento en curso. El resultado aparecerá aquí.",
+      notAvailableError: "Este reintento ya no está disponible. Actualizamos el estado.",
+      limitReached: "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasó a revisión de la organización.",
+      claimed: "La persona ya activó su cuenta; solo ella puede volver a procesar sus fotos.",
+    },
     tryAgain: "Intenta de nuevo",
     yourConfirmedDetails: "Tus datos confirmados",
     whatWeRead: "Lo que leímos de tu documento",

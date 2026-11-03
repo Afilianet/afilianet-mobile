@@ -148,6 +148,15 @@ export function isUnavailableFailureReason(reason: string | null): boolean {
   return reason !== null && UNAVAILABLE_REASONS.has(reason);
 }
 
+/**
+ * A failure of the engine, not of the photos (API #110): the unavailable
+ * reasons plus `unexpected_error`, which keeps its generic copy. Only these
+ * may offer processing the same photos again.
+ */
+export function isTechnicalFailureReason(reason: string | null): boolean {
+  return isUnavailableFailureReason(reason) || reason === "unexpected_error";
+}
+
 export function friendlyFailureReason(reason: string | null): string {
   if (reason === "poor_image_quality") {
     return strings.documentCapture.failureReasons.poorImageQuality;
