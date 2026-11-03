@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe("technical failure with the photos stored", () => {
-  it.each(["engine_busy", "timeout", "ocr_unavailable", "unexpected_error"])("%s: keeps the photos and offers to process them again", async (reason) => {
+  it.each(["engine_busy", "timeout", "ocr_unavailable", "unexpected_error", "processing_timeout"])("%s: keeps the photos and offers to process them again", async (reason) => {
     mockedFetchDocumentResult.mockResolvedValue(docResult({ failure_reason: reason }));
     const view = await renderStep();
     expect(await view.findByText(BUTTON)).toBeTruthy();
@@ -210,6 +210,13 @@ describe("no retry button", () => {
     expect(view.getByText("No pudimos procesar las fotos por un problema técnico. Se conservan y el caso pasará a revisión de la organización.")).toBeTruthy();
     expect(view.queryByText(BUTTON)).toBeNull();
     expect(view.queryByText(/rechaz/i)).toBeNull();
+  });
+
+  it("a lost run failed by the API as processing_timeout, no executions left: photos kept, goes to review", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(docResult({ failure_reason: "processing_timeout", retry_available: false, executions_used: 3 }));
+    const view = await renderStep();
+    expect(await view.findByTestId("document-retry-unavailable")).toBeTruthy();
+    expect(view.queryByText(BUTTON)).toBeNull();
   });
 
   it.each(["poor_image_quality", "image_decode_failed", "evidence_unavailable"])("unusable photo (%s, retry_available false): not a technical failure, no button", async (reason) => {

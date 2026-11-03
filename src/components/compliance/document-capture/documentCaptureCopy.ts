@@ -150,11 +150,12 @@ export function isUnavailableFailureReason(reason: string | null): boolean {
 
 /**
  * A failure of the engine, not of the photos (API #110): the unavailable
- * reasons plus `unexpected_error`, which keeps its generic copy. Only these
+ * reasons plus `unexpected_error` and `processing_timeout` (a run the worker
+ * lost, failed by the API when read), which keep the generic copy. Only these
  * may offer processing the same photos again.
  */
 export function isTechnicalFailureReason(reason: string | null): boolean {
-  return isUnavailableFailureReason(reason) || reason === "unexpected_error";
+  return isUnavailableFailureReason(reason) || reason === "unexpected_error" || reason === "processing_timeout";
 }
 
 export function friendlyFailureReason(reason: string | null): string {
