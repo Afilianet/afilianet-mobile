@@ -215,6 +215,13 @@ export interface ComplianceStep {
   requires_own_session?: boolean;
   /** Who accepted, as recorded; `assisted_enrollment` only on records before API #106. */
   accepted_via?: TermsAcceptedVia | null;
+  /**
+   * Only on terms_acceptance (API #109): true while the step is passed or
+   * skipped without the person's own acceptance (a sponsor's record, one
+   * without a version, a skipped step). The case cannot be approved until the
+   * person accepts from their own session; the step status does not change.
+   */
+  needs_own_acceptance?: boolean;
 }
 
 export type TermsAcceptedVia = "own_session" | "assisted_enrollment";
