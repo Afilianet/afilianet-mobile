@@ -15,4 +15,6 @@ export interface StepDetailProps {
   captureAvailable?: boolean;
   /** The case status from the same snapshot, when the step needs it to describe what happens next. */
   caseStatus?: ComplianceStatus;
+  /** The case's current_step from the same snapshot. */
+  currentStep?: string | null;
 }

@@ -498,12 +498,23 @@ export interface DocumentProcessingResult {
   id: string;
   /** The stored ID photos passed the server's capture-quality gate. */
   capture_accepted?: boolean;
+  /**
+   * API #110 (F1): the reader may run the engine again over the same stored
+   * photos -- only after a technical failure, under the server's cap, and
+   * never for a sponsor once the person activated the account. Absent on an
+   * earlier API: treated as false.
+   */
+  retry_available?: boolean;
+  /** Engine runs used and allowed for the current capture (API #110), the server's automatic retries included. */
+  executions_used?: number;
+  executions_max?: number;
   document_type: DocumentType;
   status: DocumentProcessingStatus;
   verdict: DocumentVerdict | null;
   confidence: number | null;
-  extracted_fields: ExtractedField[];
-  validation_checks: DocumentValidationCheck[];
+  // null until a run extracts something (pending, processing, technical failure), as the API serves it.
+  extracted_fields: ExtractedField[] | null;
+  validation_checks: DocumentValidationCheck[] | null;
   quality: DocumentQualityReport[] | null;
   confirmed_fields: Record<string, string> | null;
   // Server-authorized confirmation keys; optional while older API deployments remain in use.

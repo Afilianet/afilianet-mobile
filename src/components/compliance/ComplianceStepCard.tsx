@@ -95,6 +95,7 @@ export function ComplianceStepCard({
           processingOnly={access === "processing-only"}
           captureAvailable={captureAvailable}
           caseStatus={caseStatus}
+          currentStep={currentStep}
         />
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
