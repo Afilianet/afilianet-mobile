@@ -24,7 +24,10 @@
 
 ### Ruta de integración a `main` (propuesta, sin ejecutar)
 1. **Antes:** confirmar que #87 sigue en `19cdea6` y con CI verde. No hace falta repetir la suite si el head no cambió.
-2. **Cambiar la base de #87 a `main`.** Solo cambia la base: los commits y sus SHA no cambian. Al ser un PR contra `main`, CI se dispara solo.
+2. **Cambiar la base de #87 a `main`.** Solo cambia la base: los commits y sus SHA no cambian. **Hecho el 2026-11-03**, con `main` en `c95faeb`.
+   - **CI:** cambiar la base no dispara el workflow, que solo escucha `pull_request` al abrir, con commits nuevos o al reabrir, más `workflow_dispatch`.
+   - **Equivalencia:** el merge que calcula GitHub (`refs/pull/87/merge` = `7697bcd`, padres `c95faeb` y `19cdea6`, estado CLEAN) tiene **el mismo árbol** que `19cdea6`. El run verde 41571803921 cubre exactamente ese contenido.
+   - Para tener además un run con evento `pull_request` habría que cerrar y reabrir #87 o añadir un commit. Ninguna de las dos está autorizada.
 3. **Fusionar #87 con commit de merge**, nunca squash ni rebase. `main` es ancestro de #87, así que no hay conflictos. El árbol resultante es el de `19cdea6`, y todos los SHA probados (`e2e8de1` vc13, `d957a46` vc14, `ee1c38e` vc15) siguen en `main`.
 4. **Después, #80 (esta documentación):** cambiar su base a `main`; su diferencia queda solo en este archivo. Fusionarlo con commit de merge.
 5. **Cerrar sin fusionar, como «incluido en #87»:** #43, #47, #49–#79 y #81–#86. GitHub solo marca solos como fusionados los que tienen base `main` (#81, #82 y los anteriores con esa base); los demás hay que cerrarlos a mano.
@@ -66,22 +69,46 @@
    - Ni botón de términos ni de reintento.
    - Si la API responde `assisted_access_claimed`: «La persona ya activó su cuenta».
 
-**C. Requieren términos publicados** (decisión de Andrés y revisión legal; la app no inventa términos):
-4. **Aceptación propia en un paso ya resuelto:** un caso con `needs_own_acceptance: true`.
-   - Desde la cuenta de la persona: documento completo y «Aceptar estos términos».
-   - Tras aceptar: «Registramos tu aceptación desde tu cuenta» y, en revisión manual, «Tu verificación sigue pendiente de la revisión de la organización». Nunca «aprobado».
-   - Antes, leer el caso con L-caso (§S). Si el caso es el de Andrés, hace falta su autorización expresa.
-5. **Precedencia del patrocinador:** el mismo caso desde la sesión de quien registró a la persona debe mostrar «Falta que <nombre> acepte…» y ningún botón.
+**C. Requieren términos publicados y un fixture propio** (la app no inventa términos):
+4. **Aceptación propia en un paso ya resuelto** (`needs_own_acceptance: true`).
+   - **El caso de Andrés no sirve:** sus términos siguen **pendientes**. No hay una aceptación antigua que sustituir. Además, su caso no se toca.
+   - **Hace falta un fixture independiente:** un caso sintético en una organización de prueba. Su paso de términos debe estar resuelto sin aceptación propia, con una variante por situación: aceptado desde la sesión del patrocinador (registro previo a API #106), aceptado sin versión, u omitido. Debe tener además una cuenta sintética de la persona para entrar con ella.
+   - **Ese estado ya no se alcanza por el flujo normal,** porque API #106 impide que acepte el patrocinador. Lo tendría que sembrar API con un comando o seeder solo de staging, sobre esa organización, con datos ficticios, sin imágenes ni datos de identidad reales, y documentado para poder borrarlo.
+   - **Desde la cuenta sintética:** documento completo y «Aceptar estos términos». Tras aceptar: «Registramos tu aceptación desde tu cuenta» y, en revisión manual, «Tu verificación sigue pendiente de la revisión de la organización». Nunca «aprobado».
+5. **Precedencia del patrocinador:** el mismo fixture desde la sesión de quien registró a la persona sintética debe mostrar «Falta que <nombre> acepte…» y ningún botón.
+6. **Términos pendientes en un caso real, como el de Andrés:** solo se puede mirar. Debe verse el paso normal (documento y botón si están publicados, «no publicados» si no) y nunca el texto de sustitución. Aceptarlos en su caso requiere su autorización.
 
-**D. Requieren captura encendida y llamadas reales al motor o a proveedores** (autorización por ronda):
-6. **Documento sin datos extraídos:** captura nueva. Debe mostrar «Fotos de identificación guardadas» sin error mientras el OCR está pendiente.
-7. **Reintento técnico conservando las fotos:** necesita un fallo técnico real del motor, que solo se provoca de forma controlada con Infra. Debe mostrar «Volver a procesar las fotos» y los intentos restantes. Al pulsar, no se abre la cámara ni se sube nada.
-8. **Límite alcanzado:** tras 3 ejecuciones fallidas, sin botón.
-   - Caso en curso: «Tus fotos quedaron guardadas…», «Siguiente paso: <paso>».
-   - Revisión manual: «La organización revisará tu credencial». Nunca «rechazo».
-9. **Patrocinador tras activar la cuenta**, con un documento en fallo técnico: sin botón. Si la pantalla estaba abierta desde antes: «La persona ya activó su cuenta…» y ningún reintento.
+**D. Captura y reintentos con fallos controlados, aislados de staging compartido** (requieren autorización por ronda):
 
-**Riesgo de D:** 7–9 dependen de provocar fallos reales del motor en staging. Si no se autoriza, quedan cubiertos solo por A y se registran como límite de cobertura, nunca como «probado en físico».
+**No hace falta interrumpir el motor compartido.** Una caída real afectaría a otros casos y gastaría ejecuciones. Propuesta: un entorno aislado con fallos programados.
+- **Pila desechable**, el mismo patrón que la prueba de avisos (§3 y `docs/AVISOS_PRIVACIDAD_ES.md`):
+  - API del candidato #115 con su migración y una base de datos propia, accesible solo por Tailscale;
+  - un **motor simulado** en lugar de `identity-engine`: un servicio mínimo que responde según un guion por captura, por ejemplo «503 / `engine_busy`», «timeout», «colgado más de 5 min» o «éxito con campos nulos»;
+  - sin OCR real, sin AWS y sin llamadas a proveedores.
+- **APK de prueba con identidad propia,** como `privacy-test-apk`: otro paquete, que convive con vc15/vc16 sin compartir sesión ni datos y apunta solo a esa API. Necesita un build autorizado aparte.
+- **Liveness y face match fuera del alcance:** los pasos se siembran resueltos en el fixture. Así no se gasta ninguna sesión de AWS.
+- **Alternativa en staging, solo si se descarta la pila:** inyección de fallos limitada a una organización de prueba, con una variable solo de staging que API ignora para cualquier otra organización. Es más riesgoso porque comparte base de datos y colas, y requiere el visto bueno de API e Infra.
+
+**Escenarios en el entorno aislado:**
+7. **Documento sin datos extraídos:** el motor simulado deja la ejecución pendiente y después termina con campos nulos. La app muestra «Fotos de identificación guardadas», sin error.
+8. **Reintento técnico conservando las fotos:**
+   - Guion «fallo técnico → éxito»: la app muestra «Volver a procesar las fotos» y «Quedan 2 intentos». Al pulsar no se abre la cámara ni se sube nada (se verifica en el registro del motor simulado: misma captura, sin subidas nuevas). Luego, éxito.
+   - Doble pulsación: una sola ejecución.
+9. **Ejecución colgada:** «colgado más de 5 min». La API la marca `processing_timeout` y la app ofrece el reintento.
+10. **Límite alcanzado:** tres fallos técnicos. Sin botón.
+    - Caso en curso: «Tus fotos quedaron guardadas…» y «Siguiente paso: <paso>».
+    - Revisión manual: «La organización revisará tu credencial».
+    - Nunca «rechazo».
+11. **Patrocinador tras activar la cuenta:** alta asistida sintética, con el documento en fallo técnico, y la persona sintética activa su cuenta.
+    - Desde el patrocinador: sin botón.
+    - Con la pantalla abierta desde antes, al pulsar: «La persona ya activó su cuenta…» y ningún reintento.
+
+**Qué falta para D:**
+- API: el motor simulado (o el guion por variable), el seeder de fixtures y la configuración de la pila desechable.
+- Infra: Tailscale y el host, como en la prueba de avisos.
+- Mobile: un perfil de APK de prueba para esa API, como #76.
+
+Nada de esto está autorizado. Si no se hace, 7–11 quedan cubiertos solo por A y se registran como límite de cobertura, nunca como «probado en físico».
 
 ## S. Candidata de staging (actualizada 2026-10-30)
 
