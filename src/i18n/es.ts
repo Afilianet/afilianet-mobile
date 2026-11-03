@@ -1149,11 +1149,13 @@ export const es = {
       description: "Fue un problema técnico, no de las fotos. Se conservan: puedes volver a procesarlas sin tomarlas de nuevo.",
       button: "Volver a procesar las fotos",
       processing: "Estamos procesando de nuevo las fotos guardadas. Puedes continuar y consultar el estado después.",
-      notAvailable: "No pudimos procesar las fotos por un problema técnico. Se conservan y la organización revisará el caso.",
-      inProgress: "Ya hay un procesamiento en curso. El resultado aparecerá aquí.",
+      remaining: (count: number) => (count === 1 ? "Queda 1 intento." : `Quedan ${count} intentos.`),
+      // Nunca un rechazo: sin reintento disponible, el caso pasa a la revisión de la organización.
+      notAvailable: "No pudimos procesar las fotos por un problema técnico. Se conservan y el caso pasará a revisión de la organización.",
       notAvailableError: "Este reintento ya no está disponible. Actualizamos el estado.",
-      limitReached: "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasó a revisión de la organización.",
-      claimed: "La persona ya activó su cuenta; solo ella puede volver a procesar sus fotos.",
+      limitReached: "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasará a revisión de la organización.",
+      // Mismo título que el registro asistido sin conexión (#74).
+      claimed: "La persona ya activó su cuenta. Debe continuar la verificación desde su propia sesión.",
     },
     tryAgain: "Intenta de nuevo",
     yourConfirmedDetails: "Tus datos confirmados",

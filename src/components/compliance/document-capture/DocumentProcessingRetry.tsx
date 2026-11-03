@@ -10,13 +10,16 @@ import { isTechnicalFailureReason } from "./documentCaptureCopy";
 
 /**
  * The identity_document step is already passed with the photos stored
- * (capture_accepted) and the latest engine run failed for a TECHNICAL reason
- * (API #110). The photos are never discarded or uploaded again: the only
- * action re-runs the engine over them, and only while the server says
- * `retry_available` for this reader -- not for a sponsor once the person
- * activated the account, not past the cap. An unusable photo
- * (poor_image_quality and the like) is not a technical failure and never
- * gets this button. While a run started here is in flight it says so.
+ * (capture_accepted) and the engine may have failed (API #110). The photos
+ * are never discarded or uploaded again: the only action re-runs the engine
+ * over them, offered only while the server says `retry_available` for this
+ * reader -- it alone decides "technical failure, under the cap, case open,
+ * not a sponsor after the person activated the account". An unusable photo
+ * never gets it. While a run is pending or processing (one started here or
+ * the server's own automatic retry) there is nothing to tap; the remaining
+ * tries come from the server's counters, which include its automatic runs.
+ * Without a retry the case goes to the organization's review, never a
+ * rejection.
  */
 export function DocumentProcessingRetry({
   stepId,
@@ -30,7 +33,6 @@ export function DocumentProcessingRetry({
 }) {
   const mutation = useRetryDocumentProcessing(stepId);
   const [error, setError] = useState<string | null>(null);
-  const [retriedHere, setRetriedHere] = useState(false);
   // A ref, not state: two taps in the same tick both see isPending false.
   const submittingRef = useRef(false);
   const copy = strings.documentCapture.technicalRetry;
@@ -41,7 +43,6 @@ export function DocumentProcessingRetry({
     setError(null);
     try {
       await mutation.mutateAsync();
-      setRetriedHere(true);
     } catch (retryError) {
       setError(retryErrorMessage(retryError));
     } finally {
@@ -50,42 +51,48 @@ export function DocumentProcessingRetry({
   }
 
   if (result.status === "pending" || result.status === "processing") {
+    // A second run on the same capture: the one started here or the server's automatic retry.
+    const rerun = (result.executions_used ?? 1) > 1 || mutation.isSuccess;
     return (
       <Text style={styles.description} testID="document-retry-processing">
-        {retriedHere ? copy.processing : strings.documentCapture.captureAcceptedTitle}
+        {rerun ? copy.processing : strings.documentCapture.captureAcceptedTitle}
       </Text>
     );
   }
 
-  if (result.status !== "failed" || !isTechnicalFailureReason(result.failure_reason)) {
-    return <Text style={styles.description}>{strings.documentCapture.captureAcceptedTitle}</Text>;
-  }
-
-  if (result.retry_available !== true || !captureAvailable) {
+  if (result.retry_available === true && captureAvailable) {
+    const remaining = result.executions_max !== undefined && result.executions_used !== undefined
+      ? Math.max(result.executions_max - result.executions_used, 0)
+      : null;
     return (
-      <View style={styles.container} testID="document-retry-unavailable">
-        <Text style={styles.description}>{copy.notAvailable}</Text>
+      <View style={styles.container} testID="document-retry">
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.description}>{copy.description}</Text>
+        {remaining !== null ? <Text style={styles.meta}>{copy.remaining(remaining)}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Button label={copy.button} variant="secondary" loading={mutation.isPending} disabled={mutation.isPending} onPress={() => void handleRetry()} />
       </View>
     );
   }
 
-  return (
-    <View style={styles.container} testID="document-retry">
-      <Text style={styles.title}>{copy.title}</Text>
-      <Text style={styles.description}>{copy.description}</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label={copy.button} variant="secondary" loading={mutation.isPending} disabled={mutation.isPending} onPress={() => void handleRetry()} />
-    </View>
-  );
+  if (error || (result.status === "failed" && isTechnicalFailureReason(result.failure_reason))) {
+    return (
+      <View style={styles.container} testID="document-retry-unavailable">
+        <Text style={styles.description}>{error ?? copy.notAvailable}</Text>
+      </View>
+    );
+  }
+
+  return <Text style={styles.description}>{strings.documentCapture.captureAcceptedTitle}</Text>;
 }
 
-function retryErrorMessage(error: unknown): string {
+/** null: nothing to say -- the screen just reads the result again (another run already in flight). */
+function retryErrorMessage(error: unknown): string | null {
   const copy = strings.documentCapture.technicalRetry;
   if (!isApiError(error)) return strings.documentCapture.genericError;
   switch (error.reason) {
     case "document_processing_in_progress":
-      return copy.inProgress;
+      return null;
     case "document_retry_not_available":
       return copy.notAvailableError;
     case "document_retry_limit_reached":
@@ -103,5 +110,6 @@ const styles = StyleSheet.create({
   container: { gap: spacing.sm },
   title: { ...typography.bodyStrong, color: colors.textPrimary },
   description: { ...typography.body, color: colors.textSecondary },
+  meta: { ...typography.caption, color: colors.textTertiary },
   error: { ...typography.body, color: colors.danger },
 });

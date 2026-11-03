@@ -498,6 +498,9 @@ export interface DocumentProcessingResult {
    * earlier API: treated as false.
    */
   retry_available?: boolean;
+  /** Engine runs used and allowed for the current capture (API #110), the server's automatic retries included. */
+  executions_used?: number;
+  executions_max?: number;
   document_type: DocumentType;
   status: DocumentProcessingStatus;
   verdict: DocumentVerdict | null;

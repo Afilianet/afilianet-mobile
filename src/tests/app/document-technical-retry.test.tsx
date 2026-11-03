@@ -49,7 +49,7 @@ const STEP = {
 
 function docResult(overrides: Partial<DocumentProcessingResult> = {}): DocumentProcessingResult {
   return {
-    id: "ocr-1", capture_accepted: true, retry_available: true, document_type: "mx_ine", status: "failed", verdict: null,
+    id: "ocr-1", capture_accepted: true, retry_available: true, executions_used: 1, executions_max: 3, document_type: "mx_ine", status: "failed", verdict: null,
     confidence: null, extracted_fields: [], validation_checks: [], quality: null, confirmed_fields: null,
     confirmation_required: false, confirmation_status: "not_required", failure_reason: "engine_busy",
     processor_version: "sintetico-1", attempt_number: 1, started_at: null, completed_at: null, created_at: "2026-11-02T17:14:00Z",
@@ -57,7 +57,7 @@ function docResult(overrides: Partial<DocumentProcessingResult> = {}): DocumentP
   };
 }
 
-const RETRY_PENDING = docResult({ id: "ocr-2", status: "pending", failure_reason: null, retry_available: false, attempt_number: 2 });
+const RETRY_PENDING = docResult({ id: "ocr-2", status: "pending", failure_reason: null, retry_available: false, attempt_number: 2, executions_used: 2 });
 
 let queryClient: QueryClient;
 
@@ -97,6 +97,8 @@ describe("technical failure with the photos stored", () => {
     const view = await renderStep();
     expect(await view.findByText(BUTTON)).toBeTruthy();
     expect(view.getByText(/Fue un problema técnico, no de las fotos. Se conservan/)).toBeTruthy();
+    // From the server's counters, its automatic runs included.
+    expect(view.getByText("Quedan 2 intentos.")).toBeTruthy();
     expect(view.queryByText("Tomar nuevas fotos")).toBeNull();
     expect(view.queryByText("Volver a tomar foto")).toBeNull();
   });
@@ -120,7 +122,7 @@ describe("technical failure with the photos stored", () => {
       "Estamos procesando de nuevo las fotos guardadas. Puedes continuar y consultar el estado después.",
     );
 
-    served = docResult({ id: "ocr-2", status: "completed", verdict: "pass", failure_reason: null, retry_available: false, attempt_number: 2 });
+    served = docResult({ id: "ocr-2", status: "completed", verdict: "pass", failure_reason: null, retry_available: false, attempt_number: 2, executions_used: 2 });
     await waitFor(() => expect(view.queryByTestId("document-retry-processing")).toBeNull(), { timeout: 6000 });
     expect(view.queryByText(BUTTON)).toBeNull();
     expect(uploadAndCaptureCalls()).toBe(0);
@@ -143,41 +145,75 @@ describe("technical failure with the photos stored", () => {
   });
 
   it.each([
-    ["409 document_processing_in_progress", new ApiError("conflict", "x", 409, undefined, { reason: "document_processing_in_progress" }), "Ya hay un procesamiento en curso. El resultado aparecerá aquí."],
     ["409 document_retry_not_available", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_not_available" }), "Este reintento ya no está disponible. Actualizamos el estado."],
-    ["409 document_retry_limit_reached", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_limit_reached" }), "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasó a revisión de la organización."],
+    ["409 document_retry_limit_reached", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_limit_reached" }), "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasará a revisión de la organización."],
     ["503 document_engine_unavailable", new ApiError("server", "x", 503, undefined, { reason: "document_engine_unavailable" }), "La verificación de documentos no está disponible temporalmente. Inténtalo de nuevo en unos minutos."],
+    ["503 kyc_unavailable", new ApiError("server", "x", 503, undefined, { reason: "kyc_unavailable" }), "Verificación de identidad no disponible en esta organización."],
+    ["422 closed case", new ApiError("validation", "Esta verificación ya está cerrada.", 422), "Esta verificación ya está cerrada."],
   ])("%s: says so, reads the result again and never retries on its own", async (_label, error, message) => {
     mockedFetchDocumentResult.mockResolvedValue(docResult());
     mockedRetry.mockRejectedValue(error);
     const view = await renderStep();
-    const readsBefore = await waitFor(() => {
-      expect(mockedFetchDocumentResult).toHaveBeenCalled();
-      return mockedFetchDocumentResult.mock.calls.length;
-    });
+    await view.findByText(BUTTON);
+    const readsBefore = mockedFetchDocumentResult.mock.calls.length;
     await act(async () => {
-      fireEvent.press(await view.findByText(BUTTON));
+      fireEvent.press(view.getByText(BUTTON));
     });
     expect(await view.findByText(message)).toBeTruthy();
     await waitFor(() => expect(mockedFetchDocumentResult.mock.calls.length).toBeGreaterThan(readsBefore));
     expect(mockedRetry).toHaveBeenCalledTimes(1);
     expect(uploadAndCaptureCalls()).toBe(0);
   });
+
+  it("409 document_processing_in_progress: no error, reads the result again and shows the run already in flight", async () => {
+    let served = docResult();
+    mockedFetchDocumentResult.mockImplementation(async () => served);
+    mockedRetry.mockImplementation(async () => {
+      served = RETRY_PENDING;
+      throw new ApiError("conflict", "x", 409, undefined, { reason: "document_processing_in_progress" });
+    });
+    const view = await renderStep();
+    await act(async () => {
+      fireEvent.press(await view.findByText(BUTTON));
+    });
+    expect((await view.findByTestId("document-retry-processing")).props.children).toMatch(/procesando de nuevo las fotos guardadas/);
+    expect(view.queryByText(/Algo salió mal/)).toBeNull();
+    expect(mockedRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("the server's automatic retry: keeps polling the new pending run, shows no button meanwhile and never calls retry", async () => {
+    let served = docResult({ status: "processing", failure_reason: null, retry_available: false });
+    mockedFetchDocumentResult.mockImplementation(async () => served);
+    const view = await renderStep();
+    expect((await view.findByTestId("document-retry-processing")).props.children).toBe("Fotos de identificación guardadas");
+
+    // The engine failed and the server already queued the next run (higher attempt_number, same capture).
+    served = docResult({ id: "ocr-2", status: "pending", failure_reason: null, retry_available: true, attempt_number: 2, executions_used: 2 });
+    await waitFor(() => expect(view.getByTestId("document-retry-processing").props.children).toMatch(/procesando de nuevo/), { timeout: 6000 });
+    expect(view.queryByText(BUTTON)).toBeNull();
+
+    served = docResult({ id: "ocr-2", status: "completed", verdict: "pass", failure_reason: null, retry_available: false, attempt_number: 2, executions_used: 2 });
+    await waitFor(() => expect(view.queryByTestId("document-retry-processing")).toBeNull(), { timeout: 6000 });
+    expect(mockedRetry).not.toHaveBeenCalled();
+    expect(uploadAndCaptureCalls()).toBe(0);
+  }, 15000);
 });
 
 describe("no retry button", () => {
   it.each([
-    ["retry_available false (cap reached or staff intervened)", docResult({ retry_available: false })],
+    ["retry_available false (cap reached or staff intervened)", docResult({ retry_available: false, executions_used: 3 })],
     ["retry_available absent (API before #110)", docResult({ retry_available: undefined })],
   ])("%s on a technical failure: photos kept, the organization reviews", async (_label, result) => {
     mockedFetchDocumentResult.mockResolvedValue(result);
     const view = await renderStep();
-    expect(await view.findByTestId("document-retry-unavailable")).toBeTruthy();
+    expect((await view.findByTestId("document-retry-unavailable"))).toBeTruthy();
+    expect(view.getByText("No pudimos procesar las fotos por un problema técnico. Se conservan y el caso pasará a revisión de la organización.")).toBeTruthy();
     expect(view.queryByText(BUTTON)).toBeNull();
+    expect(view.queryByText(/rechaz/i)).toBeNull();
   });
 
-  it.each(["poor_image_quality", "image_decode_failed", "evidence_unavailable"])("unusable photo (%s) is not a technical failure, even if the flag were true", async (reason) => {
-    mockedFetchDocumentResult.mockResolvedValue(docResult({ failure_reason: reason }));
+  it.each(["poor_image_quality", "image_decode_failed", "evidence_unavailable"])("unusable photo (%s, retry_available false): not a technical failure, no button", async (reason) => {
+    mockedFetchDocumentResult.mockResolvedValue(docResult({ failure_reason: reason, retry_available: false }));
     const view = await renderStep();
     expect(await view.findByText("Fotos de identificación guardadas")).toBeTruthy();
     expect(view.queryByText(BUTTON)).toBeNull();
@@ -220,7 +256,7 @@ describe("sponsor in an assisted verification", () => {
     await act(async () => {
       fireEvent.press(await view.findByText(BUTTON));
     });
-    expect(await view.findByText("La persona ya activó su cuenta; solo ella puede volver a procesar sus fotos.")).toBeTruthy();
+    expect(await view.findByText("La persona ya activó su cuenta. Debe continuar la verificación desde su propia sesión.")).toBeTruthy();
     await waitFor(() => expect(view.queryByText(BUTTON)).toBeNull());
     expect(mockedRetry).toHaveBeenCalledTimes(1);
     expect(uploadAndCaptureCalls()).toBe(0);
