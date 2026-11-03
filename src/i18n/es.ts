@@ -1143,6 +1143,28 @@ export const es = {
     couldNotProcess: "No se pudo procesar",
     retakePhoto: "Volver a tomar foto",
     retakeDocument: "Tomar nuevas fotos",
+    // API #110 (F1): fallo técnico tras guardar las fotos; se reprocesan las mismas, nunca se vuelven a pedir.
+    technicalRetry: {
+      title: "No pudimos procesar las fotos",
+      description: "Fue un problema técnico, no de las fotos. Se conservan: puedes volver a procesarlas sin tomarlas de nuevo.",
+      button: "Volver a procesar las fotos",
+      processing: "Estamos procesando de nuevo las fotos guardadas. Puedes continuar y consultar el estado después.",
+      remaining: (count: number) => (count === 1 ? "Queda 1 intento." : `Quedan ${count} intentos.`),
+      // Sin reintento disponible (API #112): nada se rechaza y el caso no cambia de estado. Solo llega a
+      // revisión cuando se completan los pasos pendientes, así que el texto depende del estado del caso.
+      exhaustedInProgress:
+        "No pudimos leer los datos de tu credencial. Tus fotos quedaron guardadas; no necesitas tomarlas de nuevo. Puedes continuar con los pasos pendientes. La organización revisará tu credencial cuando completes tu verificación.",
+      exhaustedInProgressAssisted:
+        "No pudimos leer los datos de la credencial. Las fotos quedaron guardadas; no es necesario tomarlas de nuevo. Se puede continuar con los pasos pendientes. La organización revisará la credencial de la persona cuando se complete su verificación.",
+      exhaustedInReview: "Tus fotos quedaron guardadas. La organización revisará tu credencial.",
+      exhaustedInReviewAssisted: "Las fotos de la persona quedaron guardadas. La organización revisará su credencial.",
+      exhaustedOther: "Tus fotos quedaron guardadas; no necesitas tomarlas de nuevo.",
+      exhaustedOtherAssisted: "Las fotos de la persona quedaron guardadas; no es necesario tomarlas de nuevo.",
+      nextStep: (label: string) => `Siguiente paso: ${label}.`,
+      notAvailableError: "Este reintento ya no está disponible. Actualizamos el estado.",
+      // Mismo título que el registro asistido sin conexión (#74).
+      claimed: "La persona ya activó su cuenta. Debe continuar la verificación desde su propia sesión.",
+    },
     tryAgain: "Intenta de nuevo",
     yourConfirmedDetails: "Tus datos confirmados",
     whatWeRead: "Lo que leímos de tu documento",

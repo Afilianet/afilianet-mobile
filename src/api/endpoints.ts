@@ -188,6 +188,24 @@ export async function triggerDocumentProcessing(
 }
 
 /**
+ * Runs the document engine again over the SAME photos already stored for the
+ * current capture (API #110, F1): no body, nothing is uploaded again. Only
+ * after a technical failure and while the result says `retry_available`;
+ * the server refuses anything else with a reason (409
+ * document_processing_in_progress / document_retry_not_available /
+ * document_retry_limit_reached / assisted_access_claimed, 503
+ * document_engine_unavailable / kyc_unavailable). Returns 202 with the new
+ * `pending` result, polled like any other.
+ */
+export async function retryDocumentProcessing(stepId: string, assistedEnrollmentId?: string): Promise<DocumentProcessingResult> {
+  const { data } = await apiRequest<{ data: DocumentProcessingResult }>(
+    `/api/v1/compliance/steps/${stepId}/document-processing/retry`,
+    { ...complianceScope(assistedEnrollmentId), method: "POST" },
+  );
+  return data;
+}
+
+/**
  * The latest document-processing attempt for a step. 404s
  * (`DocumentProcessingException::noResultYet()`) when processing has never
  * been triggered for this step -- callers should treat that as "no result
