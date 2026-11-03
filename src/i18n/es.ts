@@ -951,6 +951,14 @@ export const es = {
       // accepted_via distingue quién ejecutó la aceptación; los registros anteriores a API #106 pueden decir assisted_enrollment.
       acceptedByPerson: "La persona aceptó los términos desde su propia cuenta.",
       acceptedViaSponsor: "Los términos se aceptaron durante el registro asistido, desde la sesión de quien registró a la persona.",
+      skippedText: "Este paso se omitió.",
+      // API #109: paso ya resuelto sin aceptación propia (la de quien patrocinó, sin versión u omitido).
+      needsOwnAcceptance: "Falta que aceptes estos términos desde tu propia cuenta. Léelos antes de aceptar.",
+      needsOwnAcceptanceUnavailable:
+        "Falta que aceptes los términos desde tu propia cuenta, pero ahora la verificación de identidad no está disponible en esta organización.",
+      ownAcceptanceRecorded: "Registramos tu aceptación desde tu cuenta.",
+      // Nunca promete aprobación: el estado del caso no cambia con la aceptación.
+      ownAcceptanceAwaitingReview: "Registramos tu aceptación desde tu cuenta. Tu verificación sigue pendiente de la revisión de la organización.",
     },
     verbalConsent: {
       recordedText: "Tu consentimiento verbal fue registrado.",
