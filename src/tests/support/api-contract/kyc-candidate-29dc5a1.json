@@ -1,0 +1,392 @@
+{
+    "document_capture_202": {
+        "status": 202,
+        "body": {
+            "data": {
+                "id": "4b239bea-a270-44a4-af22-8fd8be5e4a3a",
+                "document_type": "mx_ine",
+                "capture_accepted": true,
+                "status": "pending",
+                "verdict": null,
+                "confidence": null,
+                "extracted_fields": null,
+                "confirmed_fields": null,
+                "validation_checks": null,
+                "quality": null,
+                "failure_reason": null,
+                "processor_version": "afilianet-document-engine-1",
+                "attempt_number": 1,
+                "retry_available": false,
+                "executions_used": 1,
+                "executions_max": 3,
+                "started_at": null,
+                "completed_at": null,
+                "created_at": "2026-11-03T02:24:35.000000Z",
+                "confirmable_fields": [],
+                "confirmation_required": false,
+                "confirmation_status": "not_required"
+            }
+        }
+    },
+    "retry_409_in_progress": {
+        "status": 409,
+        "body": {
+            "message": "Ya hay un intento de procesamiento de documento en curso para este paso.",
+            "reason": "document_processing_in_progress"
+        }
+    },
+    "document_result_failed_technical": {
+        "status": 200,
+        "body": {
+            "data": {
+                "id": "4b239bea-a270-44a4-af22-8fd8be5e4a3a",
+                "document_type": "mx_ine",
+                "capture_accepted": true,
+                "status": "failed",
+                "verdict": null,
+                "confidence": null,
+                "extracted_fields": null,
+                "confirmed_fields": null,
+                "validation_checks": null,
+                "quality": null,
+                "failure_reason": "unauthorized",
+                "processor_version": "afilianet-document-engine-1",
+                "attempt_number": 1,
+                "retry_available": true,
+                "executions_used": 1,
+                "executions_max": 3,
+                "started_at": "2026-11-03T02:24:35.000000Z",
+                "completed_at": "2026-11-03T02:24:35.000000Z",
+                "created_at": "2026-11-03T02:24:35.000000Z",
+                "confirmable_fields": [],
+                "confirmation_required": false,
+                "confirmation_status": "not_required"
+            }
+        }
+    },
+    "retry_202": {
+        "status": 202,
+        "body": {
+            "data": {
+                "id": "3317eb3d-9790-47f3-879e-91a458856861",
+                "document_type": "mx_ine",
+                "capture_accepted": true,
+                "status": "pending",
+                "verdict": null,
+                "confidence": null,
+                "extracted_fields": null,
+                "confirmed_fields": null,
+                "validation_checks": null,
+                "quality": null,
+                "failure_reason": null,
+                "processor_version": "afilianet-document-engine-1",
+                "attempt_number": 2,
+                "retry_available": false,
+                "executions_used": 2,
+                "executions_max": 3,
+                "started_at": null,
+                "completed_at": null,
+                "created_at": "2026-11-03T02:24:35.000000Z",
+                "confirmable_fields": [],
+                "confirmation_required": false,
+                "confirmation_status": "not_required"
+            }
+        }
+    },
+    "retry_202_second": {
+        "status": 202,
+        "body": {
+            "data": {
+                "id": "ac535282-83ca-457c-b1d2-3e537fd36939",
+                "document_type": "mx_ine",
+                "capture_accepted": true,
+                "status": "pending",
+                "verdict": null,
+                "confidence": null,
+                "extracted_fields": null,
+                "confirmed_fields": null,
+                "validation_checks": null,
+                "quality": null,
+                "failure_reason": null,
+                "processor_version": "afilianet-document-engine-1",
+                "attempt_number": 3,
+                "retry_available": false,
+                "executions_used": 3,
+                "executions_max": 3,
+                "started_at": null,
+                "completed_at": null,
+                "created_at": "2026-11-03T02:24:35.000000Z",
+                "confirmable_fields": [],
+                "confirmation_required": false,
+                "confirmation_status": "not_required"
+            }
+        }
+    },
+    "document_result_exhausted": {
+        "status": 200,
+        "body": {
+            "data": {
+                "id": "ac535282-83ca-457c-b1d2-3e537fd36939",
+                "document_type": "mx_ine",
+                "capture_accepted": true,
+                "status": "failed",
+                "verdict": null,
+                "confidence": null,
+                "extracted_fields": null,
+                "confirmed_fields": null,
+                "validation_checks": null,
+                "quality": null,
+                "failure_reason": "engine_busy",
+                "processor_version": "afilianet-document-engine-1",
+                "attempt_number": 3,
+                "retry_available": false,
+                "executions_used": 3,
+                "executions_max": 3,
+                "started_at": null,
+                "completed_at": "2026-11-03T02:24:35.000000Z",
+                "created_at": "2026-11-03T02:24:35.000000Z",
+                "confirmable_fields": [],
+                "confirmation_required": false,
+                "confirmation_status": "not_required"
+            }
+        }
+    },
+    "retry_409_limit": {
+        "status": 409,
+        "body": {
+            "message": "Se agotaron los intentos con estas fotos. La organización revisará tu caso.",
+            "reason": "document_retry_limit_reached"
+        }
+    },
+    "compliance_in_progress_after_exhaustion": {
+        "status": 200,
+        "body": {
+            "data": {
+                "id": "f343d860-6e9e-4b3e-adbb-4c304c8ee3ae",
+                "organization_id": "ecf9a3d7-58b9-470e-bb14-38b18c14e21b",
+                "user": {
+                    "id": "c3c56b99-7e3e-4e70-8cc0-9b8d24babe53",
+                    "first_name": "Angeline",
+                    "last_name": "Kirlin"
+                },
+                "affiliate": {
+                    "id": "2055843e-754b-4f28-a102-c45d4cdd7854",
+                    "affiliate_code": "KIRL9466"
+                },
+                "status": "in_progress",
+                "assurance_level": null,
+                "current_step": "terms_acceptance",
+                "risk_level": null,
+                "started_at": "2026-11-03T02:24:35.000000Z",
+                "submitted_at": null,
+                "reviewed_at": null,
+                "approved_at": null,
+                "rejected_at": null,
+                "expires_at": null,
+                "rejection_reason": null,
+                "identity_data_status": "needs_review",
+                "steps": [
+                    {
+                        "id": "94a16944-408d-413d-a5fb-4136024451db",
+                        "step_type": "identity_document",
+                        "status": "passed",
+                        "provider": "afilianet",
+                        "score": 0.5,
+                        "reason": null,
+                        "attempt_count": 1,
+                        "completed_at": "2026-11-03T02:24:35.000000Z",
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": "afilianet",
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null
+                    },
+                    {
+                        "id": "3ed1a3c8-b85f-40cc-afaf-1f266a1f29f9",
+                        "step_type": "terms_acceptance",
+                        "status": "pending",
+                        "provider": null,
+                        "score": null,
+                        "reason": null,
+                        "attempt_count": 0,
+                        "completed_at": null,
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": null,
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null,
+                        "terms_document": null,
+                        "requires_own_session": false,
+                        "accepted_via": null,
+                        "needs_own_acceptance": false
+                    }
+                ],
+                "created_at": "2026-11-03T02:24:35.000000Z"
+            }
+        }
+    },
+    "compliance_needs_own_acceptance": {
+        "status": 200,
+        "body": {
+            "data": {
+                "id": "f343d860-6e9e-4b3e-adbb-4c304c8ee3ae",
+                "organization_id": "ecf9a3d7-58b9-470e-bb14-38b18c14e21b",
+                "user": {
+                    "id": "c3c56b99-7e3e-4e70-8cc0-9b8d24babe53",
+                    "first_name": "Angeline",
+                    "last_name": "Kirlin"
+                },
+                "affiliate": {
+                    "id": "2055843e-754b-4f28-a102-c45d4cdd7854",
+                    "affiliate_code": "KIRL9466"
+                },
+                "status": "manual_review",
+                "assurance_level": null,
+                "current_step": "terms_acceptance",
+                "risk_level": null,
+                "started_at": "2026-11-03T02:24:35.000000Z",
+                "submitted_at": "2026-11-03T02:24:35.000000Z",
+                "reviewed_at": null,
+                "approved_at": null,
+                "rejected_at": null,
+                "expires_at": null,
+                "rejection_reason": null,
+                "identity_data_status": "needs_review",
+                "steps": [
+                    {
+                        "id": "94a16944-408d-413d-a5fb-4136024451db",
+                        "step_type": "identity_document",
+                        "status": "passed",
+                        "provider": "afilianet",
+                        "score": 0.5,
+                        "reason": null,
+                        "attempt_count": 1,
+                        "completed_at": "2026-11-03T02:24:35.000000Z",
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": "afilianet",
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null
+                    },
+                    {
+                        "id": "3ed1a3c8-b85f-40cc-afaf-1f266a1f29f9",
+                        "step_type": "terms_acceptance",
+                        "status": "passed",
+                        "provider": null,
+                        "score": null,
+                        "reason": null,
+                        "attempt_count": 1,
+                        "completed_at": null,
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": null,
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null,
+                        "terms_document": null,
+                        "requires_own_session": false,
+                        "accepted_via": "assisted_enrollment",
+                        "needs_own_acceptance": true
+                    }
+                ],
+                "created_at": "2026-11-03T02:24:35.000000Z"
+            }
+        }
+    },
+    "terms_409_not_published": {
+        "status": 409,
+        "body": {
+            "message": "Los términos de esta verificación todavía no están publicados. Este paso no puede completarse por ahora.",
+            "reason": "terms_not_published"
+        }
+    },
+    "terms_replace_200": {
+        "status": 200,
+        "body": {
+            "data": {
+                "id": "f343d860-6e9e-4b3e-adbb-4c304c8ee3ae",
+                "organization_id": "ecf9a3d7-58b9-470e-bb14-38b18c14e21b",
+                "user": {
+                    "id": "c3c56b99-7e3e-4e70-8cc0-9b8d24babe53",
+                    "first_name": "Angeline",
+                    "last_name": "Kirlin"
+                },
+                "affiliate": {
+                    "id": "2055843e-754b-4f28-a102-c45d4cdd7854",
+                    "affiliate_code": "KIRL9466"
+                },
+                "status": "manual_review",
+                "assurance_level": null,
+                "current_step": "terms_acceptance",
+                "risk_level": null,
+                "started_at": "2026-11-03T02:24:35.000000Z",
+                "submitted_at": "2026-11-03T02:24:35.000000Z",
+                "reviewed_at": null,
+                "approved_at": null,
+                "rejected_at": null,
+                "expires_at": null,
+                "rejection_reason": null,
+                "identity_data_status": "needs_review",
+                "steps": [
+                    {
+                        "id": "94a16944-408d-413d-a5fb-4136024451db",
+                        "step_type": "identity_document",
+                        "status": "passed",
+                        "provider": "afilianet",
+                        "score": 0.5,
+                        "reason": null,
+                        "attempt_count": 1,
+                        "completed_at": "2026-11-03T02:24:35.000000Z",
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": "afilianet",
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null
+                    },
+                    {
+                        "id": "3ed1a3c8-b85f-40cc-afaf-1f266a1f29f9",
+                        "step_type": "terms_acceptance",
+                        "status": "passed",
+                        "provider": null,
+                        "score": null,
+                        "reason": null,
+                        "attempt_count": 2,
+                        "completed_at": "2026-11-03T02:24:35.000000Z",
+                        "created_at": "2026-11-03T02:24:35.000000Z",
+                        "configured_provider": null,
+                        "provider_actionable": true,
+                        "provider_unavailable_reason": null,
+                        "manual_review": null,
+                        "terms_document": {
+                            "version": "prueba-terminos.1",
+                            "title": "PRUEBA – NO ES UN TEXTO LEGAL",
+                            "sections": [
+                                {
+                                    "title": "Documento de prueba",
+                                    "text": "Texto ficticio solo para pruebas automáticas. No es un documento real ni aprobado."
+                                }
+                            ],
+                            "content_sha256": "e575b8a99332654149b0ca1ab7f016a49b5eb20621b7b7bf4413a7ebec743918"
+                        },
+                        "requires_own_session": false,
+                        "accepted_via": "own_session",
+                        "needs_own_acceptance": false
+                    }
+                ],
+                "created_at": "2026-11-03T02:24:35.000000Z"
+            }
+        }
+    },
+    "terms_422_already_own": {
+        "status": 422,
+        "body": {
+            "message": "Los pasos solo pueden intentarse mientras el caso de cumplimiento está en progreso."
+        }
+    },
+    "retry_422_case_closed": {
+        "status": 422,
+        "body": {
+            "message": "Esta verificación ya está cerrada.",
+            "reason": "case_closed"
+        }
+    }
+}
