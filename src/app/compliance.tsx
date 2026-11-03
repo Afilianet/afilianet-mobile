@@ -114,7 +114,7 @@ function ComplianceScreenContent() {
           <>
             {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} captureAvailable={captureAvailable} />
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} caseStatus={complianceQuery.data.status} captureAvailable={captureAvailable} />
           </>
         ) : null}
       </ScrollView>
@@ -179,12 +179,14 @@ function StepsCard({
   currentStep,
   identityDataStatus,
   caseSteps,
+  caseStatus,
   captureAvailable,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
   identityDataStatus: ComplianceCase["identity_data_status"];
   caseSteps?: ComplianceStep[];
+  caseStatus?: ComplianceCase["status"];
   captureAvailable: boolean;
 }) {
   // Case status, current step and rows must come from one server snapshot.
@@ -218,7 +220,7 @@ function StepsCard({
         ) : null}
         {steps.map((step) => (
           <View key={step.id}>
-            <ComplianceStepCard step={step} currentStep={currentStep} steps={steps} />
+            <ComplianceStepCard step={step} currentStep={currentStep} steps={steps} caseStatus={caseStatus} />
             {step.step_type === "identity_document" && identityDataStatus ? (
               <View style={styles.identityDataRow} accessible
                 accessibilityLabel={`${strings.compliance.identityData.title}: ${strings.compliance.identityData.status[identityDataStatus]}`}>

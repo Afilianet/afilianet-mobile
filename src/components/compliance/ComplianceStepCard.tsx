@@ -7,7 +7,7 @@ import { useAttemptComplianceStep } from "../../hooks/useAttemptComplianceStep";
 import { strings } from "../../i18n";
 import { identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
-import type { AttemptStepPayload, ComplianceStep, ComplianceStepType } from "../../types/api";
+import type { AttemptStepPayload, ComplianceStatus, ComplianceStep, ComplianceStepType } from "../../types/api";
 import { formatDate } from "../../utils/date";
 import { Badge } from "../ui/Badge";
 import { colors, spacing, typography } from "../ui/theme";
@@ -39,11 +39,13 @@ export function ComplianceStepCard({
   step,
   currentStep,
   steps = [],
+  caseStatus,
 }: {
   step: ComplianceStep;
   currentStep: string | null;
   /** The case's steps from the same snapshot, for stepOrder.ts's face_match exception. */
   steps?: readonly ComplianceStep[];
+  caseStatus?: ComplianceStatus;
 }) {
   const mutation = useAttemptComplianceStep();
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +93,8 @@ export function ComplianceStepCard({
           attempt={(payload) => void attempt(payload)}
           isPending={mutation.isPending}
           processingOnly={access === "processing-only"}
+          captureAvailable={captureAvailable}
+          caseStatus={caseStatus}
         />
       ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}

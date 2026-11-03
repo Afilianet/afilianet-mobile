@@ -881,6 +881,12 @@ export const en = {
       requiresOwnSessionError: "This person must accept the terms from their own account. No acceptance was recorded.",
       acceptedByPerson: "The person accepted the terms from their own account.",
       acceptedViaSponsor: "The terms were accepted during the assisted registration, from the session of whoever registered the person.",
+      skippedText: "This step was skipped.",
+      needsOwnAcceptance: "You still need to accept these terms from your own account. Read them before accepting.",
+      needsOwnAcceptanceUnavailable:
+        "You still need to accept the terms from your own account, but identity verification isn't available in this organization right now.",
+      ownAcceptanceRecorded: "We recorded your acceptance from your account.",
+      ownAcceptanceAwaitingReview: "We recorded your acceptance from your account. Your verification is still waiting for the organization's review.",
     },
     verbalConsent: {
       recordedText: "Your verbal consent was recorded.",
