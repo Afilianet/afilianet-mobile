@@ -73,11 +73,11 @@ export function useDocumentResult(stepId: string | undefined) {
             confirmationStatus: result.confirmation_status,
             confidence: result.confidence,
             processorVersion: result.processor_version,
-            fieldConfidences: result.extracted_fields.map((field) => ({
+            fieldConfidences: (result.extracted_fields ?? []).map((field) => ({
               name: field.name,
               confidence: field.confidence,
             })),
-            failedValidationChecks: result.validation_checks
+            failedValidationChecks: (result.validation_checks ?? [])
               .filter((check) => !check.passed)
               .map((check) => check.name),
               quality: result.quality?.map((report) => ({

@@ -505,8 +505,9 @@ export interface DocumentProcessingResult {
   status: DocumentProcessingStatus;
   verdict: DocumentVerdict | null;
   confidence: number | null;
-  extracted_fields: ExtractedField[];
-  validation_checks: DocumentValidationCheck[];
+  // null until a run extracts something (pending, processing, technical failure), as the API serves it.
+  extracted_fields: ExtractedField[] | null;
+  validation_checks: DocumentValidationCheck[] | null;
   quality: DocumentQualityReport[] | null;
   confirmed_fields: Record<string, string> | null;
   // Server-authorized confirmation keys; optional while older API deployments remain in use.
