@@ -1150,10 +1150,18 @@ export const es = {
       button: "Volver a procesar las fotos",
       processing: "Estamos procesando de nuevo las fotos guardadas. Puedes continuar y consultar el estado después.",
       remaining: (count: number) => (count === 1 ? "Queda 1 intento." : `Quedan ${count} intentos.`),
-      // Nunca un rechazo: sin reintento disponible, el caso pasa a la revisión de la organización.
-      notAvailable: "No pudimos procesar las fotos por un problema técnico. Se conservan y el caso pasará a revisión de la organización.",
+      // Sin reintento disponible (API #112): nada se rechaza y el caso no cambia de estado. Solo llega a
+      // revisión cuando se completan los pasos pendientes, así que el texto depende del estado del caso.
+      exhaustedInProgress:
+        "No pudimos leer los datos de tu credencial. Tus fotos quedaron guardadas; no necesitas tomarlas de nuevo. Puedes continuar con los pasos pendientes. La organización revisará tu credencial cuando completes tu verificación.",
+      exhaustedInProgressAssisted:
+        "No pudimos leer los datos de la credencial. Las fotos quedaron guardadas; no es necesario tomarlas de nuevo. Se puede continuar con los pasos pendientes. La organización revisará la credencial de la persona cuando se complete su verificación.",
+      exhaustedInReview: "Tus fotos quedaron guardadas. La organización revisará tu credencial.",
+      exhaustedInReviewAssisted: "Las fotos de la persona quedaron guardadas. La organización revisará su credencial.",
+      exhaustedOther: "Tus fotos quedaron guardadas; no necesitas tomarlas de nuevo.",
+      exhaustedOtherAssisted: "Las fotos de la persona quedaron guardadas; no es necesario tomarlas de nuevo.",
+      nextStep: (label: string) => `Siguiente paso: ${label}.`,
       notAvailableError: "Este reintento ya no está disponible. Actualizamos el estado.",
-      limitReached: "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasará a revisión de la organización.",
       // Mismo título que el registro asistido sin conexión (#74).
       claimed: "La persona ya activó su cuenta. Debe continuar la verificación desde su propia sesión.",
     },

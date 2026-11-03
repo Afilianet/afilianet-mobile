@@ -3,15 +3,19 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
 import {
   completeEvidenceUpload,
+  fetchComplianceSteps,
   fetchDocumentResult,
+  fetchMyAffiliateProfile,
+  fetchMyCompliance,
   requestEvidenceUpload,
   retryDocumentProcessing,
   triggerDocumentProcessing,
 } from "../../api/endpoints";
+import ComplianceScreen from "../../app/compliance";
 import { IdentityDocumentStep } from "../../components/compliance/steps/IdentityDocumentStep";
 import { AssistedComplianceContext } from "../../state/ComplianceScopeContext";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
-import type { ComplianceStep, DocumentProcessingResult, Organization } from "../../types/api";
+import type { ComplianceStatus, ComplianceStep, DocumentProcessingResult, Organization } from "../../types/api";
 
 /**
  * API #110 (F1): the ID photos are stored (capture-first, step passed) and the
@@ -30,6 +34,10 @@ jest.mock("../../api/endpoints", () => ({
   requestEvidenceUpload: jest.fn(),
   completeEvidenceUpload: jest.fn(),
   attemptComplianceStep: jest.fn(),
+  fetchMyAffiliateProfile: jest.fn(),
+  fetchMyCompliance: jest.fn(),
+  fetchComplianceSteps: jest.fn(),
+  startCompliance: jest.fn(),
 }));
 jest.mock("../../services/analytics", () => ({ analytics: { capture: jest.fn() } }));
 
@@ -65,11 +73,16 @@ function orgValue(organization: Organization): OrganizationContextValue {
   return { status: "ready", organizations: [organization], activeOrganization: organization, error: null, selectOrganization: jest.fn(), refresh: jest.fn() };
 }
 
-async function renderStep({ assisted, organization = ORG }: { assisted?: string; organization?: Organization } = {}) {
+async function renderStep({
+  assisted,
+  organization = ORG,
+  caseStatus = "in_progress",
+  currentStep = "biometric_liveness",
+}: { assisted?: string; organization?: Organization; caseStatus?: ComplianceStatus; currentStep?: string | null } = {}) {
   const tree = (
     <QueryClientProvider client={queryClient}>
       <OrganizationContext.Provider value={orgValue(organization)}>
-        <IdentityDocumentStep step={STEP} attempt={jest.fn()} isPending={false} />
+        <IdentityDocumentStep step={STEP} attempt={jest.fn()} isPending={false} caseStatus={caseStatus} currentStep={currentStep} />
       </OrganizationContext.Provider>
     </QueryClientProvider>
   );
@@ -81,6 +94,15 @@ async function renderStep({ assisted, organization = ORG }: { assisted?: string;
 }
 
 const BUTTON = "Volver a procesar las fotos";
+const IN_PROGRESS_TEXT =
+  "No pudimos leer los datos de tu credencial. Tus fotos quedaron guardadas; no necesitas tomarlas de nuevo. Puedes continuar con los pasos pendientes. La organización revisará tu credencial cuando completes tu verificación.";
+
+/** Never a rejection, never a new capture, never «already sent to review» while steps are pending. */
+function expectNoPromiseNorRejection(view: Awaited<ReturnType<typeof render>>) {
+  expect(view.queryByText(/rechaz/i)).toBeNull();
+  expect(view.queryByText(/vuelve a tomar|volver a tomar|tomar nuevas fotos/i)).toBeNull();
+  expect(view.queryByText(/(en|pasó a|pasará a) revisión/i)).toBeNull();
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -146,7 +168,7 @@ describe("technical failure with the photos stored", () => {
 
   it.each([
     ["409 document_retry_not_available", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_not_available" }), "Este reintento ya no está disponible. Actualizamos el estado."],
-    ["409 document_retry_limit_reached", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_limit_reached" }), "Ya no se pueden volver a procesar desde la app. Las fotos se conservan y el caso pasará a revisión de la organización."],
+    ["409 document_retry_limit_reached", new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_limit_reached" }), IN_PROGRESS_TEXT],
     ["503 document_engine_unavailable", new ApiError("server", "x", 503, undefined, { reason: "document_engine_unavailable" }), "La verificación de documentos no está disponible temporalmente. Inténtalo de nuevo en unos minutos."],
     ["503 kyc_unavailable", new ApiError("server", "x", 503, undefined, { reason: "kyc_unavailable" }), "Verificación de identidad no disponible en esta organización."],
     ["422 closed case", new ApiError("validation", "Esta verificación ya está cerrada.", 422), "Esta verificación ya está cerrada."],
@@ -207,9 +229,9 @@ describe("no retry button", () => {
     mockedFetchDocumentResult.mockResolvedValue(result);
     const view = await renderStep();
     expect((await view.findByTestId("document-retry-unavailable"))).toBeTruthy();
-    expect(view.getByText("No pudimos procesar las fotos por un problema técnico. Se conservan y el caso pasará a revisión de la organización.")).toBeTruthy();
+    expect(view.getByText(IN_PROGRESS_TEXT)).toBeTruthy();
     expect(view.queryByText(BUTTON)).toBeNull();
-    expect(view.queryByText(/rechaz/i)).toBeNull();
+    expectNoPromiseNorRejection(view);
   });
 
   it("a lost run failed by the API as processing_timeout, no executions left: photos kept, goes to review", async () => {
@@ -267,5 +289,94 @@ describe("sponsor in an assisted verification", () => {
     await waitFor(() => expect(view.queryByText(BUTTON)).toBeNull());
     expect(mockedRetry).toHaveBeenCalledTimes(1);
     expect(uploadAndCaptureCalls()).toBe(0);
+  });
+});
+
+describe("the 3 executions used up: what the person can do next depends on the case (API #112)", () => {
+  const exhausted = () => docResult({ retry_available: false, executions_used: 3 });
+
+  it("in_progress with a pending next step: photos kept, names that step, no review claim nor rejection", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(exhausted());
+    const view = await renderStep({ caseStatus: "in_progress", currentStep: "biometric_liveness" });
+    expect(await view.findByText(IN_PROGRESS_TEXT)).toBeTruthy();
+    expect(view.getByTestId("document-retry-next-step").props.children).toBe("Siguiente paso: Prueba de vida.");
+    expect(view.queryByText(BUTTON)).toBeNull();
+    expectNoPromiseNorRejection(view);
+  });
+
+  it("in_progress with only the terms pending: names the terms step, still no review claim", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(exhausted());
+    const view = await renderStep({ caseStatus: "in_progress", currentStep: "terms_acceptance" });
+    expect(await view.findByText(IN_PROGRESS_TEXT)).toBeTruthy();
+    expect(view.getByTestId("document-retry-next-step").props.children).toBe("Siguiente paso: Aceptación de términos.");
+    expectNoPromiseNorRejection(view);
+  });
+
+  it("manual_review: the photos are kept and the organization will review the ID; no next step", async () => {
+    mockedFetchDocumentResult.mockResolvedValue(exhausted());
+    const view = await renderStep({ caseStatus: "manual_review", currentStep: null });
+    expect(await view.findByText("Tus fotos quedaron guardadas. La organización revisará tu credencial.")).toBeTruthy();
+    expect(view.queryByTestId("document-retry-next-step")).toBeNull();
+    expect(view.queryByText(/rechaz/i)).toBeNull();
+    expect(view.queryByText(/tomar nuevas fotos|volver a tomar/i)).toBeNull();
+  });
+
+  it("409 document_retry_limit_reached on an in_progress case: the same next-step guidance", async () => {
+    // The screen still offered the retry; meanwhile the server's automatic runs used up the 3 executions.
+    let served = docResult();
+    mockedFetchDocumentResult.mockImplementation(async () => served);
+    mockedRetry.mockImplementation(async () => {
+      served = exhausted();
+      throw new ApiError("conflict", "x", 409, undefined, { reason: "document_retry_limit_reached" });
+    });
+    const view = await renderStep({ caseStatus: "in_progress", currentStep: "face_match" });
+    await act(async () => {
+      fireEvent.press(await view.findByText(BUTTON));
+    });
+    expect(await view.findByText(IN_PROGRESS_TEXT)).toBeTruthy();
+    await waitFor(() => expect(view.queryByText(BUTTON)).toBeNull());
+    expect(view.getByTestId("document-retry-next-step").props.children).toBe("Siguiente paso: Coincidencia facial.");
+    expect(mockedRetry).toHaveBeenCalledTimes(1);
+    expectNoPromiseNorRejection(view);
+  });
+
+  it.each([
+    ["in_progress", "No pudimos leer los datos de la credencial. Las fotos quedaron guardadas; no es necesario tomarlas de nuevo. Se puede continuar con los pasos pendientes. La organización revisará la credencial de la persona cuando se complete su verificación."],
+    ["manual_review", "Las fotos de la persona quedaron guardadas. La organización revisará su credencial."],
+  ] as const)("sponsor before the claim, %s: the same message about «la persona»", async (caseStatus, text) => {
+    mockedFetchDocumentResult.mockResolvedValue(exhausted());
+    const view = await renderStep({ assisted: "enrollment-a", caseStatus, currentStep: caseStatus === "in_progress" ? "biometric_liveness" : null });
+    expect(await view.findByText(text)).toBeTruthy();
+    expect(view.queryByText(/\btu\b|\btus\b/i)).toBeNull();
+    expect(view.queryByText(/rechaz/i)).toBeNull();
+  });
+
+  it("through the verification screen: the case's status and current_step reach the document step", async () => {
+    const terms = {
+      ...STEP, id: "terms-step", step_type: "terms_acceptance", status: "pending", provider: null, score: null, attempt_count: 0,
+      completed_at: null, configured_provider: null, terms_document: null,
+    } as ComplianceStep;
+    (fetchMyAffiliateProfile as jest.Mock).mockResolvedValue({ id: "aff-1", affiliate_code: "AFF1", status: "pending" });
+    (fetchMyCompliance as jest.Mock).mockResolvedValue({
+      id: "case-1", status: "in_progress", current_step: "terms_acceptance", risk_level: null, started_at: null, submitted_at: null,
+      reviewed_at: null, approved_at: null, rejected_at: null, expires_at: null, rejection_reason: null, created_at: "2026-11-02T17:10:00Z",
+      steps: [STEP, terms],
+    });
+    (fetchComplianceSteps as jest.Mock).mockResolvedValue([]);
+    mockedFetchDocumentResult.mockResolvedValue(exhausted());
+    const affiliateOrg = { ...ORG, my_role: "affiliate", my_membership_status: "active" } as Organization;
+    let view!: Awaited<ReturnType<typeof render>>;
+    await act(async () => {
+      view = await render(
+        <QueryClientProvider client={queryClient}>
+          <OrganizationContext.Provider value={orgValue(affiliateOrg)}>
+            <ComplianceScreen />
+          </OrganizationContext.Provider>
+        </QueryClientProvider>,
+      );
+    });
+    expect(await view.findByText(IN_PROGRESS_TEXT)).toBeTruthy();
+    expect(view.getByTestId("document-retry-next-step").props.children).toBe("Siguiente paso: Aceptación de términos.");
+    expectNoPromiseNorRejection(view);
   });
 });

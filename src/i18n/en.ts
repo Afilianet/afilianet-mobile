@@ -1069,9 +1069,16 @@ export const en = {
       button: "Process the photos again",
       processing: "We're processing the saved photos again. You can continue and check the status later.",
       remaining: (count: number) => (count === 1 ? "1 try left." : `${count} tries left.`),
-      notAvailable: "We couldn't process the photos because of a technical problem. They're kept and the case will go to the organization's review.",
+      exhaustedInProgress:
+        "We couldn't read the details on your ID. Your photos were saved; you don't need to take them again. You can continue with the pending steps. The organization will review your ID when you complete your verification.",
+      exhaustedInProgressAssisted:
+        "We couldn't read the details on the ID. The photos were saved; there's no need to take them again. The pending steps can continue. The organization will review the person's ID when their verification is complete.",
+      exhaustedInReview: "Your photos were saved. The organization will review your ID.",
+      exhaustedInReviewAssisted: "The person's photos were saved. The organization will review their ID.",
+      exhaustedOther: "Your photos were saved; you don't need to take them again.",
+      exhaustedOtherAssisted: "The person's photos were saved; there's no need to take them again.",
+      nextStep: (label: string) => `Next step: ${label}.`,
       notAvailableError: "This retry is no longer available. We refreshed the status.",
-      limitReached: "The photos can't be processed again from the app. They're kept and the case will go to the organization's review.",
       claimed: "The person already activated their account. They must continue the verification from their own session.",
     },
     tryAgain: "Try again",

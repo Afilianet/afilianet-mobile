@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useRetryDocumentProcessing } from "../../../hooks/useRetryDocumentProcessing";
+import { useAssistedComplianceId } from "../../../state/ComplianceScopeContext";
 import { strings } from "../../../i18n";
-import type { DocumentProcessingResult } from "../../../types/api";
+import type { ComplianceStatus, DocumentProcessingResult } from "../../../types/api";
 import { Button } from "../../ui/Button";
 import { colors, spacing, typography } from "../../ui/theme";
 import { isTechnicalFailureReason } from "./documentCaptureCopy";
@@ -18,19 +19,28 @@ import { isTechnicalFailureReason } from "./documentCaptureCopy";
  * never gets it. While a run is pending or processing (one started here or
  * the server's own automatic retry) there is nothing to tap; the remaining
  * tries come from the server's counters, which include its automatic runs.
- * Without a retry the case goes to the organization's review, never a
- * rejection.
+ * Without a retry nothing is rejected and the case does not change status
+ * (API #112): it only reaches the organization's review once the pending
+ * steps are completed and it is submitted -- with unpublished terms, not even
+ * then. So while it is in_progress the copy says the photos are kept and
+ * names the next pending step (shown below on this same screen), never that
+ * it already went to review. A sponsor reads the same with «la persona».
  */
 export function DocumentProcessingRetry({
   stepId,
   result,
   captureAvailable = true,
+  caseStatus,
+  currentStep,
 }: {
   stepId: string;
   result: DocumentProcessingResult;
   /** KYC capture off (API #86): the server answers 503 kyc_unavailable, so no button. */
   captureAvailable?: boolean;
+  caseStatus?: ComplianceStatus;
+  currentStep?: string | null;
 }) {
+  const assisted = Boolean(useAssistedComplianceId());
   const mutation = useRetryDocumentProcessing(stepId);
   const [error, setError] = useState<string | null>(null);
   // A ref, not state: two taps in the same tick both see isPending false.
@@ -44,7 +54,7 @@ export function DocumentProcessingRetry({
     try {
       await mutation.mutateAsync();
     } catch (retryError) {
-      setError(retryErrorMessage(retryError));
+      setError(retryErrorMessage(retryError, caseStatus, assisted));
     } finally {
       submittingRef.current = false;
     }
@@ -78,7 +88,10 @@ export function DocumentProcessingRetry({
   if (error || (result.status === "failed" && isTechnicalFailureReason(result.failure_reason))) {
     return (
       <View style={styles.container} testID="document-retry-unavailable">
-        <Text style={styles.description}>{error ?? copy.notAvailable}</Text>
+        <Text style={styles.description}>{error ?? exhaustedText(caseStatus, assisted)}</Text>
+        {caseStatus === "in_progress" && nextStepLabel(currentStep) ? (
+          <Text style={styles.meta} testID="document-retry-next-step">{copy.nextStep(nextStepLabel(currentStep) as string)}</Text>
+        ) : null}
       </View>
     );
   }
@@ -87,7 +100,20 @@ export function DocumentProcessingRetry({
 }
 
 /** null: nothing to say -- the screen just reads the result again (another run already in flight). */
-function retryErrorMessage(error: unknown): string | null {
+function exhaustedText(caseStatus: ComplianceStatus | undefined, assisted: boolean): string {
+  const copy = strings.documentCapture.technicalRetry;
+  if (caseStatus === "in_progress") return assisted ? copy.exhaustedInProgressAssisted : copy.exhaustedInProgress;
+  if (caseStatus === "manual_review" || caseStatus === "pending_review") return assisted ? copy.exhaustedInReviewAssisted : copy.exhaustedInReview;
+  return assisted ? copy.exhaustedOtherAssisted : copy.exhaustedOther;
+}
+
+/** The pending step after the document, by its usual label; null when there is none. */
+function nextStepLabel(currentStep: string | null | undefined): string | null {
+  if (!currentStep || currentStep === "identity_document") return null;
+  return (strings.compliance.stepTypeLabels as Record<string, string>)[currentStep] ?? null;
+}
+
+function retryErrorMessage(error: unknown, caseStatus: ComplianceStatus | undefined, assisted: boolean): string | null {
   const copy = strings.documentCapture.technicalRetry;
   if (!isApiError(error)) return strings.documentCapture.genericError;
   switch (error.reason) {
@@ -96,7 +122,7 @@ function retryErrorMessage(error: unknown): string | null {
     case "document_retry_not_available":
       return copy.notAvailableError;
     case "document_retry_limit_reached":
-      return copy.limitReached;
+      return exhaustedText(caseStatus, assisted);
     case "assisted_access_claimed":
       return copy.claimed;
     case "document_engine_unavailable":

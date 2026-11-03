@@ -4,7 +4,7 @@ import { useDocumentResult } from "../../../hooks/useDocumentResult";
 import { strings } from "../../../i18n";
 import { identityCaptureAvailable } from "../../../state/membership";
 import { useOrganization } from "../../../state/OrganizationContext";
-import type { ComplianceStep } from "../../../types/api";
+import type { ComplianceStatus, ComplianceStep } from "../../../types/api";
 import { DocumentCaptureFlow } from "../document-capture/DocumentCaptureFlow";
 import { DocumentProcessingRetry } from "../document-capture/DocumentProcessingRetry";
 import { ProviderUnavailableState } from "../document-capture/ProviderUnavailableState";
@@ -29,7 +29,7 @@ import type { StepDetailProps } from "./types";
  * `provider_unavailable_reason` for reason-specific copy where the backend
  * provides one.
  */
-export function IdentityDocumentStep({ step, attempt, isPending }: StepDetailProps) {
+export function IdentityDocumentStep({ step, attempt, isPending, caseStatus, currentStep }: StepDetailProps) {
   const { activeOrganization } = useOrganization();
   const captureAvailable = identityCaptureAvailable(activeOrganization);
   const queryClient = useQueryClient();
@@ -46,7 +46,7 @@ export function IdentityDocumentStep({ step, attempt, isPending }: StepDetailPro
 
   return (
     <View>
-      {renderBody(step, isAfilianetActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain, () => void resultQuery.refetch(), resultQuery.isFetching, resultQuery.isError, captureAvailable)}
+      {renderBody(step, isAfilianetActionable, resultQuery.data, resultQuery.isPending, activeOrganization?.id, handleCheckAgain, () => void resultQuery.refetch(), resultQuery.isFetching, resultQuery.isError, captureAvailable, caseStatus, currentStep)}
       <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
     </View>
   );
@@ -63,6 +63,8 @@ function renderBody(
   checkingStatus: boolean,
   statusCheckError: boolean,
   captureAvailable: boolean,
+  caseStatus: ComplianceStatus | undefined,
+  currentStep: string | null | undefined,
 ) {
   if (step.status === "passed") {
     // A successful OCR result remains useful after the compliance step
@@ -73,7 +75,7 @@ function renderBody(
     }
     // Photos stored (capture-first): a technical engine failure is retried over the same photos (API #110).
     if (result?.capture_accepted) {
-      return <DocumentProcessingRetry key={organizationId} stepId={step.id} result={result} captureAvailable={captureAvailable} />;
+      return <DocumentProcessingRetry key={organizationId} stepId={step.id} result={result} captureAvailable={captureAvailable} caseStatus={caseStatus} currentStep={currentStep} />;
     }
     return <Text style={styles.description}>{strings.documentCapture.captureAcceptedTitle}</Text>;
   }
