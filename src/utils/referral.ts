@@ -1,10 +1,41 @@
 import { config, type AppEnvironment } from "../config/env";
 
-// Public HTTPS landing is deployed in staging. Other environments keep the
-// installed-app link until their own web registration host is available.
-export function buildReferralUrl(organizationId: string, affiliateCode: string, environment: AppEnvironment = config.appEnv): string {
-  const base = environment === "staging" ? "https://staging-admin.afilianet.mx/join" : "afilianetmobile://join";
+// The build's own HTTPS landing (EXPO_PUBLIC_REFERRAL_LANDING_URL) when it has
+// one; staging's known landing otherwise; the installed-app link elsewhere.
+export function buildReferralUrl(
+  organizationId: string,
+  affiliateCode: string,
+  environment: AppEnvironment = config.appEnv,
+  landingUrl: string = config.referralLandingUrl,
+): string {
+  const base = landingUrl || (environment === "staging" ? "https://staging-admin.afilianet.mx/join" : "afilianetmobile://join");
   return `${base}/${encodeURIComponent(organizationId)}/${encodeURIComponent(affiliateCode)}`;
+}
+
+/**
+ * WhatsApp share link (https://wa.me/?text=...): opens WhatsApp - or its web
+ * fallback - with the message prefilled; the user still picks the chat and
+ * presses send. Nothing is sent by Afilianet and no provider is involved.
+ */
+export function buildWhatsappShareUrl(message: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Email draft (mailto:): opens the person's mail app with subject and message
+ * ready; they pick the recipient and press send. Nothing is sent by Afilianet.
+ */
+export function buildEmailShareUrl(subject: string, body: string): string {
+  return `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * Only an HTTPS link is tappable inside a WhatsApp chat; the installed-app
+ * scheme used outside staging (afilianetmobile://) is not, so offering
+ * "share by WhatsApp" there would hand the invitee a dead link.
+ */
+export function isLinkTappableInChats(url: string): boolean {
+  return url.startsWith("https://");
 }
 
 const SHAREABLE_STATUSES = new Set(["active", "pending"]);

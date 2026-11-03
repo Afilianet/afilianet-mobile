@@ -76,6 +76,12 @@ export function useLivenessResult(stepId: string | undefined) {
     void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "me", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: scopedComplianceKey(["compliance", "steps", orgId], assistedId) });
     void queryClient.invalidateQueries({ queryKey: ["affiliate", "me", orgId] });
+    // A completed session (live or review) is when afilianet-api starts the
+    // face-match attempt itself, with the liveness frame as the probe. A
+    // cached "no attempt yet" (404) for face_match must be read again, or the
+    // app offers a separate selfie while that attempt is already queued
+    // (staging round 2026-11-02). Prefix match: covers self and assisted keys.
+    void queryClient.invalidateQueries({ queryKey: ["compliance", "face-match-result", orgId] });
   }, [query.data, orgId, queryClient, assistedId]);
 
   return query;

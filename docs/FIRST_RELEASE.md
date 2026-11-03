@@ -83,4 +83,7 @@ y evidencia sin datos personales para cada recorrido:
 - Decisión documentada sobre calibración de face match o revisión humana obligatoria
   antes de aprobar automáticamente a usuarios externos.
 
+La evaluación de la beta cerrada de Android (configuración efectiva por perfil,
+defectos corregidos, plan de build y ronda física) está en `BETA_ANDROID_ES.md`.
+
 La matriz vigente del lanzamiento vive en `afilianet-docs/docs/FIRST_RELEASE_2026-10-02.md`.

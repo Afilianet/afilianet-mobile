@@ -1,6 +1,6 @@
 # Activar push en Afilianet: preparación y prueba
 
-El código ofrece Perfil → Configurar notificaciones y Perfil → Salir de [organización]. Avisos operativos habilitados como preferencia inicial; el permiso del sistema sigue siendo necesario. Promociones apagadas hasta aceptación explícita, independiente por organización. Las campañas del panel permanecen bloqueadas mientras PUSH_ENABLED=false.
+El código ofrece Perfil → Configurar notificaciones y Perfil → Salir de [organización]. La campana abre solo la bandeja y el detalle de cada notificación; la configuración push está únicamente en Perfil. Avisos operativos habilitados como preferencia inicial; el permiso del sistema sigue siendo necesario. Promociones apagadas hasta aceptación explícita, independiente por organización. Las campañas del panel permanecen bloqueadas mientras PUSH_ENABLED=false.
 
 ## Android, sin publicar todavía en Google Play
 
@@ -32,7 +32,9 @@ Con membresía Apple Developer activa, ejecuta `npx eas-cli credentials -p ios` 
 - Entrar a Perfil → Configurar notificaciones → Activar en este teléfono y aceptar permiso del sistema. Probar también permiso denegado: la app debe seguir funcionando.
 - Confirmar avisos activados y promociones apagadas. Activar promociones solo en una organización, pulsar Guardar preferencias, cambiar de organización y comprobar que no se copiaron.
 - Usar cuentas y organizaciones sintéticas. Desde el panel, seleccionar la organización/red, escribir un mensaje de prueba, revisar audiencia y confirmar. No utilizar una red real para estas pruebas.
-- Probar app abierta, cerrada y segundo plano; tocar el mensaje debe abrir Notificaciones en la organización correspondiente.
+- Probar app abierta, cerrada y segundo plano; tocar el mensaje debe abrir la bandeja de Notificaciones en la organización correspondiente, sin marcar nada como leído (la push no trae id de notificación).
+- Abrir la bandeja no cambia el contador. Abrir el detalle de una notificación no leída la marca como leída una sola vez; "Marcar todo como leído" es la única acción que marca todas.
+- Si al tocar la push falla el cambio de organización, la apertura se reintenta al volver a la app. Si se cierra sesión antes, no se abre nada en la siguiente sesión.
 - Desactivar promociones, guardar y comprobar exclusión en la siguiente campaña. Cerrar sesión debe retirar el dispositivo de esa sesión.
 - Crear una cadena sintética A → B → C. Desde la cuenta B, Perfil → Salir de la organización → contraseña → SALIR. Confirmar C → A y que la afiliación de B en otra organización permanece. Si A está inactivo, se busca el siguiente superior activo; si no existe, C queda raíz.
 - La baja de organización no borra la cuenta ni sus registros históricos. Eliminar mi cuenta es otra acción y conserva su procedimiento de privacidad.

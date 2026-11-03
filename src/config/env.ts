@@ -14,6 +14,14 @@ function parseAppEnvironment(value: string | undefined): AppEnvironment {
   return "development";
 }
 
+// eas.json rejects empty env values, so a store profile overrides the DSN its
+// EAS environment carries with this explicit placeholder instead of "".
+const DISABLED = "disabled";
+
+function configuredValue(value: string | undefined): string {
+  return value === undefined || value === DISABLED ? "" : value;
+}
+
 function parseTimeoutMs(value: string | undefined, fallbackMs: number): number {
   const parsed = value ? Number.parseInt(value, 10) : NaN;
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackMs;
@@ -23,9 +31,17 @@ export const config = {
   appEnv: parseAppEnvironment(process.env.EXPO_PUBLIC_APP_ENV),
   apiBaseUrl: (process.env.EXPO_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, ""),
   apiTimeoutMs: parseTimeoutMs(process.env.EXPO_PUBLIC_API_TIMEOUT_MS, 15000),
-  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
-  posthogApiKey: process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? "",
+  // Sentry needs an explicit "1" as well as a DSN: a DSN sitting in an EAS
+  // environment must never switch error reporting on by itself. Store builds
+  // ship "0" and DSN "disabled" (scripts/check-build-env.mjs enforces both).
+  sentryEnabled: process.env.EXPO_PUBLIC_SENTRY_ENABLED === "1",
+  sentryDsn: configuredValue(process.env.EXPO_PUBLIC_SENTRY_DSN),
+  posthogApiKey: configuredValue(process.env.EXPO_PUBLIC_POSTHOG_API_KEY),
   posthogHost: process.env.EXPO_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com",
+  // Public HTTPS page that opens a referral (".../join"), per environment. Never
+  // guessed: without it, only staging has a known landing (see utils/referral.ts),
+  // and a production build without it is rejected by scripts/check-build-env.mjs.
+  referralLandingUrl: configuredValue(process.env.EXPO_PUBLIC_REFERRAL_LANDING_URL).replace(/\/+$/, ""),
 };
 
 export type AppConfig = typeof config;

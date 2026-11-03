@@ -1,4 +1,5 @@
 import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -25,7 +26,9 @@ import type { Commission } from "../types/api";
 export default function CommissionsScreen() {
   return (
     <CommercialFeatureGate>
-      <CommissionsScreenContent />
+      <PersonalAffiliateGate>
+        <CommissionsScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }

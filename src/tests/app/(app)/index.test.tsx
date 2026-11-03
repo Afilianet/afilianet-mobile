@@ -1,6 +1,6 @@
 import { releaseFeatures } from "../../../config/release";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../../api/errors";
 import {
   fetchMyAffiliateProfile,
@@ -87,7 +87,7 @@ const EMPTY_SPONSORED = { data: [], meta: { total: 0 } };
 const NOT_FOUND = new ApiError("not_found", "Not Found.", 404);
 
 function authValue(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
-  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), signOut: jest.fn(), ...overrides };
+  return { status: "signedIn", user: USER, error: null, signIn: jest.fn(), registerFromReferral: jest.fn(), register: jest.fn(), refreshUser: jest.fn(), onboardingRoute: null, consumeOnboardingRoute: jest.fn(), signOut: jest.fn(), ...overrides };
 }
 
 function orgValue(overrides: Partial<OrganizationContextValue> = {}): OrganizationContextValue {
@@ -154,17 +154,29 @@ describe("Home: header", () => {
     expect(await findByText("Acme")).toBeTruthy();
   });
 
-  it("shows an organization switcher entry point with multiple organizations", async () => {
-    const { findByText, getByText } = await renderHome({ org: { organizations: [ORG, ORG_2] } });
+  it("shows the active organization with a recognizable «Cambiar» when there is another one", async () => {
+    const { findByText, getByText, getByLabelText } = await renderHome({ org: { organizations: [ORG, ORG_2] } });
     await findByText("Acme");
-    fireEvent.press(getByText("Acme"));
+    expect(getByText("Organización activa")).toBeTruthy();
+    expect(getByLabelText("Cambiar de organización. Activa: Acme")).toBeTruthy();
+    fireEvent.press(getByText("Cambiar"));
     expect(mockRouter.push).toHaveBeenCalledWith("/organization-picker");
   });
 
-  it("does not show a switcher when there's only one organization", async () => {
-    const { findByText } = await renderHome();
+  it("with only one organization it shows which one, without «Cambiar»", async () => {
+    const { findByText, queryByText } = await renderHome();
     await findByText("Acme");
+    expect(queryByText("Cambiar")).toBeNull();
     expect(mockRouter.push).not.toHaveBeenCalled();
+  });
+
+  it("keeps the organization and the surveys entry apart, as two distinct elements", async () => {
+    const { findByTestId } = await renderHome({ org: { organizations: [ORG, ORG_2] } });
+    const bar = within(await findByTestId("active-organization-bar"));
+    const surveys = within(await findByTestId("home-surveys-entry"));
+    expect(bar.queryByText("Abrir encuestas")).toBeNull();
+    expect(surveys.queryByText("Cambiar")).toBeNull();
+    expect(surveys.getByText("Abrir encuestas")).toBeTruthy();
   });
 });
 
@@ -266,6 +278,50 @@ describe("Home: compliance", () => {
       fireEvent.press(await findByText("Continuar verificación"));
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/compliance");
+  });
+
+  function caseWithLiveness(liveness: { status: "pending" | "failed"; attempt_count: number }): ComplianceCase {
+    return {
+      id: "case-1",
+      status: "in_progress",
+      current_step: "biometric_liveness",
+      risk_level: null,
+      started_at: "2026-01-01T00:00:00Z",
+      submitted_at: null,
+      reviewed_at: null,
+      approved_at: null,
+      rejected_at: null,
+      expires_at: null,
+      rejection_reason: null,
+      created_at: "2026-01-01T00:00:00Z",
+      steps: [{
+        id: "liveness-step-1",
+        step_type: "biometric_liveness",
+        provider: null,
+        score: null,
+        completed_at: null,
+        created_at: "2026-01-01T00:00:00Z",
+        configured_provider: "aws_rekognition",
+        provider_actionable: true,
+        provider_unavailable_reason: null,
+        ...liveness,
+      }],
+    };
+  }
+
+  it("warns about a staff-requested liveness recapture", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(caseWithLiveness({ status: "pending", attempt_count: 1 }));
+    const { findByTestId, getByText } = await renderHome();
+    expect(await findByTestId("home-recapture-request")).toBeTruthy();
+    expect(getByText(/repetir tu prueba de vida/)).toBeTruthy();
+    expect(getByText("Continuar verificación")).toBeTruthy();
+  });
+
+  it("shows no recapture warning on a first liveness attempt", async () => {
+    mockedFetchMyCompliance.mockResolvedValue(caseWithLiveness({ status: "pending", attempt_count: 0 }));
+    const { findByText, queryByTestId } = await renderHome();
+    await findByText("Continuar verificación");
+    expect(queryByTestId("home-recapture-request")).toBeNull();
   });
 });
 
@@ -369,7 +425,7 @@ describe("Home: resilience", () => {
     async () => {
       mockedFetchMyCommissions.mockRejectedValue(new ApiError("offline", "Unable to reach the server."));
       const { findByText, getByText } = await renderHome();
-      expect(await findByText(/conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
+      expect(await findByText(/No tienes conexión/i, undefined, { timeout: 8000 })).toBeTruthy();
 
       mockedFetchMyCommissions.mockResolvedValueOnce([]);
       fireEvent.press(getByText("Intenta de nuevo"));

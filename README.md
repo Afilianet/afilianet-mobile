@@ -88,7 +88,7 @@ Each environment file sets the same four things:
 
 - **`EXPO_PUBLIC_API_BASE_URL`** — which backend this build talks to. Never edited automatically between environments; a build only uses whatever its own environment file says, so a `staging`/`internal` build can never silently point at production.
 - **`EXPO_PUBLIC_APP_ENV`** — this build's own identifier (`"development"` / `"internal"` / `"staging"` / `"production"`), read in `src/config/env.ts`. This is the single signal that gates the development-only Compliance simulator (see below) and tags Sentry error reports by environment, so an Internal Alpha crash is never confused with a real production one.
-- **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; both no-op when blank.
+- **`EXPO_PUBLIC_SENTRY_ENABLED`** / **`EXPO_PUBLIC_SENTRY_DSN`** / **`EXPO_PUBLIC_POSTHOG_API_KEY`** — see "Error tracking & analytics" below; Sentry needs both the switch (`"1"`) and a DSN, PostHog no-ops without a key.
 
 **Every `EXPO_PUBLIC_*` variable is bundled into the client and visible to anyone who inspects the app** — that's how Expo's public env vars work, and it's why this app never puts a real secret in one. A Sentry DSN and a PostHog project API key are both designed to be public/write-only values (this is normal, documented practice for both services), not secrets in the traditional sense. `afilianet-api`'s own server-side credentials (database passwords, the identity-engine service token, etc.) never appear anywhere in this repo or this app's bundle.
 
@@ -351,6 +351,16 @@ src/
 - In-app notifications (feed, unread badge, mark read/read-all, whitelisted deep links)
 - Profile (identity, affiliate status, compliance access, organization switching, sign out)
 
+### Spanish copy inside AWS's native liveness screens
+
+AWS's liveness UI SDKs ship English-only strings. The app overrides them with Spanish through each platform's supported mechanism:
+
+- **Android**: `modules/aws-face-liveness/android/src/main/res/values/strings.xml` redefines the 17 string resources of `com.amplifyframework.ui:liveness:1.11.0` (a library's own resources take precedence over its dependencies' in Android's resource merge). Declared in default `values/`, so it applies whatever the device language.
+- **iOS**: `app.json → expo.locales.es` points to `locales/es.json`, whose `ios["Localizable.strings"]` covers the 40 keys of `amplify-ui-swift-liveness` 1.5.0 (the SDK reads `Bundle.main` first). Applies only when the device language is Spanish.
+- `src/tests/native/livenessNativeStrings.test.ts` pins both key sets; re-diff them whenever either SDK is bumped.
+
+This is native: Metro never reloads it, a new development/staging build is required. **Status: not yet verified on a physical device** -- the Android override is checked against the AAR's key list only (no local Android build), and iOS against Expo's locales resolver only (no iOS build).
+
 ## Deferred / not yet integrated
 
 These are known gaps, not implemented in this app version:
@@ -404,7 +414,7 @@ Neither existed before Internal Alpha — both were newly established this phase
 
 Both are wired up but **disabled by default**. To enable:
 
-- Sentry: set `EXPO_PUBLIC_SENTRY_DSN` in your `.env` file to your project's DSN.
+- Sentry: set `EXPO_PUBLIC_SENTRY_ENABLED=1` **and** `EXPO_PUBLIC_SENTRY_DSN` to your project's DSN. A DSN alone does nothing. Store-beta builds must ship `0` and DSN `"disabled"` (eas.json rejects empty values; the app reads `"disabled"` as no DSN, and `scripts/check-build-env.mjs` fails the build otherwise). Events built in JavaScript (errors, breadcrumbs, transactions, spans and the sampling context) pass through `src/services/telemetryScrub.ts`, which removes tokens, codes, query strings, contact data, bodies and headers. **This is not complete protection:** native crashes (Java/NDK) are written by the native SDK and skip these JavaScript filters. They carry only the scope synced from JavaScript (already scrubbed) plus device context, and free-text names can't be detected. Any reactivation has to account for both.
 - PostHog: set `EXPO_PUBLIC_POSTHOG_API_KEY` (and `EXPO_PUBLIC_POSTHOG_HOST` if you're not using PostHog Cloud US).
 
 Leaving these blank is safe — the app runs normally, it just doesn't send any data anywhere.

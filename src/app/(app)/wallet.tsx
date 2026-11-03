@@ -1,4 +1,5 @@
 import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -12,6 +13,7 @@ import { SkeletonGroup } from "../../components/Skeleton";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
+import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { strings } from "../../i18n";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useWallet } from "../../hooks/useWallet";
@@ -24,7 +26,9 @@ import { addMoney, formatMoney } from "../../utils/money";
 export default function WalletScreen() {
   return (
     <CommercialFeatureGate>
-      <WalletScreenContent />
+      <PersonalAffiliateGate>
+        <WalletScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }
@@ -70,6 +74,7 @@ function WalletScreenContent() {
           onPress={() => router.push(routes.payouts as never)}
         />
       </View>
+      <ActiveOrganizationBar />
 
       {affiliateQuery.isPending ? (
         <SkeletonGroup lines={4} />

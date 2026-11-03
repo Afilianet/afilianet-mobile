@@ -11,7 +11,8 @@ const mockCapture = jest.fn();
 jest.mock("expo-router", () => ({ useLocalSearchParams: () => ({ requestId: "request-a" }), useRouter: () => ({ back: jest.fn() }) }));
 jest.mock("expo-file-system", () => ({ File: class { size = 1000; } }));
 jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: { id: "sponsor-a" } }) }));
-jest.mock("../../state/OrganizationContext", () => ({ useOrganization: () => ({ activeOrganization: { id: "org-a" } }) }));
+let mockOrganization: { id: string; identity_verification_available?: boolean } = { id: "org-a" };
+jest.mock("../../state/OrganizationContext", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization }) }));
 jest.mock("../../hooks/useDocumentCamera", () => ({ useDocumentCamera: () => ({ capture: mockCapture }) }));
 jest.mock("../../services/assistedQueue", () => ({
   listPendingAssisted: jest.fn(async () => [{ input: { client_request_id: "request-a", first_name: "Ana", last_name: "López" }, photos: [...mockPhotos] }]),
@@ -21,6 +22,7 @@ jest.mock("../../services/assistedQueue", () => ({
 jest.mock("../../services/assistedEvidenceVault", () => ({ sealAssistedPhoto: jest.fn(async (evidenceType) => ({ evidenceType, mimeType: "image/jpeg", fileName: "sealed", keyName: "key" })), removeAssistedPhoto: jest.fn() }));
 
 beforeEach(() => {
+  mockOrganization = { id: "org-a" };
   mockPhotos = [];
   mockCapture.mockResolvedValue({ status: "captured", uri: "file:///photo.jpg", width: 1944, height: 2592, mimeType: "image/jpeg" });
   onlineManager.setOnline(false);
@@ -69,6 +71,23 @@ it("requests location only after consent and keeps photo capture available when 
   expect(replaceAssistedGeolocation).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText("Capturar: Frente de INE"));
   await waitFor(() => expect(screen.getByText("1 de 2 fotos guardadas en este teléfono")).toBeTruthy());
+  await screen.unmount();
+  client.clear();
+});
+
+it("capture off in the organization (API #86): no camera or location, and what is already saved stays", async () => {
+  mockOrganization = { id: "org-a", identity_verification_available: false };
+  mockPhotos = [{ evidenceType: "id_document_front" }];
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  const screen = await render(<QueryClientProvider client={client}><AssistedOfflineScreen /></QueryClientProvider>);
+  await waitFor(() => expect(screen.getByTestId("kyc-capture-unavailable")).toBeTruthy());
+  expect(screen.getByText("1 de 2 fotos guardadas en este teléfono")).toBeTruthy();
+  expect(screen.getByText("✓ Foto guardada en este teléfono")).toBeTruthy();
+  expect(screen.queryByText(/^Capturar:|^Volver a tomar:/)).toBeNull();
+  expect(screen.queryByText("Compartir ubicación con consentimiento")).toBeNull();
+  expect(screen.getByText("Eliminar copia local")).toBeTruthy();
+  expect(mockCapture).not.toHaveBeenCalled();
+  expect(captureDeviceGeolocation).not.toHaveBeenCalled();
   await screen.unmount();
   client.clear();
 });

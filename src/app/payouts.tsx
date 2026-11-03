@@ -1,4 +1,5 @@
 import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -33,7 +34,9 @@ import { formatMoney } from "../utils/money";
 export default function PayoutsScreen() {
   return (
     <CommercialFeatureGate>
-      <PayoutsScreenContent />
+      <PersonalAffiliateGate>
+        <PayoutsScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }

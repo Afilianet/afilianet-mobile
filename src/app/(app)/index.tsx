@@ -1,16 +1,18 @@
 import { useRouter } from "expo-router";
 import { releaseFeatures } from "../../config/release";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
 import { strings } from "../../i18n";
+import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { NotificationBell } from "../../components/NotificationBell";
 import { Card } from "../../components/ui/Card";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { SectionCard } from "../../components/SectionCard";
+import { PrivacyNoticeBanner } from "../../components/privacy/PrivacyNoticeBanner";
 import { Icon } from "../../design-system/icons/Icon";
 import { useAffiliateProfile } from "../../hooks/useAffiliateProfile";
 import { useCompliance } from "../../hooks/useCompliance";
@@ -21,10 +23,13 @@ import { useUnreadNotificationCount } from "../../hooks/useUnreadNotificationCou
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
+import { affiliateProfilePresence, identityCaptureAvailable, isOrganizationStaff } from "../../state/membership";
 import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import { canShareReferral } from "../../utils/referral";
+import { surveysPreviewEnabled } from "../../features/surveys/flags";
+import { recaptureRequest } from "../../components/compliance/recaptureRequest";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
 export default function HomeScreen() {
@@ -54,9 +59,17 @@ export default function HomeScreen() {
     }
   }, [walletQuery.isSuccess]);
 
+  // API #75: an explicit "no profile here" (never a missing field) hides every personal card.
+  const profileAbsent = affiliateProfilePresence(activeOrganization) === "absent";
+
   async function handleRefresh() {
     setRefreshing(true);
     try {
+      // refetch() ignores `enabled`: personal data is never re-requested for an account without a profile.
+      if (profileAbsent) {
+        await unreadCountQuery.refetch();
+        return;
+      }
       await Promise.all([
         affiliateQuery.refetch(),
         complianceQuery.refetch(),
@@ -79,16 +92,28 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
     >
       <Header />
+      <PrivacyNoticeBanner />
+      {surveysPreviewEnabled ? <SurveysEntryCard /> : null}
 
+      {profileAbsent ? (
+        <StaffWithoutProfileCard staff={isOrganizationStaff(activeOrganization)} />
+      ) : (
+        <>
       {noAffiliateProfile ? (
         <EnrollmentBanner />
       ) : (
-        <SectionCard title={strings.home.affiliateStatusTitle} query={affiliateQuery} isEmpty={() => false}>
+        <SectionCard
+          title={strings.home.affiliateStatusTitle}
+          query={affiliateQuery}
+          isEmpty={() => false}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
+        >
           {(affiliate) => <AffiliateStatusContent affiliate={affiliate} />}
         </SectionCard>
       )}
 
-      <ComplianceCard query={complianceQuery} />
+      <ComplianceCard query={complianceQuery} enabled={Boolean(activeOrganization)} />
 
       {releaseFeatures.commerce ? (
         <SectionCard
@@ -96,6 +121,8 @@ export default function HomeScreen() {
           query={commissionsQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noCommissionsYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <CommissionsContent commissions={list} />}
         </SectionCard>
@@ -107,6 +134,8 @@ export default function HomeScreen() {
           query={walletQuery}
           isEmpty={(list) => list.length === 0}
           emptyTitle={strings.home.noWalletBalanceYet}
+          enabled={Boolean(activeOrganization)}
+          disabledTitle={strings.noOrganization.description}
         >
           {(list) => <WalletContent wallets={list} />}
         </SectionCard>
@@ -115,16 +144,32 @@ export default function HomeScreen() {
       {activeOrganization && affiliateQuery.isSuccess ? (
         <NetworkPreviewCard sponsor={affiliateQuery.data.sponsor} query={sponsoredQuery} />
       ) : null}
+        </>
+      )}
     </ScrollView>
+  );
+}
+
+/**
+ * Instead of the personal cards, for an account with no affiliate profile in
+ * this organization: what it is, and -- for staff -- where its work is.
+ * Never «No iniciada» nor «Iniciar verificación».
+ */
+function StaffWithoutProfileCard({ staff }: { staff: boolean }) {
+  const router = useRouter();
+  return (
+    <Card style={styles.enrollmentCard} testID="home-staff-without-profile">
+      <Text style={styles.enrollmentTitle}>{strings.staffWithoutProfile.title}</Text>
+      <Text style={styles.meta}>{strings.staffWithoutProfile.description}</Text>
+      {staff ? (
+        <Button label={strings.organizationAffiliates.open} variant="secondary" size="sm" onPress={() => router.push(routes.network as never)} />
+      ) : null}
+    </Card>
   );
 }
 
 function Header() {
   const { user } = useAuth();
-  const { activeOrganization, organizations } = useOrganization();
-  const router = useRouter();
-
-  const orgLabel = activeOrganization?.name ?? strings.home.noOrganizationSelected;
 
   return (
     <View style={styles.header}>
@@ -132,15 +177,20 @@ function Header() {
         <Text style={styles.greeting}>{user ? strings.home.greeting(user.first_name) : strings.home.welcome}</Text>
         <NotificationBell />
       </View>
-      {organizations.length > 1 ? (
-        <Pressable onPress={() => router.push(routes.organizationPicker as never)} style={styles.orgSwitcher}>
-          <Text style={styles.orgName}>{orgLabel}</Text>
-          <Text style={styles.orgSwitcherChevron}>⌄</Text>
-        </Pressable>
-      ) : (
-        <Text style={styles.orgName}>{orgLabel}</Text>
-      )}
+      <ActiveOrganizationBar />
     </View>
+  );
+}
+
+/** Its own card, apart from the organization bar: two different actions, never mistaken for each other. */
+function SurveysEntryCard() {
+  const router = useRouter();
+  return (
+    <Card style={styles.surveysCard} testID="home-surveys-entry">
+      <Text style={styles.surveysTitle}>{strings.surveys.title}</Text>
+      <Text style={styles.meta}>{strings.home.surveysDescription}</Text>
+      <Button label={strings.home.openSurveys} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
+    </Card>
   );
 }
 
@@ -179,9 +229,12 @@ function AffiliateStatusContent({ affiliate }: { affiliate: AffiliateProfile }) 
   );
 }
 
-function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) {
+function ComplianceCard({ query, enabled }: { query: ReturnType<typeof useCompliance>; enabled: boolean }) {
   const router = useRouter();
   const notStarted = complianceStatusCopy("not_started");
+  // API #86: the status stays readable; no way into capture is offered.
+  const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
+  const unavailable = <Text testID="home-kyc-capture-unavailable" style={styles.meta}>{strings.compliance.captureUnavailable.title}</Text>;
 
   function goToCompliance() {
     analytics.capture("compliance_cta_pressed");
@@ -192,11 +245,13 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
     <SectionCard
       title={strings.compliance.screenTitle}
       query={query}
+      enabled={enabled}
+      disabledTitle={strings.noOrganization.description}
       emptyContent={
         <View style={styles.stateGroupLocal}>
           <Badge label={notStarted.label} tone={notStarted.tone} />
           {notStarted.description ? <Text style={styles.meta}>{notStarted.description}</Text> : null}
-          <Button label={strings.compliance.startVerification} variant="secondary" onPress={goToCompliance} />
+          {captureAvailable ? <Button label={strings.compliance.startVerification} variant="secondary" onPress={goToCompliance} /> : unavailable}
         </View>
       }
     >
@@ -206,9 +261,15 @@ function ComplianceCard({ query }: { query: ReturnType<typeof useCompliance> }) 
           <View style={styles.stateGroupLocal}>
             <Badge label={status.label} tone={status.tone} />
             {status.description ? <Text style={styles.meta}>{status.description}</Text> : null}
-            {compliance.status !== "approved" ? (
-              <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
+            {captureAvailable && compliance.steps && recaptureRequest(compliance.current_step, compliance.steps) ? (
+              <View testID="home-recapture-request" style={styles.stateGroupLocal} accessible accessibilityRole="alert">
+                <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+                <Text style={styles.meta}>{strings.home.livenessRecaptureRequested}</Text>
+              </View>
             ) : null}
+            {compliance.status === "approved" ? null : captureAvailable ? (
+              <Button label={strings.home.continueVerification} variant="secondary" onPress={goToCompliance} />
+            ) : unavailable}
           </View>
         );
       }}
@@ -302,8 +363,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   header: {
+    gap: spacing.md,
+  },
+  surveysCard: {
     gap: spacing.xs,
-    marginBottom: spacing.sm,
+  },
+  surveysTitle: {
+    ...typography.subtitle,
+    color: colors.textPrimary,
   },
   headerTopRow: {
     flexDirection: "row",
@@ -313,19 +380,6 @@ const styles = StyleSheet.create({
   greeting: {
     ...typography.title,
     color: colors.textPrimary,
-  },
-  orgSwitcher: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
-  orgName: {
-    ...typography.body,
-    color: colors.textSecondary,
-  },
-  orgSwitcherChevron: {
-    ...typography.body,
-    color: colors.textSecondary,
   },
   enrollmentCard: {
     gap: spacing.xs,

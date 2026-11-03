@@ -20,6 +20,8 @@ export interface PaginatedResponse<T> {
     last_page?: number;
     per_page?: number;
     total?: number;
+    /** Echo of the applied `search` filter (network lists); absent on servers without search. */
+    search?: string | null;
   };
 }
 
@@ -27,8 +29,12 @@ export interface User {
   id: string;
   first_name: string;
   last_name: string;
-  email: string;
+  // null for a mobile-only account (access MVP): at least one of email/phone exists.
+  email: string | null;
   phone: string | null;
+  // A new email/phone awaiting confirmation; the verified value above stays usable until then.
+  pending_email?: string | null;
+  pending_phone?: string | null;
   status: string;
   email_verified_at: string | null;
   phone_verified_at: string | null;
@@ -52,6 +58,18 @@ export interface Organization {
   // membership pivot, e.g. GET /api/v1/me/organizations.
   my_role?: string;
   my_membership_status?: string;
+  /**
+   * API #75: whether THIS user has an affiliate profile in THIS organization.
+   * Absent on older APIs and on lists saved offline before it: unknown, never
+   * false (see state/membership.ts).
+   */
+  has_affiliate_profile?: boolean;
+  /**
+   * API #86: whether this organization accepts NEW identity-verification
+   * capture, computed by the server. Absent on older APIs and on lists saved
+   * offline before it: unknown, never false (see state/membership.ts).
+   */
+  identity_verification_available?: boolean;
 }
 
 // afilianet-api has no standalone Membership/OrganizationMembership resource --
@@ -183,6 +201,37 @@ export interface ComplianceStep {
   configured_provider: VerificationProvider | null;
   provider_actionable: boolean;
   provider_unavailable_reason: ProviderUnavailableReason | null;
+  /**
+   * Only on terms_acceptance (API A5): the approved, published terms to show
+   * and accept, or null while none is published. Absent on an API before A5:
+   * treated as not published -- nothing is ever accepted without a document.
+   */
+  terms_document?: TermsDocument | null;
+  /**
+   * Only on terms_acceptance (API #106): true when read through a sponsor's
+   * assisted enrollment, with or without a document -- only the person
+   * verified accepts, from their own session. Absent on an earlier API.
+   */
+  requires_own_session?: boolean;
+  /** Who accepted, as recorded; `assisted_enrollment` only on records before API #106. */
+  accepted_via?: TermsAcceptedVia | null;
+  /**
+   * Only on terms_acceptance (API #109): true while the step is passed or
+   * skipped without the person's own acceptance (a sponsor's record, one
+   * without a version, a skipped step). The case cannot be approved until the
+   * person accepts from their own session; the step status does not change.
+   */
+  needs_own_acceptance?: boolean;
+}
+
+export type TermsAcceptedVia = "own_session" | "assisted_enrollment";
+
+/** The KYC terms exactly as served; version and content_sha256 go back with the acceptance. */
+export interface TermsDocument {
+  version: string;
+  title: string;
+  sections: { title: string; text: string }[];
+  content_sha256: string;
 }
 
 // ComplianceCaseResource -- deliberately excludes `metadata` (may carry
@@ -213,7 +262,12 @@ export interface ComplianceCase {
 // `outcome`/`score` only ever exercise afilianet-api's Fake verification
 // providers (no real vendor integrated) -- never presented to a real user
 // as a genuine verification action, see DevelopmentStepSimulator.
-export type AttemptStepPayload = { accepted: boolean } | { outcome: "pass" | "fail"; score?: number } | Record<string, never>;
+// terms_acceptance always names the document that was shown (API A5); a bare
+// { accepted } would accept nothing and is not representable here.
+export type AttemptStepPayload =
+  | { accepted: true; document_version: string; document_sha256: string }
+  | { outcome: "pass" | "fail"; score?: number }
+  | Record<string, never>;
 
 export interface Commission {
   id: string;
@@ -444,12 +498,23 @@ export interface DocumentProcessingResult {
   id: string;
   /** The stored ID photos passed the server's capture-quality gate. */
   capture_accepted?: boolean;
+  /**
+   * API #110 (F1): the reader may run the engine again over the same stored
+   * photos -- only after a technical failure, under the server's cap, and
+   * never for a sponsor once the person activated the account. Absent on an
+   * earlier API: treated as false.
+   */
+  retry_available?: boolean;
+  /** Engine runs used and allowed for the current capture (API #110), the server's automatic retries included. */
+  executions_used?: number;
+  executions_max?: number;
   document_type: DocumentType;
   status: DocumentProcessingStatus;
   verdict: DocumentVerdict | null;
   confidence: number | null;
-  extracted_fields: ExtractedField[];
-  validation_checks: DocumentValidationCheck[];
+  // null until a run extracts something (pending, processing, technical failure), as the API serves it.
+  extracted_fields: ExtractedField[] | null;
+  validation_checks: DocumentValidationCheck[] | null;
   quality: DocumentQualityReport[] | null;
   confirmed_fields: Record<string, string> | null;
   // Server-authorized confirmation keys; optional while older API deployments remain in use.
@@ -620,6 +685,8 @@ export interface LivenessCredentials {
 // creates it). Never assume a 15th type; an unrecognized value must fail
 // safely (no icon/label/navigation) rather than guessed at.
 export type NotificationType =
+  | "announcement"
+  | "promotion"
   | "compliance_started"
   | "compliance_action_required"
   | "compliance_manual_review"

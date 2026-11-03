@@ -81,6 +81,8 @@ const ENGINE_UNAVAILABLE_REASONS = new Set([
   "unreachable",
   "unauthorized",
   "model_unavailable",
+  // identity-engine #3: no face-match slot within its queue wait; retry the same pair.
+  "engine_busy",
   "engine_error",
   "malformed_response",
   "image_too_large",

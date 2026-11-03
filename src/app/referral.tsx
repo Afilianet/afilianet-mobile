@@ -1,7 +1,8 @@
 import * as Clipboard from "expo-clipboard";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { isApiError } from "../api/errors";
 import { EmptyState } from "../components/EmptyState";
@@ -24,14 +25,22 @@ import { useOrganization } from "../state/OrganizationContext";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
-import { buildReferralUrl, canShareReferral } from "../utils/referral";
+import { buildEmailShareUrl, buildReferralUrl, buildWhatsappShareUrl, canShareReferral, isLinkTappableInChats } from "../utils/referral";
 
 export default function ReferralScreen() {
+  return (
+    <PersonalAffiliateGate>
+      <ReferralScreenContent />
+    </PersonalAffiliateGate>
+  );
+}
+
+function ReferralScreenContent() {
   const router = useRouter();
   const affiliateQuery = useAffiliateProfile();
   const { activeOrganization } = useOrganization();
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; tone: "success" | "neutral" } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -54,10 +63,10 @@ export default function ReferralScreen() {
     };
   }, []);
 
-  function showToast(message: string) {
+  function showToast(message: string, tone: "success" | "neutral" = "success") {
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(message);
-    toastTimer.current = setTimeout(() => setToastMessage(null), 2200);
+    setToast({ message, tone });
+    toastTimer.current = setTimeout(() => setToast(null), tone === "neutral" ? 4000 : 2200);
   }
 
   const noAffiliateProfile = isApiError(affiliateQuery.error) && affiliateQuery.error.kind === "not_found";
@@ -89,30 +98,44 @@ export default function ReferralScreen() {
             onRetry={() => void affiliateQuery.refetch()}
             retrying={affiliateQuery.isFetching}
           />
-        ) : affiliateQuery.data ? (
+        ) : affiliateQuery.data && belongsToActiveOrganization(affiliateQuery.data, activeOrganization?.id) ? (
           <ReferralBody
             affiliate={affiliateQuery.data}
             organizationId={activeOrganization?.id ?? ""}
+            organizationName={activeOrganization?.name ?? "Afilianet"}
             onCopied={() => showToast(strings.referral.linkCopied)}
+            onNotice={(message) => showToast(message, "neutral")}
             onViewInvitations={() => router.push(routes.network as never)}
           />
         ) : null}
       </ScrollView>
 
-      {toastMessage ? <Toast message={toastMessage} tone="success" /> : null}
+      {toast ? <Toast message={toast.message} tone={toast.tone} /> : null}
     </View>
   );
+}
+
+/**
+ * The link is always this organization's and this sponsor's: a profile that
+ * states another organization (e.g. while switching) never becomes a link.
+ */
+function belongsToActiveOrganization(affiliate: AffiliateProfile, organizationId: string | undefined): boolean {
+  return Boolean(organizationId) && (!affiliate.organization_id || affiliate.organization_id === organizationId);
 }
 
 function ReferralBody({
   affiliate,
   organizationId,
+  organizationName,
   onCopied,
+  onNotice,
   onViewInvitations,
 }: {
   affiliate: AffiliateProfile;
   organizationId: string;
+  organizationName: string;
   onCopied: () => void;
+  onNotice: (message: string) => void;
   onViewInvitations: () => void;
 }) {
   const status = affiliateStatusCopy(affiliate.status);
@@ -135,6 +158,29 @@ function ReferralBody({
     } catch {
       // The user dismissed the share sheet, or the OS share call failed --
       // nothing to recover from or surface as an error.
+    }
+  }
+
+  async function handleWhatsappShare() {
+    analytics.capture("referral_whatsapp_opened");
+    try {
+      await Linking.openURL(buildWhatsappShareUrl(strings.referral.shareMessage(url)));
+    } catch {
+      // WhatsApp (and the browser fallback) could not be opened: say so and
+      // offer the regular share sheet instead of failing silently.
+      onNotice(strings.referral.noAppOpened("WhatsApp"));
+      await handleShare();
+    }
+  }
+
+  async function handleEmailShare() {
+    analytics.capture("referral_email_opened");
+    try {
+      await Linking.openURL(buildEmailShareUrl(strings.referral.emailSubject(organizationName), strings.referral.emailBody(organizationName, url)));
+    } catch {
+      // No mail app: same fallback as WhatsApp.
+      onNotice(strings.referral.noAppOpened("el correo"));
+      await handleShare();
     }
   }
 
@@ -190,6 +236,28 @@ function ReferralBody({
               iconLeft={<Icon name="compartir" size={18} color={colors.textOnBrand} />}
               onPress={() => void handleShare()}
             />
+            {isLinkTappableInChats(url) ? (
+              <>
+                <Button
+                  label={strings.referral.shareWhatsapp}
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  iconLeft={<Icon name="compartir" size={16} color={colors.textPrimary} />}
+                  onPress={() => void handleWhatsappShare()}
+                />
+                <Button
+                  label={strings.referral.shareEmail}
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  iconLeft={<Icon name="compartir" size={16} color={colors.textPrimary} />}
+                  onPress={() => void handleEmailShare()}
+                />
+              </>
+            ) : (
+              <Text style={styles.statusMessage}>{strings.referral.publicLinkOnly}</Text>
+            )}
             <Button
               label={strings.referral.copyLink}
               variant="secondary"
@@ -198,6 +266,7 @@ function ReferralBody({
               iconLeft={<Icon name="enlace" size={16} color={colors.textPrimary} />}
               onPress={() => void handleCopy()}
             />
+            <Text style={styles.statusMessage}>{strings.referral.sentByYou}</Text>
           </View>
         </>
       ) : null}

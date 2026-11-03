@@ -1,4 +1,5 @@
 import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../../components/PersonalAffiliateGate";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -25,7 +26,9 @@ import { formatMoney, parseAmountInput, toMinorUnits } from "../../utils/money";
 export default function PayoutRequestScreen() {
   return (
     <CommercialFeatureGate>
-      <PayoutRequestScreenContent />
+      <PersonalAffiliateGate>
+        <PayoutRequestScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }
