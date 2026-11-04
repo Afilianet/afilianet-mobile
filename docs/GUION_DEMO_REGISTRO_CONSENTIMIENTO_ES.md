@@ -120,8 +120,8 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
 | A4 | La persona abre Verificación | Ve la autorización con el texto del aviso y la casilla sin marcar. Si su correo o celular no está verificado, primero se le pide confirmarlo |
 | A5 | Marca y pulsa «Registrar autorización» | «Comenzar verificación» se habilita solo cuando la API la devuelve como efectiva |
 
-El enlace de activación por correo (`/assisted-enrollments/activate/{token}`) admite `consents`, pero Mobile no lo
-abre. En Mobile, la persona decide desde su propia sesión, en A4 y A5.
+El enlace de activación por correo lleva a la página `/activate` de Admin, que no envía `consents` aunque la API los
+admita. La autorización de verificación de identidad se obtiene siempre después, en la app, en A4 y A5.
 
 **Con la puerta activa, el patrocinador no puede capturar por la persona (P5):**
 - antes de que ella decida, la API responde 403 `consent_required` (`assisted_person`);
@@ -129,12 +129,27 @@ abre. En Mobile, la persona decide desde su propia sesión, en A4 y A5.
 
 En la demo, el alta asistida termina así: **la persona activa su cuenta y hace ella misma su verificación.**
 
+### P. Primer afiliado (antes de la ronda de correo)
+Una organización recién creada no tiene afiliados ni código de referido. La cuenta de prueba existente del primer afiliado
+acepta en la web la invitación manual de la organización (Admin #72); la app no acepta ese token.
+
+| # | Pasos | Esperado |
+|---|---|---|
+| P1 | Después de aceptar en la web: **cerrar y volver a abrir la app** (o cerrar sesión y volver a entrar) | La app carga la lista de organizaciones solo al iniciar sesión o al abrirse con la sesión guardada. Aceptar fuera de la app no la actualiza sola, y deslizar en Inicio no la recarga |
+| P2 | Si es su única organización | Queda como organización activa automáticamente. Si ya tenía otra activa, sigue esa: cambiar en el selector de «Organización activa» |
+| P3 | Inicio con la organización de la demo activa | Su perfil de afiliado con estado «Pendiente» y el botón «Compartir liga de referido» |
+| P4 | «Compartir liga de referido» (o Mi red → invitar) | «Tu código de afiliado» con el código. «Tu cuenta sigue en revisión, pero tu liga de referido ya funciona.» «Liga de referido» `https://staging-admin.afilianet.mx/join/{organización}/{código}`, con QR, «Compartir», «Copiar liga», «Compartir por WhatsApp» e «Invitar por correo» |
+
+Cubierto por pruebas existentes: la organización única queda seleccionada sola (`OrganizationProvider.test.tsx`), y un
+afiliado pendiente ve su liga y el aviso de revisión (`referral.test.tsx`, «Referral: pending affiliate»). Solo en el
+teléfono: que la invitación aceptada en la web aparezca tras reabrir la app.
+
 ### V. Regreso desde los correos
 | # | Pasos | Esperado |
 |---|---|---|
 | V1 | Registro por referido → correo de verificación → `/verify-email` → «Abrir Afilianet» (`afilianetmobile://profile`) | La app abre Perfil. La tarjeta del correo se vuelve a leer al enfocar Perfil y al volver la app a primer plano, y pasa a «Correo confirmado» |
 | V2 | Después de V1, Verificación | La autorización se vuelve a pedir al servidor siempre que se abre Verificación (y al deslizar para refrescar), así que ya no pide confirmar el correo: muestra la casilla o reutiliza la autorización |
-| V3 | Alta asistida → `/activate` → «inicia sesión en la app» → Verificación | Antes de la primera captura, la app pide la autorización de verificación de identidad a la persona, salvo que ya la haya dado al activar |
+| V3 | Alta asistida → `/activate` (activar la cuenta y crear la contraseña) → «inicia sesión en la app» → Verificación | Tras activar e iniciar sesión, la app pide la autorización con el texto del aviso antes de la primera captura. `/activate` **no** registra la autorización: Admin no envía `consents` y su BFF los filtra |
 
 **Cuentas de la ronda de correo:** los alias `+demo1` de las cuentas de prueba de Andrés, con autorización
 registrada, están reservados **solo** para esta ronda: uno para el registro por referido (V1–V2) y otro para el alta
