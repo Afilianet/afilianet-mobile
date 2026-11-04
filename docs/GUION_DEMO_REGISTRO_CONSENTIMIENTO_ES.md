@@ -12,19 +12,24 @@ despliegue, publicación del aviso ni llamadas reales. Este guion no se ejecuta 
 |---|---|---|---|
 | Mobile | #88 `feat/registration-consents` (base: rama de #87) | ver el PR (este documento va en él) | `workflow_dispatch` en verde. Jest completo en local |
 | Mobile, referencia | #87 `integration/kyc-mobile-candidate` | `19cdea6ad1990ccd6332e98e734de9fe0c1815db` | 41571803921 |
-| API | #119 `integration/demo-2026-11-09` | `66060a183447792d4fe64e4fd642a4edc2c46194` | 41754787348 |
+| API | #119 `integration/demo-2026-11-09` | `5583511294fcf464480e19606932a7c3a818f64a` | 41759538964 |
 | API, parte | #115 `integration/kyc-candidate` | `41273923fbffdcfc47d4f5642267556bf0312f7c` | 41701231593 |
-| API, parte | #118 `feat/registration-consents` | `4bf8398a5552a3c4bc72acf524104bef3f56cab5` | 41737572645 |
+| API, parte | #118 `feat/registration-consents` | `8bcaa45a78bf1f4f0015febdb7bbd496f911623e` (contrato de `4bf8398`, sin cambios de forma) | 41759457661 |
+| API, parte | #121 (encuestas: sin análisis de calidad encolado en staging) | `a3ea4ac871938d66c6598506a33c681069adc39c` | 41759141089 |
 
-- **#119:** el árbol es idéntico al merge automático de #115 y #118. No hay cambios añadidos.
+- **#119 @ `66060a1`:** el árbol es idéntico al merge automático de #115 y #118. El head nuevo añade:
+  - #121: `quality_analysis.status` puede valer `not_scheduled`. Mobile no lee ese campo;
+  - el borrador del aviso con la asignación y el conteo territorial: secciones 2 y 3 y aviso simplificado, sin finalidad
+    ni casilla nueva. Los textos de las casillas y sus `text_sha256` no cambian; el sha256 del documento sí, así que la
+    app siempre lo toma de la API.
 - **Contrato de consentimientos:** los ejemplos de API (`docs/privacy/examples/consents/`) no cambian entre `4bf8398` y
   `66060a1`. Se sirven tal cual en `src/tests/app/registration-consents-contract.test.tsx`.
 - **Aviso real:** API generó en `66060a1` respuestas con el aviso real `2026-11-03-general.2`, aprobado solo dentro de
   su prueba; el archivo del repositorio sigue pendiente. Esas respuestas se sirven en
   `src/tests/app/registration-consents-real-notice.test.tsx`:
   - aviso, registro, mi privacidad, autorización y su reintento, y consulta de liga con `verification_expected`;
-  - longitudes: 220, 220 y 618 caracteres;
-  - el `text_sha256` de cada finalidad.
+  - el `text_sha256` de cada finalidad (no cambia con el head nuevo de #119).
+  - Ojo: el aviso simplificado de esas respuestas es el anterior al añadido territorial.
   - El sha256 del documento de esas respuestas es de la copia de prueba y cambiará al aprobarlo: la app siempre lo toma
     de la API.
 - **Contrato KYC:** #87 se validó contra #115 @ `29dc5a1`. Lo que #115 añadió después no cambia ninguna respuesta

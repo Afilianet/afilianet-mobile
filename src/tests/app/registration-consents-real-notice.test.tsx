@@ -114,10 +114,10 @@ async function mount(element: React.ReactElement, value: AuthContextValue) {
 const pressId = async (view: View, testID: string) => act(async () => { fireEvent.press(view.getByTestId(testID)); });
 const press = async (view: View, text: string) => act(async () => { fireEvent.press(view.getByText(text)); });
 
-it("the real texts: lengths as the API reported, and nothing pending in them", () => {
+it("the real box texts: hashes stable across the draft's later edits (#118 @ 8bcaa45), and nothing pending in them", () => {
+  // The sections and the simplified notice may still change before approval; the box texts are what is pinned.
   expect(identity.text).toHaveLength(220);
   expect(quality.text).toHaveLength(220);
-  expect(notice.simplified_notice).toHaveLength(618);
   expect(identity.text_sha256).toBe("258a58df839a15dd593fa15838533ff324023f831a66ff19517b16561c507af1");
   expect(quality.text_sha256).toBe("0720d0e93e775e05b960283418f3df9bd778d79ce54d7e96541e774bdeb1b3c5");
   expect(JSON.stringify(notice)).not.toMatch(/PENDIENTE/);
