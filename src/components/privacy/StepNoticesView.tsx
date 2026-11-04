@@ -36,6 +36,13 @@ export function StepNoticesView({ notices, disabled }: { notices: StepNotices; d
     <View style={styles.group} testID="step-notices">
       <Text style={styles.title}>{copy.title}</Text>
       <Text style={styles.info}>{copy.intro}</Text>
+      {/* Registration consents v1: shown next to the form as served; nothing asks to accept it. */}
+      {general?.document.simplified_notice ? (
+        <Card style={styles.card} testID="simplified-notice">
+          <Text style={styles.label}>{strings.registrationConsents.simplifiedTitle}</Text>
+          <Text style={styles.info}>{general.document.simplified_notice}</Text>
+        </Card>
+      ) : null}
       {notices.items.map((item) => {
         const isOpen = open === item.key;
         return (

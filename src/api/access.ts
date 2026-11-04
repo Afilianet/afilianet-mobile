@@ -242,6 +242,8 @@ function validationMessage(error: ApiError): string {
   // API #91: the step needs a notice it did not carry; the screen shows it.
   if (fields.includes("privacy_notice")) return strings.privacyNotices.step.generalNeeded;
   if (fields.includes("organization_notice")) return strings.privacyNotices.step.mustConfirm;
+  // Registration consents v1: everything is checked before writing, so nothing was created.
+  if (fields.some((field) => field === "consents" || field.startsWith("consents."))) return strings.registrationConsents.errors.notSaved;
   if (fields.includes("code")) return copy.otpInvalid;
   if (fields.includes("channel")) return copy.channelRejected;
   if (fields.includes("token")) return copy.otpExpired;

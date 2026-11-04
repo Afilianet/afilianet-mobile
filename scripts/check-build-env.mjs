@@ -14,7 +14,7 @@ export const PRODUCTION_DECISIONS = Object.freeze({
 export function validateBuildEnvironment(env, decisions = PRODUCTION_DECISIONS) {
   const errors = [];
   const appEnv = env.EXPO_PUBLIC_APP_ENV;
-  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", "store-beta-apk": "staging", "privacy-test-apk": "internal", internal: "internal", development: "development" };
+  const expected = { production: "production", staging: "staging", "development-staging": "staging", "store-beta": "staging", "store-beta-apk": "staging", "demo-apk": "staging", "privacy-test-apk": "internal", internal: "internal", development: "development" };
   if (!["development", "internal", "staging", "production"].includes(appEnv)) {
     errors.push("Define EXPO_PUBLIC_APP_ENV explícitamente.");
   }
@@ -28,12 +28,26 @@ export function validateBuildEnvironment(env, decisions = PRODUCTION_DECISIONS) 
     }
   }
   // A store build reaches outside testers: whether they see the surveys preview must be an explicit decision.
-  if (["store-beta", "store-beta-apk"].includes(env.EAS_BUILD_PROFILE) && env.EXPO_PUBLIC_SURVEYS_PREVIEW === undefined) {
+  if (["store-beta", "store-beta-apk", "demo-apk"].includes(env.EAS_BUILD_PROFILE) && env.EXPO_PUBLIC_SURVEYS_PREVIEW === undefined) {
     errors.push("store-beta debe decidir EXPO_PUBLIC_SURVEYS_PREVIEW (\"0\" o \"1\") explícitamente.");
+  }
+  // Where surveys come from: unset = sample data that never leaves the phone; "api" = the build's API.
+  if (env.EXPO_PUBLIC_SURVEYS_SOURCE !== undefined && env.EXPO_PUBLIC_SURVEYS_SOURCE !== "api") {
+    errors.push("EXPO_PUBLIC_SURVEYS_SOURCE solo admite \"api\" (o no definirse: datos de ejemplo).");
+  }
+  if (env.EXPO_PUBLIC_SURVEYS_SOURCE === "api" && env.EXPO_PUBLIC_SURVEYS_PREVIEW === "0") {
+    errors.push("EXPO_PUBLIC_SURVEYS_SOURCE=\"api\" no tiene efecto con las encuestas apagadas (EXPO_PUBLIC_SURVEYS_PREVIEW=\"0\").");
+  }
+  // The demo build (2026-11-09) exists to answer real staging surveys: both switches, exactly.
+  if (env.EAS_BUILD_PROFILE === "demo-apk" && (env.EXPO_PUBLIC_SURVEYS_PREVIEW !== "1" || env.EXPO_PUBLIC_SURVEYS_SOURCE !== "api")) {
+    errors.push("demo-apk requiere EXPO_PUBLIC_SURVEYS_PREVIEW=\"1\" y EXPO_PUBLIC_SURVEYS_SOURCE=\"api\".");
+  }
+  if (env.EAS_BUILD_PROFILE === "demo-apk" && env.APP_VARIANT) {
+    errors.push("demo-apk es la misma app que la beta: sin APP_VARIANT.");
   }
   // The store beta's privacy notice describes no diagnostics or analytics. This runs on the
   // EAS worker with the merged environment, so a DSN or key inherited from an EAS environment fails the build.
-  if (["store-beta", "store-beta-apk", "privacy-test-apk", "production"].includes(env.EAS_BUILD_PROFILE)) {
+  if (["store-beta", "store-beta-apk", "demo-apk", "privacy-test-apk", "production"].includes(env.EAS_BUILD_PROFILE)) {
     if (env.EXPO_PUBLIC_SENTRY_ENABLED !== "0") errors.push(`${env.EAS_BUILD_PROFILE} requiere EXPO_PUBLIC_SENTRY_ENABLED="0".`);
     // eas.json rejects empty values: "disabled" is the only accepted override of the environment's DSN.
     if (![undefined, "", "disabled"].includes(env.EXPO_PUBLIC_SENTRY_DSN)) errors.push(`${env.EAS_BUILD_PROFILE} requiere EXPO_PUBLIC_SENTRY_DSN ausente o "disabled".`);
@@ -95,7 +109,7 @@ export function validateBuildEnvironment(env, decisions = PRODUCTION_DECISIONS) 
       if (!decisions.apiOrigin) errors.push("Producción sin dominio de API decidido y confirmado por Infra (D7): no se compila.");
       else if (url.origin !== decisions.apiOrigin) errors.push(`Producción requiere ${decisions.apiOrigin}; no uses staging, direcciones locales ni ejemplos.`);
     }
-    if (["staging", "store-beta", "store-beta-apk", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
+    if (["staging", "store-beta", "store-beta-apk", "demo-apk", "development-staging"].includes(env.EAS_BUILD_PROFILE) && url.origin !== "https://staging-api.afilianet.mx") {
       errors.push("El perfil de pruebas requiere https://staging-api.afilianet.mx.");
     }
     if (env.EAS_BUILD_PROFILE === "privacy-test-apk" && url.origin !== PRIVACY_TEST_ORIGIN) {

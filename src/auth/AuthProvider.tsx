@@ -4,6 +4,7 @@ import { queryClient } from "../api/queryClient";
 import { configureApiClient } from "../api/client";
 import { isApiError } from "../api/errors";
 import { registerAccount, signInWith } from "../api/access";
+import { completeRegistrationReceipt } from "./registrationReceipt";
 import { acceptReferralInvitation, fetchMe, signOutRequest } from "../api/endpoints";
 import type { User } from "../types/api";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./AuthContext";
@@ -161,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         const result = await acceptReferralInvitation(invitationToken, registration);
         if (!result.token) throw new Error("The registration did not return a session token.");
+        completeRegistrationReceipt(result.user.id, result.privacy);
         queryClient.clear();
         clearPrivacyReview();
         tokenRef.current = result.token;
@@ -174,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
         const result = await registerAccount(registration);
         if (!result.token) throw new Error("The registration did not return a session token.");
+        completeRegistrationReceipt(result.user.id, result.privacy);
         setOnboardingRoute("/verify-account");
         await establishSession(result.token);
       },

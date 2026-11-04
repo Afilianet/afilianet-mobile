@@ -70,3 +70,22 @@ test("every other profile keeps the beta's identity and its Firebase file", () =
     assert.equal(resolved.android.googleServicesFile, "/tmp/google-services.json", profile);
   }
 });
+
+// What eas-cli builds for demo-apk: the extends chain's env merged child-over-parent (@expo/eas-json resolver).
+const demoEnv = { ...storeBetaEnv, ...eas.build["demo-apk"].env };
+
+test("demo-apk is the beta app itself: same package, no own name or scheme, Firebase file kept", () => {
+  for (const env of [{ EAS_BUILD_PROFILE: "demo-apk", ...demoEnv }, { ...demoEnv }]) {
+    // With and without EAS_BUILD_PROFILE: eas-cli also resolves the config locally without it (credentials, versionCode).
+    const resolved = resolve({ ...env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+    assert.equal(resolved.android.package, "com.afilianet.mobile");
+    assert.equal(resolved.name, undefined);
+    assert.equal(resolved.scheme, undefined);
+    assert.equal(resolved.android.googleServicesFile, "/tmp/google-services.json");
+  }
+});
+
+test("demo-apk: store permissions, but the microphone stays in the manifest because surveys are on", () => {
+  const blocked = resolve({ EAS_BUILD_PROFILE: "demo-apk", ...demoEnv }).android.blockedPermissions;
+  assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE"].sort());
+});

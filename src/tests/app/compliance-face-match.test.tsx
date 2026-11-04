@@ -33,6 +33,8 @@ import ComplianceScreen from "../../app/compliance";
  * result). Mirrors compliance-document-capture.test.tsx's exact
  * mocking/rendering setup.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
 }));

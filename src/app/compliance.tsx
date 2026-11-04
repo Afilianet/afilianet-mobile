@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { consentRequiredBy } from "../api/privacy";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
+import { IdentityConsentGate, useIdentityConsentPhase } from "../components/privacy/IdentityConsentGate";
 import { recaptureRequest } from "../components/compliance/recaptureRequest";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -28,6 +31,8 @@ import { formatDate } from "../utils/date";
 import type { ComplianceCase, ComplianceStep } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
+// Case states in which the person can still capture (a recapture request reopens one in manual review).
+const CAPTURING = new Set<ComplianceCase["status"]>(["in_progress", "manual_review"]);
 
 export default function ComplianceScreen() {
   return (
@@ -47,8 +52,12 @@ function ComplianceScreenContent() {
   const hasCase = complianceQuery.data !== undefined;
   const stepsQuery = useComplianceSteps(hasCase);
   const startMutation = useStartCompliance();
+  // Registration consents v1: reuse the person's own effective authorization, or ask for it here.
+  const identityConsent = useIdentityConsentPhase();
+  const canStart = identityConsent.phase === "inert" || identityConsent.phase === "effective";
   const [refreshing, setRefreshing] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     analytics.capture("compliance_viewed");
@@ -57,19 +66,30 @@ function ComplianceScreenContent() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await Promise.all([affiliateQuery.refetch(), complianceQuery.refetch(), stepsQuery.refetch()]);
+      await Promise.all([
+        affiliateQuery.refetch(),
+        complianceQuery.refetch(),
+        stepsQuery.refetch(),
+        // The identity consent state too: it may have changed outside the app (email confirmed by link).
+        queryClient.invalidateQueries({ queryKey: ["me-privacy"] }),
+      ]);
     } finally {
       setRefreshing(false);
     }
   }
 
   async function handleStart() {
-    if (!captureAvailable) return;
+    if (!captureAvailable || !canStart) return;
     setStartError(null);
     try {
       await startMutation.mutateAsync();
     } catch (error) {
+      // The server's gate is the authority: read its state again so the box shows when it asks.
+      if (consentRequiredBy(error)) void queryClient.invalidateQueries({ queryKey: ["me-privacy"] });
       setStartError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
+      // Starting is not idempotent: a lost answer may have created the case, and a retry then fails (422).
+      // Read the case again; if it exists, the screen shows it instead of the start card.
+      void complianceQuery.refetch();
     }
   }
 
@@ -109,11 +129,19 @@ function ComplianceScreenContent() {
         ) : notStarted && !captureAvailable ? (
           <CaptureUnavailableCard />
         ) : notStarted ? (
-          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} />
+          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} canStart={canStart}>
+            <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+          </NotStartedCard>
         ) : complianceQuery.data ? (
           <>
             {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
+            {/* The server's gate also covers captures in an open case: ask here too, before the next one. */}
+            {captureAvailable && CAPTURING.has(complianceQuery.data.status) && !canStart ? (
+              <Card style={styles.card} testID="identity-consent-open-case">
+                <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+              </Card>
+            ) : null}
             <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} caseStatus={complianceQuery.data.status} captureAvailable={captureAvailable} />
           </>
         ) : null}
@@ -132,7 +160,19 @@ function CaptureUnavailableCard() {
   );
 }
 
-function NotStartedCard({ onStart, loading, error }: { onStart: () => void; loading: boolean; error: string | null }) {
+function NotStartedCard({
+  onStart,
+  loading,
+  error,
+  canStart,
+  children,
+}: {
+  onStart: () => void;
+  loading: boolean;
+  error: string | null;
+  canStart: boolean;
+  children?: ReactNode;
+}) {
   const status = complianceStatusCopy("not_started");
   return (
     <Card style={styles.card}>
@@ -140,8 +180,9 @@ function NotStartedCard({ onStart, loading, error }: { onStart: () => void; load
         <Badge label={status.label} tone={status.tone} />
       </View>
       {status.description ? <Text style={styles.description}>{status.description}</Text> : null}
+      {children}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label={strings.compliance.startVerification} fullWidth loading={loading} onPress={onStart} />
+      <Button label={strings.compliance.startVerification} fullWidth loading={loading} disabled={!canStart} onPress={onStart} />
     </Card>
   );
 }

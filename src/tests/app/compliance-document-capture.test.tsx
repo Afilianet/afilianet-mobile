@@ -28,6 +28,8 @@ import ComplianceScreen from "../../app/compliance";
 
 const mockRouterBack = jest.fn();
 const mockRouterPush = jest.fn();
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: mockRouterBack, push: mockRouterPush }),
 }));

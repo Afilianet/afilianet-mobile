@@ -1,7 +1,8 @@
 // Store builds (EAS sets EAS_BUILD_PROFILE while it resolves this config) drop
 // Android permissions that no feature enabled in that build uses. Development
 // and staging builds keep their manifest as it was.
-const STORE_PROFILES = new Set(["store-beta", "store-beta-apk", "privacy-test-apk", "production"]);
+// demo-apk is the store beta APK with real staging surveys (demo 2026-11-09): same app, package and signature.
+const STORE_PROFILES = new Set(["store-beta", "store-beta-apk", "demo-apk", "privacy-test-apk", "production"]);
 
 // The physical privacy test (Mobile #75) runs against a disposable API, never
 // staging. It is selected by APP_VARIANT from the profile's env, NOT by

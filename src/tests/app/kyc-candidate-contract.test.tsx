@@ -21,6 +21,8 @@ import type { Organization } from "../../types/api";
  * #86 (same-photos document retry) and #85 (own terms acceptance on a
  * resolved step). Nothing leaves 127.0.0.1.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock("../../services/analytics", () => ({ analytics: { capture: jest.fn(), identify: jest.fn(), reset: jest.fn() } }));
 

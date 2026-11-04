@@ -77,6 +77,13 @@
         "buildType": "apk"
       }
     },
+    "demo-apk": {
+      "extends": "store-beta-apk",
+      "env": {
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "1",
+        "EXPO_PUBLIC_SURVEYS_SOURCE": "api"
+      }
+    },
     "privacy-test-apk": {
       "distribution": "internal",
       "environment": "development",

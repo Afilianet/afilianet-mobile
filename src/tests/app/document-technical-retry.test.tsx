@@ -26,6 +26,8 @@ import type { ComplianceStatus, ComplianceStep, DocumentProcessingResult, Organi
  * results only; the endpoints are mocked (the route is checked over HTTP in
  * document-technical-retry-http.test.ts).
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock("../../api/endpoints", () => ({
   fetchDocumentResult: jest.fn(),

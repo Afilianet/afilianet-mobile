@@ -13,6 +13,7 @@ import {
 import { isApiError } from "../api/errors";
 import { useAuth } from "../auth/AuthContext";
 import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
+import { RegistrationReceiptCard } from "../components/privacy/RegistrationReceiptCard";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
@@ -57,6 +58,7 @@ export default function VerifyAccountScreen() {
       <ScrollView testID="verify-account-scroll" contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading} accessibilityRole="header">{copy.title}</Text>
         <Text style={styles.description}>{copy.description}</Text>
+        <RegistrationReceiptCard userId={user.id} />
         {user.email ? (
           <EmailChannel key={`email-${user.id}`} email={user.email} verified={emailVerified} refreshUser={refreshUser} />
         ) : null}
