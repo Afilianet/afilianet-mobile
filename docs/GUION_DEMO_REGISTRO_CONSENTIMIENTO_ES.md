@@ -136,8 +136,15 @@ En la demo, el alta asistida termina así: **la persona activa su cuenta y hace 
 | V2 | Después de V1, Verificación | La autorización se vuelve a pedir al servidor siempre que se abre Verificación (y al deslizar para refrescar), así que ya no pide confirmar el correo: muestra la casilla o reutiliza la autorización |
 | V3 | Alta asistida → `/activate` → «inicia sesión en la app» → Verificación | Antes de la primera captura, la app pide la autorización de verificación de identidad a la persona, salvo que ya la haya dado al activar |
 
-**Cuentas de la demo:** los alias `+demo1` de las cuentas de prueba de Andrés, con autorización registrada: uno para el
-registro por referido y otro para el alta asistida. Las direcciones están en el paquete de API, no en este repositorio.
+**Cuentas de la ronda de correo:** los alias `+demo1` de las cuentas de prueba de Andrés, con autorización
+registrada, están reservados **solo** para esta ronda: uno para el registro por referido (V1–V2) y otro para el alta
+asistida (V3). Las direcciones están en el paquete de API, no en este repositorio.
+
+**Invitación manual sin patrocinador:** la app **no** acepta un token de invitación manual
+(`POST organizations/{org}/invitations`), ni por enlace ni pegándolo. Su campo de invitación solo lee códigos o enlaces de
+referido de un afiliado (`/join/{organización}/{código}`), sin sesión o con ella («Sin organización»). La invitación
+manual se acepta en la página de Admin `/invitations/[token]` (Admin #72), y después la persona inicia sesión en la
+app.
 
 ### C. Consentimiento con la cuenta activa
 | # | Pasos | Esperado |
