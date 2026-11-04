@@ -66,7 +66,13 @@ function ComplianceScreenContent() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await Promise.all([affiliateQuery.refetch(), complianceQuery.refetch(), stepsQuery.refetch()]);
+      await Promise.all([
+        affiliateQuery.refetch(),
+        complianceQuery.refetch(),
+        stepsQuery.refetch(),
+        // The identity consent state too: it may have changed outside the app (email confirmed by link).
+        queryClient.invalidateQueries({ queryKey: ["me-privacy"] }),
+      ]);
     } finally {
       setRefreshing(false);
     }

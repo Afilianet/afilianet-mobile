@@ -38,7 +38,9 @@ export type IdentityConsentPhase = "inert" | "loading" | "effective" | "grant" |
 export function useIdentityConsentPhase(): { phase: IdentityConsentPhase; status: MyPrivacy | null | undefined } {
   const ownCase = !useAssistedComplianceId();
   const userId = useAuth().user?.id;
-  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: Boolean(userId) && ownCase });
+  // Always read again on opening Verification: confirming the email or phone elsewhere (a link in the mail)
+  // changes what the server requires, and a cached answer would keep asking for it.
+  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: Boolean(userId) && ownCase, refetchOnMount: "always" });
   if (!ownCase || !userId || query.isError) return { phase: "inert", status: undefined };
   if (query.isPending) return { phase: "loading", status: undefined };
   const purpose = query.data?.privacy_notice.purposes.find((item) => item.key === IDENTITY_VERIFICATION_PURPOSE);

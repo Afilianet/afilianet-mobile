@@ -64,7 +64,8 @@ beforeEach(() => {
   routes = {};
   calls.length = 0;
   jest.clearAllMocks();
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // The app's own cache lifetime (src/api/queryClient.ts), so a cached answer behaves as on the phone.
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } });
   global.fetch = fetchMock as unknown as typeof fetch;
   configureApiClient({ getToken: () => "session-a", getOrganizationId: () => "org-a" });
   (fetchMyAffiliateProfile as jest.Mock).mockResolvedValue({ id: "aff-1", affiliate_code: "AFF100", status: "pending", joined_at: "2026-01-01", activated_at: null, metadata: null, created_at: "2026-01-01" });
@@ -212,6 +213,20 @@ describe("KYC start with an activated account", () => {
     expect(startDisabled(view)).toBe(true);
     await press(view, "Confirmar correo o celular");
     expect(mockPush).toHaveBeenCalledWith("/verify-account");
+  });
+
+  it("holder_verification, then the email is confirmed by link outside the app: reopening Verification reads it again", async () => {
+    on(
+      ME_PRIVACY,
+      ok(myPrivacy({ status: "granted", decision: "granted", effective: false, requirement: "holder_verification" })),
+      ok(myPrivacy({ status: "granted", decision: "granted", decided_at: "2026-11-09T10:00:00-06:00", effective: true, requirement: null })),
+    );
+    const first = await mount();
+    await waitFor(() => expect(first.getByTestId("identity-consent-holder-verification")).toBeTruthy());
+    // Back within the cache's lifetime: still read again.
+    const second = await mount();
+    await waitFor(() => expect(second.getByTestId("identity-consent-effective")).toBeTruthy());
+    expect(startDisabled(second)).toBe(false);
   });
 
   it("the served notice is not the version the decision is recorded against: no box, retry offered", async () => {

@@ -116,7 +116,7 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
 |---|---|---|
 | A1 | El patrocinador registra a una persona («Registrar a alguien») | Sin casillas de finalidad; solo la confirmación de que la persona autorizó el registro, que sigue siendo otra cosa |
 | A2 | El patrocinador intenta empezar la verificación por ella | Mensaje: «La persona todavía no autoriza la verificación de identidad desde su propia cuenta. Solo ella puede hacerlo.» No se crea nada. El patrocinador no ve su propia autorización en el caso de otra persona |
-| A3 | La persona activa su cuenta en el teléfono con «¿Olvidaste tu contraseña?» y entra | Entra con su propia sesión. **Envía un correo o SMS real** (ver §2) |
+| A3 | La persona abre el enlace de activación de su correo (página `/activate`), activa su cuenta y luego inicia sesión en la app | Entra con su propia sesión. El enlace verifica su correo. **Es un correo real**, que se encola solo al crear el alta, sin reenvío: el correo de la API debe estar activo antes de A1 |
 | A4 | La persona abre Verificación | Ve la autorización con el texto del aviso y la casilla sin marcar. Si su correo o celular no está verificado, primero se le pide confirmarlo |
 | A5 | Marca y pulsa «Registrar autorización» | «Comenzar verificación» se habilita solo cuando la API la devuelve como efectiva |
 
@@ -128,6 +128,16 @@ abre. En Mobile, la persona decide desde su propia sesión, en A4 y A5.
 - después de que active su cuenta, responde 409 `assisted_access_claimed` («la persona ya activó su cuenta»).
 
 En la demo, el alta asistida termina así: **la persona activa su cuenta y hace ella misma su verificación.**
+
+### V. Regreso desde los correos
+| # | Pasos | Esperado |
+|---|---|---|
+| V1 | Registro por referido → correo de verificación → `/verify-email` → «Abrir Afilianet» (`afilianetmobile://profile`) | La app abre Perfil. La tarjeta del correo se vuelve a leer al enfocar Perfil y al volver la app a primer plano, y pasa a «Correo confirmado» |
+| V2 | Después de V1, Verificación | La autorización se vuelve a pedir al servidor siempre que se abre Verificación (y al deslizar para refrescar), así que ya no pide confirmar el correo: muestra la casilla o reutiliza la autorización |
+| V3 | Alta asistida → `/activate` → «inicia sesión en la app» → Verificación | Antes de la primera captura, la app pide la autorización de verificación de identidad a la persona, salvo que ya la haya dado al activar |
+
+**Cuentas de la demo:** los alias `+demo1` de las cuentas de prueba de Andrés, con autorización registrada: uno para el
+registro por referido y otro para el alta asistida. Las direcciones están en el paquete de API, no en este repositorio.
 
 ### C. Consentimiento con la cuenta activa
 | # | Pasos | Esperado |
