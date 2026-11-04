@@ -12,7 +12,8 @@ despliegue, publicación del aviso ni llamadas reales. Este guion no se ejecuta 
 |---|---|---|---|
 | Mobile | #88 `feat/registration-consents` (base: rama de #87) | ver el PR (este documento va en él) | `workflow_dispatch` en verde. Jest completo en local |
 | Mobile, referencia | #87 `integration/kyc-mobile-candidate` | `19cdea6ad1990ccd6332e98e734de9fe0c1815db` | 41571803921 |
-| API | #119 `integration/demo-2026-11-09` | `5583511294fcf464480e19606932a7c3a818f64a` | 41759538964 |
+| API, candidato único de la demo | #125 (#119 + territorial) | `b7f0f616223ff47f3bc4966a37c6b30e98bdb867` | 41771632788 |
+| API | #119 `integration/demo-2026-11-09` | `677cbc0f669c2507c88ead62a1d359ab2df47ef5` (aviso aprobado en el archivo, `dc77fd9`) | — |
 | API, parte | #115 `integration/kyc-candidate` | `41273923fbffdcfc47d4f5642267556bf0312f7c` | 41701231593 |
 | API, parte | #118 `feat/registration-consents` | `8bcaa45a78bf1f4f0015febdb7bbd496f911623e` (contrato de `4bf8398`, sin cambios de forma) | 41759457661 |
 | API, parte | #121 (encuestas: sin análisis de calidad encolado en staging) | `a3ea4ac871938d66c6598506a33c681069adc39c` | 41759141089 |
@@ -59,6 +60,9 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
   muestran en la app.
 
 **Configuración del API del entorno de la demo**
+- **Estado (API, 2026-11-04):** `dc77fd9` solo aprueba el aviso en el archivo. Andrés autorizó
+  `PRIVACY_NOTICE_PUBLISHED=true` y `PRIVACY_NOTICE_DOCUMENT=2026-11-03-general.2` en staging, con Infra como único
+  ejecutor y una vez desplegada la versión compatible (#125). No consta que estén aplicadas.
 - `PRIVACY_NOTICE_PUBLISHED=true`.
 - `PRIVACY_NOTICE_DOCUMENT=2026-11-03-general.2`.
 - `PRIVACY_CONSENT_HOLDER_VERIFICATION` (por omisión `email_or_phone`; pendiente P4): qué verificación de la cuenta
@@ -150,9 +154,23 @@ En la demo, el alta asistida termina así: **la persona activa su cuenta y hace 
 | E1 | Admin crea, publica y distribuye una encuesta con `audio_mode: "none"` y respuesta propia en la organización de la demo | Visible en Admin como publicada |
 | E2 | Con una cuenta con membresía activa y perfil de afiliado en esa organización: Encuestas | Aparece la encuesta con «Respuesta propia» y «Abierta». No aparece el aviso de datos de ejemplo |
 | E3 | Abrir la encuesta → «Responder yo» → contestar → «Enviar respuesta» | No pide el micrófono ni muestra el consentimiento de grabación. En «Envíos» pasa de «Pendiente de sincronizar» a «Recibido el …» |
-| E4 | Admin abre las respuestas de la versión | Una respuesta `self`. Sin transcripción ni análisis de calidad encolados, si están apagados en staging (pendiente de confirmar por API) |
+| E4 | Admin abre las respuestas de la versión | Una fila de respuesta propia, sin grabación, con «Sin audio» y el análisis en `not_scheduled`. Si aparece «Falló», es un defecto |
 | E5 | Modo avión → responder otra vez → «Enviar respuesta» → quitar el modo avión | «Sin conexión. Se enviará cuando vuelva la señal.» Al volver la red se envía sola (al volver a primer plano o cada 60 s) o con «Sincronizar ahora». Admin muestra una sola respuesta |
 | E6 | Respuesta perdida (el servidor guardó, el teléfono no recibió) | El reintento usa el mismo `client_response_id` y la API devuelve la respuesta original: una sola fila. **No se puede provocar a mano**: cubierto por pruebas |
+
+**Requisitos confirmados por API** (código de #125 @ `b7f0f61`; Surveys no cambió desde `b1629a6`)
+- **Cuenta:** membresía con estado activo en la organización (cualquier rol) y un perfil de afiliado en ella, en
+  cualquier estado (también pendiente). Sin perfil: 403 `no_affiliate_profile`, que la app muestra como envío bloqueado.
+- **KYC:** ninguna regla en la lista, la versión ni las respuestas. El aviso nuevo publicado tampoco bloquea mientras
+  `PRIVACY_NOTICE_ENFORCE_REVIEW` siga en `false`, que es lo que hay y lo previsto.
+- **Distribución:** solo notifica. Cualquier miembro activo con perfil de afiliado puede responder cualquier versión
+  publicada y abierta de su organización, la haya recibido o no.
+- **Análisis de calidad:** lo controla `SURVEYS_QUALITY_ANALYSIS_ENABLED`. Sin definir vale `false` con
+  `APP_ENV=staging`: la respuesta queda en `not_scheduled` y no se encola nada. Respuesta propia sin audio: no hay
+  transcripción. **Solo surte efecto cuando Infra despliegue #125**; la imagen actual de staging no lo lleva.
+- **Admin:** necesita Admin #67 fusionado y desplegado, con `ADMIN_SURVEYS_SOURCE=http`.
+- **Contrato:** los ejemplos de API (sobre `b1629a6`, con el análisis apagado y sin nada encolado) se sirven tal cual en
+  `src/tests/app/survey-self-response-contract.test.tsx`.
 
 **Build del candidato con encuestas** (configurado en #88; **no construido**)
 - **Perfil EAS:** `demo-apk`. Extiende `store-beta-apk` y solo añade `EXPO_PUBLIC_SURVEYS_PREVIEW=1` y
