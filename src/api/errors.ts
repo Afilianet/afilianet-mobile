@@ -26,13 +26,20 @@ export class ApiError extends Error {
   readonly retryAfterSeconds?: number;
   /** The privacy refs a 409 carries: `pending` (review required) or `current` (notice outdated). */
   readonly privacy?: { pending?: unknown; current?: unknown };
+  /** Whose consent a 403 consent_required asks for, and what it needs (registration consents v1). */
+  readonly consent?: { holder?: string; requirement?: string };
 
   constructor(
     kind: ApiErrorKind,
     message: string,
     status: number | null = null,
     details?: ApiErrorDetails,
-    extra: { reason?: string; retryAfterSeconds?: number; privacy?: { pending?: unknown; current?: unknown } } = {},
+    extra: {
+      reason?: string;
+      retryAfterSeconds?: number;
+      privacy?: { pending?: unknown; current?: unknown };
+      consent?: { holder?: string; requirement?: string };
+    } = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -42,6 +49,7 @@ export class ApiError extends Error {
     this.reason = extra.reason;
     this.retryAfterSeconds = extra.retryAfterSeconds;
     this.privacy = extra.privacy;
+    this.consent = extra.consent;
   }
 }
 
@@ -72,6 +80,12 @@ export function friendlyMessage(error: ApiError): string {
   if (error.reason === "terms_require_own_session") return strings.compliance.terms.requiresOwnSessionError;
   if (error.reason === "case_expired") return strings.compliance.caseExpired;
   // Privacy notices (API #91/#93): each says what to do, never a plain retry.
+  if (error.reason === "consent_required") {
+    return error.consent?.holder === "assisted_person"
+      ? strings.registrationConsents.errors.assistedPersonMustAuthorize
+      : strings.registrationConsents.errors.consentRequired;
+  }
+  if (error.reason === "consent_holder_only") return strings.registrationConsents.errors.holderOnly;
   if (error.reason === "privacy_notice_review_required") return strings.privacyNotices.errors.reviewRequired;
   if (error.reason === "privacy_notice_outdated") return strings.privacyNotices.errors.outdated;
   if (error.reason === "privacy_notice_unavailable") return strings.privacyNotices.errors.generalUnavailable;

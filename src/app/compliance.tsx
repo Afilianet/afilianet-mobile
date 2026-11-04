@@ -1,9 +1,12 @@
 import { useRouter } from "expo-router";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { consentRequiredBy } from "../api/privacy";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
+import { IdentityConsentGate, useIdentityConsentPhase } from "../components/privacy/IdentityConsentGate";
 import { recaptureRequest } from "../components/compliance/recaptureRequest";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
@@ -47,8 +50,12 @@ function ComplianceScreenContent() {
   const hasCase = complianceQuery.data !== undefined;
   const stepsQuery = useComplianceSteps(hasCase);
   const startMutation = useStartCompliance();
+  // Registration consents v1: reuse the person's own effective authorization, or ask for it here.
+  const identityConsent = useIdentityConsentPhase();
+  const canStart = identityConsent.phase === "inert" || identityConsent.phase === "effective";
   const [refreshing, setRefreshing] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     analytics.capture("compliance_viewed");
@@ -64,11 +71,13 @@ function ComplianceScreenContent() {
   }
 
   async function handleStart() {
-    if (!captureAvailable) return;
+    if (!captureAvailable || !canStart) return;
     setStartError(null);
     try {
       await startMutation.mutateAsync();
     } catch (error) {
+      // The server's gate is the authority: read its state again so the box shows when it asks.
+      if (consentRequiredBy(error)) void queryClient.invalidateQueries({ queryKey: ["me-privacy"] });
       setStartError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
     }
   }
@@ -109,7 +118,9 @@ function ComplianceScreenContent() {
         ) : notStarted && !captureAvailable ? (
           <CaptureUnavailableCard />
         ) : notStarted ? (
-          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} />
+          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} canStart={canStart}>
+            <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+          </NotStartedCard>
         ) : complianceQuery.data ? (
           <>
             {captureAvailable ? null : <CaptureUnavailableCard />}
@@ -132,7 +143,19 @@ function CaptureUnavailableCard() {
   );
 }
 
-function NotStartedCard({ onStart, loading, error }: { onStart: () => void; loading: boolean; error: string | null }) {
+function NotStartedCard({
+  onStart,
+  loading,
+  error,
+  canStart,
+  children,
+}: {
+  onStart: () => void;
+  loading: boolean;
+  error: string | null;
+  canStart: boolean;
+  children?: ReactNode;
+}) {
   const status = complianceStatusCopy("not_started");
   return (
     <Card style={styles.card}>
@@ -140,8 +163,9 @@ function NotStartedCard({ onStart, loading, error }: { onStart: () => void; load
         <Badge label={status.label} tone={status.tone} />
       </View>
       {status.description ? <Text style={styles.description}>{status.description}</Text> : null}
+      {children}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label={strings.compliance.startVerification} fullWidth loading={loading} onPress={onStart} />
+      <Button label={strings.compliance.startVerification} fullWidth loading={loading} disabled={!canStart} onPress={onStart} />
     </Card>
   );
 }

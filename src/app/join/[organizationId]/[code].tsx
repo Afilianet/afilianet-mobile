@@ -7,8 +7,10 @@ import { fetchMyPrivacy, isNoticeOutdated, needsGeneralNotice, PRIVACY_NOTICE_OU
 import { friendlyMessage, isApiError } from "../../../api/errors";
 import { useAuth } from "../../../auth/AuthContext";
 import { clearPendingReferral, savePendingReferral } from "../../../auth/pendingReferral";
+import { discardRegistrationReceipt, startRegistrationReceipt } from "../../../auth/registrationReceipt";
 import { useSafeSignOut } from "../../../features/surveys/signOut";
 import { PhoneField } from "../../../components/account/PhoneField";
+import { RegistrationConsentsView } from "../../../components/privacy/RegistrationConsentsView";
 import { StepNoticesView } from "../../../components/privacy/StepNoticesView";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -16,6 +18,7 @@ import { TextInput } from "../../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../../components/ui/theme";
 import { Logo } from "../../../design-system/icons/Logo";
 import { useAttemptId } from "../../../hooks/useAttemptId";
+import { useRegistrationConsents } from "../../../hooks/useRegistrationConsents";
 import { useStepNotices } from "../../../hooks/useStepNotices";
 import { strings } from "../../../i18n";
 import { routes } from "../../../navigation/routes";
@@ -276,6 +279,8 @@ function VisitorRegistration({ organizationId, code, referral, onNoticesChanged 
   // API #91: the general notice and this organization's supplement, read from
   // the referral's own block; without a block (an older API) nothing changes.
   const notices = useStepNotices({ enabled: true, withOrganization: true, block: referral.privacy, general: "always" });
+  // Registration consents v1: identity verification only where this organization verifies identity.
+  const consents = useRegistrationConsents(notices, { verificationExpected: referral.privacy?.verification_expected === true });
   const noticesReady = notices.status !== "loading" && !notices.blockedMessage;
   const attemptId = useAttemptId();
   const busy = useRef(false);
@@ -321,17 +326,29 @@ function VisitorRegistration({ organizationId, code, referral, onNoticesChanged 
         password,
       };
       const refs = notices.refs();
+      const decisions = refs.privacy_notice ? consents.consents() : [];
+      startRegistrationReceipt(
+        decisions.map((consent) => ({
+          consent,
+          title: consents.items.find((item) => item.purpose.key === consent.purpose)?.purpose.title ?? consent.purpose,
+        })),
+      );
       await registerFromReferral(invitationToken.current.token, {
         ...input,
-        // Only with notices (an API with #91): the same id for every retry of this input.
+        // Only with notices (an API with #91): the same id for every retry of this exact input and these decisions.
         ...(refs.privacy_notice || refs.organization_notice
-          ? { ...refs, client_request_id: attemptId(`${invitationToken.current.token}/${JSON.stringify(input)}`) }
+          ? {
+              ...refs,
+              ...(decisions.length ? { consents: decisions } : {}),
+              client_request_id: attemptId(`${invitationToken.current.token}/${JSON.stringify({ input, decisions })}`),
+            }
           : {}),
       });
       // The account was created already inside this organization: nothing is pending anymore.
       await clearPendingReferral();
       router.replace(routes.verifyAccount as never);
     } catch (error) {
+      discardRegistrationReceipt();
       // API #91: nothing was created; show the current notices, keep the form and the attempt.
       if (isNoticeOutdated(error)) {
         onNoticesChanged();
@@ -370,7 +387,8 @@ function VisitorRegistration({ organizationId, code, referral, onNoticesChanged 
       <Text style={styles.info}>{strings.access.register.description}</Text>
       <TextInput label={strings.auth.login.passwordLabel} value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" />
       <TextInput label={strings.auth.join.confirmPassword} value={confirmation} onChangeText={setConfirmation} secureTextEntry textContentType="newPassword" />
-      <StepNoticesView notices={notices} />
+      <StepNoticesView notices={notices} disabled={submitting} />
+      <RegistrationConsentsView consents={consents} disabled={submitting} />
       {submitError ? <Text accessibilityRole="alert" style={styles.error}>{submitError}</Text> : null}
       <Button label={strings.auth.join.submit} size="lg" fullWidth loading={submitting} disabled={!noticesReady} onPress={() => void submit()} />
       <Button label={strings.auth.join.signIn} variant="ghost" onPress={() => router.push(routes.login as never)} />

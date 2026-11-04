@@ -22,6 +22,8 @@ export interface NoticePurpose {
   text: string;
   text_sha256?: string;
   required_for?: string[];
+  /** Registration consents v1: a short explanation under the box, served with the text. */
+  help?: string | null;
 }
 
 export type ChangeClass = "initial" | "editorial" | "informative" | "review_required" | "specific_consent";
@@ -41,6 +43,8 @@ export interface NoticeDocument {
   classification?: { change_class: ChangeClass };
   summary_of_changes?: string | null;
   purposes?: NoticePurpose[];
+  /** Registration consents v1: a short public summary shown next to the form; reading it is never required. */
+  simplified_notice?: string | null;
 }
 
 /** The `privacy` block of a step's public lookup (invitation, staff invitation, referral link). */
@@ -48,6 +52,8 @@ export interface StepPrivacy {
   required: boolean;
   privacy_notice: NoticeRef | null;
   organization_notice: NoticeDocument | null;
+  /** Registration consents v1: the organization has identity verification enabled. */
+  verification_expected?: boolean;
 }
 
 export type ActionRequired = "none" | "inform" | "review";
@@ -59,6 +65,11 @@ export interface PurposeDecision {
   required_for: string[];
   decision?: "granted" | "refused" | null;
   decided_at?: string | null;
+  /** Registration consents v1: `outdated` is a decision on an older text. */
+  status?: "granted" | "refused" | "missing" | "outdated";
+  /** Granted on the current text, by the holder (never a sponsor), with the holder verified. Only the API says so. */
+  effective?: boolean;
+  requirement?: "grant" | "holder_verification" | null;
 }
 
 export interface NoticeStatus {
@@ -96,6 +107,12 @@ export const PRIVACY_REVIEW_REQUIRED = "privacy_notice_review_required";
 export const PRIVACY_NOTICE_OUTDATED = "privacy_notice_outdated";
 export const PRIVACY_NOTICE_UNAVAILABLE = "privacy_notice_unavailable";
 export const ORGANIZATION_NOTICE_UNAVAILABLE = "organization_notice_unavailable";
+export const CONSENT_REQUIRED = "consent_required";
+export const CONSENT_HOLDER_ONLY = "consent_holder_only";
+
+/** Registration consents v1: the purposes the sign-up steps ask for, by their API keys. */
+export const IDENTITY_VERIFICATION_PURPOSE = "identity_verification";
+export const QUALITY_TESTING_PURPOSE = "quality_testing";
 
 /** The reference of a document exactly as it was shown, or null when it cannot be referenced. */
 export function refOf(document: NoticeDocument | null | undefined): NoticeRef | null {
@@ -178,11 +195,47 @@ export async function recordConsent(input: ConsentInput): Promise<MyPrivacy> {
   return data;
 }
 
+/** One decision sent with a step, on a purpose of a document presented in that same step. */
+export interface StepConsent {
+  document: NoticeRef;
+  purpose: string;
+  decision: "granted" | "refused";
+}
+
 /** The documents a step needs, as refs, from what was actually shown. */
 export interface StepNoticeRefs {
   privacy_notice?: NoticeRef;
   organization_notice?: NoticeRef;
+  /** Registration consents v1: only ticked boxes, as `granted`; an unticked box sends nothing. */
+  consents?: StepConsent[];
   client_request_id?: string;
+}
+
+export interface RecordedConsent {
+  purpose: string;
+  organization_id: string | null;
+  document: NoticeRef;
+  text_sha256: string;
+  decision: "granted" | "refused";
+  decided_at: string;
+  context: string;
+  auth_method: string;
+}
+
+/** What an account-creating step stored, read back from the database by the API (registration consents v1). */
+export interface RecordedPrivacy {
+  terms_acceptance: unknown | null;
+  acknowledgements: { kind: string; organization_id?: string | null; version: string; sha256: string; context: string }[];
+  consents: RecordedConsent[];
+}
+
+/** Whether the API stored this exact decision: the only thing that may be shown as recorded. */
+export function wasRecorded(recorded: RecordedPrivacy | null | undefined, sent: StepConsent): boolean {
+  return Boolean(
+    recorded?.consents?.some(
+      (consent) => consent.purpose === sent.purpose && consent.decision === sent.decision && sameRef(consent.document, sent.document),
+    ),
+  );
 }
 
 export function isPrivacyReviewRequired(error: unknown): boolean {
@@ -191,6 +244,12 @@ export function isPrivacyReviewRequired(error: unknown): boolean {
 
 export function isNoticeOutdated(error: unknown): boolean {
   return isApiError(error) && error.reason === PRIVACY_NOTICE_OUTDATED;
+}
+
+/** A KYC write the API refused for a missing purpose consent (403 consent_required), and whose. */
+export function consentRequiredBy(error: unknown): "self" | "assisted_person" | null {
+  if (!isApiError(error) || error.reason !== CONSENT_REQUIRED) return null;
+  return error.consent?.holder === "assisted_person" ? "assisted_person" : "self";
 }
 
 /** A 422 that asks for the general notice in this step (contract §4, example 17d). */

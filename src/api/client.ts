@@ -86,6 +86,16 @@ function extractPrivacy(payload: unknown): { pending?: unknown; current?: unknow
   return { ...(pending !== undefined ? { pending } : {}), ...(current !== undefined ? { current } : {}) };
 }
 
+function extractConsent(payload: unknown): { holder?: string; requirement?: string } | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const { holder, requirement } = payload as { holder?: unknown; requirement?: unknown };
+  if (typeof holder !== "string" && typeof requirement !== "string") return undefined;
+  return {
+    ...(typeof holder === "string" ? { holder } : {}),
+    ...(typeof requirement === "string" ? { requirement } : {}),
+  };
+}
+
 function extractDetails(payload: unknown): ApiErrorDetails | undefined {
   if (payload && typeof payload === "object" && "errors" in payload) {
     const errors = (payload as { errors?: unknown }).errors;
@@ -151,6 +161,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       reason: extractReason(payload),
       retryAfterSeconds: extractRetryAfter(payload, response.headers?.get?.("Retry-After") ?? null),
       privacy: response.status === 409 ? extractPrivacy(payload) : undefined,
+      consent: response.status === 403 ? extractConsent(payload) : undefined,
     });
     if (kind === "unauthorized" && !options.skipUnauthorizedHandling) onUnauthorized(requestToken);
     // API #86: capture is off in the organization this request was sent for

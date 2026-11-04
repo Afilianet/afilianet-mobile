@@ -3,12 +3,16 @@
 // Money fields (amounts, balances) are decimal strings formatted server-side
 // by a Money value object -- never parse them as JS numbers for arithmetic.
 
+import type { RecordedPrivacy } from "../api/privacy";
+
 // POST /api/v1/auth/login's actual response shape: flat, not wrapped in
 // {data: ...} like the resource endpoints below (it isn't a Resource --
 // see AuthController::login in afilianet-api).
 export interface LoginResponse {
   token: string;
   user: User;
+  /** Registration consents v1: what an account-creating step stored, read back by the API. */
+  privacy?: RecordedPrivacy;
 }
 
 // Shape of afilianet-api's paginated resource collections (e.g.

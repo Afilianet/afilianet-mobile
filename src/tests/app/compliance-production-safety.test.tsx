@@ -13,6 +13,8 @@ import ComplianceScreen from "../../app/compliance";
  * production build resolves it, and proves the simulator renders nothing at
  * all rather than merely being hidden.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("../../config/env", () => ({
   config: { appEnv: "production", apiBaseUrl: "", apiTimeoutMs: 15000, sentryDsn: "", posthogApiKey: "", posthogHost: "" },
   isDevelopmentSimulatorEnabled: false,

@@ -114,6 +114,22 @@ describe("Registrar a alguien -- contact cases", () => {
   });
 });
 
+describe("Registrar a alguien -- the person's own authorizations (registration consents v1)", () => {
+  it("the sponsor sees no purpose box and the request carries no consents or terms (API #118, example 14)", async () => {
+    const screen = await render(<AssistedEnrollmentScreen />);
+    expect(screen.queryByTestId("registration-consents")).toBeNull();
+    expect(screen.queryByTestId("identity-consent-box")).toBeNull();
+    await fill(screen, { email: "ana@example.com" });
+    await submit(screen);
+
+    const [body] = (createAssistedEnrollment as jest.Mock).mock.calls[0];
+    expect(body).not.toHaveProperty("consents");
+    expect(body).not.toHaveProperty("terms");
+    // The witnessed consent stays what it was: never a purpose decision for the person.
+    expect(body.consent_confirmed).toBe(true);
+  });
+});
+
 describe("Registrar a alguien -- errors keep the form", () => {
   it("shows a duplicate phone on that field, keeps every value and retries with the same request id", async () => {
     (createAssistedEnrollment as jest.Mock).mockRejectedValueOnce(new ApiError(

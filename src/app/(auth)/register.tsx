@@ -4,14 +4,17 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { accessErrorMessage } from "../../api/access";
 import { isNoticeOutdated } from "../../api/privacy";
 import { useAuth } from "../../auth/AuthContext";
+import { discardRegistrationReceipt, startRegistrationReceipt } from "../../auth/registrationReceipt";
 import { usePendingReferral } from "../../auth/pendingReferral";
 import { PhoneField } from "../../components/account/PhoneField";
+import { RegistrationConsentsView } from "../../components/privacy/RegistrationConsentsView";
 import { StepNoticesView } from "../../components/privacy/StepNoticesView";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
 import { Logo } from "../../design-system/icons/Logo";
 import { useAttemptId } from "../../hooks/useAttemptId";
+import { useRegistrationConsents } from "../../hooks/useRegistrationConsents";
 import { useStepNotices } from "../../hooks/useStepNotices";
 import { strings } from "../../i18n";
 import { routes } from "../../navigation/routes";
@@ -43,6 +46,8 @@ export default function RegisterScreen() {
   // API #91: the general notice, shown before the account exists; an
   // unpublished notice (503) shows nothing and sends nothing, as before.
   const notices = useStepNotices({ enabled: true, withOrganization: false, general: "always" });
+  // Registration consents v1: no organization, so identity verification is asked at KYC start, not here.
+  const consents = useRegistrationConsents(notices, { verificationExpected: false });
   const attemptId = useAttemptId();
   // A second tap before the first re-render must not send a second request.
   const busy = useRef(false);
@@ -77,15 +82,29 @@ export default function RegisterScreen() {
       password_confirmation: confirmation,
     };
     const refs = notices.refs();
+    const decisions = refs.privacy_notice ? consents.consents() : [];
     busy.current = true;
     setSubmitting(true);
+    startRegistrationReceipt(
+      decisions.map((consent) => ({
+        consent,
+        title: consents.items.find((item) => item.purpose.key === consent.purpose)?.purpose.title ?? consent.purpose,
+      })),
+    );
     try {
       await register({
         ...input,
-        // Only with a notice (an API with #91): the same id for every retry of this input.
-        ...(refs.privacy_notice ? { ...refs, client_request_id: attemptId(JSON.stringify(input)) } : {}),
+        // Only with a notice (an API with #91): the same id for every retry of this exact input and these decisions.
+        ...(refs.privacy_notice
+          ? {
+              ...refs,
+              ...(decisions.length ? { consents: decisions } : {}),
+              client_request_id: attemptId(JSON.stringify({ input, decisions })),
+            }
+          : {}),
       });
     } catch (cause) {
+      discardRegistrationReceipt();
       // The notice changed while filling in the form: show the new one; the form stays.
       if (isNoticeOutdated(cause)) notices.reload();
       setError(accessErrorMessage(cause));
@@ -118,7 +137,8 @@ export default function RegisterScreen() {
           <PhoneField country={country} onCountryChange={setCountry} value={phone} onChangeText={setPhone} error={fieldErrors.phone} />
           <TextInput label={strings.access.passwordLabel} value={password} onChangeText={setPassword} secureTextEntry textContentType="newPassword" />
           <TextInput label={strings.access.confirmPasswordLabel} value={confirmation} onChangeText={setConfirmation} secureTextEntry textContentType="newPassword" />
-          <StepNoticesView notices={notices} />
+          <StepNoticesView notices={notices} disabled={submitting} />
+          <RegistrationConsentsView consents={consents} disabled={submitting} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Button label={copy.submit} size="lg" fullWidth loading={submitting} disabled={notices.status === "loading"} onPress={() => void submit()} />
           <Button label={copy.withInvitation} variant="ghost" onPress={() => router.push(routes.invitation as never)} disabled={submitting} />
