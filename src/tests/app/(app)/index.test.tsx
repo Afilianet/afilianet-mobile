@@ -18,6 +18,8 @@ jest.mock("../../../config/release", () => ({ releaseFeatures: { commerce: true 
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), canGoBack: () => false };
 
+// Home's survey list is covered in home-surveys.test.tsx.
+jest.mock("../../../features/surveys/useAvailableSurveys", () => ({ useAvailableSurveys: () => ({ kind: "ready", surveys: [], saved: false }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
 }));

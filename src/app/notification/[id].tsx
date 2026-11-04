@@ -13,7 +13,7 @@ import { notificationTypeMeta } from "../../design-system/notificationMapping";
 import { strings } from "../../i18n";
 import { useMarkNotificationRead } from "../../hooks/useMarkNotificationRead";
 import { useNotificationDetail } from "../../hooks/useNotificationDetail";
-import { notificationDestination, routes } from "../../navigation/routes";
+import { notificationDestination, routes, surveyNotificationDestination } from "../../navigation/routes";
 import { formatDateTime } from "../../utils/date";
 
 /**
@@ -48,9 +48,13 @@ export default function NotificationDetailScreen() {
   let showBackToInbox = false;
   if (notification) {
     const meta = notificationTypeMeta(notification.type);
-    const destination = notificationDestination(notification.payload.screen);
+    // A survey notification opens that survey; anything else, its section.
+    const survey = surveyNotificationDestination(notification.payload);
+    const destination = survey ?? notificationDestination(notification.payload.screen);
     const screen = notification.payload.screen;
-    const destinationLabel = (screen && strings.notifications.goToSection[screen]) || strings.notifications.goToSectionFallback;
+    const destinationLabel = survey
+      ? strings.notifications.openSurvey
+      : (screen && strings.notifications.goToSection[screen]) || strings.notifications.goToSectionFallback;
     body = (
       <Card style={styles.card}>
         <View style={styles.iconMark}>

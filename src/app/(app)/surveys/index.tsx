@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../../api/errors";
 import { ActiveOrganizationBar } from "../../../components/ActiveOrganizationBar";
 import { EmptyState } from "../../../components/EmptyState";
@@ -72,9 +72,20 @@ export default function SurveysInboxScreen() {
     setLoadedInbox({ key, inbox: next, downloads: Object.fromEntries(entries) });
   }, [scope]);
 
+  // The list is asked again every time it is shown and when the app returns
+  // to the foreground: this tab stays mounted, so a survey published (or
+  // closed) meanwhile must not wait for a pull to refresh.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
   useEffect(() => {
-    void load();
-  }, [load, scopeKey]);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   // Drafts never leave the phone: listed from local storage only, so coming
   // back from a response (the stack keeps this screen mounted) shows them.

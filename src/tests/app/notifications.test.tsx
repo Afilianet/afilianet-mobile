@@ -190,6 +190,57 @@ describe("Notifications: opening one notification", () => {
     expect(mockPush).toHaveBeenCalledWith("/notification/notif-1");
   });
 
+  // What BuildSurveyDistribution stores and NotificationResource serves (API main 82f7831).
+  const SURVEY = "aaaaaaaa-0000-4000-8000-000000000001";
+  const surveyNotification = (overrides: Partial<Notification> = {}) =>
+    notification({
+      id: "notif-s",
+      type: "survey_assigned" as Notification["type"],
+      title: "Nueva encuesta",
+      body: "Tienes una encuesta para responder.",
+      payload: { screen: "surveys", organization_id: "org-uuid", survey_id: SURVEY, version_id: "bbbbbbbb-0000-4000-8000-000000000002" },
+      ...overrides,
+    });
+
+  it("a survey notification opens that survey directly, and marks only it read", async () => {
+    mockedFetchNotifications.mockResolvedValue(page([surveyNotification(), notification()]));
+    const { findByText } = await renderNotifications();
+
+    await act(async () => {
+      fireEvent.press(await findByText("Nueva encuesta"));
+    });
+
+    expect(mockPush).toHaveBeenCalledTimes(1);
+    expect(mockPush).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
+    await waitFor(() => expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(1));
+    expect(mockedMarkNotificationRead.mock.calls[0][0]).toBe("notif-s");
+    expect(mockedMarkAllNotificationsRead).not.toHaveBeenCalled();
+  });
+
+  it("an already-read survey notification opens the survey without another read call", async () => {
+    mockedFetchNotifications.mockResolvedValue(page([surveyNotification({ read_at: "2026-01-01T10:05:00Z" })]));
+    const { findByText } = await renderNotifications();
+
+    await act(async () => {
+      fireEvent.press(await findByText("Nueva encuesta"));
+    });
+
+    expect(mockPush).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+  });
+
+  it("a survey notification without a valid survey id opens its detail, as any other", async () => {
+    mockedFetchNotifications.mockResolvedValue(page([surveyNotification({ payload: { screen: "surveys", survey_id: "../x" } })]));
+    const { findByText } = await renderNotifications();
+
+    await act(async () => {
+      fireEvent.press(await findByText("Nueva encuesta"));
+    });
+
+    expect(mockPush).toHaveBeenCalledWith("/notification/notif-s");
+    expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
+  });
+
   it("never marks anything read just by opening the inbox or tapping a row -- the detail screen does that", async () => {
     const { findByText } = await renderNotifications();
 

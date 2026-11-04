@@ -1,4 +1,5 @@
 import type React from "react";
+import { AppState } from "react-native";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import { act, fireEvent, render, within } from "@testing-library/react-native";
 import { ApiError } from "../../api/errors";
@@ -78,7 +79,27 @@ function WithOrganization({ children }: { children: React.ReactNode }) {
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;
 }
 
+/** The app's own foreground listeners, registered on jest-expo's AppState mock. */
+const foregroundListeners = () =>
+  (AppState.addEventListener as unknown as jest.Mock).mock.calls.filter(([type]) => type === "change").map(([, listener]) => listener as (state: string) => void);
+
 describe("Surveys inbox", () => {
+  it("lists every open survey the API returns, distributed or not, and asks again when the app returns to the foreground", async () => {
+    // Before publishing: nothing open.
+    (refreshInbox as jest.Mock).mockResolvedValueOnce({ surveys: [], fetchedAt: "2026-11-04T18:00:00Z", origin: "fixture" });
+    const screen = await renderInbox();
+    expect(screen.getByText("No tienes encuestas por ahora.")).toBeTruthy();
+
+    // Published meanwhile (never distributed): back to the foreground, it is listed.
+    (refreshInbox as jest.Mock).mockResolvedValueOnce({ surveys: [available({ title: "Recién publicada" })], fetchedAt: "2026-11-04T18:05:00Z", origin: "fixture" });
+    await act(async () => {
+      foregroundListeners().forEach((listener) => listener("active"));
+    });
+    expect(await screen.findByText("Recién publicada")).toBeTruthy();
+    expect(screen.queryByText("No tienes encuestas por ahora.")).toBeNull();
+    expect(refreshInbox).toHaveBeenCalledTimes(2);
+  });
+
   it("offline, shows the saved list with its date and which surveys are available offline", async () => {
     (refreshInbox as jest.Mock).mockRejectedValue(new ApiError("offline", "Sin conexión."));
     (cachedInbox as jest.Mock).mockResolvedValue({ surveys: [available({}), available({ survey_id: "s-2", id: "v-9", title: "Vecinal" })], fetchedAt: "2026-10-11T18:00:00Z" });

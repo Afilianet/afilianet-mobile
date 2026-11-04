@@ -44,6 +44,8 @@ const routes = {
   "(app)/surveys/index": () => <Named name="lista-encuestas" />,
   "(app)/surveys/[surveyId]": () => <Named name="detalle-encuesta" />,
   "(app)/surveys/response/[draftId]": ResponseStandIn,
+  // A root screen outside the bar, like the notification detail (app/notification/[id].tsx).
+  "notification/[id]": () => <Named name="detalle-notificacion" />,
 };
 
 let app: ReturnType<typeof renderRouter>;
@@ -181,5 +183,24 @@ describe("Leaving a response from the bar runs its safe exit first", () => {
       router.back();
     });
     expect(pathname()).toBe("/surveys");
+  });
+
+  it.each([
+    ["the survey list", "/surveys", "index", "lista-encuestas"],
+    ["one survey", "/surveys/aaaaaaaa-0000-4000-8000-000000000001", "[surveyId]", "detalle-encuesta"],
+  ])("from a notification's detail (a root screen), pushing %s reaches the hidden Encuestas tab", async (_label, url, stack, name) => {
+    await start("/");
+    const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
+    await act(async () => {
+      router.push("/notification/n-1");
+    });
+    expect(pathname()).toBe("/notification/n-1");
+    await act(async () => {
+      router.push(url);
+    });
+    expect(pathname()).toBe(url);
+    expect(visible(name)).toBe(true);
+    // The section's stack ends at the pushed screen (a push does not add the list beneath it).
+    expect(surveysStack().at(-1)).toBe(stack);
   });
 });

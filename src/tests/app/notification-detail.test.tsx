@@ -164,6 +164,41 @@ describe("Notification detail", () => {
     expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(1);
   });
 
+  it("a survey notification offers «Abrir encuesta», which opens that survey (payload as API main 82f7831 serves it)", async () => {
+    const survey = "aaaaaaaa-0000-4000-8000-000000000001";
+    mockedFetchNotifications.mockResolvedValue(
+      page([
+        notification({
+          type: "survey_assigned" as Notification["type"],
+          title: "Nueva encuesta",
+          body: "Tienes una encuesta para responder.",
+          payload: { screen: "surveys", organization_id: "org-uuid", survey_id: survey, version_id: "bbbbbbbb-0000-4000-8000-000000000002" },
+        }),
+      ]),
+    );
+    const { findByText, getByText, queryByText } = await renderDetail();
+    await findByText("Nueva encuesta");
+    expect(queryByText("Ver más")).toBeNull();
+
+    await act(async () => {
+      fireEvent.press(getByText("Abrir encuesta"));
+    });
+    expect(mockPush).toHaveBeenCalledWith(`/surveys/${survey}`);
+  });
+
+  it("a survey notification without a valid survey id falls back to the survey list, named as such", async () => {
+    mockedFetchNotifications.mockResolvedValue(
+      page([notification({ type: "survey_assigned" as Notification["type"], title: "Nueva encuesta", payload: { screen: "surveys", survey_id: "../x" } })]),
+    );
+    const { findByText, getByText } = await renderDetail();
+    await findByText("Nueva encuesta");
+
+    await act(async () => {
+      fireEvent.press(getByText("Ir a Encuestas"));
+    });
+    expect(mockPush).toHaveBeenCalledWith("/surveys");
+  });
+
   it("offers no action when payload.screen is missing or unrecognized -- fails safe", async () => {
     mockedFetchNotifications.mockResolvedValue(page([notification({ payload: { screen: "some-other-app://danger" } })]));
     const { findByText, queryByText } = await renderDetail();

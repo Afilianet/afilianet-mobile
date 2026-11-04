@@ -90,6 +90,8 @@ const VERSION = {
 
 /** Simulated API #119 for one organization: responses stored once per client_response_id. */
 const server = {
+  /** False: the version is not open yet (published later, or opens_at in the future). */
+  published: true,
   affiliateProfile: true,
   network: "up" as "up" | "down" | "lose-answer",
   posts: [] as Record<string, unknown>[],
@@ -100,6 +102,7 @@ async function route(url: string, init: RequestInit = {}): Promise<Response> {
   const path = url.replace("https://staging-api.test", "");
   if (server.network === "down") throw new TypeError("Network request failed");
   if (path === "/api/v1/surveys/available") {
+    if (!server.published) return json(200, { data: [] });
     const { questions: _questions, consent_text: _consent, instructions: _instructions, audio_mode: _audio, opens_at: _opens, survey_id, ...summary } = VERSION;
     return json(200, { data: [{ ...summary, survey_id, is_assigned_surveyor: false }] });
   }
@@ -126,7 +129,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   await (jest.requireMock("@react-native-async-storage/async-storage") as { clear: () => Promise<void> }).clear();
   (jest.requireMock("../../features/surveys/vault") as { __files: Map<string, string> }).__files.clear();
-  Object.assign(server, { affiliateProfile: true, network: "up", posts: [], stored: new Map() });
+  Object.assign(server, { published: true, affiliateProfile: true, network: "up", posts: [], stored: new Map() });
   mockParams = { surveyId: SURVEY_ID };
   global.fetch = jest.fn(route) as typeof fetch;
   configureApiClient({ getToken: () => "session-token", getOrganizationId: () => SCOPE.organizationId });
@@ -225,5 +228,44 @@ describe("Demo: answering a survey without audio by oneself (API source)", () =>
     const [item] = await listOutbox(SCOPE);
     expect(item).toMatchObject({ blocked: "not_a_member" });
     expect(await listReceipts(SCOPE)).toEqual([]);
+  });
+});
+
+describe("Opening a survey from a notification or Home (API source)", () => {
+  async function renderDetail() {
+    let detail!: Awaited<ReturnType<typeof render>>;
+    await act(async () => {
+      detail = await render(<SurveyDetailScreen />);
+    });
+    return detail;
+  }
+
+  it("the list saved on the phone predates its publication: asks the server and offers to answer it", async () => {
+    server.published = false;
+    await refreshInbox(SCOPE, surveySource);
+    server.published = true;
+
+    const detail = await renderDetail();
+    await waitFor(() => expect(detail.getByText("Encuesta sintética sin audio")).toBeTruthy());
+    expect(detail.getByText("Responder yo")).toBeTruthy();
+    expect(detail.queryByText(/ya no está disponible/)).toBeNull();
+  });
+
+  it("with no list saved yet (the list was never opened), it is found the same way", async () => {
+    const detail = await renderDetail();
+    await waitFor(() => expect(detail.getByText("Responder yo")).toBeTruthy());
+  });
+
+  it("only when the server does not list it either does it say it is not available", async () => {
+    server.published = false;
+    const detail = await renderDetail();
+    await waitFor(() => expect(detail.getByText(/Esta encuesta ya no está disponible/)).toBeTruthy());
+    expect(detail.queryByText("Responder yo")).toBeNull();
+  });
+
+  it("offline with nothing saved: says so, never that the survey closed", async () => {
+    server.network = "down";
+    const detail = await renderDetail();
+    await waitFor(() => expect(detail.getByText(/Sin conexión y sin una lista guardada/)).toBeTruthy());
   });
 });

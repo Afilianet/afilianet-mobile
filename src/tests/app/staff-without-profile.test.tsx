@@ -22,6 +22,8 @@ const waitFor = (expectation: () => unknown) => rawWaitFor(expectation, { timeou
 
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://staging-api.test", apiTimeoutMs: 5000, appEnv: "staging" } }));
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
+// Home's survey list is covered in home-surveys.test.tsx; here only the cards that depend on the profile.
+jest.mock("../../features/surveys/useAvailableSurveys", () => ({ useAvailableSurveys: () => ({ kind: "ready", surveys: [], saved: false }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
   useFocusEffect: (effect: () => void | (() => void)) => jest.requireActual("react").useEffect(effect, [effect]),

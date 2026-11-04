@@ -69,12 +69,24 @@ export default function SurveyDetailScreen() {
     if (!scope || !surveyId) return;
     const key = scopeId(scope);
     // This origin only: another origin's list, download or drafts never stand in for this one's.
-    const [inbox, downloaded, allDrafts] = await Promise.all([
+    const [cached, downloaded, allDrafts] = await Promise.all([
       cachedInbox(scope, surveySource.origin),
       getDownloaded(scope, surveyId, surveySource.origin),
       listDrafts(scope),
     ]);
     if (key !== currentScope.current) return;
+    // Opened from a notification or Home, the survey may be newer than the
+    // list saved on the phone: ask the server (this organization) before
+    // saying it is not available. Offline or failing, the saved list stands.
+    let inbox = cached;
+    if (!cached?.surveys.some((value) => value.survey_id === surveyId)) {
+      try {
+        inbox = await refreshInbox(scope, surveySource);
+      } catch {
+        inbox = cached;
+      }
+      if (key !== currentScope.current) return;
+    }
     setLoaded({
       key,
       available: inbox?.surveys.find((value) => value.survey_id === surveyId) ?? null,

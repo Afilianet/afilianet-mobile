@@ -9,9 +9,10 @@ import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { strings } from "../i18n";
 import { useMarkAllNotificationsRead } from "../hooks/useMarkAllNotificationsRead";
+import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
-import { notificationDetail } from "../navigation/routes";
+import { notificationDetail, surveyNotificationDestination } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
@@ -24,6 +25,7 @@ export default function NotificationsScreen() {
   const notificationsQuery = useNotifications();
   const unreadCountQuery = useUnreadNotificationCount();
   const markAllReadMutation = useMarkAllNotificationsRead();
+  const { mutate: markRead } = useMarkNotificationRead();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -40,9 +42,17 @@ export default function NotificationsScreen() {
   }
 
   // Viewing the inbox never marks anything read. Only opening one
-  // notification's detail does (see notification/[id].tsx), and only that one.
+  // notification does, and only that one: its detail (notification/[id].tsx)
+  // or, for a survey notification, the survey itself -- opened directly, as
+  // its push does. A failed read never blocks opening it.
   function handleOpen(notification: Notification) {
     analytics.capture("notification_opened");
+    const survey = surveyNotificationDestination(notification.payload);
+    if (survey) {
+      if (notification.read_at === null) markRead(notification.id);
+      router.push(survey as never);
+      return;
+    }
     router.push(notificationDetail(notification.id) as never);
   }
 
