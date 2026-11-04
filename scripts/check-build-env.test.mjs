@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { PRODUCTION_DECISIONS, validateBuildEnvironment } from "./check-build-env.mjs";
 
@@ -103,6 +104,44 @@ test("eas.json: store-beta-apk is the same store beta as an installable APK (sam
   assert.equal(apk.android.buildType, "apk");
   assert.deepEqual(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", ...eas.build["store-beta"].env }), []);
   assert.ok(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", ...eas.build["store-beta"].env, EXPO_PUBLIC_SURVEYS_PREVIEW: undefined }).length);
+});
+
+test("eas.json: demo-apk is store-beta-apk plus real staging surveys, and nothing else", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const eas = JSON.parse(await readFile(new URL("../eas.json", import.meta.url), "utf8"));
+  const demo = eas.build["demo-apk"];
+  assert.equal(demo.extends, "store-beta-apk");
+  // Only the two switches: environment, distribution, buildType, autoIncrement and every other value are inherited.
+  assert.deepEqual(Object.keys(demo).sort(), ["env", "extends"]);
+  assert.deepEqual(demo.env, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1", EXPO_PUBLIC_SURVEYS_SOURCE: "api" });
+  // As eas-cli builds it: @expo/eas-json merges the chain's env child-over-parent.
+  const env = { EAS_BUILD_PROFILE: "demo-apk", ...eas.build["store-beta"].env, ...demo.env };
+  assert.equal(env.EXPO_PUBLIC_API_BASE_URL, "https://staging-api.afilianet.mx");
+  assert.equal(env.EXPO_PUBLIC_APP_ENV, "staging");
+  assert.equal(env.EXPO_NO_DOTENV, "1");
+  assert.deepEqual(validateBuildEnvironment(env), []);
+  // eas-cli 26: { ...serverEnvVars, ...buildProfile.env } -- the profile wins over the EAS "preview" environment,
+  // so a value there can neither turn surveys off nor bring back telemetry.
+  const server = { EXPO_PUBLIC_SURVEYS_PREVIEW: "0", EXPO_PUBLIC_SURVEYS_SOURCE: "fixture", EXPO_PUBLIC_SENTRY_DSN: "https://key@sentry.example/1" };
+  assert.deepEqual(validateBuildEnvironment({ ...server, ...env }), []);
+});
+
+test("demo-apk fails without either switch, with another source or with a separate variant", () => {
+  const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
+  const env = { EAS_BUILD_PROFILE: "demo-apk", ...eas.build["store-beta"].env, ...eas.build["demo-apk"].env };
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SURVEYS_SOURCE: undefined }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SURVEYS_PREVIEW: "0" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SURVEYS_SOURCE: "fixture" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, APP_VARIANT: "privacy-test" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_API_BASE_URL: "https://api.example.test" }).length);
+  assert.ok(validateBuildEnvironment({ ...env, EXPO_PUBLIC_SENTRY_ENABLED: "1" }).length);
+});
+
+test("the survey source: only \"api\" or unset, and never api with surveys off", () => {
+  const base = { EAS_BUILD_PROFILE: "staging", EXPO_PUBLIC_APP_ENV: "staging", EXPO_PUBLIC_API_BASE_URL: "https://staging-api.afilianet.mx" };
+  assert.deepEqual(validateBuildEnvironment({ ...base, EXPO_PUBLIC_SURVEYS_SOURCE: "api" }), []);
+  assert.ok(validateBuildEnvironment({ ...base, EXPO_PUBLIC_SURVEYS_SOURCE: "API" }).length);
+  assert.ok(validateBuildEnvironment({ ...base, EXPO_PUBLIC_SURVEYS_SOURCE: "api", EXPO_PUBLIC_SURVEYS_PREVIEW: "0" }).length);
 });
 
 test("privacy-test-apk: only the disposable API, telemetry off and nothing of the beta's services", async () => {

@@ -144,6 +144,35 @@ En la demo, el alta asistida termina así: **la persona activa su cuenta y hace 
 | N6 | «Comenzar verificación» con una respuesta perdida (el servidor creó el caso) | Iniciar un caso no es idempotente: reintentar daría 422 («ya tiene un caso activo»). La app vuelve a consultar el caso tras cualquier error al iniciar y, si existe, lo muestra en lugar de la tarjeta de inicio. Cubierto por pruebas |
 | N7 | Cambiar el texto o la versión del aviso mientras el formulario está abierto (solo en un entorno aislado) | 409: «El aviso de privacidad cambió…». Las casillas se desmarcan y se muestra la versión nueva |
 
+### E. Encuesta sin audio (respuesta propia)
+| # | Pasos | Esperado |
+|---|---|---|
+| E1 | Admin crea, publica y distribuye una encuesta con `audio_mode: "none"` y respuesta propia en la organización de la demo | Visible en Admin como publicada |
+| E2 | Con una cuenta con membresía activa y perfil de afiliado en esa organización: Encuestas | Aparece la encuesta con «Respuesta propia» y «Abierta». No aparece el aviso de datos de ejemplo |
+| E3 | Abrir la encuesta → «Responder yo» → contestar → «Enviar respuesta» | No pide el micrófono ni muestra el consentimiento de grabación. En «Envíos» pasa de «Pendiente de sincronizar» a «Recibido el …» |
+| E4 | Admin abre las respuestas de la versión | Una respuesta `self`. Sin transcripción ni análisis de calidad encolados, si están apagados en staging (pendiente de confirmar por API) |
+| E5 | Modo avión → responder otra vez → «Enviar respuesta» → quitar el modo avión | «Sin conexión. Se enviará cuando vuelva la señal.» Al volver la red se envía sola (al volver a primer plano o cada 60 s) o con «Sincronizar ahora». Admin muestra una sola respuesta |
+| E6 | Respuesta perdida (el servidor guardó, el teléfono no recibió) | El reintento usa el mismo `client_response_id` y la API devuelve la respuesta original: una sola fila. **No se puede provocar a mano**: cubierto por pruebas |
+
+**Build del candidato con encuestas** (configurado en #88; **no construido**)
+- **Perfil EAS:** `demo-apk`. Extiende `store-beta-apk` y solo añade `EXPO_PUBLIC_SURVEYS_PREVIEW=1` y
+  `EXPO_PUBLIC_SURVEYS_SOURCE=api`.
+- **Lo demás se hereda:** `EXPO_PUBLIC_API_BASE_URL=https://staging-api.afilianet.mx`, `EXPO_PUBLIC_APP_ENV=staging`,
+  `EXPO_NO_DOTENV=1`, Sentry y PostHog apagados, entorno EAS `preview`, APK interno, `autoIncrement` y credenciales
+  remotas.
+- **Mismo paquete** `com.afilianet.mobile`, sin `APP_VARIANT`. Firma con el keystore asociado a la app y contador
+  remoto de `versionCode` compartido (el siguiente después de 15). Antes de construir hay que confirmar el keystore con
+  `eas credentials` en solo lectura.
+- **Precedencia** (comprobada en `eas-cli` 26.0.0): `{ ...variables del entorno EAS, ...env del perfil }`. Lo que fija
+  `eas.json` gana aunque el entorno EAS `preview` defina la misma variable, y `extends` combina los `env` del perfil
+  hijo sobre los del padre. Con `EXPO_NO_DOTENV=1`, ningún archivo `.env` entra en el build.
+- **Comprobación en el servidor de EAS:** `eas-build-pre-install` ejecuta `scripts/check-build-env.mjs` con el entorno
+  ya combinado. Para `demo-apk` exige las dos variables exactas y staging, y rechaza la telemetría y `APP_VARIANT`.
+- **Permisos:** con las encuestas encendidas, el manifiesto conserva `RECORD_AUDIO` y `MODIFY_AUDIO_SETTINGS`, que
+  `store-beta-apk` quita. Solo se piden al grabar una entrevista con audio; nunca en una respuesta propia.
+- **Sustituir el vc15:** este APK se instala sobre el vc15 del A06 como actualización (mismo paquete y firma) y
+  conserva la sesión. Volver al vc15 exigiría desinstalar.
+
 ## 5. Fuera de esta demo
 - Términos generales (casilla 1 con términos): no existen (P1).
 - Casillas de finalidad en la invitación de personal: no están en #88.
