@@ -151,9 +151,17 @@ teléfono: que la invitación aceptada en la web aparezca tras reabrir la app.
 | V2 | Después de V1, Verificación | La autorización se vuelve a pedir al servidor siempre que se abre Verificación (y al deslizar para refrescar), así que ya no pide confirmar el correo: muestra la casilla o reutiliza la autorización |
 | V3 | Alta asistida → `/activate` (activar la cuenta y crear la contraseña) → «inicia sesión en la app» → Verificación | Tras activar e iniciar sesión, la app pide la autorización con el texto del aviso antes de la primera captura. `/activate` **no** registra la autorización: Admin no envía `consents` y su BFF los filtra |
 
-**Cuentas de la ronda de correo:** los alias `+demo1` de las cuentas de prueba de Andrés, con autorización
-registrada, están reservados **solo** para esta ronda: uno para el registro por referido (V1–V2) y otro para el alta
-asistida (V3). Las direcciones están en el paquete de API, no en este repositorio.
+**Correos durante la ronda (paso 9):** API abre solo dos tipos de correo a cualquier participante, sin lista previa
+(`EMAIL_OPEN_ACTIONS`, API #125 @ `cfdde0b`): la verificación del registro y el enlace de activación del alta asistida.
+El restablecimiento de contraseña y las invitaciones de personal siguen limitados a la lista. No hay SMS ni campañas.
+Se apaga al terminar la ronda.
+
+**Capturas KYC reales: límite operativo del ensayo.** Solo las dos cuentas `+demo1` de Andrés hacen capturas reales,
+con su titular y su autorización registrada: una para el registro por referido (V1–V2) y otra para el alta asistida
+(V3). El resto de participantes puede registrarse, verificar su correo y responder encuestas, pero **no** debe iniciar
+la verificación. **Esto no es un bloqueo técnico:** la app permite iniciar la verificación a cualquier cuenta con
+correo verificado y la autorización registrada. El límite lo aplica quien conduce el ensayo. Las direcciones están en
+el paquete de API, no en este repositorio.
 
 **Invitación manual sin patrocinador:** la app **no** acepta un token de invitación manual
 (`POST organizations/{org}/invitations`), ni por enlace ni pegándolo. Su campo de invitación solo lee códigos o enlaces de
@@ -189,6 +197,36 @@ app.
 | E4 | Admin abre las respuestas de la versión | Una fila de respuesta propia, sin grabación, con «Sin audio» y el análisis en `not_scheduled`. Si aparece «Falló», es un defecto |
 | E5 | Modo avión → responder otra vez → «Enviar respuesta» → quitar el modo avión | «Sin conexión. Se enviará cuando vuelva la señal.» Al volver la red se envía sola (al volver a primer plano o cada 60 s) o con «Sincronizar ahora». Admin muestra una sola respuesta |
 | E6 | Respuesta perdida (el servidor guardó, el teléfono no recibió) | El reintento usa el mismo `client_response_id` y la API devuelve la respuesta original: una sola fila. **No se puede provocar a mano**: cubierto por pruebas |
+| E7 | Después de E3, en el A06: Ajustes → Apps → Afilianet → Permisos | El micrófono aparece como no permitido: nunca se pidió. Declararlo en el manifiesto no es pedirlo (ver «Micrófono») |
+
+**Micrófono: declarado ≠ pedido.** El APK `demo-apk` declara `RECORD_AUDIO`, el vc15 no. Android solo lo pide en un
+punto: `useInterviewRecorder.start()` (`src/features/surveys/useInterviewRecorder.ts`), al pulsar «Grabar entrevista».
+Ese botón solo existe en la respuesta de una **entrevista a otra persona** (`interviewed_external`) de una versión con
+`audio_mode` distinto de `none` y después de que la persona entrevistada acepte la grabación. En una encuesta sin audio
+y en «Responder yo» nunca se pide, sea cual sea `audio_mode`. Ninguna pantalla lo pide al abrirse. Prueba:
+`survey-self-response-api.test.tsx` comprueba que «Responder yo» no consulta ni pide el permiso.
+
+### S. Notificación push de la encuesta (después de instalar)
+Antes del build quedaron comprobados la configuración y las credenciales: proyecto Expo `5675cfc3-…`, credencial
+FCM V1 y archivo de Firebase de la app del mismo proyecto (`afilianet-mx`), la seguridad reforzada de push de Expo
+apagada (staging no necesita `EXPO_ACCESS_TOKEN`), y `PUSH_ENABLED=true` con el worker en API y Horizon. **Nada de eso
+demuestra la entrega:** un envío aceptado por Expo no demuestra que llegó. Esta prueba física es la que cuenta.
+
+| # | Pasos | Esperado |
+|---|---|---|
+| S1 | Perfil → «Configurar notificaciones» → «Activar en este teléfono» | Aparece el diálogo de permiso de Android, la única vez que la app lo pide. Tras permitir: «Teléfono registrado. Ya puede recibir notificaciones.» y «Activadas en este teléfono». El botón queda deshabilitado mientras no cargan las preferencias o si dicen que push está «en preparación» |
+| S2 | API comprueba el registro (solo lectura) | Una fila en `push_devices` del usuario, ligada a la sesión actual. Al reabrir la pantalla, la app dice «Permiso concedido. Confirma el registro…» aunque ya esté registrada: ese estado no se guarda en el teléfono. Volver a pulsar repite el mismo registro |
+| S3 | Admin distribuye la encuesta sin audio **solo** en la organización A, revisando antes sus destinatarios | Llega al teléfono con el texto genérico: «Afilianet» / «Tienes una nueva notificación. Abre Afilianet para consultarla.» (no el título de la encuesta). Con la app abierta también se ve el aviso. La notificación aparece además en la bandeja de la app |
+| S4 | Tocar la notificación (con la app abierta, en segundo plano y cerrada) | Selecciona la organización A y abre esa encuesta (`/surveys/{survey_id}`). Si el id no es válido abre la bandeja de Encuestas. No marca nada como leído |
+| S5 | Tocarla con la sesión cerrada, o con una cuenta que no es miembro de A | No abre nada (por diseño) |
+
+Requisitos para recibirla: cuenta activa o pendiente, membresía **activa** en A y avisos operativos no desactivados en
+esa organización (sin preferencia guardada cuentan como activados). Si se cierra sesión y se vuelve a entrar, la app
+vuelve a registrar el teléfono sola al pasar a primer plano (como mucho cada 60 s), siempre que el permiso ya se haya
+concedido.
+
+**Si no llega:** revisar en API el estado de `push_deliveries` (`accepted`, `failed` con su `error_code`, o `unknown`)
+y, unos 15 minutos después, el recibo (`CheckPushReceipt`). No reenviar a ciegas: un envío ambiguo no se repite.
 
 **Requisitos confirmados por API** (código de #125 @ `b7f0f61`; Surveys no cambió desde `b1629a6`)
 - **Cuenta:** membresía con estado activo en la organización (cualquier rol) y un perfil de afiliado en ella, en
@@ -204,15 +242,23 @@ app.
 - **Contrato:** los ejemplos de API (sobre `b1629a6`, con el análisis apagado y sin nada encolado) se sirven tal cual en
   `src/tests/app/survey-self-response-contract.test.tsx`.
 
-**Build del candidato con encuestas** (configurado en #88; **no construido**)
+**Build del candidato con encuestas: vc16, construido el 2026-11-04, sin instalar**
+- EAS `8c5ccc89-414d-4713-a2f8-7125b1e9c3bc`, perfil `demo-apk`, commit `92ad7cd4f2a2ca80eccbad28dc75621d79cefac8`
+  (sin merge), `versionCode` 16. Firma v2 con el mismo certificado que vc14 y vc15 (SHA-256 `5d3974b9…6320ca`). APK
+  SHA-256 `c88108b1b6d1e69bca41ac8b6c782d521413dca54a60509b918a2ab93edecda8`.
+- En el log: `check-build-env` → «Configuración de compilación válida»; `GOOGLE_SERVICES_JSON` presente (secreto del
+  entorno `preview`); `processReleaseGoogleServices` ejecutado; `EXPO_PUBLIC_SURVEYS_PREVIEW=1` y
+  `EXPO_PUBLIC_SURVEYS_SOURCE=api`.
+- En el APK: paquete `com.afilianet.mobile`, `POST_NOTIFICATIONS`, `RECORD_AUDIO` y `MODIFY_AUDIO_SETTINGS`
+  declarados, recursos de Firebase del proyecto `afilianet-mx`, y la URL de la API de staging en el bundle.
 - **Perfil EAS:** `demo-apk`. Extiende `store-beta-apk` y solo añade `EXPO_PUBLIC_SURVEYS_PREVIEW=1` y
   `EXPO_PUBLIC_SURVEYS_SOURCE=api`.
 - **Lo demás se hereda:** `EXPO_PUBLIC_API_BASE_URL=https://staging-api.afilianet.mx`, `EXPO_PUBLIC_APP_ENV=staging`,
   `EXPO_NO_DOTENV=1`, Sentry y PostHog apagados, entorno EAS `preview`, APK interno, `autoIncrement` y credenciales
   remotas.
 - **Mismo paquete** `com.afilianet.mobile`, sin `APP_VARIANT`. Firma con el keystore asociado a la app y contador
-  remoto de `versionCode` compartido (el siguiente después de 15). Antes de construir hay que confirmar el keystore con
-  `eas credentials` en solo lectura.
+  remoto de `versionCode` compartido. Keystore remoto por defecto («Build Credentials xqfR9Qajv1»); la huella se
+  comparó en el APK resultante.
 - **Precedencia** (comprobada en `eas-cli` 26.0.0): `{ ...variables del entorno EAS, ...env del perfil }`. Lo que fija
   `eas.json` gana aunque el entorno EAS `preview` defina la misma variable, y `extends` combina los `env` del perfil
   hijo sobre los del padre. Con `EXPO_NO_DOTENV=1`, ningún archivo `.env` entra en el build.
