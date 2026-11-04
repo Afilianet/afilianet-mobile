@@ -15,6 +15,7 @@ import {
 } from "../../api/privacy";
 import { isApiError, friendlyMessage } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
+import { useAssistedComplianceId } from "../../state/ComplianceScopeContext";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { strings } from "../../i18n";
 import { routes } from "../../navigation/routes";
@@ -29,11 +30,16 @@ export type IdentityConsentPhase = "inert" | "loading" | "effective" | "grant" |
  * Where the person's own identity verification consent stands, only as the
  * API says (GET /me/privacy, registration consents v1). `inert` when the
  * general notice has no such purpose (gate off, or an API without it).
+ *
+ * Never in an assisted case: /me/privacy is the sponsor's, and the case's
+ * holder is the person. The server checks the person and answers 403
+ * consent_required (holder: assisted_person), which the screen explains.
  */
 export function useIdentityConsentPhase(): { phase: IdentityConsentPhase; status: MyPrivacy | null | undefined } {
+  const ownCase = !useAssistedComplianceId();
   const userId = useAuth().user?.id;
-  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: Boolean(userId) });
-  if (!userId || query.isError) return { phase: "inert", status: undefined };
+  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: Boolean(userId) && ownCase });
+  if (!ownCase || !userId || query.isError) return { phase: "inert", status: undefined };
   if (query.isPending) return { phase: "loading", status: undefined };
   const purpose = query.data?.privacy_notice.purposes.find((item) => item.key === IDENTITY_VERIFICATION_PURPOSE);
   if (!purpose) return { phase: "inert", status: query.data };

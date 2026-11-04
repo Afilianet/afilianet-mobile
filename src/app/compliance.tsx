@@ -31,6 +31,8 @@ import { formatDate } from "../utils/date";
 import type { ComplianceCase, ComplianceStep } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
+// Case states in which the person can still capture (a recapture request reopens one in manual review).
+const CAPTURING = new Set<ComplianceCase["status"]>(["in_progress", "manual_review"]);
 
 export default function ComplianceScreen() {
   return (
@@ -125,6 +127,12 @@ function ComplianceScreenContent() {
           <>
             {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
+            {/* The server's gate also covers captures in an open case: ask here too, before the next one. */}
+            {captureAvailable && CAPTURING.has(complianceQuery.data.status) && !canStart ? (
+              <Card style={styles.card} testID="identity-consent-open-case">
+                <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+              </Card>
+            ) : null}
             <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} caseStatus={complianceQuery.data.status} captureAvailable={captureAvailable} />
           </>
         ) : null}

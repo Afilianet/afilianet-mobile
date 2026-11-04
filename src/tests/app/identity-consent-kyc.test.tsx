@@ -4,6 +4,7 @@ import { configureApiClient } from "../../api/client";
 import { ApiError, friendlyMessage } from "../../api/errors";
 import { fetchMyAffiliateProfile, fetchMyCompliance, startCompliance } from "../../api/endpoints";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
+import { AssistedComplianceContext } from "../../state/ComplianceScopeContext";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import ComplianceScreen from "../../app/compliance";
 import { G1, IDENTITY, myPrivacy, ref, sha } from "../support/registrationConsentsFixtures";
@@ -78,14 +79,16 @@ afterEach(() => {
 });
 
 type View = Awaited<ReturnType<typeof render>>;
-async function mount() {
+async function mount(assistedId?: string) {
   let view!: View;
   await act(async () => {
     view = await render(
       <QueryClientProvider client={queryClient}>
         <AuthContext.Provider value={auth}>
           <OrganizationContext.Provider value={organization}>
-            <ComplianceScreen />
+            <AssistedComplianceContext.Provider value={assistedId}>
+              <ComplianceScreen />
+            </AssistedComplianceContext.Provider>
           </OrganizationContext.Provider>
         </AuthContext.Provider>
       </QueryClientProvider>,
@@ -219,6 +222,25 @@ describe("KYC start with an activated account", () => {
     expect(view.queryByTestId("identity-consent-box")).toBeNull();
   });
 
+  it("an open case (e.g. in progress before the gate was turned on) asks for it above the steps, never for a closed one", async () => {
+    on(ME_PRIVACY, ok(myPrivacy({ status: "missing", effective: false, requirement: "grant" })));
+    on(CONSENTS, ok(myPrivacy({ status: "granted", decision: "granted", decided_at: "2026-11-04T10:00:00-06:00", effective: true, requirement: null })));
+    (fetchMyCompliance as jest.Mock).mockResolvedValue({ id: "case-1", status: "in_progress", current_step: "identity_document", steps: [] });
+    const view = await mount();
+    await waitFor(() => expect(view.getByTestId("identity-consent-open-case")).toBeTruthy());
+    await act(async () => fireEvent.press(view.getByTestId("identity-consent-box")));
+    await press(view, "Registrar autorización");
+    await waitFor(() => expect(view.queryByTestId("identity-consent-open-case")).toBeNull());
+  });
+
+  it("a closed case does not ask", async () => {
+    on(ME_PRIVACY, ok(myPrivacy({ status: "missing", effective: false, requirement: "grant" })));
+    (fetchMyCompliance as jest.Mock).mockResolvedValue({ id: "case-1", status: "approved", current_step: null, steps: [] });
+    const view = await mount();
+    await waitFor(() => expect(view.getByText("Aprobado")).toBeTruthy());
+    expect(view.queryByTestId("identity-consent-open-case")).toBeNull();
+  });
+
   it("no such purpose in the notice (gate off, today): nothing changes", async () => {
     on(ME_PRIVACY, ok(myPrivacy(null)));
     const view = await mount();
@@ -245,6 +267,25 @@ describe("KYC start with an activated account", () => {
 });
 
 describe("Assisted enrollment (the sponsor's session)", () => {
+  it("an assisted case never shows the sponsor's own authorization: the server checks the person and its 403 is explained", async () => {
+    // The sponsor's own /me/privacy would ask for a grant; it must not be read nor shown for someone else's case.
+    on(ME_PRIVACY, ok(myPrivacy({ status: "missing", effective: false, requirement: "grant" })));
+    (startCompliance as jest.Mock).mockRejectedValue(
+      new ApiError("forbidden", "x", 403, undefined, { reason: "consent_required", consent: { holder: "assisted_person", requirement: "grant" } }),
+    );
+    const view = await mount("enrollment-1");
+    await waitFor(() => expect(startButton(view)).toBeTruthy());
+    expect(view.queryByTestId("identity-consent-box")).toBeNull();
+    expect(view.queryByText("Autorización para verificar tu identidad")).toBeNull();
+    expect(calls.some((call) => call.route === ME_PRIVACY)).toBe(false);
+    expect(startDisabled(view)).toBe(false);
+
+    await press(view, "Comenzar verificación");
+    expect(startCompliance).toHaveBeenCalledWith("enrollment-1");
+    expect(view.getByText("La persona todavía no autoriza la verificación de identidad desde su propia cuenta. Solo ella puede hacerlo.")).toBeTruthy();
+    expect(sent(CONSENTS)).toEqual([]);
+  });
+
   it("the sponsor is told only the person can authorize; nothing is attributed to them", () => {
     const assisted = new ApiError("forbidden", "x", 403, undefined, { reason: "consent_required", consent: { holder: "assisted_person", requirement: "grant" } });
     const holderOnly = new ApiError("forbidden", "x", 403, undefined, { reason: "consent_holder_only" });

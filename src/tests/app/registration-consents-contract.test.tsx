@@ -3,7 +3,7 @@ import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { registerAccount } from "../../api/access";
 import { apiRequest, configureApiClient } from "../../api/client";
 import { ApiError, friendlyMessage } from "../../api/errors";
-import { fetchMyAffiliateProfile, fetchMyCompliance, startCompliance } from "../../api/endpoints";
+import { acceptReferralInvitation, fetchMyAffiliateProfile, fetchMyCompliance, startCompliance } from "../../api/endpoints";
 import { wasRecorded, type RecordedPrivacy } from "../../api/privacy";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
 import { completeRegistrationReceipt } from "../../auth/registrationReceipt";
@@ -46,6 +46,7 @@ jest.mock("../../api/endpoints", () => ({
   fetchMyCompliance: jest.fn(),
   startCompliance: jest.fn(),
   fetchComplianceSteps: jest.fn(async () => []),
+  acceptReferralInvitation: jest.requireActual("../../api/endpoints").acceptReferralInvitation,
 }));
 let mockIds = 0;
 jest.mock("expo-crypto", () => ({ randomUUID: () => `attempt-${++mockIds}` }));
@@ -164,6 +165,25 @@ describe("Sign-up against API #118's examples", () => {
     await press(view, "Crear cuenta");
     expect(view.getByText("No pudimos registrar tus autorizaciones, así que tu cuenta no se creó. Tus datos siguen en el formulario; inténtalo de nuevo.")).toBeTruthy();
     expect((await render(<RegistrationReceiptCard userId="dcb52638-27b9-41ae-adbc-a489f04fb5bb" />)).queryByTestId("registration-receipt")).toBeNull();
+  });
+
+  it("joining by link (POST /invitations/{token}/accept): the API wraps the answer in `data`; the stored privacy is read from there", async () => {
+    // API #119: PublicInvitationController::accepted answers {data: {user, token, privacy, ...}} with the same
+    // StepDecisions summary as registration; the body and privacy here are example 04's.
+    const response = REGISTERED.response as { token: string; user: { id: string }; privacy: RecordedPrivacy };
+    served["POST /api/v1/invitations/tok-1/accept"] = {
+      request: { method: "POST", path: "/api/v1/invitations/tok-1/accept" },
+      status: 200,
+      response: { data: { user: response.user, organization_role: "affiliate", affiliate: { id: "aff-x", affiliate_code: "AFF200", status: "pending" }, token: response.token, already_affiliated: false, privacy: response.privacy } },
+    };
+    const consents = REGISTERED.request.body!.consents as Parameters<typeof wasRecorded>[1][];
+    const result = await acceptReferralInvitation("tok-1", {
+      first_name: "Ana", last_name: "Sintética", email: "ana.sintetica@example.test", password: "clave-ficticia-1",
+      privacy_notice: REGISTERED.request.body!.privacy_notice as { version: string; sha256: string }, consents, client_request_id: "attempt-x",
+    });
+    expect(result.user.id).toBe(response.user.id);
+    for (const consent of consents) expect(wasRecorded(result.privacy, consent)).toBe(true);
+    expect(sent("POST /api/v1/invitations/tok-1/accept")[0]).toMatchObject({ consents });
   });
 });
 
