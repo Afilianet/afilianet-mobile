@@ -188,7 +188,7 @@ describe("KYC start with an activated account", () => {
       fireEvent.press(view.getByText("Registrar autorización"));
     });
     expect(sent(CONSENTS)).toHaveLength(1);
-    await act(async () => answer());
+    answer();
     await waitFor(() => expect(view.getByTestId("identity-consent-effective")).toBeTruthy());
   });
 
@@ -239,6 +239,18 @@ describe("KYC start with an activated account", () => {
     const view = await mount();
     await waitFor(() => expect(view.getByText("Aprobado")).toBeTruthy());
     expect(view.queryByTestId("identity-consent-open-case")).toBeNull();
+  });
+
+  it("a lost answer to start (the server created the case, so a retry would get 422): the case is read again and shown", async () => {
+    on(ME_PRIVACY, ok(myPrivacy(null)));
+    (startCompliance as jest.Mock).mockRejectedValueOnce(new ApiError("timeout", "The request timed out."));
+    const view = await mount();
+    await waitFor(() => expect(startDisabled(view)).toBe(false));
+    // The first answer was lost, but the server created the case.
+    (fetchMyCompliance as jest.Mock).mockResolvedValue({ id: "case-1", status: "in_progress", current_step: "identity_document", steps: [] });
+    await press(view, "Comenzar verificación");
+    await waitFor(() => expect(view.getByText("En progreso")).toBeTruthy());
+    expect(view.queryByText("Comenzar verificación")).toBeNull();
   });
 
   it("no such purpose in the notice (gate off, today): nothing changes", async () => {

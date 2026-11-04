@@ -19,6 +19,14 @@ despliegue, publicación del aviso ni llamadas reales. Este guion no se ejecuta 
 - **#119:** el árbol es idéntico al merge automático de #115 y #118. No hay cambios añadidos.
 - **Contrato de consentimientos:** los ejemplos de API (`docs/privacy/examples/consents/`) no cambian entre `4bf8398` y
   `66060a1`. Se sirven tal cual en `src/tests/app/registration-consents-contract.test.tsx`.
+- **Aviso real:** API generó en `66060a1` respuestas con el aviso real `2026-11-03-general.2`, aprobado solo dentro de
+  su prueba; el archivo del repositorio sigue pendiente. Esas respuestas se sirven en
+  `src/tests/app/registration-consents-real-notice.test.tsx`:
+  - aviso, registro, mi privacidad, autorización y su reintento, y consulta de liga con `verification_expected`;
+  - longitudes: 220, 220 y 618 caracteres;
+  - el `text_sha256` de cada finalidad.
+  - El sha256 del documento de esas respuestas es de la copia de prueba y cambiará al aprobarlo: la app siempre lo toma
+    de la API.
 - **Contrato KYC:** #87 se validó contra #115 @ `29dc5a1`. Lo que #115 añadió después no cambia ninguna respuesta
   HTTP; solo añade el interruptor `IDENTITY_DOCUMENT_TECHNICAL_RETRIES_ENABLED`. Si está apagado, el reintento del
   documento responde 409 `document_retry_not_available`, que la app ya explica.
@@ -64,6 +72,15 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
 - Alternativa sin efectos en staging: un entorno aislado (como el de la prueba física de avisos) con #119 y el aviso
   aprobado solo ahí.
 
+**Envíos reales** (decide Andrés)
+- Con `PRIVACY_CONSENT_HOLDER_VERIFICATION=email_or_phone`, una cuenta creada en el teléfono debe verificar su correo o
+  su celular antes de que su autorización habilite el KYC. Eso **envía un correo o un SMS real**.
+- La activación asistida en Mobile («¿Olvidaste tu contraseña?», A3) también envía uno.
+- Sin autorización para envíos reales, los escenarios C1, A3–A5 y la verificación de R5–R6 no se pueden completar en
+  vivo; quedan cubiertos solo por pruebas.
+- La alternativa es decidir P4 de otra forma, por ejemplo sin exigir la verificación del titular en el entorno de la
+  demo. Esa decisión es de Andrés.
+
 **Mobile**
 - Necesita un APK de #88. No está construido ni autorizado: es otro build y otro versionCode, a decidir.
 - Ese APK debe apuntar al API del entorno donde se publique el aviso.
@@ -89,13 +106,19 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
 | # | Pasos | Esperado |
 |---|---|---|
 | A1 | El patrocinador registra a una persona («Registrar a alguien») | Sin casillas de finalidad; solo la confirmación de que la persona autorizó el registro, que sigue siendo otra cosa |
-| A2 | El patrocinador intenta empezar la verificación por ella | Mensaje: «La persona todavía no autoriza la verificación de identidad desde su propia cuenta. Solo ella puede hacerlo.» No se crea nada |
-| A3 | La persona activa su cuenta en el teléfono con «¿Olvidaste tu contraseña?» y entra | Entra con su propia sesión |
+| A2 | El patrocinador intenta empezar la verificación por ella | Mensaje: «La persona todavía no autoriza la verificación de identidad desde su propia cuenta. Solo ella puede hacerlo.» No se crea nada. El patrocinador no ve su propia autorización en el caso de otra persona |
+| A3 | La persona activa su cuenta en el teléfono con «¿Olvidaste tu contraseña?» y entra | Entra con su propia sesión. **Envía un correo o SMS real** (ver §2) |
 | A4 | La persona abre Verificación | Ve la autorización con el texto del aviso y la casilla sin marcar. Si su correo o celular no está verificado, primero se le pide confirmarlo |
 | A5 | Marca y pulsa «Registrar autorización» | «Comenzar verificación» se habilita solo cuando la API la devuelve como efectiva |
 
 El enlace de activación por correo (`/assisted-enrollments/activate/{token}`) admite `consents`, pero Mobile no lo
 abre. En Mobile, la persona decide desde su propia sesión, en A4 y A5.
+
+**Con la puerta activa, el patrocinador no puede capturar por la persona (P5):**
+- antes de que ella decida, la API responde 403 `consent_required` (`assisted_person`);
+- después de que active su cuenta, responde 409 `assisted_access_claimed` («la persona ya activó su cuenta»).
+
+En la demo, el alta asistida termina así: **la persona activa su cuenta y hace ella misma su verificación.**
 
 ### C. Consentimiento con la cuenta activa
 | # | Pasos | Esperado |
@@ -113,7 +136,8 @@ abre. En Mobile, la persona decide desde su propia sesión, en A4 y A5.
 | N3 | Respuesta perdida (el servidor creó la cuenta, pero la app no recibió la respuesta) | La app muestra el error y conserva todo. «Crear cuenta» repite el mismo `client_request_id` y la API devuelve la misma cuenta y las mismas decisiones (ejemplo 05), sin duplicados. **No se puede provocar a mano en un teléfono**: está cubierto por pruebas (*timeout* con el mismo id) |
 | N4 | Igual que N3, pero la persona cierra la app antes de reintentar | Al volver, el formulario es nuevo y el id también: la API responde que la cuenta ya existe. La persona inicia sesión. Sus decisiones del primer intento están en Avisos de privacidad (lo que la API guardó) |
 | N5 | Modo avión antes de «Registrar autorización» en Verificación | Mensaje de sin conexión. No aparece como registrada y «Comenzar verificación» sigue deshabilitado. Al reintentar se reutiliza el mismo id |
-| N6 | Cambiar el texto o la versión del aviso mientras el formulario está abierto (solo en un entorno aislado) | 409: «El aviso de privacidad cambió…». Las casillas se desmarcan y se muestra la versión nueva |
+| N6 | «Comenzar verificación» con una respuesta perdida (el servidor creó el caso) | Iniciar un caso no es idempotente: reintentar daría 422 («ya tiene un caso activo»). La app vuelve a consultar el caso tras cualquier error al iniciar y, si existe, lo muestra en lugar de la tarjeta de inicio. Cubierto por pruebas |
+| N7 | Cambiar el texto o la versión del aviso mientras el formulario está abierto (solo en un entorno aislado) | 409: «El aviso de privacidad cambió…». Las casillas se desmarcan y se muestra la versión nueva |
 
 ## 5. Fuera de esta demo
 - Términos generales (casilla 1 con términos): no existen (P1).

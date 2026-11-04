@@ -81,6 +81,9 @@ function ComplianceScreenContent() {
       // The server's gate is the authority: read its state again so the box shows when it asks.
       if (consentRequiredBy(error)) void queryClient.invalidateQueries({ queryKey: ["me-privacy"] });
       setStartError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
+      // Starting is not idempotent: a lost answer may have created the case, and a retry then fails (422).
+      // Read the case again; if it exists, the screen shows it instead of the start card.
+      void complianceQuery.refetch();
     }
   }
 
