@@ -139,14 +139,20 @@ afterEach(() => {
   configureApiClient({ getToken: () => null, getOrganizationId: () => null });
 });
 
-/** Detail → «Responder yo» → answer → «Enviar respuesta»: the response lands in the outbox, as on the phone. */
-async function answerMyself() {
+/**
+ * Detail → «Responder yo» → answer → «Enviar respuesta», as on the phone: the
+ * survey screen stays underneath the response (it is what «atrás» returns to).
+ * `beforeSend` sets the network for the moment of sending.
+ */
+async function answerMyself(beforeSend?: () => void) {
   await refreshInbox(SCOPE, surveySource);
   let detail!: Awaited<ReturnType<typeof render>>;
   await act(async () => {
     detail = await render(<SurveyDetailScreen />);
   });
   await waitFor(() => expect(detail.getByText("Encuesta sintética sin audio")).toBeTruthy());
+  // Nothing answered yet on this phone.
+  expect(detail.queryByTestId("survey-answered")).toBeNull();
   await act(async () => {
     fireEvent.press(detail.getByText("Responder yo"));
   });
@@ -165,53 +171,80 @@ async function answerMyself() {
   await act(async () => {
     fireEvent.changeText(response.getByLabelText("Tu respuesta"), "Respuesta sintética");
   });
+  beforeSend?.();
   await act(async () => {
     fireEvent.press(response.getByText("Enviar respuesta"));
   });
   await waitFor(() => expect(mockBack).toHaveBeenCalled());
-  return draft;
+  return { draft, detail };
+}
+
+/** Lets the automatic send that follows «Enviar respuesta» run to the end. */
+async function settleSync() {
+  for (let i = 0; i < 10; i++) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+  }
 }
 
 describe("Demo: answering a survey without audio by oneself (API source)", () => {
-  it("is sent once as a self response, becomes «Recibido» and never asks for the microphone", async () => {
-    const draft = await answerMyself();
-    const [item] = await listOutbox(SCOPE);
-    expect(item).toMatchObject({ id: draft.id, respondentType: "self" });
+  it("is sent right after «Enviar respuesta», with no «Sincronizar ahora», once, as a self response; never asks for the microphone", async () => {
+    const { draft, detail } = await answerMyself();
 
-    await syncOutbox(SCOPE, surveySource);
-    expect(server.posts).toHaveLength(1);
-    expect(server.posts[0]).toMatchObject({ respondent_type: "self", answers: [{ question_id: 11, value_text: "Respuesta sintética" }] });
+    // Sent automatically: nobody called syncOutbox or pressed «Sincronizar ahora».
+    await waitFor(() => expect(server.posts).toHaveLength(1));
+    expect(server.posts[0]).toMatchObject({ client_response_id: draft.id, respondent_type: "self", answers: [{ question_id: 11, value_text: "Respuesta sintética" }] });
     expect(server.posts[0].consent_audio ?? null).toBeNull();
-    expect(await listOutbox(SCOPE)).toEqual([]);
-    expect((await listReceipts(SCOPE))[0]).toMatchObject({ id: draft.id });
+    await waitFor(async () => expect(await listOutbox(SCOPE)).toEqual([]));
+    expect((await listReceipts(SCOPE))[0]).toMatchObject({ id: draft.id, surveyId: SURVEY_ID, versionId: VERSION_ID, respondentType: "self" });
+
+    // Confirmed by the server: «Ya respondiste» and, since a self response is allowed, «Responder otra vez».
+    await waitFor(() => expect(detail.getByTestId("survey-answered")).toBeTruthy());
+    expect(detail.getByText(/Ya respondiste esta encuesta\. Recibida el/)).toBeTruthy();
+    expect(detail.getByText("Responder otra vez")).toBeTruthy();
+    expect(detail.queryByText("Responder yo")).toBeNull();
 
     const expoAudio = jest.requireMock("expo-audio") as Record<string, jest.Mock>;
     expect(expoAudio.getRecordingPermissionsAsync).not.toHaveBeenCalled();
     expect(expoAudio.requestRecordingPermissionsAsync).not.toHaveBeenCalled();
   });
 
-  it("offline at send time: stays on the phone; when the network returns it is sent with the same id", async () => {
-    await answerMyself();
-    server.network = "down";
-    await syncOutbox(SCOPE, surveySource, { force: true });
+  it("offline at send time: saved on the phone and shown as being sent, never «Ya respondiste»; when the network returns it is sent with the same id", async () => {
+    const { detail } = await answerMyself(() => {
+      server.network = "down";
+    });
+    await settleSync();
     expect(server.posts).toHaveLength(0);
     expect(await listOutbox(SCOPE)).toHaveLength(1);
     expect(await listReceipts(SCOPE)).toEqual([]);
+    await waitFor(() => expect(detail.getByTestId("survey-answer-sending")).toBeTruthy());
+    expect(detail.queryByTestId("survey-answered")).toBeNull();
 
+    // The next attempt (foreground, every minute, or «Sincronizar ahora»).
     server.network = "up";
-    await syncOutbox(SCOPE, surveySource, { force: true });
+    await act(async () => {
+      await syncOutbox(SCOPE, surveySource, { force: true });
+    });
     expect(server.posts).toHaveLength(1);
     expect(await listOutbox(SCOPE)).toEqual([]);
     expect(await listReceipts(SCOPE)).toHaveLength(1);
+    // The screen learns of the confirmation without being reopened.
+    await waitFor(() => expect(detail.getByTestId("survey-answered")).toBeTruthy());
   });
 
   it("a lost answer (stored by the server, never received): the retry reuses the id and the server keeps one response", async () => {
-    await answerMyself();
-    server.network = "lose-answer";
-    await syncOutbox(SCOPE, surveySource, { force: true });
+    const { detail } = await answerMyself(() => {
+      server.network = "lose-answer";
+    });
+    await waitFor(() => expect(server.posts).toHaveLength(1));
+    await settleSync();
     expect(await listOutbox(SCOPE)).toHaveLength(1);
+    expect(detail.queryByTestId("survey-answered")).toBeNull();
 
-    await syncOutbox(SCOPE, surveySource, { force: true });
+    await act(async () => {
+      await syncOutbox(SCOPE, surveySource, { force: true });
+    });
     expect(server.posts).toHaveLength(2);
     expect(server.posts[1].client_response_id).toBe(server.posts[0].client_response_id);
     expect(server.stored.size).toBe(1);
@@ -221,13 +254,18 @@ describe("Demo: answering a survey without audio by oneself (API source)", () =>
 
   it("an account without an affiliate profile in the organization: refused, kept on the phone and never retried as if it could pass", async () => {
     server.affiliateProfile = false;
-    await answerMyself();
-    await syncOutbox(SCOPE, surveySource, { force: true });
-    await syncOutbox(SCOPE, surveySource, { force: true });
+    const { detail } = await answerMyself();
+    await waitFor(() => expect(server.posts).toHaveLength(1));
+    await settleSync();
+    await act(async () => {
+      await syncOutbox(SCOPE, surveySource, { force: true });
+      await syncOutbox(SCOPE, surveySource, { force: true });
+    });
     expect(server.posts).toHaveLength(1);
     const [item] = await listOutbox(SCOPE);
     expect(item).toMatchObject({ blocked: "not_a_member" });
     expect(await listReceipts(SCOPE)).toEqual([]);
+    expect(detail.queryByTestId("survey-answered")).toBeNull();
   });
 });
 

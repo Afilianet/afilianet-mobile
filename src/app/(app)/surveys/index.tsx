@@ -18,6 +18,7 @@ import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, surveysPreviewEnabled, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../../features/surveys/types";
 import { useSurveyOutbox } from "../../../features/surveys/useSurveyOutbox";
+import { ownSelfResponse } from "../../../features/surveys/ownResponse";
 import { scopeId } from "../../../features/surveys/vault";
 import { strings } from "../../../i18n";
 import { surveyDetail, surveyResponse } from "../../../navigation/routes";
@@ -189,6 +190,7 @@ export default function SurveysInboxScreen() {
           const downloaded = downloads[survey.survey_id];
           const outdated = downloaded && downloaded.version.id !== survey.id;
           const destination = surveyDetail(survey.survey_id);
+          const own = ownSelfResponse(survey.id, outbox.items, outbox.receipts);
           const modes = [
             survey.allows_self_response && affiliateProfilePresence(activeOrganization) !== "absent" ? copy.availability.self : null,
             canStartInterview(survey, activeOrganization) ? copy.availability.interview : null,
@@ -200,6 +202,7 @@ export default function SurveysInboxScreen() {
                 <Badge label={copy.status.open} tone="success" />
               </View>
               <Text style={styles.meta}>{[modes, copy.version(survey.version_number)].filter(Boolean).join(" · ")}</Text>
+              {own?.kind === "received" ? <Text style={styles.offline} testID={`survey-answered-${survey.survey_id}`}>{copy.answered}</Text> : null}
               {downloaded && !outdated ? <Text style={styles.offline}>{copy.availableOffline(formatDateTime(downloaded.downloadedAt))}</Text> : null}
               {outdated ? <Text style={styles.notice}>{copy.outdatedDownload(downloaded.version.version_number, survey.version_number)}</Text> : null}
               {!downloaded ? <Text style={styles.meta}>{copy.notDownloaded}</Text> : null}

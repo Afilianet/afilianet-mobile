@@ -310,7 +310,8 @@ describe.each<Mode>(["slot", "native"])("Survey journey (%s navigation)", (mode)
       await openSatisfaction(screen);
       expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-servicio"]);
 
-      await tap(screen, "Responder yo");
+      // After the first round there is a response of this person (here still being sent, offline).
+      await tap(screen, round === 1 ? "Responder yo" : "Responder otra vez");
       await type(screen, "Tu respuesta (número)", "12");
       await type(screen, "Tu respuesta", `Ronda ${round}`);
       // Explicit draft: kept, editable later.
@@ -334,6 +335,9 @@ describe.each<Mode>(["slot", "native"])("Survey journey (%s navigation)", (mode)
       expect(currentStack).toEqual([HOME, "/surveys", "/surveys/fx-servicio"]);
       expect(top(screen).queryByText("Borrador")).toBeNull();
       expect(await listDrafts(SCOPE)).toEqual([]);
+      // Offline: saved and being sent -- not «Ya respondiste» until the server confirms it.
+      expect(top(screen).getByText(/Tu respuesta está guardada y se está enviando/)).toBeTruthy();
+      expect(top(screen).queryByText(/Ya respondiste esta encuesta/)).toBeNull();
 
       await close(screen);
       expect(currentStack).toEqual([HOME, "/surveys"]);

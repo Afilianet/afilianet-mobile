@@ -28,6 +28,9 @@ jest.mock("../../features/surveys/runtime", () => ({
   surveysPreviewEnabled: true,
 }));
 jest.mock("../../features/surveys/library", () => ({ refreshInbox: jest.fn(), cachedInbox: jest.fn() }));
+// What this phone sent: pending items and the server's confirmations (receipts).
+const mockOutbox: { items: Record<string, unknown>[]; receipts: Record<string, unknown>[] } = { items: [], receipts: [] };
+jest.mock("../../features/surveys/useSurveyOutbox", () => ({ useSurveyOutbox: () => mockOutbox }));
 jest.mock("../../features/surveys/vault", () => ({
   scopeId: (scope: { userId: string; organizationId: string }) => `${scope.userId}.${scope.organizationId}`,
 }));
@@ -64,6 +67,8 @@ beforeEach(() => {
   // A pending affiliate (profile present): may answer by themselves.
   mockOrganization = { id: "org-a", my_role: "affiliate", my_membership_status: "active", has_affiliate_profile: true };
   (cachedInbox as jest.Mock).mockResolvedValue(null);
+  mockOutbox.items = [];
+  mockOutbox.receipts = [];
 });
 
 describe("Home: surveys available to answer", () => {
@@ -135,5 +140,34 @@ describe("Home: surveys available to answer", () => {
 
     expect(await screen.findByText("No pudimos consultar tus encuestas.")).toBeTruthy();
     expect(screen.queryByText("No tienes encuestas disponibles por ahora.")).toBeNull();
+  });
+
+  it("a survey whose own response the server confirmed says «Ya respondiste» and offers «Responder otra vez»", async () => {
+    mockOutbox.receipts = [{ id: "r-1", surveyId: ID(1), versionId: "bbbbbbbb-0000-4000-8000-000000000001", respondentType: "self", receivedAt: "2026-11-04T20:00:00Z", surveyTitle: "Encuesta sintética" }];
+    (refreshInbox as jest.Mock).mockResolvedValue(online([available({}), available({ survey_id: ID(2), id: "bbbbbbbb-0000-4000-8000-000000000002", title: "Sin responder" })]));
+    const screen = await renderCard();
+
+    expect(await screen.findByText("Ya respondiste")).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Ya respondiste la encuesta Encuesta sintética. Responder otra vez"));
+    });
+    expect(mockPush).toHaveBeenCalledWith(`/surveys/${ID(1)}`);
+    // The other one is untouched.
+    expect(screen.getByLabelText("Responder la encuesta Sin responder")).toBeTruthy();
+  });
+
+  it("never «Ya respondiste» before the server confirms it, nor for another version or an interview", async () => {
+    mockOutbox.items = [{ id: "i-1", surveyId: ID(1), versionId: "bbbbbbbb-0000-4000-8000-000000000001", respondentType: "self", attempts: 1 }];
+    mockOutbox.receipts = [
+      { id: "r-old", surveyId: ID(1), versionId: "bbbbbbbb-0000-4000-8000-000000000099", respondentType: "self", receivedAt: "2026-10-01T00:00:00Z", surveyTitle: "x" },
+      { id: "r-int", surveyId: ID(1), versionId: "bbbbbbbb-0000-4000-8000-000000000001", respondentType: "interviewed_external", receivedAt: "2026-11-04T00:00:00Z", surveyTitle: "x" },
+      // Recorded before receipts carried their version: never matched by title.
+      { id: "r-legacy", surveyTitle: "Encuesta sintética", receivedAt: "2026-11-04T00:00:00Z" },
+    ];
+    (refreshInbox as jest.Mock).mockResolvedValue(online([available({})]));
+    const screen = await renderCard();
+
+    expect(await screen.findByLabelText("Responder la encuesta Encuesta sintética")).toBeTruthy();
+    expect(screen.queryByText("Ya respondiste")).toBeNull();
   });
 });

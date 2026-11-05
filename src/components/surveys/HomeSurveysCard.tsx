@@ -1,6 +1,9 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { ownSelfResponse } from "../../features/surveys/ownResponse";
+import { useSurveyScope } from "../../features/surveys/runtime";
 import { useAvailableSurveys } from "../../features/surveys/useAvailableSurveys";
+import { useSurveyOutbox } from "../../features/surveys/useSurveyOutbox";
 import { strings } from "../../i18n";
 import { routes, surveyDetail } from "../../navigation/routes";
 import { Button } from "../ui/Button";
@@ -19,6 +22,8 @@ const HOME_SURVEYS = 3;
 export function HomeSurveysCard() {
   const router = useRouter();
   const available = useAvailableSurveys();
+  // What this phone sent (and the server confirmed): «Ya respondiste». Also sends anything pending.
+  const outbox = useSurveyOutbox(useSurveyScope());
   const surveys = available.kind === "ready" ? available.surveys : [];
   const shown = surveys.slice(0, HOME_SURVEYS);
   return (
@@ -36,15 +41,20 @@ export function HomeSurveysCard() {
       {available.kind === "ready" && available.saved ? <Text style={styles.meta}>{strings.home.surveysSaved}</Text> : null}
       {shown.map((survey) => {
         const destination = surveyDetail(survey.survey_id);
+        const answered = ownSelfResponse(survey.id, outbox.items, outbox.receipts)?.kind === "received";
         return (
           <View key={survey.survey_id} style={styles.row} testID={`home-survey-${survey.survey_id}`}>
-            <Text style={styles.name} numberOfLines={2}>
-              {survey.title}
-            </Text>
+            <View style={styles.nameBlock}>
+              <Text style={styles.name} numberOfLines={2}>
+                {survey.title}
+              </Text>
+              {answered ? <Text style={styles.answered}>{strings.surveys.answered}</Text> : null}
+            </View>
             {destination ? (
               <Button
-                label={strings.home.answerSurvey}
-                accessibilityLabel={strings.home.answerSurveyA11y(survey.title)}
+                label={answered ? strings.surveys.answerAgain : strings.home.answerSurvey}
+                variant={answered ? "secondary" : "primary"}
+                accessibilityLabel={answered ? strings.home.answerSurveyAgainA11y(survey.title) : strings.home.answerSurveyA11y(survey.title)}
                 size="sm"
                 onPress={() => router.push(destination as never)}
               />
@@ -63,5 +73,7 @@ const styles = StyleSheet.create({
   title: { ...typography.subtitle, color: colors.textPrimary },
   meta: { ...typography.body, color: colors.textSecondary },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-  name: { ...typography.bodyStrong, color: colors.textPrimary, flexShrink: 1 },
+  nameBlock: { flexShrink: 1, gap: 2 },
+  name: { ...typography.bodyStrong, color: colors.textPrimary },
+  answered: { ...typography.caption, color: colors.success },
 });

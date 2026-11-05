@@ -25,6 +25,8 @@ import {
   type SurveyDraft,
 } from "../../../features/surveys/library";
 import { audioName, newClientId } from "../../../features/surveys/outbox";
+import { ownSelfResponse } from "../../../features/surveys/ownResponse";
+import { useSurveyOutbox } from "../../../features/surveys/useSurveyOutbox";
 import { canStartInterview } from "../../../features/surveys/interviewer";
 import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
@@ -55,6 +57,8 @@ export default function SurveyDetailScreen() {
   const { surveyId } = useLocalSearchParams<{ surveyId: string }>();
   const scope = useSurveyScope();
   const activeOrganization = useSurveyOrganization();
+  // This screen also sends what was just answered (useSurveyOutbox) and shows its state.
+  const outbox = useSurveyOutbox(scope);
   const copy = strings.surveys;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,6 +129,10 @@ export default function SurveyDetailScreen() {
   // Assigned surveyor or organization staff, as the API decides on submit.
   const assigned = canStartInterview(available, activeOrganization);
   const title = available?.title ?? version?.title ?? copy.title;
+  // «Ya respondiste» only once the server confirmed it; answering again is
+  // offered whenever a self response is allowed (API: no per-person limit).
+  const versionId = available?.id ?? version?.id ?? null;
+  const own = versionId ? ownSelfResponse(versionId, outbox.items, outbox.receipts) : null;
 
   async function download() {
     if (!scope || !available) return;
@@ -242,7 +250,14 @@ export default function SurveyDetailScreen() {
         {allowsInterview && !assigned ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
         {selfWithoutProfile ? <Text style={styles.body}>{strings.staffWithoutProfile.selfSurveyUnavailable}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        {allowsSelf ? <Button label={copy.answerMyself} disabled={!open} loading={busy} onPress={() => void start("self")} /> : null}
+        {own?.kind === "received" ? (
+          <Text style={styles.answered} testID="survey-answered">{copy.answeredOn(formatDateTime(own.receivedAt))}</Text>
+        ) : own?.kind === "sending" ? (
+          <Text style={styles.body} testID="survey-answer-sending" accessibilityLiveRegion="polite">{copy.answerSending}</Text>
+        ) : null}
+        {allowsSelf ? (
+          <Button label={own ? copy.answerAgain : copy.answerMyself} variant={own ? "secondary" : "primary"} disabled={!open} loading={busy} onPress={() => void start("self")} />
+        ) : null}
         {allowsInterview && assigned ? (
           <Button label={copy.startInterview} variant={allowsSelf ? "secondary" : "primary"} disabled={!open} loading={busy} onPress={() => void start("interviewed_external")} />
         ) : null}
@@ -286,5 +301,6 @@ const styles = StyleSheet.create({
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },
   offline: { ...typography.body, color: colors.success },
+  answered: { ...typography.bodyStrong, color: colors.success },
   error: { ...typography.body, color: colors.danger },
 });
