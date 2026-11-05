@@ -6,6 +6,8 @@ import { Text, View } from "react-native";
 import AppTabsLayout from "../../app/(app)/_layout";
 import SurveysLayout, { unstable_settings as surveysSettings } from "../../app/(app)/surveys/_layout";
 import { registerLeaveGuard } from "../../navigation/leaveGuard";
+import { RootStack } from "../../navigation/RootStack";
+import { openFromOverlay, resetTo } from "../../navigation/rootNavigation";
 
 /**
  * The REAL bottom bar (app/(app)/_layout.tsx) and the REAL Encuestas stack
@@ -33,7 +35,22 @@ function ResponseStandIn() {
   return <Named name="respuesta" />;
 }
 
+function ReferralStandIn() {
+  const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
+  return (
+    <View>
+      <Text>pantalla:liga-referido</Text>
+      <Text accessibilityRole="button" onPress={() => router.back()}>
+        Cerrar
+      </Text>
+    </View>
+  );
+}
+
 const routes = {
+  // The app's REAL root navigator (app/_layout.tsx renders it).
+  _layout: RootStack,
+  "(auth)/login": () => <Named name="login" />,
   "(app)/_layout": AppTabsLayout,
   "(app)/index": () => <Named name="inicio" />,
   "(app)/network": () => <Named name="red" />,
@@ -46,6 +63,8 @@ const routes = {
   "(app)/surveys/response/[draftId]": ResponseStandIn,
   // A root screen outside the bar, like the notification detail (app/notification/[id].tsx).
   "notification/[id]": () => <Named name="detalle-notificacion" />,
+  // «Invitar a alguien» from Red: an overlay without the bar, closed with «Cerrar» (router.back), as app/referral.tsx.
+  referral: ReferralStandIn,
 };
 
 let app: ReturnType<typeof renderRouter>;
@@ -69,6 +88,8 @@ function surveysStack(): string[] {
   };
   return (find(app.getRouterState() as unknown as NavState)?.routes ?? []).map((route) => route.name);
 }
+/** The screens of the root stack, by route name. */
+const rootStack = () => ((app.getRouterState() as unknown as NavState).routes[0].state?.routes ?? []).map((route) => route.name);
 const tab = (label: string) => screen.getByRole("button", { name: new RegExp(`^${label}`) });
 const visible = (name: string) => screen.queryAllByText(`pantalla:${name}`).length > 0;
 
@@ -188,19 +209,83 @@ describe("Leaving a response from the bar runs its safe exit first", () => {
   it.each([
     ["the survey list", "/surveys", "index", "lista-encuestas"],
     ["one survey", "/surveys/aaaaaaaa-0000-4000-8000-000000000001", "[surveyId]", "detalle-encuesta"],
-  ])("from a notification's detail (a root screen), pushing %s reaches the hidden Encuestas tab", async (_label, url, stack, name) => {
+  ])("from a notification's detail (a screen without the bar), opening %s reaches Encuestas on the SAME bar", async (_label, url, stack, name) => {
     await start("/");
     const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
     await act(async () => {
       router.push("/notification/n-1");
     });
     expect(pathname()).toBe("/notification/n-1");
+    expect(rootStack()).toEqual(["(app)", "notification/[id]"]);
     await act(async () => {
-      router.push(url);
+      openFromOverlay(router, url);
     });
     expect(pathname()).toBe(url);
     expect(visible(name)).toBe(true);
-    // The section's stack ends at the pushed screen (a push does not add the list beneath it).
+    // The notification closed onto the existing bar: never a second bar underneath.
+    expect(rootStack()).toEqual(["(app)"]);
     expect(surveysStack().at(-1)).toBe(stack);
   });
+
 });
+
+describe("Red → «Invitar a alguien»", () => {
+  it.each([
+    ["«Cerrar»", async () => fireEvent.press(screen.getByText("Cerrar"))],
+    ["Android's back", async () => (jest.requireActual("expo-router") as typeof import("expo-router")).router.back()],
+  ])("opens the referral link without the bar (on purpose) and %s returns to Red with the bar", async (_label, close) => {
+    // As on the phone: the app opens on Inicio and Red is chosen in the bar.
+    await start("/");
+    await act(async () => {
+      fireEvent.press(tab("Red"));
+    });
+    expect(pathname()).toBe("/network");
+    const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
+    await act(async () => {
+      router.push("/referral");
+    });
+    expect(pathname()).toBe("/referral");
+    expect(visible("liga-referido")).toBe(true);
+    // An overlay: no bar, so no second way into the same section.
+    expect(screen.queryByRole("button", { name: /^Inicio/ })).toBeNull();
+
+    await act(async () => {
+      await close();
+    });
+    expect(pathname()).toBe("/network");
+    expect(visible("red")).toBe(true);
+    expect(tab("Inicio")).toBeTruthy();
+  });
+});
+
+describe("Redirects start over (sign-out, sign-in, organization, privacy review)", () => {
+  it("from a screen without the bar, the previous sections are not left under the login: «atrás» cannot return to them", async () => {
+    await start("/");
+    const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
+    await act(async () => {
+      fireEvent.press(tab("Red"));
+    });
+    await act(async () => {
+      router.push("/referral");
+    });
+    expect(rootStack()).toEqual(["(app)", "referral"]);
+
+    await act(async () => {
+      resetTo(router, "/login");
+    });
+    expect(pathname()).toBe("/login");
+    expect(rootStack()).toEqual(["(auth)/login"]);
+    expect(router.canGoBack()).toBe(false);
+  });
+
+  it("also from inside Encuestas", async () => {
+    await start("/surveys/aaaaaaaa-0000-4000-8000-000000000001");
+    const { router } = jest.requireActual("expo-router") as typeof import("expo-router");
+    await act(async () => {
+      resetTo(router, "/login");
+    });
+    expect(pathname()).toBe("/login");
+    expect(rootStack()).toEqual(["(auth)/login"]);
+  });
+});
+

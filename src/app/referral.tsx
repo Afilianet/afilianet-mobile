@@ -23,6 +23,7 @@ import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useOrganization } from "../state/OrganizationContext";
 import { routes } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
 import { buildEmailShareUrl, buildReferralUrl, buildWhatsappShareUrl, canShareReferral, isLinkTappableInChats } from "../utils/referral";
@@ -105,7 +106,7 @@ function ReferralScreenContent() {
             organizationName={activeOrganization?.name ?? "Afilianet"}
             onCopied={() => showToast(strings.referral.linkCopied)}
             onNotice={(message) => showToast(message, "neutral")}
-            onViewInvitations={() => router.push(routes.network as never)}
+            onViewInvitations={() => openFromOverlay(router, routes.network)}
           />
         ) : null}
       </ScrollView>

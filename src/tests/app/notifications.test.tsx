@@ -14,10 +14,12 @@ import NotificationsScreen from "../../app/notifications";
 jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }));
 
 const mockPush = jest.fn();
+// Leaving a screen without the bar for a section closes it onto the existing bar (navigation/rootNavigation.ts).
+const mockDismissTo = jest.fn();
 const mockBack = jest.fn();
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack, push: mockPush, dismissTo: mockDismissTo }),
 }));
 
 jest.mock("../../api/endpoints", () => ({
@@ -210,8 +212,9 @@ describe("Notifications: opening one notification", () => {
       fireEvent.press(await findByText("Nueva encuesta"));
     });
 
-    expect(mockPush).toHaveBeenCalledTimes(1);
-    expect(mockPush).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
+    expect(mockDismissTo).toHaveBeenCalledTimes(1);
+    expect(mockDismissTo).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
+    expect(mockPush).not.toHaveBeenCalled();
     await waitFor(() => expect(mockedMarkNotificationRead).toHaveBeenCalledTimes(1));
     expect(mockedMarkNotificationRead.mock.calls[0][0]).toBe("notif-s");
     expect(mockedMarkAllNotificationsRead).not.toHaveBeenCalled();
@@ -225,7 +228,7 @@ describe("Notifications: opening one notification", () => {
       fireEvent.press(await findByText("Nueva encuesta"));
     });
 
-    expect(mockPush).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
+    expect(mockDismissTo).toHaveBeenCalledWith(`/surveys/${SURVEY}`);
     expect(mockedMarkNotificationRead).not.toHaveBeenCalled();
   });
 

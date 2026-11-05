@@ -5,12 +5,15 @@ import { analytics } from "../services/analytics";
 import { PushLifecycle } from "./PushLifecycle";
 
 const mockPush = jest.fn();
-const mockRouter = { push: mockPush };
+const mockDismissTo = jest.fn();
+const mockRouter = { push: mockPush, dismissTo: mockDismissTo };
+// The screen on display: a section with the bar unless a test says otherwise.
+let mockSegments: string[] = ["(app)"];
 const mockSelectOrganization = jest.fn<Promise<void>, [string]>();
 const mockAuth = { status: "signedIn", user: { id: "user-1" } as { id: string } | null };
 const mockOrganization = { status: "ready", organizations: [{ id: "org-a" }], selectOrganization: mockSelectOrganization };
 
-jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
+jest.mock("expo-router", () => ({ useRouter: () => mockRouter, useSegments: () => mockSegments }));
 jest.mock("../auth/AuthContext", () => ({ useAuth: () => mockAuth }));
 jest.mock("../state/OrganizationContext", () => ({ useOrganization: () => mockOrganization }));
 jest.mock("../services/push", () => ({ registerPush: jest.fn(() => Promise.resolve()) }));
@@ -207,6 +210,22 @@ describe("PushLifecycle: survey pushes", () => {
     });
     expect(mockSelectOrganization).toHaveBeenCalledWith("org-a");
     expect(mockPush).toHaveBeenCalledWith("/surveys/fx-vecinal");
+  });
+
+  it("tapped while a screen without the bar is open (e.g. notifications): closes it onto the existing bar, never a second bar", async () => {
+    mockSegments = ["notifications"];
+    try {
+      await act(async () => {
+        render(<PushLifecycle />);
+      });
+      await act(async () => {
+        mockResponseListener?.(surveyTap("push-s4", "fx-vecinal"));
+      });
+      expect(mockDismissTo).toHaveBeenCalledWith("/surveys/fx-vecinal");
+      expect(mockPush).not.toHaveBeenCalled();
+    } finally {
+      mockSegments = ["(app)"];
+    }
   });
 
   it("falls back to the surveys inbox for a missing or tampered survey id", async () => {

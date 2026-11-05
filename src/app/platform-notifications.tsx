@@ -13,6 +13,7 @@ import { useMarkPlatformNotificationRead } from "../hooks/useMarkPlatformNotific
 import { usePlatformNotifications } from "../hooks/usePlatformNotifications";
 import { usePlatformUnreadNotificationCount } from "../hooks/usePlatformUnreadNotificationCount";
 import { notificationDestination } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
@@ -55,7 +56,7 @@ export default function PlatformNotificationsScreen() {
     }
     const destination = notificationDestination(notification.payload.screen);
     if (destination) {
-      router.push(destination as never);
+      openFromOverlay(router, destination);
     }
   }
 

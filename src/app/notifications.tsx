@@ -13,6 +13,7 @@ import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
 import { notificationDetail, surveyNotificationDestination } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
@@ -50,7 +51,7 @@ export default function NotificationsScreen() {
     const survey = surveyNotificationDestination(notification.payload);
     if (survey) {
       if (notification.read_at === null) markRead(notification.id);
-      router.push(survey as never);
+      openFromOverlay(router, survey);
       return;
     }
     router.push(notificationDetail(notification.id) as never);

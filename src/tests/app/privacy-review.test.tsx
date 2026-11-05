@@ -16,11 +16,13 @@ import PrivacyReviewScreen from "../../app/privacy-review";
  * client; only global fetch is replaced). Documents and accounts are fictitious.
  */
 const mockReplace = jest.fn();
+// A section (Home) closes this screen onto the existing bar (navigation/rootNavigation.ts closeTo).
+const mockDismissTo = jest.fn();
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 let mockCanGoBack = false;
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace, back: mockBack, canGoBack: () => mockCanGoBack }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, dismissTo: mockDismissTo, back: mockBack, canGoBack: () => mockCanGoBack }),
   router: { push: (...args: unknown[]) => mockPush(...args) },
 }));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 200 } }));
@@ -217,7 +219,7 @@ describe("the review screen", () => {
     expect(calls.find((call) => call.route === "POST /me/privacy/acknowledgements")?.headers["X-Organization-ID"]).toBeUndefined();
     await waitFor(() => expect(getPrivacyReview()).toBeNull());
     await press(view, "Continuar");
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   });
 
   it("informative change: never blocks; «Entendido» records it once", async () => {
@@ -367,7 +369,7 @@ describe("the review screen always has a way out unless the server blocks", () =
     const view = await mount();
     await waitFor(() => expect(view.getAllByText("Al día")).toHaveLength(2));
     await act(async () => fireEvent.press(view.getByText("Volver")));
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   });
 
   it("a pending review elsewhere does not lock the active organization: «Volver» stays", async () => {

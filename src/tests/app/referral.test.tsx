@@ -11,9 +11,11 @@ import ReferralScreen from "../../app/referral";
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();
+// Leaving a screen without the bar for a section closes it onto the existing bar (navigation/rootNavigation.ts).
+const mockDismissTo = jest.fn();
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack, push: mockPush, dismissTo: mockDismissTo }),
 }));
 
 jest.mock("../../api/endpoints", () => ({
@@ -102,6 +104,17 @@ afterEach(() => {
 });
 
 describe("Referral: active affiliate", () => {
+  it("has no bottom bar on purpose and always offers «Cerrar», which goes back to where it was opened (Red)", async () => {
+    mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
+    const { findByText, getByLabelText } = await renderReferral();
+    await findByText("AFF100");
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Cerrar"));
+    });
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the affiliate code, the exact referral URL, a QR code, and Share/Copy actions", async () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
     const { findByText, getByLabelText } = await renderReferral();
@@ -261,6 +274,7 @@ describe("Referral: invitations section", () => {
     expect(await findByText(/a quién has invitado/i)).toBeTruthy();
 
     fireEvent.press(getByText("Ver invitaciones"));
-    expect(mockPush).toHaveBeenCalledWith("/(app)/network");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)/network");
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

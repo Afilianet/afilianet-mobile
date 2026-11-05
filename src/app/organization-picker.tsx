@@ -9,6 +9,7 @@ import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
+import { closeTo } from "../navigation/rootNavigation";
 
 function humanizeRole(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
@@ -34,7 +35,7 @@ export default function OrganizationPickerScreen() {
     if (!forcedChoice && router.canGoBack()) {
       router.back();
     } else {
-      router.replace(routes.home as never);
+      closeTo(router, routes.home);
     }
   }
 

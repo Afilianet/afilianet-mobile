@@ -14,6 +14,7 @@ import { strings } from "../../i18n";
 import { useMarkNotificationRead } from "../../hooks/useMarkNotificationRead";
 import { useNotificationDetail } from "../../hooks/useNotificationDetail";
 import { notificationDestination, routes, surveyNotificationDestination } from "../../navigation/routes";
+import { openFromOverlay } from "../../navigation/rootNavigation";
 import { formatDateTime } from "../../utils/date";
 
 /**
@@ -66,7 +67,7 @@ export default function NotificationDetailScreen() {
         <Text style={styles.body}>{notification.body}</Text>
         <Text style={styles.meta}>{formatDateTime(notification.created_at)}</Text>
         {destination ? (
-          <Button label={destinationLabel} variant="secondary" onPress={() => router.push(destination as never)} />
+          <Button label={destinationLabel} variant="secondary" onPress={() => openFromOverlay(router, destination)} />
         ) : null}
       </Card>
     );

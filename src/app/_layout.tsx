@@ -2,7 +2,9 @@ import { JetBrainsMono_400Regular, JetBrainsMono_500Medium, JetBrainsMono_700Bol
 import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from "@expo-google-fonts/manrope";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
+import { RootStack } from "../navigation/RootStack";
+import { resetTo } from "../navigation/rootNavigation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -105,7 +107,7 @@ function RootNavigation() {
       privacyReviewBlocking: authStatus === "signedIn" && reviewBlocks(privacyReview, activeOrganization?.id),
     });
     if (target) {
-      router.replace(target as never);
+      resetTo(router, target);
     }
   }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute, privacyReview]);
 
@@ -121,5 +123,5 @@ function RootNavigation() {
     return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 
-  return <Slot />;
+  return <RootStack />;
 }

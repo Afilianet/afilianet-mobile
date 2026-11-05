@@ -13,6 +13,7 @@ import { useStepNotices } from "../../hooks/useStepNotices";
 import { strings } from "../../i18n";
 import { routes } from "../../navigation/routes";
 import { useOrganization } from "../../state/OrganizationContext";
+import { closeTo } from "../../navigation/rootNavigation";
 
 /**
  * Accepts a staff invitation (owner/admin invites someone to join their
@@ -128,7 +129,7 @@ export default function StaffInviteScreen() {
             <Text accessibilityLiveRegion="polite" style={styles.body}>
               {strings.staffInvite.accepted(invitation.organization.name)}
             </Text>
-            <Button label={strings.staffInvite.goHome} onPress={() => router.replace(routes.home as never)} />
+            <Button label={strings.staffInvite.goHome} onPress={() => closeTo(router, routes.home)} />
           </>
         ) : (
           <>

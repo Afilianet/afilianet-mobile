@@ -11,12 +11,14 @@ jest.mock("../../config/release", () => ({ releaseFeatures: { commerce: true } }
 jest.setTimeout(30_000);
 
 const mockPush = jest.fn();
+// Leaving a screen without the bar for a section closes it onto the existing bar (navigation/rootNavigation.ts).
+const mockDismissTo = jest.fn();
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
 let mockId = "notif-1";
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ back: mockBack, push: mockPush, dismissTo: mockDismissTo, replace: mockReplace }),
   useLocalSearchParams: () => ({ id: mockId }),
 }));
 
@@ -183,7 +185,8 @@ describe("Notification detail", () => {
     await act(async () => {
       fireEvent.press(getByText("Abrir encuesta"));
     });
-    expect(mockPush).toHaveBeenCalledWith(`/surveys/${survey}`);
+    expect(mockDismissTo).toHaveBeenCalledWith(`/surveys/${survey}`);
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("a survey notification without a valid survey id falls back to the survey list, named as such", async () => {
@@ -196,7 +199,7 @@ describe("Notification detail", () => {
     await act(async () => {
       fireEvent.press(getByText("Ir a Encuestas"));
     });
-    expect(mockPush).toHaveBeenCalledWith("/surveys");
+    expect(mockDismissTo).toHaveBeenCalledWith("/surveys");
   });
 
   it("offers no action when payload.screen is missing or unrecognized -- fails safe", async () => {

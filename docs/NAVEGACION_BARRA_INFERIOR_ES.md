@@ -16,6 +16,17 @@
 | Cuenta y decisiones irreversibles | `delete-account`, `leave-organization`, `sign-out-pending`, `privacy` | Piden una decisión o muestran texto legal, sin distracciones |
 | Acceso | `(auth)/*`, `verify-account`, `join/…`, `staff-invite/[token]`, `no-organization`, `+not-found` | Antes de tener sesión u organización no hay secciones a las que ir |
 
+**Cómo se vuelve:** el navegador raíz es una pila (`src/navigation/RootStack.tsx`, usado por `app/_layout.tsx`).
+- Una pantalla sin barra se abre **encima** de la sección, que queda como estaba. «Cerrar» o «atrás» vuelven a esa misma
+  sección: por ejemplo, Red → «Invitar a alguien» → «Cerrar» vuelve a Red.
+- Hasta vc16 la raíz era un `Slot`: la pantalla sin barra sustituía a toda la barra, y al volver la barra se
+  reconstruía en **Inicio**.
+- **De una pantalla sin barra a una sección** (por ejemplo, «Abrir encuesta» en una notificación, o «Ver invitaciones»
+  en la liga): se cierran las pantallas de encima y se llega a la barra que ya existe, nunca a una segunda debajo
+  (`openFromOverlay`, `closeTo` en `src/navigation/rootNavigation.ts`). Dentro de las secciones se navega como siempre.
+- **Redirecciones** (iniciar o cerrar sesión, organización, revisión de privacidad): empiezan de cero (`resetTo`).
+  «Atrás» no puede volver a las pantallas del estado anterior, como las secciones de una sesión cerrada.
+
 ## Cambiar de sección sin perder nada
 
 Desde una respuesta en curso, tocar otra sección de la barra ejecuta primero la **misma salida segura** que «Guardar borrador y salir» (`keepDraft`, registrada en `src/navigation/leaveGuard.ts`):
@@ -55,6 +66,11 @@ En Inicio, Encuestas tiene su propia tarjeta («Abrir encuestas»), separada del
   - si falla, se queda y un segundo intento puede salir;
   - al volver, solo la lista, sin pilas duplicadas;
   - una encuesta abierta directamente vuelve a la lista.
+- `src/tests/navigation/bottom-bar.test.tsx`, además, con la **raíz real** (`RootStack`):
+  - Red → «Invitar a alguien» abre la liga sin barra; «Cerrar» y «atrás» vuelven a Red con la barra. Con la raíz `Slot`
+    de vc16, esta prueba falla: vuelve a Inicio;
+  - desde el detalle de una notificación, la lista o una encuesta se abren en la misma barra, sin una segunda debajo;
+  - una redirección a iniciar sesión desde una pantalla sin barra o desde Encuestas deja solo la pantalla de acceso.
 - `src/tests/app/survey-response.test.tsx`, «switching section from the bottom bar», usa **la pantalla de respuesta real**:
   - grabación activa terminada y guardada con el borrador;
   - respuesta recién escrita guardada;
