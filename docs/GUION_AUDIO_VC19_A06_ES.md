@@ -1,7 +1,9 @@
 # Guion mínimo: entrevista con audio en vc19 (Galaxy A06 → staging → Admin)
 
-**Estado:** preparado el 2026-11-06, **no ejecutado**. Andrés hace la prueba. Mobile no graba, no sube y no escribe nada
-en staging.
+**Estado: CERRADO (2026-11-06).** Andrés hizo la prueba real con vc19 en el A06: grabó, la subida terminó y el audio
+se escuchó en Admin. Con esto queda validado el recorrido de consentimiento, grabación, envío, subida y reproducción.
+**No valida** la transcripción ni el análisis, que siguen pendientes (siguiente etapa). Mobile no grabó, no subió y no
+escribió nada en staging.
 
 **Objetivo:** una grabación de 10 a 15 segundos con una frase ficticia, sin datos personales. Se comprueba:
 1. el consentimiento;
