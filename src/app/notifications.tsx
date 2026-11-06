@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NotificationRow } from "../components/NotificationRow";
@@ -23,6 +24,7 @@ import type { Notification } from "../types/api";
  */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const notificationsQuery = useNotifications();
   const unreadCountQuery = useUnreadNotificationCount();
   const markAllReadMutation = useMarkAllNotificationsRead();
@@ -77,7 +79,7 @@ export default function NotificationsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import { ActiveOrganizationBar } from "../components/ActiveOrganizationBar";
@@ -18,6 +19,7 @@ import { useOrganization } from "../state/OrganizationContext";
  */
 export default function OrganizationAffiliatesScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
   const staff = isOrganizationStaff(activeOrganization);
@@ -27,7 +29,7 @@ export default function OrganizationAffiliatesScreen() {
       <ScrollView contentContainerStyle={styles.content} testID="organization-affiliates-scroll">
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{strings.organizationAffiliates.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

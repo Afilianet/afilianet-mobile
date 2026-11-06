@@ -1,6 +1,6 @@
 import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
-import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../api/errors";
@@ -34,7 +34,7 @@ export default function CommissionsScreen() {
 }
 
 function CommissionsScreenContent() {
-  const router = useRouter();
+  const close = useCloseScreen();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();
   const commissionsQuery = useMyCommissions();
@@ -72,7 +72,7 @@ function CommissionsScreenContent() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.commissions.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

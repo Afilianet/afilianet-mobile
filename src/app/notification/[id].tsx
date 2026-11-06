@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../navigation/useCloseScreen";
 import { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { EmptyState } from "../../components/EmptyState";
@@ -29,6 +30,7 @@ import { formatDateTime } from "../../utils/date";
  */
 export default function NotificationDetailScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { id } = useLocalSearchParams<{ id: string }>();
   const detailQuery = useNotificationDetail(id);
   const { mutate: markRead } = useMarkNotificationRead();
@@ -89,7 +91,7 @@ export default function NotificationDetailScreen() {
       <ScrollView testID="notification-detail-scroll" contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.detailTitle}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
@@ -38,6 +39,7 @@ export default function ReferralScreen() {
 
 function ReferralScreenContent() {
   const router = useRouter();
+  const close = useCloseScreen();
   const affiliateQuery = useAffiliateProfile();
   const { activeOrganization } = useOrganization();
 
@@ -82,7 +84,7 @@ function ReferralScreenContent() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

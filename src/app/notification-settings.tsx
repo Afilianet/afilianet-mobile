@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { PlatformPushPreferences } from "../components/PlatformPushPreferences";
 import { PushPreferences } from "../components/PushPreferences";
@@ -15,7 +15,7 @@ import { useOrganization } from "../state/OrganizationContext";
  * preferences exist, so no organization-scoped call is made.
  */
 export default function NotificationSettingsScreen() {
-  const router = useRouter();
+  const close = useCloseScreen();
   const { activeOrganization } = useOrganization();
 
   return (
@@ -23,7 +23,7 @@ export default function NotificationSettingsScreen() {
       <ScrollView testID="notification-settings-scroll" contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.settingsTitle}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

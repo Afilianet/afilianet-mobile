@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../components/ui/Card";
@@ -18,6 +19,7 @@ function humanizeRole(role: string): string {
 export default function OrganizationPickerScreen() {
   const { organizations, activeOrganization, selectOrganization } = useOrganization();
   const router = useRouter();
+  const close = useCloseScreen();
   // Fixed when the picker opens: a forced first choice (no active organization yet) or a voluntary switch.
   const [forcedChoice] = useState(!activeOrganization);
 
@@ -43,7 +45,7 @@ export default function OrganizationPickerScreen() {
     <View style={styles.screen}>
       {router.canGoBack() ? (
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

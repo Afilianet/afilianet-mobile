@@ -1,4 +1,5 @@
 import { useFocusEffect, useRouter } from "expo-router";
+import { useCloseScreen } from "../../../navigation/useCloseScreen";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../../api/errors";
@@ -33,6 +34,7 @@ type InboxState =
 
 export default function SurveysInboxScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const scope = useSurveyScope();
   const activeOrganization = useSurveyOrganization();
   const outbox = useSurveyOutbox(scope);
@@ -144,7 +146,7 @@ export default function SurveysInboxScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{copy.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
