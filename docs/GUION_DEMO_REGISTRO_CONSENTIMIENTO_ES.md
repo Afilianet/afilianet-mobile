@@ -9,7 +9,8 @@ referencia.
 - **Push:** cerrado. La notificación llegó a la pantalla bloqueada del A06 el 2026-11-05 a las 10:51, después de
   desplegar API #129.
 - **Aviso general:** publicado en staging (ver §2).
-- **Candidato:** vc19 corrige «Cerrar» en las pantallas sin barra (ver «Builds» al final de §4).
+- **vc19:** instalado en el A06. «Cerrar» en las pantallas sin barra quedó validado y cerrado, igual que la prueba real de
+  audio (ver «Builds» al final de §4 y `GUION_AUDIO_VC19_A06_ES.md`).
 - **Sin autorizar:** el merge, y cada envío real o captura fuera de los alias acordados.
 - **Causa histórica de la lista de encuestas vacía:** no determinada. No bloquea la demo.
 
@@ -296,7 +297,7 @@ y, unos 15 minutos después, el recibo (`CheckPushReceipt`). No reenviar a ciega
 - **Actualizar:** cada APK se instala sobre el anterior como actualización (mismo paquete y firma) y conserva la
   sesión. Volver a uno anterior exigiría desinstalar.
 
-**vc19 (candidato, 2026-11-06):** EAS `831d6a57-a2cd-4e11-be96-1699ff222a48`, terminado. Commit
+**vc19 (instalado y validado en el A06, 2026-11-06):** EAS `831d6a57-a2cd-4e11-be96-1699ff222a48`, terminado. Commit
   `002ccaba5c746c4d9d1d8e26bc4fe8127334a9c8` de #89, sin merge, con CI 42270840722 en verde. `versionCode` 19
   (remoto 18 → 19, no usado antes). APK SHA-256 `23b9cfc6ffeed104a0cd43073ff7f4b25ecfd32976cbd6e75ba1011ba28c0894`.
 - Firma v2 con el mismo certificado (`5d3974b9…6320ca`), así que se instala sobre vc18 como actualización.
@@ -306,10 +307,8 @@ y, unos 15 minutos después, el recibo (`CheckPushReceipt`). No reenviar a ciega
   - API de staging, encuestas por API;
   - Firebase `afilianet-mx`, `POST_NOTIFICATIONS`.
 - Cambio respecto a vc18: «Cerrar» solo actúa en el primer toque (`useCloseScreen`).
-- **Por probar en el A06:**
-  - Red → «Invitar a alguien» → «Cerrar» con un toque, con varios toques rápidos y con el botón «Atrás» de Android;
-  - debe volver a Red con la barra y su contenido intacto.
-- El doble toque es la causa reproducida en pruebas; todavía no está confirmada en el teléfono.
+- **Validado en el A06 (2026-11-06, Andrés):** Red → «Invitar a alguien» → «Cerrar» vuelve a Red con la barra y su
+  contenido intacto, con un toque, con varios toques rápidos y con el botón «Atrás» de Android. **Cerrado.**
 
 ## 5. Fuera de esta demo
 - Términos generales (casilla 1 con términos): no existen (P1).

@@ -24,6 +24,7 @@
 - **«Cerrar» actúa una sola vez** (`useCloseScreen`, `src/navigation/useCloseScreen.ts`). `router.back()` es global: un
   segundo toque mientras la pantalla todavía se cerraba (vc17 y vc18 en el Galaxy A06) hacía otro «atrás», y lo
   atendía la barra, que regresa por su historia (Red → Inicio). Todas las pantallas con la «X» de cerrar lo usan.
+  Validado con vc19 en el A06 (2026-11-06): un toque, varios toques rápidos y el botón «Atrás» vuelven a Red.
 - **De una pantalla sin barra a una sección** (por ejemplo, «Abrir encuesta» en una notificación, o «Ver invitaciones»
   en la liga): se cierran las pantallas de encima y se llega a la barra que ya existe, nunca a una segunda debajo
   (`openFromOverlay`, `closeTo` en `src/navigation/rootNavigation.ts`). Dentro de las secciones se navega como siempre.
