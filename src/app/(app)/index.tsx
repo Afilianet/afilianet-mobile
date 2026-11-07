@@ -29,6 +29,7 @@ import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
 import { canShareReferral } from "../../utils/referral";
 import { surveysPreviewEnabled } from "../../features/surveys/flags";
+import { HomeSurveysCard } from "../../components/surveys/HomeSurveysCard";
 import { recaptureRequest } from "../../components/compliance/recaptureRequest";
 import type { AffiliateProfile, AffiliateRef, Commission, ComplianceCase, WalletSummary } from "../../types/api";
 
@@ -93,7 +94,7 @@ export default function HomeScreen() {
     >
       <Header />
       <PrivacyNoticeBanner />
-      {surveysPreviewEnabled ? <SurveysEntryCard /> : null}
+      {surveysPreviewEnabled ? <HomeSurveysCard /> : null}
 
       {profileAbsent ? (
         <StaffWithoutProfileCard staff={isOrganizationStaff(activeOrganization)} />
@@ -183,16 +184,6 @@ function Header() {
 }
 
 /** Its own card, apart from the organization bar: two different actions, never mistaken for each other. */
-function SurveysEntryCard() {
-  const router = useRouter();
-  return (
-    <Card style={styles.surveysCard} testID="home-surveys-entry">
-      <Text style={styles.surveysTitle}>{strings.surveys.title}</Text>
-      <Text style={styles.meta}>{strings.home.surveysDescription}</Text>
-      <Button label={strings.home.openSurveys} variant="secondary" size="sm" onPress={() => router.push(routes.surveys as never)} />
-    </Card>
-  );
-}
 
 function EnrollmentBanner() {
   return (
@@ -364,13 +355,6 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: spacing.md,
-  },
-  surveysCard: {
-    gap: spacing.xs,
-  },
-  surveysTitle: {
-    ...typography.subtitle,
-    color: colors.textPrimary,
   },
   headerTopRow: {
     flexDirection: "row",

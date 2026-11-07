@@ -25,6 +25,7 @@ import { routes } from "../../../navigation/routes";
 import { useOrganization } from "../../../state/OrganizationContext";
 import { affiliateProfilePresence } from "../../../state/membership";
 import { DEFAULT_PHONE_COUNTRY, normalizePhone } from "../../../utils/phone";
+import { closeTo } from "../../../navigation/rootNavigation";
 
 const EMAIL = /^\S+@\S+\.\S+$/;
 
@@ -103,7 +104,7 @@ export default function JoinScreen() {
 
 function BackHome() {
   const router = useRouter();
-  return <Button label={strings.access.joinWithAccount.dismiss} variant="ghost" onPress={() => router.replace(routes.home as never)} />;
+  return <Button label={strings.access.joinWithAccount.dismiss} variant="ghost" onPress={() => closeTo(router, routes.home)} />;
 }
 
 interface JoinProps {
@@ -208,7 +209,7 @@ function JoinWithAccount({ organizationId, code, referral, onNoticesChanged }: J
       // selected automatically; an already-active organization stays active
       // and the new one appears in the organization switcher.
       await refresh();
-      if (stillSameSession()) router.replace(routes.home as never);
+      if (stillSameSession()) closeTo(router, routes.home);
     } catch (cause) {
       if (!stillSameSession()) return;
       if (isAlreadyEnrolledError(cause)) {
@@ -232,7 +233,7 @@ function JoinWithAccount({ organizationId, code, referral, onNoticesChanged }: J
 
   async function dismiss() {
     await clearPendingReferral();
-    router.replace(routes.home as never);
+    closeTo(router, routes.home);
   }
 
   if (alreadyAffiliated) {
@@ -240,7 +241,7 @@ function JoinWithAccount({ organizationId, code, referral, onNoticesChanged }: J
       <Card style={styles.form} testID="join-already-affiliated">
         <Text style={styles.title} accessibilityRole="header">{copy.alreadyAffiliatedTitle}</Text>
         <Text style={styles.info}>{copy.alreadyAffiliated}</Text>
-        <Button label={copy.goHome} size="lg" fullWidth onPress={() => router.replace(routes.home as never)} />
+        <Button label={copy.goHome} size="lg" fullWidth onPress={() => closeTo(router, routes.home)} />
       </Card>
     );
   }

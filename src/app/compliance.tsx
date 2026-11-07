@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,7 +43,7 @@ export default function ComplianceScreen() {
 }
 
 function ComplianceScreenContent() {
-  const router = useRouter();
+  const close = useCloseScreen();
   // API #86. Checked on every render, so a deep link, a pull-to-refresh or a
   // refusal recorded mid-session all land on the same read-only screen.
   const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
@@ -106,7 +106,7 @@ function ComplianceScreenContent() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.compliance.screenTitle}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

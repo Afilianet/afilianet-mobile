@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../navigation/useCloseScreen";
 import { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { EmptyState } from "../../components/EmptyState";
@@ -13,7 +14,8 @@ import { notificationTypeMeta } from "../../design-system/notificationMapping";
 import { strings } from "../../i18n";
 import { useMarkNotificationRead } from "../../hooks/useMarkNotificationRead";
 import { useNotificationDetail } from "../../hooks/useNotificationDetail";
-import { notificationDestination, routes } from "../../navigation/routes";
+import { notificationDestination, routes, surveyNotificationDestination } from "../../navigation/routes";
+import { openFromOverlay } from "../../navigation/rootNavigation";
 import { formatDateTime } from "../../utils/date";
 
 /**
@@ -28,6 +30,7 @@ import { formatDateTime } from "../../utils/date";
  */
 export default function NotificationDetailScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { id } = useLocalSearchParams<{ id: string }>();
   const detailQuery = useNotificationDetail(id);
   const { mutate: markRead } = useMarkNotificationRead();
@@ -48,9 +51,13 @@ export default function NotificationDetailScreen() {
   let showBackToInbox = false;
   if (notification) {
     const meta = notificationTypeMeta(notification.type);
-    const destination = notificationDestination(notification.payload.screen);
+    // A survey notification opens that survey; anything else, its section.
+    const survey = surveyNotificationDestination(notification.payload);
+    const destination = survey ?? notificationDestination(notification.payload.screen);
     const screen = notification.payload.screen;
-    const destinationLabel = (screen && strings.notifications.goToSection[screen]) || strings.notifications.goToSectionFallback;
+    const destinationLabel = survey
+      ? strings.notifications.openSurvey
+      : (screen && strings.notifications.goToSection[screen]) || strings.notifications.goToSectionFallback;
     body = (
       <Card style={styles.card}>
         <View style={styles.iconMark}>
@@ -62,7 +69,7 @@ export default function NotificationDetailScreen() {
         <Text style={styles.body}>{notification.body}</Text>
         <Text style={styles.meta}>{formatDateTime(notification.created_at)}</Text>
         {destination ? (
-          <Button label={destinationLabel} variant="secondary" onPress={() => router.push(destination as never)} />
+          <Button label={destinationLabel} variant="secondary" onPress={() => openFromOverlay(router, destination)} />
         ) : null}
       </Card>
     );
@@ -84,7 +91,7 @@ export default function NotificationDetailScreen() {
       <ScrollView testID="notification-detail-scroll" contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.detailTitle}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

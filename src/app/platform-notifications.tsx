@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NotificationRow } from "../components/NotificationRow";
@@ -13,6 +14,7 @@ import { useMarkPlatformNotificationRead } from "../hooks/useMarkPlatformNotific
 import { usePlatformNotifications } from "../hooks/usePlatformNotifications";
 import { usePlatformUnreadNotificationCount } from "../hooks/usePlatformUnreadNotificationCount";
 import { notificationDestination } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
@@ -27,6 +29,7 @@ import type { Notification } from "../types/api";
  */
 export default function PlatformNotificationsScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const notificationsQuery = usePlatformNotifications();
   const unreadCountQuery = usePlatformUnreadNotificationCount();
   const markReadMutation = useMarkPlatformNotificationRead();
@@ -55,7 +58,7 @@ export default function PlatformNotificationsScreen() {
     }
     const destination = notificationDestination(notification.payload.screen);
     if (destination) {
-      router.push(destination as never);
+      openFromOverlay(router, destination);
     }
   }
 
@@ -79,7 +82,7 @@ export default function PlatformNotificationsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.platformNotifications.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

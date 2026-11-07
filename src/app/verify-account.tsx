@@ -24,6 +24,7 @@ import { useCountdown } from "../hooks/useCountdown";
 import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
 import { formatPhoneForDisplay, maskPhone } from "../utils/phone";
+import { closeTo } from "../navigation/rootNavigation";
 
 const DEFAULT_RESEND_SECONDS = 60;
 
@@ -50,7 +51,7 @@ export default function VerifyAccountScreen() {
   const allVerified = (!user.email || emailVerified) && (!user.phone || phoneVerified);
 
   function next() {
-    router.replace((pendingReferral ? pendingReferralPath(pendingReferral) : routes.home) as never);
+    closeTo(router, pendingReferral ? pendingReferralPath(pendingReferral) : routes.home);
   }
 
   return (

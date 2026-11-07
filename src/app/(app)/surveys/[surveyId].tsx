@@ -1,4 +1,5 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../../navigation/useCloseScreen";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { accessErrorMessage } from "../../../api/access";
@@ -25,6 +26,8 @@ import {
   type SurveyDraft,
 } from "../../../features/surveys/library";
 import { audioName, newClientId } from "../../../features/surveys/outbox";
+import { ownSelfResponse } from "../../../features/surveys/ownResponse";
+import { useSurveyOutbox } from "../../../features/surveys/useSurveyOutbox";
 import { canStartInterview } from "../../../features/surveys/interviewer";
 import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
@@ -52,9 +55,12 @@ function surveyErrorMessage(cause: unknown): string {
 
 export default function SurveyDetailScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { surveyId } = useLocalSearchParams<{ surveyId: string }>();
   const scope = useSurveyScope();
   const activeOrganization = useSurveyOrganization();
+  // This screen also sends what was just answered (useSurveyOutbox) and shows its state.
+  const outbox = useSurveyOutbox(scope);
   const copy = strings.surveys;
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,12 +75,24 @@ export default function SurveyDetailScreen() {
     if (!scope || !surveyId) return;
     const key = scopeId(scope);
     // This origin only: another origin's list, download or drafts never stand in for this one's.
-    const [inbox, downloaded, allDrafts] = await Promise.all([
+    const [cached, downloaded, allDrafts] = await Promise.all([
       cachedInbox(scope, surveySource.origin),
       getDownloaded(scope, surveyId, surveySource.origin),
       listDrafts(scope),
     ]);
     if (key !== currentScope.current) return;
+    // Opened from a notification or Home, the survey may be newer than the
+    // list saved on the phone: ask the server (this organization) before
+    // saying it is not available. Offline or failing, the saved list stands.
+    let inbox = cached;
+    if (!cached?.surveys.some((value) => value.survey_id === surveyId)) {
+      try {
+        inbox = await refreshInbox(scope, surveySource);
+      } catch {
+        inbox = cached;
+      }
+      if (key !== currentScope.current) return;
+    }
     setLoaded({
       key,
       available: inbox?.surveys.find((value) => value.survey_id === surveyId) ?? null,
@@ -113,6 +131,10 @@ export default function SurveyDetailScreen() {
   // Assigned surveyor or organization staff, as the API decides on submit.
   const assigned = canStartInterview(available, activeOrganization);
   const title = available?.title ?? version?.title ?? copy.title;
+  // «Ya respondiste» only once the server confirmed it; answering again is
+  // offered whenever a self response is allowed (API: no per-person limit).
+  const versionId = available?.id ?? version?.id ?? null;
+  const own = versionId ? ownSelfResponse(versionId, outbox.items, outbox.receipts) : null;
 
   async function download() {
     if (!scope || !available) return;
@@ -199,7 +221,7 @@ export default function SurveyDetailScreen() {
       <ScrollView contentContainerStyle={styles.content} testID="survey-detail-scroll">
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -230,7 +252,14 @@ export default function SurveyDetailScreen() {
         {allowsInterview && !assigned ? <Text style={styles.body}>{copy.notInterviewer}</Text> : null}
         {selfWithoutProfile ? <Text style={styles.body}>{strings.staffWithoutProfile.selfSurveyUnavailable}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        {allowsSelf ? <Button label={copy.answerMyself} disabled={!open} loading={busy} onPress={() => void start("self")} /> : null}
+        {own?.kind === "received" ? (
+          <Text style={styles.answered} testID="survey-answered">{copy.answeredOn(formatDateTime(own.receivedAt))}</Text>
+        ) : own?.kind === "sending" ? (
+          <Text style={styles.body} testID="survey-answer-sending" accessibilityLiveRegion="polite">{copy.answerSending}</Text>
+        ) : null}
+        {allowsSelf ? (
+          <Button label={own ? copy.answerAgain : copy.answerMyself} variant={own ? "secondary" : "primary"} disabled={!open} loading={busy} onPress={() => void start("self")} />
+        ) : null}
         {allowsInterview && assigned ? (
           <Button label={copy.startInterview} variant={allowsSelf ? "secondary" : "primary"} disabled={!open} loading={busy} onPress={() => void start("interviewed_external")} />
         ) : null}
@@ -274,5 +303,6 @@ const styles = StyleSheet.create({
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },
   offline: { ...typography.body, color: colors.success },
+  answered: { ...typography.bodyStrong, color: colors.success },
   error: { ...typography.body, color: colors.danger },
 });

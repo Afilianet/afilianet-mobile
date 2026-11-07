@@ -722,6 +722,10 @@ export interface NotificationPayload {
   payout_id?: string;
   amount?: string;
   currency?: string;
+  /** Survey distributions (BuildSurveyDistribution): the survey and version distributed. */
+  survey_id?: string;
+  version_id?: string;
+  organization_id?: string;
 }
 
 // NotificationResource -- deliberately named `payload`, not `data`: a

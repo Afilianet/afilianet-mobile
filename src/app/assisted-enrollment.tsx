@@ -1,5 +1,6 @@
 import * as Crypto from "expo-crypto";
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { createAssistedEnrollment, type AssistedEnrollmentInput, type AssistedEnrollmentResult } from "../api/assistedEnrollment";
@@ -38,6 +39,7 @@ function contactErrorsFrom(error: ApiError): ContactErrors {
  */
 export default function AssistedEnrollmentScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { user } = useAuth();
   const { activeOrganization } = useOrganization();
   // API #86: registering someone stays available; capturing their ID does not.
@@ -109,7 +111,7 @@ export default function AssistedEnrollmentScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <IconButton label="Cerrar" onPress={() => router.back()}>
+      <IconButton label="Cerrar" onPress={close}>
         <Icon name="cerrar" size={18} color={colors.textPrimary} />
       </IconButton>
       <Text style={styles.heading}>Registrar a alguien</Text>

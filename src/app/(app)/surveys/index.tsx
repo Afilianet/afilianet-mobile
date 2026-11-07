@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
+import { useCloseScreen } from "../../../navigation/useCloseScreen";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { AppState, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../../api/errors";
 import { ActiveOrganizationBar } from "../../../components/ActiveOrganizationBar";
 import { EmptyState } from "../../../components/EmptyState";
@@ -18,6 +19,7 @@ import { affiliateProfilePresence } from "../../../state/membership";
 import { surveySource, surveysPreviewEnabled, useSurveyOrganization, useSurveyScope } from "../../../features/surveys/runtime";
 import type { AvailableSurvey } from "../../../features/surveys/types";
 import { useSurveyOutbox } from "../../../features/surveys/useSurveyOutbox";
+import { ownSelfResponse } from "../../../features/surveys/ownResponse";
 import { scopeId } from "../../../features/surveys/vault";
 import { strings } from "../../../i18n";
 import { surveyDetail, surveyResponse } from "../../../navigation/routes";
@@ -32,6 +34,7 @@ type InboxState =
 
 export default function SurveysInboxScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const scope = useSurveyScope();
   const activeOrganization = useSurveyOrganization();
   const outbox = useSurveyOutbox(scope);
@@ -72,9 +75,20 @@ export default function SurveysInboxScreen() {
     setLoadedInbox({ key, inbox: next, downloads: Object.fromEntries(entries) });
   }, [scope]);
 
+  // The list is asked again every time it is shown and when the app returns
+  // to the foreground: this tab stays mounted, so a survey published (or
+  // closed) meanwhile must not wait for a pull to refresh.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
   useEffect(() => {
-    void load();
-  }, [load, scopeKey]);
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void load();
+    });
+    return () => subscription.remove();
+  }, [load]);
 
   // Drafts never leave the phone: listed from local storage only, so coming
   // back from a response (the stack keeps this screen mounted) shows them.
@@ -132,7 +146,7 @@ export default function SurveysInboxScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{copy.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -178,6 +192,7 @@ export default function SurveysInboxScreen() {
           const downloaded = downloads[survey.survey_id];
           const outdated = downloaded && downloaded.version.id !== survey.id;
           const destination = surveyDetail(survey.survey_id);
+          const own = ownSelfResponse(survey.id, outbox.items, outbox.receipts);
           const modes = [
             survey.allows_self_response && affiliateProfilePresence(activeOrganization) !== "absent" ? copy.availability.self : null,
             canStartInterview(survey, activeOrganization) ? copy.availability.interview : null,
@@ -189,6 +204,7 @@ export default function SurveysInboxScreen() {
                 <Badge label={copy.status.open} tone="success" />
               </View>
               <Text style={styles.meta}>{[modes, copy.version(survey.version_number)].filter(Boolean).join(" · ")}</Text>
+              {own?.kind === "received" ? <Text style={styles.offline} testID={`survey-answered-${survey.survey_id}`}>{copy.answered}</Text> : null}
               {downloaded && !outdated ? <Text style={styles.offline}>{copy.availableOffline(formatDateTime(downloaded.downloadedAt))}</Text> : null}
               {outdated ? <Text style={styles.notice}>{copy.outdatedDownload(downloaded.version.version_number, survey.version_number)}</Text> : null}
               {!downloaded ? <Text style={styles.meta}>{copy.notDownloaded}</Text> : null}

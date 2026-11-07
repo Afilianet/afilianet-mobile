@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 import { strings } from "../../i18n";
 import type { SurveyOrigin } from "./origin";
 import { upgradeLegacyOrigins } from "./originUpgrade";
-import { discardRejectedAudio, discardResponse, listOutbox, listReceipts, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
+import { discardRejectedAudio, discardResponse, listOutbox, listReceipts, subscribeOutbox, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
 import { scopeId, type SurveyScope } from "./vault";
 
@@ -11,9 +11,11 @@ const AUTO_SYNC_INTERVAL_MS = 60_000;
 
 /**
  * Outbox state and syncing for the CURRENT account+organization only.
- * Syncs on open, when the app returns to the foreground and every minute
- * while anything is pending (each item still honours its retry backoff);
- * "Sincronizar ahora" forces it. Results for a previous scope are dropped.
+ * Syncs on open, as soon as a response is saved (from any screen), when the
+ * app returns to the foreground and every minute while anything is pending
+ * (each item still honours its retry backoff); "Sincronizar ahora" forces it.
+ * Any sync or discard elsewhere refreshes what it shows. Results for a
+ * previous scope are dropped.
  *
  * Split by origin: `items`/`receipts` are the active source's; `other*` are
  * kept from another (or an unconfirmed) origin and are never sent from here.
@@ -105,6 +107,18 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
     });
     return () => subscription.remove();
   }, [reload, sync]);
+
+  // A response saved on another screen is sent right away, not at the next
+  // periodic attempt; another screen's sync or discard is shown here too.
+  useEffect(
+    () =>
+      subscribeOutbox((scopeKey, event) => {
+        if (scopeKey !== currentScope.current) return;
+        if (event === "enqueued") void reload().then(() => sync(false));
+        else void reload();
+      }),
+    [reload, sync],
+  );
 
   const current = state && state.key === key ? state : null;
   const items = current?.items ?? [];

@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NotificationRow } from "../components/NotificationRow";
@@ -9,9 +10,11 @@ import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { strings } from "../i18n";
 import { useMarkAllNotificationsRead } from "../hooks/useMarkAllNotificationsRead";
+import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
-import { notificationDetail } from "../navigation/routes";
+import { notificationDetail, surveyNotificationDestination } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
@@ -21,9 +24,11 @@ import type { Notification } from "../types/api";
  */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const notificationsQuery = useNotifications();
   const unreadCountQuery = useUnreadNotificationCount();
   const markAllReadMutation = useMarkAllNotificationsRead();
+  const { mutate: markRead } = useMarkNotificationRead();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -40,9 +45,17 @@ export default function NotificationsScreen() {
   }
 
   // Viewing the inbox never marks anything read. Only opening one
-  // notification's detail does (see notification/[id].tsx), and only that one.
+  // notification does, and only that one: its detail (notification/[id].tsx)
+  // or, for a survey notification, the survey itself -- opened directly, as
+  // its push does. A failed read never blocks opening it.
   function handleOpen(notification: Notification) {
     analytics.capture("notification_opened");
+    const survey = surveyNotificationDestination(notification.payload);
+    if (survey) {
+      if (notification.read_at === null) markRead(notification.id);
+      openFromOverlay(router, survey);
+      return;
+    }
     router.push(notificationDetail(notification.id) as never);
   }
 
@@ -66,7 +79,7 @@ export default function NotificationsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

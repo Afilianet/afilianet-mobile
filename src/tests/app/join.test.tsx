@@ -11,8 +11,10 @@ import JoinScreen from "../../app/join/[organizationId]/[code]";
 const register = jest.fn();
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+// A section (Home) closes this screen onto the existing bar (navigation/rootNavigation.ts closeTo).
+const mockDismissTo = jest.fn();
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace, dismissTo: mockDismissTo }),
   useLocalSearchParams: () => ({ organizationId: "org-1", code: "AFF100" }),
 }));
 jest.mock("../../api/endpoints", () => ({
@@ -187,7 +189,7 @@ describe("Join: later affiliation with the current account", () => {
     expect(register).not.toHaveBeenCalled();
     expect(clearPendingReferral).toHaveBeenCalled();
     expect(refresh).toHaveBeenCalled();
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   });
 
   it("stops if the session changes while the invitation is being prepared", async () => {
@@ -263,7 +265,7 @@ describe("Join: later affiliation with the current account", () => {
     // Without a privacy block (an API before #91) the body stays {} exactly as before.
     expect(accept).toHaveBeenCalledWith("private-token", {});
     expect(refresh).toHaveBeenCalled();
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   });
 
   it.each([
@@ -285,7 +287,7 @@ describe("Join: later affiliation with the current account", () => {
     await act(async () => {
       fireEvent.press(view.getByText("Ir al inicio"));
     });
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   });
 
   it("can be dismissed, which forgets the pending referral", async () => {
@@ -294,7 +296,7 @@ describe("Join: later affiliation with the current account", () => {
       fireEvent.press(view.getByText("Ahora no"));
     });
     expect(clearPendingReferral).toHaveBeenCalled();
-    expect(mockReplace).toHaveBeenCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
     expect(accept).not.toHaveBeenCalled();
   });
 });

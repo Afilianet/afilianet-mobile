@@ -90,6 +90,10 @@ export interface OutboxItem {
 
 export interface OutboxReceipt {
   id: string;
+  /** Which survey, version and kind of response the server confirmed; absent on receipts recorded before vc18 (never guessed). */
+  surveyId?: string;
+  versionId?: string;
+  respondentType?: RespondentType;
   surveyTitle: string;
   receivedAt: string;
   withAudio: boolean;
@@ -168,6 +172,32 @@ export async function listReceipts(scope: SurveyScope): Promise<WithOrigin<Outbo
  * Audio, if any, was sealed already. The item names its origin -- the draft's
  * -- and its audio must come from that same origin.
  */
+/**
+ * What changed in one account+organization's outbox, for the screens showing
+ * it: `enqueued` (a response was just saved: send it now, do not wait for the
+ * next periodic attempt), `synced` (a sync ended: the server may have
+ * confirmed something) and `changed` (discarded by the person).
+ */
+export type OutboxEvent = "enqueued" | "synced" | "changed";
+type OutboxListener = (scopeKey: string, event: OutboxEvent) => void;
+const listeners = new Set<OutboxListener>();
+
+export function subscribeOutbox(listener: OutboxListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notify(scope: SurveyScope, event: OutboxEvent) {
+  const key = `${scope.userId}.${scope.organizationId}`;
+  for (const listener of [...listeners]) {
+    try {
+      listener(key, event);
+    } catch {
+      // A screen's listener never breaks the outbox.
+    }
+  }
+}
+
 export async function enqueueResponse(
   scope: SurveyScope,
   item: Omit<OutboxItem, "attempts" | "origin"> & { origin: SurveyOrigin },
@@ -183,6 +213,9 @@ export async function enqueueResponse(
     const stored: OutboxItem = { ...item, audio: item.audio && { ...item.audio, origin: item.origin }, attempts: 0 };
     await writeIndex(scope, [...items, stored]);
     return stored;
+  }).then((stored) => {
+    notify(scope, "enqueued");
+    return stored;
   });
 }
 
@@ -191,6 +224,9 @@ async function recordReceipt(scope: SurveyScope, item: OutboxItem, receivedAt: s
   await sealJson(scope, RECEIPTS, [
     {
       id: item.id,
+      surveyId: item.surveyId,
+      versionId: item.versionId,
+      respondentType: item.respondentType,
       surveyTitle: item.surveyTitle,
       receivedAt,
       withAudio,
@@ -215,6 +251,7 @@ export async function discardResponse(scope: SurveyScope, id: string, origin?: S
     await removeItem(scope, answersName(id));
     if (item.audio) await removeItem(scope, audioName(item.audio.clientAudioId));
     await writeIndex(scope, items.filter((value) => value.id !== id));
+    notify(scope, "changed");
   });
 }
 
@@ -228,6 +265,7 @@ export async function discardRejectedAudio(scope: SurveyScope, id: string, origi
     await removeItem(scope, audioName(item.audio.clientAudioId));
     await recordReceipt(scope, item, item.receivedAt ?? new Date().toISOString(), false);
     await writeIndex(scope, items.filter((value) => value.id !== id));
+    notify(scope, "changed");
   });
 }
 
@@ -482,5 +520,6 @@ export async function syncOutbox(
     syncing.delete(key);
   }
   result.remaining = (await listOutbox(scope)).length;
+  notify(scope, "synced");
   return result;
 }

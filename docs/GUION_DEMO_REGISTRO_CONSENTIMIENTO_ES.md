@@ -3,8 +3,16 @@
 **Combinación confirmada por Andrés:** Mobile #88 (contiene #87) + API #119 (#115 + #118). #87 queda intacto como
 referencia.
 
-**Estado:** preparado y validado con pruebas y datos sintéticos. **No autorizado todavía:** merge, build o APK,
-despliegue, publicación del aviso ni llamadas reales. Este guion no se ejecuta hasta que Andrés autorice cada paso.
+**Estado (2026-11-06):**
+- **APK:** vc18 (#89 @ `f8cbf12`, que contiene #88) está instalado en el Galaxy A06 y validado por Andrés:
+  «Ya respondiste», envío automático y conteo de respuestas en Admin.
+- **Push:** cerrado. La notificación llegó a la pantalla bloqueada del A06 el 2026-11-05 a las 10:51, después de
+  desplegar API #129.
+- **Aviso general:** publicado en staging (ver §2).
+- **vc19:** instalado en el A06. «Cerrar» en las pantallas sin barra quedó validado y cerrado, igual que la prueba real de
+  audio (ver «Builds» al final de §4 y `GUION_AUDIO_VC19_A06_ES.md`).
+- **Sin autorizar:** el merge, y cada envío real o captura fuera de los alias acordados.
+- **Causa histórica de la lista de encuestas vacía:** no determinada. No bloquea la demo.
 
 ## 1. Candidatos
 
@@ -37,15 +45,29 @@ despliegue, publicación del aviso ni llamadas reales. Este guion no se ejecuta 
   HTTP; solo añade el interruptor `IDENTITY_DOCUMENT_TECHNICAL_RETRIES_ENABLED`. Si está apagado, el reintento del
   documento responde 409 `document_retry_not_available`, que la app ya explica.
 
-## 2. Lo que falta aprobar o configurar para ver las casillas
+## 2. Aviso y configuración para ver las casillas
 
-Con la configuración por defecto, los consentimientos están apagados y esta parte de la demo **no queda cubierta**: no
-aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
+**Publicado y comprobado (2026-11-06).** Se comprobó con una lectura de `GET /api/v1/privacy/notice` en staging
+(público, sin sesión):
+- versión `2026-11-03.general.2`, `content_sha256` `0356398b…3304`, 8 secciones y aviso simplificado;
+- finalidades `identity_verification` (`required_for: ["kyc"]`, `text_sha256` `258a58df…`) y `quality_testing`
+  (`required_for: []`, `text_sha256` `0720d0e9…`).
+
+**No hace falta otro aviso ni otra versión para el registro.** Mobile no fija ninguna versión: toma el aviso que sirve
+la API y solo necesita su `content_sha256` y esas dos finalidades, por su clave. Los `text_sha256` publicados son los
+mismos que los del aviso real con el que se probó Mobile
+(`src/tests/support/api-contract/registration-consents-real-notice-66060a1.json`). Lo que sigue en esta sección es
+historia de la aprobación y las condiciones que **no** dependen del aviso.
+
+**Condiciones que siguen vigentes, ajenas al aviso:**
+- La casilla 2 al unirse por liga solo aparece si la organización de la demo tiene la captura de KYC habilitada
+  (`verification_expected: true`).
+- La verificación del titular (P4) puede exigir un correo o SMS real (ver «Envíos reales»).
 
 **Texto: `resources/privacy/notices/2026-11-03-general.2.json`** (API #119)
 - Versión `2026-11-03.general.2`, con 8 secciones, 2 finalidades y el aviso simplificado.
-- `classification.status` es `"pending_approval"`, y `approved_by` y `approved_at` son `null`. El cargador no sirve
-  un aviso sin aprobar.
+- Historia: estaba en `"pending_approval"`. Ya está aprobado, porque staging lo sirve (el cargador no sirve un aviso sin
+  aprobar).
 - Para publicarlo, alguien con autoridad tiene que aprobarlo:
   - `status: "approved"`;
   - `approved_by`: un rol, no un nombre, porque se sirve en público (pendiente P7);
@@ -60,9 +82,7 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
   muestran en la app.
 
 **Configuración del API del entorno de la demo**
-- **Estado (API, 2026-11-04):** `dc77fd9` solo aprueba el aviso en el archivo. Andrés autorizó
-  `PRIVACY_NOTICE_PUBLISHED=true` y `PRIVACY_NOTICE_DOCUMENT=2026-11-03-general.2` en staging, con Infra como único
-  ejecutor y una vez desplegada la versión compatible (#125). No consta que estén aplicadas.
+- **Estado (2026-11-06):** aplicadas en staging. El aviso `2026-11-03.general.2` se sirve publicado.
 - `PRIVACY_NOTICE_PUBLISHED=true`.
 - `PRIVACY_NOTICE_DOCUMENT=2026-11-03-general.2`.
 - `PRIVACY_CONSENT_HOLDER_VERIFICATION` (por omisión `email_or_phone`; pendiente P4): qué verificación de la cuenta
@@ -91,8 +111,7 @@ aparece ninguna casilla de finalidad y la puerta del KYC no actúa.
   demo. Esa decisión es de Andrés.
 
 **Mobile**
-- Necesita un APK de #88. No está construido ni autorizado: es otro build y otro versionCode, a decidir.
-- Ese APK debe apuntar al API del entorno donde se publique el aviso.
+- Cubierto: vc18 contiene #88 y apunta a staging, donde está publicado el aviso. vc19 también.
 
 ## 3. Datos para la demo
 - Cuentas y contactos de prueba propios. Nunca datos de personas reales que no participen.
@@ -193,9 +212,9 @@ app.
 |---|---|---|
 | E1 | Admin crea, publica y distribuye una encuesta con `audio_mode: "none"` y respuesta propia en la organización de la demo | Visible en Admin como publicada |
 | E2 | Con una cuenta con membresía activa y perfil de afiliado en esa organización: Encuestas | Aparece la encuesta con «Respuesta propia» y «Abierta». No aparece el aviso de datos de ejemplo |
-| E3 | Abrir la encuesta → «Responder yo» → contestar → «Enviar respuesta» | No pide el micrófono ni muestra el consentimiento de grabación. En «Envíos» pasa de «Pendiente de sincronizar» a «Recibido el …» |
+| E3 | Abrir la encuesta → «Responder yo» → contestar → «Enviar respuesta» | No pide el micrófono ni muestra el consentimiento de grabación. Se envía sola, sin «Sincronizar ahora», y la encuesta muestra «Ya respondiste» con «Responder otra vez». **Validado con vc18 en el A06** |
 | E4 | Admin abre las respuestas de la versión | Una fila de respuesta propia, sin grabación, con «Sin audio» y el análisis en `not_scheduled`. Si aparece «Falló», es un defecto |
-| E5 | Modo avión → responder otra vez → «Enviar respuesta» → quitar el modo avión | «Sin conexión. Se enviará cuando vuelva la señal.» Al volver la red se envía sola (al volver a primer plano o cada 60 s) o con «Sincronizar ahora». Admin muestra una sola respuesta |
+| E5 | Modo avión → responder otra vez → «Enviar respuesta» → quitar el modo avión | «Sin conexión. Se enviará cuando vuelva la señal.» Al volver la red se envía sola (al volver a primer plano o cada 60 s). Admin muestra una sola respuesta. **Envío automático y conteo en Admin validados con vc18** |
 | E6 | Respuesta perdida (el servidor guardó, el teléfono no recibió) | El reintento usa el mismo `client_response_id` y la API devuelve la respuesta original: una sola fila. **No se puede provocar a mano**: cubierto por pruebas |
 | E7 | Después de E3, en el A06: Ajustes → Apps → Afilianet → Permisos | El micrófono aparece como no permitido: nunca se pidió. Declararlo en el manifiesto no es pedirlo (ver «Micrófono») |
 
@@ -207,6 +226,9 @@ y en «Responder yo» nunca se pide, sea cual sea `audio_mode`. Ninguna pantalla
 `survey-self-response-api.test.tsx` comprueba que «Responder yo» no consulta ni pide el permiso.
 
 ### S. Notificación push de la encuesta (después de instalar)
+**Cerrado (2026-11-05, 10:51).** La notificación llegó a la pantalla bloqueada del A06 después de desplegar API #129.
+La causa del primer fallo fue la cabecera `Authorization` vacía, que Expo rechazaba con 401; #129 solo la envía cuando
+hay token. Esta tabla queda como referencia y no hace falta repetir el envío.
 Antes del build quedaron comprobados la configuración y las credenciales: proyecto Expo `5675cfc3-…`, credencial
 FCM V1 y archivo de Firebase de la app del mismo proyecto (`afilianet-mx`), la seguridad reforzada de push de Expo
 apagada (staging no necesita `EXPO_ACCESS_TOKEN`), y `PUSH_ENABLED=true` con el worker en API y Horizon. **Nada de eso
@@ -242,7 +264,13 @@ y, unos 15 minutos después, el recibo (`CheckPushReceipt`). No reenviar a ciega
 - **Contrato:** los ejemplos de API (sobre `b1629a6`, con el análisis apagado y sin nada encolado) se sirven tal cual en
   `src/tests/app/survey-self-response-contract.test.tsx`.
 
-**Build del candidato con encuestas: vc16, construido el 2026-11-04, sin instalar**
+**Builds (historia: vc16 → vc19)**
+- vc16 (`92ad7cd`), vc17 (`7ee1228`) y vc18 (`f8cbf12`, EAS `ae44bebf`, APK SHA-256 `ee870ae1…0764`). **vc18 está
+  instalado y validado** en el A06.
+- vc19: ver al final de esta sección.
+- Todos usan el mismo perfil, paquete y certificado (detalle de vc16 abajo).
+
+**Detalle de vc16 (2026-11-04)**
 - EAS `8c5ccc89-414d-4713-a2f8-7125b1e9c3bc`, perfil `demo-apk`, commit `92ad7cd4f2a2ca80eccbad28dc75621d79cefac8`
   (sin merge), `versionCode` 16. Firma v2 con el mismo certificado que vc14 y vc15 (SHA-256 `5d3974b9…6320ca`). APK
   SHA-256 `c88108b1b6d1e69bca41ac8b6c782d521413dca54a60509b918a2ab93edecda8`.
@@ -266,8 +294,21 @@ y, unos 15 minutos después, el recibo (`CheckPushReceipt`). No reenviar a ciega
   ya combinado. Para `demo-apk` exige las dos variables exactas y staging, y rechaza la telemetría y `APP_VARIANT`.
 - **Permisos:** con las encuestas encendidas, el manifiesto conserva `RECORD_AUDIO` y `MODIFY_AUDIO_SETTINGS`, que
   `store-beta-apk` quita. Solo se piden al grabar una entrevista con audio; nunca en una respuesta propia.
-- **Sustituir el vc15:** este APK se instala sobre el vc15 del A06 como actualización (mismo paquete y firma) y
-  conserva la sesión. Volver al vc15 exigiría desinstalar.
+- **Actualizar:** cada APK se instala sobre el anterior como actualización (mismo paquete y firma) y conserva la
+  sesión. Volver a uno anterior exigiría desinstalar.
+
+**vc19 (instalado y validado en el A06, 2026-11-06):** EAS `831d6a57-a2cd-4e11-be96-1699ff222a48`, terminado. Commit
+  `002ccaba5c746c4d9d1d8e26bc4fe8127334a9c8` de #89, sin merge, con CI 42270840722 en verde. `versionCode` 19
+  (remoto 18 → 19, no usado antes). APK SHA-256 `23b9cfc6ffeed104a0cd43073ff7f4b25ecfd32976cbd6e75ba1011ba28c0894`.
+- Firma v2 con el mismo certificado (`5d3974b9…6320ca`), así que se instala sobre vc18 como actualización.
+- Log y APK con la misma configuración que vc18:
+  - `check-build-env` válido;
+  - `GOOGLE_SERVICES_JSON` presente y `processReleaseGoogleServices` ejecutado;
+  - API de staging, encuestas por API;
+  - Firebase `afilianet-mx`, `POST_NOTIFICATIONS`.
+- Cambio respecto a vc18: «Cerrar» solo actúa en el primer toque (`useCloseScreen`).
+- **Validado en el A06 (2026-11-06, Andrés):** Red → «Invitar a alguien» → «Cerrar» vuelve a Red con la barra y su
+  contenido intacto, con un toque, con varios toques rápidos y con el botón «Atrás» de Android. **Cerrado.**
 
 ## 5. Fuera de esta demo
 - Términos generales (casilla 1 con términos): no existen (P1).

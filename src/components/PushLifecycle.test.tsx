@@ -10,6 +10,7 @@ let responseListener: ((response: Notifications.NotificationResponse) => void) |
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush }),
+  useSegments: () => ["(app)"],
 }));
 
 jest.mock("../auth/AuthContext", () => ({

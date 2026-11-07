@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../navigation/useCloseScreen";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -23,6 +24,7 @@ import type { AffiliateRef } from "../../types/api";
 
 export default function AffiliateDetailScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { affiliateUuid } = useLocalSearchParams<{ affiliateUuid: string }>();
 
   const detailQuery = useAffiliateDetails(affiliateUuid);
@@ -37,7 +39,7 @@ export default function AffiliateDetailScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} testID="affiliate-detail-scroll">
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

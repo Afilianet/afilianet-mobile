@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Platform, RefreshControl, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
@@ -23,6 +24,7 @@ import { strings } from "../i18n";
 import { useAffiliateProfile } from "../hooks/useAffiliateProfile";
 import { useOrganization } from "../state/OrganizationContext";
 import { routes } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { AffiliateProfile } from "../types/api";
 import { buildEmailShareUrl, buildReferralUrl, buildWhatsappShareUrl, canShareReferral, isLinkTappableInChats } from "../utils/referral";
@@ -37,6 +39,7 @@ export default function ReferralScreen() {
 
 function ReferralScreenContent() {
   const router = useRouter();
+  const close = useCloseScreen();
   const affiliateQuery = useAffiliateProfile();
   const { activeOrganization } = useOrganization();
 
@@ -81,7 +84,7 @@ function ReferralScreenContent() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} />}
       >
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -105,7 +108,7 @@ function ReferralScreenContent() {
             organizationName={activeOrganization?.name ?? "Afilianet"}
             onCopied={() => showToast(strings.referral.linkCopied)}
             onNotice={(message) => showToast(message, "neutral")}
-            onViewInvitations={() => router.push(routes.network as never)}
+            onViewInvitations={() => openFromOverlay(router, routes.network)}
           />
         ) : null}
       </ScrollView>

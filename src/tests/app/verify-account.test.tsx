@@ -6,7 +6,9 @@ import VerifyAccountScreen from "../../app/verify-account";
 import type { User } from "../../types/api";
 
 const mockReplace = jest.fn();
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, push: jest.fn() }) }));
+// A section (Home) closes this screen onto the existing bar (navigation/rootNavigation.ts closeTo).
+const mockDismissTo = jest.fn();
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, dismissTo: mockDismissTo, push: jest.fn() }) }));
 jest.mock("../../auth/pendingReferral", () => ({
   usePendingReferral: () => mockPendingReferral,
   pendingReferralPath: (referral: { organizationId: string; code: string }) => `/join/${referral.organizationId}/${referral.code}`,
@@ -202,6 +204,6 @@ describe("Verify account", () => {
     await act(async () => {
       fireEvent.press(plain.getByText("Hacerlo después"));
     });
-    expect(mockReplace).toHaveBeenLastCalledWith("/(app)");
+    expect(mockDismissTo).toHaveBeenLastCalledWith("/(app)");
   });
 });

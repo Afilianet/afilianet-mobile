@@ -44,6 +44,17 @@ const NOTIFICATION_SCREEN_ROUTES: Record<string, string> = {
   surveys: routes.surveys,
 };
 
+/**
+ * A survey notification opens that survey (inside the active organization, as
+ * the inbox is), never just the list: the same rule as a survey push
+ * (PushLifecycle's organizationPushPath). Null when it is not a survey
+ * notification, surveys are off, or its id is not a plain identifier.
+ */
+export function surveyNotificationDestination(payload: { screen?: string; survey_id?: unknown } | null | undefined): string | null {
+  if (payload?.screen !== "surveys" || !surveysPreviewEnabled || typeof payload.survey_id !== "string") return null;
+  return surveyDetail(payload.survey_id);
+}
+
 /** Returns the whitelisted destination for a notification's payload.screen, or null if absent/unrecognized. */
 export function notificationDestination(screen: string | undefined): string | null {
   if (!screen) return null;

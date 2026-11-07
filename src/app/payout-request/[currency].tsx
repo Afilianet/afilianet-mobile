@@ -2,6 +2,7 @@ import { CommercialFeatureGate } from "../../components/CommercialFeatureGate";
 import { PersonalAffiliateGate } from "../../components/PersonalAffiliateGate";
 import * as Crypto from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../../api/errors";
@@ -35,6 +36,7 @@ export default function PayoutRequestScreen() {
 
 function PayoutRequestScreenContent() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { currency } = useLocalSearchParams<{ currency: string }>();
   const eligibilityQuery = usePayoutEligibility(currency);
   const destinationsQuery = usePayoutDestinations();
@@ -104,7 +106,7 @@ function PayoutRequestScreenContent() {
       <ScrollView contentContainerStyle={styles.content} testID="payout-request-scroll">
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.payoutRequest.withdrawCurrency(currency)}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

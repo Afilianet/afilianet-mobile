@@ -8,8 +8,10 @@ import { OrganizationContext, type OrganizationContextValue } from "../../state/
  */
 const mockBack = jest.fn();
 const mockReplace = jest.fn();
+// A section (Home) closes this screen onto the existing bar (navigation/rootNavigation.ts closeTo).
+const mockDismissTo = jest.fn();
 let mockCanGoBack = true;
-jest.mock("expo-router", () => ({ useRouter: () => ({ back: mockBack, replace: mockReplace, canGoBack: () => mockCanGoBack }) }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ back: mockBack, replace: mockReplace, dismissTo: mockDismissTo, canGoBack: () => mockCanGoBack }) }));
 jest.mock("../../services/analytics", () => ({ analytics: { capture: jest.fn() } }));
 
 const orgA = { id: "org-a", name: "Org A", my_role: "affiliate" } as OrganizationContextValue["organizations"][number];
@@ -32,7 +34,7 @@ it("a forced first choice goes Home even when an older history allows going back
   const value = organizations(null);
   await choose(value, "Org A");
   expect(value.selectOrganization).toHaveBeenCalledWith("org-a");
-  expect(mockReplace).toHaveBeenCalledWith("/(app)");
+  expect(mockDismissTo).toHaveBeenCalledWith("/(app)");
   expect(mockBack).not.toHaveBeenCalled();
 });
 

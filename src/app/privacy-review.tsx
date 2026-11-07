@@ -32,6 +32,7 @@ import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
 import { useOrganization } from "../state/OrganizationContext";
 import { reviewBlocks, syncPrivacyReview, usePrivacyReview } from "../state/privacyReview";
+import { closeTo } from "../navigation/rootNavigation";
 
 const TONES = { none: "success", inform: "brand", review: "warning" } as const;
 
@@ -78,7 +79,7 @@ export default function PrivacyReviewScreen() {
   /** Not blocked: back to where the screen was opened from (banner, Profile), else Home. */
   function goBack() {
     if (router.canGoBack()) router.back();
-    else router.replace(routes.home as never);
+    else closeTo(router, routes.home);
   }
 
   function leave() {
@@ -86,7 +87,7 @@ export default function PrivacyReviewScreen() {
     void queryClient.invalidateQueries();
     // Never back(): this screen was reached by a redirect, and the history may
     // hold a screen from another state or account (physical round P1).
-    router.replace(routes.home as never);
+    closeTo(router, routes.home);
   }
 
   if (query.isPending) return <LoadingState message={strings.privacyNotices.step.loading} />;
