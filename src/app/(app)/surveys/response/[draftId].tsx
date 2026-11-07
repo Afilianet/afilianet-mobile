@@ -418,7 +418,15 @@ export default function SurveyResponseScreen() {
                 <Button label={copy.recording.deleteAudio} variant="ghost" size="sm" onPress={deleteAudio} />
               </>
             ) : recorder.phase === "unavailable" ? null : (
-              <Button label={copy.recording.start} variant="secondary" loading={recorder.phase === "starting" || recorder.phase === "saving"} onPress={() => void recorder.start()} />
+              <Button
+                label={copy.recording.start}
+                variant="primary"
+                fullWidth
+                loading={recorder.phase === "starting" || recorder.phase === "saving"}
+                disabled={saving || finalizing}
+                onPress={() => void recorder.start()}
+                testID="recording-start"
+              />
             )}
           </Card>
         ) : null}
