@@ -120,6 +120,19 @@ export interface AffiliateProfile {
   activated_at: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  /**
+   * Present only on a synthetic demo/test record, and only on GET /affiliates
+   * (roster) and GET /affiliates/{id} (API #142). Such a record is not a real
+   * person: the app must say so wherever it shows one.
+   */
+  synthetic?: SyntheticMarker;
+}
+
+/** API #142 SyntheticAffiliates::marker(): label and note come from the server. */
+export interface SyntheticMarker {
+  data_kind: "synthetic";
+  label?: string;
+  note?: string;
 }
 
 // SponsoredInvitationResource (GET /api/v1/affiliates/me/invitations) --

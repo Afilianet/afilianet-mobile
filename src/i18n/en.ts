@@ -515,6 +515,7 @@ export const en = {
     joinedOn: (date: string) => `Joined ${date}`,
     joinedA11y: (date: string) => `, joined ${date}`,
     opensAffiliateDetailsHint: "Opens this affiliate's network details",
+    syntheticFallback: "Synthetic test records",
     invitation: {
       unaddressedLink: "Unaddressed link",
       acceptedOn: (date: string) => `Accepted ${date}`,

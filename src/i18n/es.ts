@@ -536,6 +536,8 @@ export const es = {
     joinedOn: (date: string) => `Se unió el ${date}`,
     joinedA11y: (date: string) => `, se unió el ${date}`,
     opensAffiliateDetailsHint: "Abre los detalles de red de este afiliado",
+    /** Only if the server's marker comes without its own label (API #142 SyntheticAffiliates::LABEL). */
+    syntheticFallback: "Registros sintéticos de prueba",
     invitation: {
       unaddressedLink: "Liga sin destinatario",
       acceptedOn: (date: string) => `Aceptada el ${date}`,

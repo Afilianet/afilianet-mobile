@@ -4,6 +4,7 @@ import { Icon } from "../design-system/icons/Icon";
 import { strings } from "../i18n";
 import type { AffiliateProfile } from "../types/api";
 import { formatDate } from "../utils/date";
+import { syntheticLabel } from "../utils/synthetic";
 import { Avatar } from "./ui/Avatar";
 import { Badge } from "./ui/Badge";
 import { colors, spacing, typography } from "./ui/theme";
@@ -19,6 +20,7 @@ export function AffiliateRow({ affiliate, onPress }: AffiliateRowProps) {
   const status = affiliateStatusCopy(affiliate.status);
   const name = affiliate.user ? `${affiliate.user.first_name} ${affiliate.user.last_name}`.trim() : null;
   const label = name || affiliate.affiliate_code;
+  const synthetic = syntheticLabel(affiliate);
 
   const content = (
     <View style={styles.row}>
@@ -35,12 +37,17 @@ export function AffiliateRow({ affiliate, onPress }: AffiliateRowProps) {
           {name ? <Text style={styles.code}>{affiliate.affiliate_code}</Text> : null}
           {affiliate.joined_at ? <Text style={styles.meta}>{strings.network.joinedOn(formatDate(affiliate.joined_at))}</Text> : null}
         </View>
+        {synthetic ? (
+          <View style={styles.syntheticRow} testID="affiliate-synthetic">
+            <Badge label={synthetic} tone="warning" />
+          </View>
+        ) : null}
       </View>
       {onPress ? <Icon name="flechaDerecha" size={16} color={colors.textTertiary} /> : null}
     </View>
   );
 
-  const accessibilityLabel = `${label}, ${status.label}${affiliate.joined_at ? strings.network.joinedA11y(formatDate(affiliate.joined_at)) : ""}`;
+  const accessibilityLabel = `${label}, ${status.label}${affiliate.joined_at ? strings.network.joinedA11y(formatDate(affiliate.joined_at)) : ""}${synthetic ? `, ${synthetic}` : ""}`;
 
   if (!onPress) {
     return (
@@ -64,6 +71,7 @@ export function AffiliateRow({ affiliate, onPress }: AffiliateRowProps) {
 }
 
 const styles = StyleSheet.create({
+  syntheticRow: { flexDirection: "row", marginTop: spacing[1] },
   pressable: {
     minHeight: 44,
     justifyContent: "center",
