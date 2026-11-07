@@ -1,10 +1,11 @@
 import { act, fireEvent, render } from "@testing-library/react-native";
-import { Alert, StyleSheet } from "react-native";
+import { Alert, StyleSheet, type ViewStyle } from "react-native";
 import { deleteDraft, getDownloaded, loadDraft, saveDraft, type SurveyDraft } from "../../features/surveys/library";
 import { enqueueResponse } from "../../features/surveys/outbox";
 import type { SurveyQuestion, SurveyVersion } from "../../features/surveys/types";
 import { removeItem } from "../../features/surveys/vault";
 import SurveyResponseScreen from "../../app/(app)/surveys/response/[draftId]";
+import { colors } from "../../components/ui/theme";
 
 // The first render pays the screen's cold module cost; on slow machines that alone can pass Jest's 10s default.
 jest.setTimeout(30_000);
@@ -137,6 +138,15 @@ describe("Survey response: consent and recording (interviews only)", () => {
     await press(screen, "La persona acepta que se grabe");
     expect(screen.getByText("Iniciar grabación")).toBeTruthy();
     expect(mockRecorder.start).not.toHaveBeenCalled();
+  });
+
+  it("«Iniciar grabación» is the main purple button, enabled once the person accepts", async () => {
+    const screen = await renderScreen();
+    await press(screen, "La persona acepta que se grabe");
+    const start = screen.getByTestId("recording-start");
+    expect(start.props.accessibilityState?.disabled).toBe(false);
+    const face = (start as unknown as { children: { props: { style: ViewStyle } }[] }).children[0];
+    expect(StyleSheet.flatten(face.props.style).backgroundColor).toBe(colors.primary);
   });
 
   it("tells the surveyor what to explain when the version has no consent text", async () => {
