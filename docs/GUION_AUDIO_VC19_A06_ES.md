@@ -2,7 +2,17 @@
 
 **Estado: CERRADO (2026-11-06).** Andrés hizo la prueba real con vc19 en el A06: grabó, la subida terminó y el audio
 se escuchó en Admin. Con esto queda validado el recorrido de consentimiento, grabación, envío, subida y reproducción.
-**No valida** la transcripción ni el análisis, que siguen pendientes (siguiente etapa). Mobile no grabó, no subió y no
+**No valida** la transcripción ni el análisis, que siguen pendientes (siguiente etapa).
+
+**Sin conexión: CERRADO (2026-11-06).** Andrés hizo la prueba física sin red: la grabación se conservó, y al volver la red
+se sincronizó, se envió y quedó guardada correctamente.
+
+**Comportamiento aceptado:** cada respuesta tiene una sola grabación. Después de «Detener grabación», para grabar otra
+vez hay que usar «Borrar audio» y empezar de nuevo. No se implementa pausa ni continuación.
+
+**Mejora visual pendiente de build:** en #90 (base #89), «Iniciar grabación» pasa a ser el botón principal morado, con
+los estados habilitado y deshabilitado más claros. Entra en el siguiente candidato que necesite build. No se construye
+un APK solo por este cambio. Mobile no grabó, no subió y no
 escribió nada en staging.
 
 **Objetivo:** una grabación de 10 a 15 segundos con una frase ficticia, sin datos personales. Se comprueba:
