@@ -17,10 +17,11 @@ import { Icon } from "../../design-system/icons/Icon";
 import { affiliateStatusCopy } from "../../design-system/statusMapping";
 import { strings } from "../../i18n";
 import { useAffiliateDetails } from "../../hooks/useAffiliateDetails";
+import { syntheticLabel } from "../../utils/synthetic";
 import { useAffiliatePlacementChildren } from "../../hooks/useAffiliatePlacementChildren";
 import { useAffiliateSponsored } from "../../hooks/useAffiliateSponsored";
 import { analytics } from "../../services/analytics";
-import type { AffiliateRef } from "../../types/api";
+import type { AffiliateRef, SyntheticMarker } from "../../types/api";
 
 export default function AffiliateDetailScreen() {
   const router = useRouter();
@@ -87,10 +88,11 @@ export default function AffiliateDetailScreen() {
 function IdentityCard({
   affiliate,
 }: {
-  affiliate: { affiliate_code: string; status: string; user?: { first_name: string; last_name: string }; sponsor?: AffiliateRef | null; placement_parent?: AffiliateRef | null; joined_at: string | null };
+  affiliate: { affiliate_code: string; status: string; user?: { first_name: string; last_name: string }; sponsor?: AffiliateRef | null; placement_parent?: AffiliateRef | null; joined_at: string | null; synthetic?: SyntheticMarker };
 }) {
   const status = affiliateStatusCopy(affiliate.status);
   const name = affiliate.user ? `${affiliate.user.first_name} ${affiliate.user.last_name}`.trim() : null;
+  const synthetic = syntheticLabel(affiliate);
 
   return (
     <Card style={styles.identityCard}>
@@ -102,6 +104,13 @@ function IdentityCard({
         </View>
         <Badge label={status.label} tone={status.tone} />
       </View>
+
+      {synthetic ? (
+        <View style={styles.synthetic} testID="affiliate-detail-synthetic">
+          <Badge label={synthetic} tone="warning" />
+          {affiliate.synthetic?.note ? <Text style={styles.relationship}>{affiliate.synthetic.note}</Text> : null}
+        </View>
+      ) : null}
 
       <View style={styles.relationships}>
         <Text style={styles.relationship}>
@@ -120,6 +129,7 @@ function IdentityCard({
 }
 
 const styles = StyleSheet.create({
+  synthetic: { gap: spacing[2], alignItems: "flex-start" },
   screen: { flex: 1, backgroundColor: colors.background },
   content: {
     padding: measures.mobileGutter,

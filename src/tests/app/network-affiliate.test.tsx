@@ -116,6 +116,31 @@ describe("Affiliate detail: success", () => {
   });
 });
 
+const MARKER = {
+  data_kind: "synthetic" as const,
+  label: "Registros sintéticos de prueba",
+  note: "Datos sintéticos de demostración o prueba; no son personas reales y nunca se suman a los afiliados reales.",
+};
+
+describe("Affiliate detail: synthetic demo/test records (API #142 marker)", () => {
+  it("says a synthetic record is not a real person, with the server's label and note", async () => {
+    mockedFetchAffiliateDetails.mockResolvedValue({ ...TARGET, affiliate_code: "SYN000123", synthetic: MARKER });
+    const { findByTestId, getByText } = await renderDetail();
+
+    expect(await findByTestId("affiliate-detail-synthetic")).toBeTruthy();
+    expect(getByText(MARKER.label)).toBeTruthy();
+    expect(getByText(MARKER.note)).toBeTruthy();
+  });
+
+  it("never labels a real record, whatever its code looks like", async () => {
+    mockedFetchAffiliateDetails.mockResolvedValue({ ...TARGET, affiliate_code: "SYN000999" });
+    const { findByText, queryByTestId } = await renderDetail();
+
+    expect(await findByText("Tara Target")).toBeTruthy();
+    expect(queryByTestId("affiliate-detail-synthetic")).toBeNull();
+  });
+});
+
 describe("Affiliate detail: 403", () => {
   it("shows a clean forbidden state instead of a generic error when the backend denies access", async () => {
     mockedFetchAffiliateDetails.mockRejectedValue(new ApiError("forbidden", "This action is unauthorized.", 403));
