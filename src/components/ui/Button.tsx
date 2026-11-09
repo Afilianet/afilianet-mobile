@@ -112,15 +112,19 @@ export function Button({
               borderRadius: dimensions.radius,
               width: fullWidth ? "100%" : undefined,
               backgroundColor: isDisabled ? colors.surfaceRaised : pressed ? palette.pressedBackground : palette.background,
-              borderWidth: palette.border ? 1 : 0,
-              borderColor: palette.border,
+              // Disabled: the pale fill alone matched the card behind it (~1:1), so the
+              // button vanished. A visible outline (≥3:1 against the card) keeps its shape.
+              borderWidth: isDisabled || palette.border ? 1 : 0,
+              borderColor: isDisabled ? colors.muted : palette.border,
               transform: [{ scale }],
             },
             variant === "primary" && !isDisabled && !pressed ? shadows.brandGlow : null,
           ]}
         >
           {loading ? (
-            <ActivityIndicator color={palette.text} />
+            // While loading the button is disabled: on its pale fill the brand's white
+            // spinner was invisible, so it takes the disabled text color.
+            <ActivityIndicator color={isDisabled ? colors.textSecondary : palette.text} testID="button-loading" />
           ) : (
             <View style={styles.content}>
               {iconLeft}

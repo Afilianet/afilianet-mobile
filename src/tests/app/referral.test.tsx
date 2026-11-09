@@ -11,9 +11,11 @@ import ReferralScreen from "../../app/referral";
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();
+// Leaving a screen without the bar for a section closes it onto the existing bar (navigation/rootNavigation.ts).
+const mockDismissTo = jest.fn();
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ back: mockBack, push: mockPush }),
+  useRouter: () => ({ back: mockBack, push: mockPush, dismissTo: mockDismissTo }),
 }));
 
 jest.mock("../../api/endpoints", () => ({
@@ -102,6 +104,17 @@ afterEach(() => {
 });
 
 describe("Referral: active affiliate", () => {
+  it("has no bottom bar on purpose and always offers «Cerrar», which goes back to where it was opened (Red)", async () => {
+    mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
+    const { findByText, getByLabelText } = await renderReferral();
+    await findByText("AFF100");
+
+    await act(async () => {
+      fireEvent.press(getByLabelText("Cerrar"));
+    });
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the affiliate code, the exact referral URL, a QR code, and Share/Copy actions", async () => {
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
     const { findByText, getByLabelText } = await renderReferral();
@@ -186,7 +199,7 @@ describe("Referral: share", () => {
   it("opens the native share sheet with the referral URL and neutral text, and fires referral_share_opened with no properties", async () => {
     const shareSpy = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" } as never);
     mockedFetchMyAffiliateProfile.mockResolvedValue(affiliate());
-    const { findByText } = await renderReferral();
+    const { findByText, queryByText } = await renderReferral();
 
     const shareButton = await findByText("Compartir");
     await act(async () => {
@@ -196,6 +209,9 @@ describe("Referral: share", () => {
     expect(shareSpy).toHaveBeenCalledTimes(1);
     const [shareContent] = shareSpy.mock.calls[0];
     expect(shareContent.message).toContain("afilianetmobile://join/org-1/AFF100");
+    // Outside staging the link is the installed-app scheme, not tappable in a
+    // WhatsApp chat: no WhatsApp button is offered (see referral-whatsapp.test).
+    expect(queryByText("Compartir por WhatsApp")).toBeNull();
 
     expect(mockedCapture).toHaveBeenCalledWith("referral_share_opened");
     const shareCall = mockedCapture.mock.calls.find(([event]) => event === "referral_share_opened");
@@ -258,6 +274,7 @@ describe("Referral: invitations section", () => {
     expect(await findByText(/a quién has invitado/i)).toBeTruthy();
 
     fireEvent.press(getByText("Ver invitaciones"));
-    expect(mockPush).toHaveBeenCalledWith("/(app)/network");
+    expect(mockDismissTo).toHaveBeenCalledWith("/(app)/network");
+    expect(mockPush).not.toHaveBeenCalled();
   });
 });

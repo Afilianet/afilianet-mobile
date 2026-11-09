@@ -52,7 +52,7 @@ export function DocumentResultView({
   }
 
   const copy = verdictCopy(result.verdict);
-  const extractedFields = result.extracted_fields.filter((field) => field.value !== null);
+  const extractedFields = (result.extracted_fields ?? []).filter((field) => field.value !== null);
   // Only a missing CURP can be added manually to an INE review. Confirming
   // address and CURP without a name would still leave the step unresolved.
   const missingIneName = result.document_type === "mx_ine" && result.verdict === "review" && result.confirmation_status === "pending" &&

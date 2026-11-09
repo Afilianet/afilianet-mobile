@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useFaceMatchResult } from "../../../hooks/useFaceMatchResult";
 import { strings } from "../../../i18n";
@@ -26,7 +27,7 @@ import type { StepDetailProps } from "./types";
  * -- no sibling `biometric_liveness` step needs to be resolved for this
  * flow to work.
  */
-export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
+export function FaceMatchStep({ step, attempt, isPending, processingOnly }: StepDetailProps) {
   const { activeOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const isAfilianetActionable = step.configured_provider === "afilianet" && step.provider_actionable;
@@ -40,6 +41,17 @@ export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
   const result = step.status === "pending" && resultQuery.data?.verdict === "match"
     ? null : resultQuery.data;
 
+  // Becoming the current step is when the server may have started an attempt
+  // on its own (after liveness or the document result): a "no attempt" read
+  // while this step was processing-only is checked again before the selfie
+  // capture is offered.
+  const wasProcessingOnly = useRef(processingOnly);
+  const { refetch } = resultQuery;
+  useEffect(() => {
+    if (wasProcessingOnly.current && !processingOnly && isAfilianetActionable) void refetch();
+    wasProcessingOnly.current = processingOnly;
+  }, [processingOnly, isAfilianetActionable, refetch]);
+
   function handleCheckAgain() {
     void queryClient.invalidateQueries({ queryKey: ["compliance", "steps", activeOrganization?.id] });
   }
@@ -47,7 +59,7 @@ export function FaceMatchStep({ step, attempt, isPending }: StepDetailProps) {
   return (
     <View>
       {renderBody(step, isAfilianetActionable, result, resultQuery.isPending, activeOrganization?.id, handleCheckAgain)}
-      <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />
+      {processingOnly ? null : <DevelopmentStepSimulator step={step} attempt={attempt} isPending={isPending} />}
     </View>
   );
 }

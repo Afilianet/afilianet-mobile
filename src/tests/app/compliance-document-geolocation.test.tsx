@@ -35,6 +35,8 @@ import ComplianceScreen from "../../app/compliance";
  * this file only adds expo-location + submitComplianceGeolocation coverage
  * on top of it.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
 }));

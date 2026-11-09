@@ -43,6 +43,8 @@ import ComplianceScreen from "../../app/compliance";
  * view, which records the latest props it was rendered with and lets a
  * test simulate a native onComplete/onError call directly.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("expo-router", () => ({
   useRouter: () => ({ back: jest.fn(), push: jest.fn() }),
 }));
@@ -258,6 +260,25 @@ describe("Staff-requested liveness recapture", () => {
     expect(queryByText("Necesita revisión")).toBeNull();
     fireEvent.press(await findByText("Comenzar verificación"));
     await waitFor(() => expect(mockedCreateLivenessSession).toHaveBeenCalledWith("liveness-step-1"));
+  });
+
+  it("tells the affiliate what was requested, why, and that the previous capture stays in history", async () => {
+    mockedFetchComplianceSteps.mockResolvedValue([livenessStep({ status: "pending", attempt_count: 1 })]);
+    mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
+    const { findByTestId, getByText } = await renderCompliance();
+
+    expect(await findByTestId("recapture-request")).toBeTruthy();
+    expect(getByText("Acción requerida")).toBeTruthy();
+    expect(getByText("Necesitamos una nueva prueba de vida")).toBeTruthy();
+    expect(getByText(/^Motivo:/)).toBeTruthy();
+    expect(getByText(/captura anterior se conserva/)).toBeTruthy();
+  });
+
+  it("shows no recapture request on a first, never-attempted liveness step", async () => {
+    const { findByText, queryByTestId } = await renderCompliance();
+    await findByText("Comenzar verificación");
+
+    expect(queryByTestId("recapture-request")).toBeNull();
   });
 });
 
@@ -654,6 +675,10 @@ describe("Liveness: result UX", () => {
   });
 
   it("shows a review message, no retry action, and never converts review to pass or fail", async () => {
+    // The API resolves a `review` verdict as a passed step (the case routes
+    // to manual_review). A pending step with a completed review session is
+    // a staff-requested recapture instead (see the recapture block above).
+    mockedFetchComplianceSteps.mockResolvedValue([livenessStep({ status: "passed", attempt_count: 1 })]);
     mockedFetchLivenessResult.mockResolvedValue(livenessSession({ status: "completed", verdict: "review" }));
     const { findByText, queryByText } = await renderCompliance();
 

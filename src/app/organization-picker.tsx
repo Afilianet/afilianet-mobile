@@ -1,4 +1,6 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
+import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../components/ui/Card";
 import { IconButton } from "../components/ui/IconButton";
@@ -8,30 +10,34 @@ import { strings } from "../i18n";
 import { routes } from "../navigation/routes";
 import { analytics } from "../services/analytics";
 import { useOrganization } from "../state/OrganizationContext";
+import { closeTo } from "../navigation/rootNavigation";
 
 function humanizeRole(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
 }
 
 export default function OrganizationPickerScreen() {
-  const { organizations, selectOrganization } = useOrganization();
+  const { organizations, activeOrganization, selectOrganization } = useOrganization();
   const router = useRouter();
+  const close = useCloseScreen();
+  // Fixed when the picker opens: a forced first choice (no active organization yet) or a voluntary switch.
+  const [forcedChoice] = useState(!activeOrganization);
 
   async function handleSelect(organizationId: string) {
     await selectOrganization(organizationId);
     analytics.capture("organization_switched");
     // Reached two different ways: (a) a forced redirect when there's no
-    // active org yet (root layout, org-picker is the only stack frame --
-    // canGoBack() is false), where replace() is the right non-back-able
-    // transition; (b) a voluntary switch pushed on top of an already-mounted
-    // Home (canGoBack() is true), where replace() would swap this frame for
-    // a *new* Home instance instead of popping back to the one underneath,
-    // leaving a redundant duplicate frame on the stack. back() dismisses the
-    // picker and reveals that already-mounted Home directly.
-    if (router.canGoBack()) {
+    // active org yet, where replace() is the right non-back-able transition --
+    // even if canGoBack() is true: after a sign-out the history may still hold
+    // the previous account's screens (e.g. no-organization), and back() would
+    // land there (physical round P1, 2026-10-27); (b) a voluntary switch
+    // pushed on top of an already-mounted Home, where replace() would swap
+    // this frame for a *new* Home instance instead of popping back to the one
+    // underneath. back() dismisses the picker and reveals that Home directly.
+    if (!forcedChoice && router.canGoBack()) {
       router.back();
     } else {
-      router.replace(routes.home as never);
+      closeTo(router, routes.home);
     }
   }
 
@@ -39,7 +45,7 @@ export default function OrganizationPickerScreen() {
     <View style={styles.screen}>
       {router.canGoBack() ? (
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

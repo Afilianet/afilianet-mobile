@@ -1,8 +1,13 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCloseScreen } from "../navigation/useCloseScreen";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
+import { useEffect, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { consentRequiredBy } from "../api/privacy";
 import { ComplianceStepCard } from "../components/compliance/ComplianceStepCard";
+import { IdentityConsentGate, useIdentityConsentPhase } from "../components/privacy/IdentityConsentGate";
+import { recaptureRequest } from "../components/compliance/recaptureRequest";
 import { EmptyState } from "../components/EmptyState";
 import { ErrorState } from "../components/ErrorState";
 import { RetryButton } from "../components/RetryButton";
@@ -20,20 +25,39 @@ import { useCompliance } from "../hooks/useCompliance";
 import { useComplianceSteps } from "../hooks/useComplianceSteps";
 import { useStartCompliance } from "../hooks/useStartCompliance";
 import { analytics } from "../services/analytics";
+import { identityCaptureAvailable } from "../state/membership";
+import { useOrganization } from "../state/OrganizationContext";
 import { formatDate } from "../utils/date";
 import type { ComplianceCase, ComplianceStep } from "../types/api";
 
 const STEP_TYPE_LABELS: Record<string, string> = strings.compliance.stepTypeLabels;
+// Case states in which the person can still capture (a recapture request reopens one in manual review).
+const CAPTURING = new Set<ComplianceCase["status"]>(["in_progress", "manual_review"]);
 
 export default function ComplianceScreen() {
-  const router = useRouter();
+  return (
+    <PersonalAffiliateGate>
+      <ComplianceScreenContent />
+    </PersonalAffiliateGate>
+  );
+}
+
+function ComplianceScreenContent() {
+  const close = useCloseScreen();
+  // API #86. Checked on every render, so a deep link, a pull-to-refresh or a
+  // refusal recorded mid-session all land on the same read-only screen.
+  const captureAvailable = identityCaptureAvailable(useOrganization().activeOrganization);
   const affiliateQuery = useAffiliateProfile();
   const complianceQuery = useCompliance();
   const hasCase = complianceQuery.data !== undefined;
   const stepsQuery = useComplianceSteps(hasCase);
   const startMutation = useStartCompliance();
+  // Registration consents v1: reuse the person's own effective authorization, or ask for it here.
+  const identityConsent = useIdentityConsentPhase();
+  const canStart = identityConsent.phase === "inert" || identityConsent.phase === "effective";
   const [refreshing, setRefreshing] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     analytics.capture("compliance_viewed");
@@ -42,18 +66,30 @@ export default function ComplianceScreen() {
   async function handleRefresh() {
     setRefreshing(true);
     try {
-      await Promise.all([affiliateQuery.refetch(), complianceQuery.refetch(), stepsQuery.refetch()]);
+      await Promise.all([
+        affiliateQuery.refetch(),
+        complianceQuery.refetch(),
+        stepsQuery.refetch(),
+        // The identity consent state too: it may have changed outside the app (email confirmed by link).
+        queryClient.invalidateQueries({ queryKey: ["me-privacy"] }),
+      ]);
     } finally {
       setRefreshing(false);
     }
   }
 
   async function handleStart() {
+    if (!captureAvailable || !canStart) return;
     setStartError(null);
     try {
       await startMutation.mutateAsync();
     } catch (error) {
+      // The server's gate is the authority: read its state again so the box shows when it asks.
+      if (consentRequiredBy(error)) void queryClient.invalidateQueries({ queryKey: ["me-privacy"] });
       setStartError(isApiError(error) ? friendlyMessage(error) : strings.compliance.genericError);
+      // Starting is not idempotent: a lost answer may have created the case, and a retry then fails (422).
+      // Read the case again; if it exists, the screen shows it instead of the start card.
+      void complianceQuery.refetch();
     }
   }
 
@@ -70,7 +106,7 @@ export default function ComplianceScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.compliance.screenTitle}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -90,12 +126,23 @@ export default function ComplianceScreen() {
             onRetry={() => void complianceQuery.refetch()}
             retrying={complianceQuery.isFetching}
           />
+        ) : notStarted && !captureAvailable ? (
+          <CaptureUnavailableCard />
         ) : notStarted ? (
-          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} />
+          <NotStartedCard onStart={() => void handleStart()} loading={startMutation.isPending} error={startError} canStart={canStart}>
+            <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+          </NotStartedCard>
         ) : complianceQuery.data ? (
           <>
+            {captureAvailable ? null : <CaptureUnavailableCard />}
             <CaseCard compliance={complianceQuery.data} />
-            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} />
+            {/* The server's gate also covers captures in an open case: ask here too, before the next one. */}
+            {captureAvailable && CAPTURING.has(complianceQuery.data.status) && !canStart ? (
+              <Card style={styles.card} testID="identity-consent-open-case">
+                <IdentityConsentGate phase={identityConsent.phase} status={identityConsent.status} />
+              </Card>
+            ) : null}
+            <StepsCard query={stepsQuery} currentStep={complianceQuery.data.current_step} identityDataStatus={complianceQuery.data.identity_data_status} caseSteps={complianceQuery.data.steps} caseStatus={complianceQuery.data.status} captureAvailable={captureAvailable} />
           </>
         ) : null}
       </ScrollView>
@@ -103,7 +150,29 @@ export default function ComplianceScreen() {
   );
 }
 
-function NotStartedCard({ onStart, loading, error }: { onStart: () => void; loading: boolean; error: string | null }) {
+function CaptureUnavailableCard() {
+  const copy = strings.compliance.captureUnavailable;
+  return (
+    <Card style={styles.card} testID="kyc-capture-unavailable">
+      <Text accessibilityRole="alert" style={styles.unavailableTitle}>{copy.title}</Text>
+      <Text style={styles.description}>{copy.description}</Text>
+    </Card>
+  );
+}
+
+function NotStartedCard({
+  onStart,
+  loading,
+  error,
+  canStart,
+  children,
+}: {
+  onStart: () => void;
+  loading: boolean;
+  error: string | null;
+  canStart: boolean;
+  children?: ReactNode;
+}) {
   const status = complianceStatusCopy("not_started");
   return (
     <Card style={styles.card}>
@@ -111,8 +180,9 @@ function NotStartedCard({ onStart, loading, error }: { onStart: () => void; load
         <Badge label={status.label} tone={status.tone} />
       </View>
       {status.description ? <Text style={styles.description}>{status.description}</Text> : null}
+      {children}
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button label={strings.compliance.startVerification} fullWidth loading={loading} onPress={onStart} />
+      <Button label={strings.compliance.startVerification} fullWidth loading={loading} disabled={!canStart} onPress={onStart} />
     </Card>
   );
 }
@@ -150,11 +220,15 @@ function StepsCard({
   currentStep,
   identityDataStatus,
   caseSteps,
+  caseStatus,
+  captureAvailable,
 }: {
   query: ReturnType<typeof useComplianceSteps>;
   currentStep: string | null;
   identityDataStatus: ComplianceCase["identity_data_status"];
   caseSteps?: ComplianceStep[];
+  caseStatus?: ComplianceCase["status"];
+  captureAvailable: boolean;
 }) {
   // Case status, current step and rows must come from one server snapshot.
   // The separate steps query may finish before or after a staff update.
@@ -173,12 +247,21 @@ function StepsCard({
   } else if (steps && steps.length > 0) {
     body = (
       <View>
-        {currentStep === "biometric_liveness" && steps.some((step) =>
-          step.step_type === "biometric_liveness" && step.status === "pending" && step.attempt_count > 0
-        ) ? <Text style={styles.recaptureNotice}>{strings.compliance.livenessRecaptureNotice}</Text> : null}
+        {captureAvailable && recaptureRequest(currentStep, steps) ? (
+          <View testID="recapture-request" style={styles.recaptureBox} accessible accessibilityRole="alert">
+            <View style={styles.recaptureHeader}>
+              <Badge label={strings.compliance.recaptureRequest.badge} tone="warning" />
+              <Text style={styles.recaptureNotice}>{strings.compliance.recaptureRequest.title}</Text>
+            </View>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.reason}</Text>
+            <Text style={styles.description}>{strings.compliance.recaptureRequest.action}</Text>
+            <Text style={styles.description}>{strings.compliance.livenessRecaptureNotice}</Text>
+            <Text style={styles.meta}>{strings.compliance.recaptureRequest.history}</Text>
+          </View>
+        ) : null}
         {steps.map((step) => (
           <View key={step.id}>
-            <ComplianceStepCard step={step} currentStep={currentStep} />
+            <ComplianceStepCard step={step} currentStep={currentStep} steps={steps} caseStatus={caseStatus} />
             {step.step_type === "identity_document" && identityDataStatus ? (
               <View style={styles.identityDataRow} accessible
                 accessibilityLabel={`${strings.compliance.identityData.title}: ${strings.compliance.identityData.status[identityDataStatus]}`}>
@@ -253,10 +336,22 @@ const styles = StyleSheet.create({
   identityDataRow: { gap: spacing.xs, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   identityDataHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
   identityDataLabel: { ...typography.bodyStrong, color: colors.textPrimary },
+  recaptureBox: {
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  recaptureHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   recaptureNotice: {
     ...typography.bodyStrong,
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
+    flexShrink: 1,
+  },
+  unavailableTitle: {
+    ...typography.bodyStrong,
+    color: colors.textPrimary,
   },
   error: {
     ...typography.body,

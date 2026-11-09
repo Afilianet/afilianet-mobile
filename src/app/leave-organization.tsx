@@ -7,6 +7,7 @@ import { Button } from "../components/ui/Button";
 import { TextInput } from "../components/ui/TextInput";
 import { colors, spacing, typography } from "../components/ui/theme";
 import { useOrganization } from "../state/OrganizationContext";
+import { closeTo } from "../navigation/rootNavigation";
 
 export default function LeaveOrganizationScreen() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function LeaveOrganizationScreen() {
     <Text style={styles.title}>Salir de una organización</Text>
     {done ? <>
       <Text accessibilityLiveRegion="polite" style={styles.body}>Ya saliste de esta organización. Tu cuenta y las demás afiliaciones siguen activas.</Text>
-      <Button label="Ir a mi perfil" onPress={() => router.replace("/(app)/profile" as never)} />
+      <Button label="Ir a mi perfil" onPress={() => closeTo(router, "/(app)/profile")} />
     </> : organization ? <>
       <Text style={styles.title}>{organization.name}</Text>
       <Text style={styles.body}>Dejarás de tener acceso a esta organización y de recibir sus notificaciones. Tu cuenta de Afilianet y tus afiliaciones a otras organizaciones se conservan.</Text>

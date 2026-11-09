@@ -13,6 +13,8 @@ import ComplianceScreen from "../../app/compliance";
  * production build resolves it, and proves the simulator renders nothing at
  * all rather than merely being hidden.
  */
+// No session in these suites: the identity consent gate (registration consents v1) stays inert, as before.
+jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
 jest.mock("../../config/env", () => ({
   config: { appEnv: "production", apiBaseUrl: "", apiTimeoutMs: 15000, sentryDsn: "", posthogApiKey: "", posthogHost: "" },
   isDevelopmentSimulatorEnabled: false,
@@ -162,8 +164,12 @@ describe("Compliance in a production build", () => {
   });
 
   it("still allows the real terms acceptance action -- it is not a Fake-provider step", async () => {
-    mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance" })]);
+    // ComplianceStepCard locks any unresolved step that is not the case's
+    // current_step (enforced order), so the terms step must be current here.
+    mockedFetchMyCompliance.mockResolvedValue(complianceCase({ current_step: "terms_acceptance" }));
+    // With a published (here FICTITIOUS) document; without one there is nothing to accept (API A5).
+    mockedFetchComplianceSteps.mockResolvedValue([step({ id: "terms-1", step_type: "terms_acceptance", terms_document: { version: "prueba-terminos.1", title: "Términos de PRUEBA", sections: [{ title: "PRUEBA", text: "Texto ficticio." }], content_sha256: "b".repeat(64) } })]);
     const { findByText } = await renderCompliance();
-    expect(await findByText("Aceptar términos")).toBeTruthy();
+    expect(await findByText("Aceptar estos términos")).toBeTruthy();
   });
 });

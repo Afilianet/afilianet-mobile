@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCloseScreen } from "../../navigation/useCloseScreen";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -16,13 +17,15 @@ import { Icon } from "../../design-system/icons/Icon";
 import { affiliateStatusCopy } from "../../design-system/statusMapping";
 import { strings } from "../../i18n";
 import { useAffiliateDetails } from "../../hooks/useAffiliateDetails";
+import { syntheticLabel } from "../../utils/synthetic";
 import { useAffiliatePlacementChildren } from "../../hooks/useAffiliatePlacementChildren";
 import { useAffiliateSponsored } from "../../hooks/useAffiliateSponsored";
 import { analytics } from "../../services/analytics";
-import type { AffiliateRef } from "../../types/api";
+import type { AffiliateRef, SyntheticMarker } from "../../types/api";
 
 export default function AffiliateDetailScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const { affiliateUuid } = useLocalSearchParams<{ affiliateUuid: string }>();
 
   const detailQuery = useAffiliateDetails(affiliateUuid);
@@ -37,7 +40,7 @@ export default function AffiliateDetailScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} testID="affiliate-detail-scroll">
         <View style={styles.close}>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
@@ -85,10 +88,11 @@ export default function AffiliateDetailScreen() {
 function IdentityCard({
   affiliate,
 }: {
-  affiliate: { affiliate_code: string; status: string; user?: { first_name: string; last_name: string }; sponsor?: AffiliateRef | null; placement_parent?: AffiliateRef | null; joined_at: string | null };
+  affiliate: { affiliate_code: string; status: string; user?: { first_name: string; last_name: string }; sponsor?: AffiliateRef | null; placement_parent?: AffiliateRef | null; joined_at: string | null; synthetic?: SyntheticMarker };
 }) {
   const status = affiliateStatusCopy(affiliate.status);
   const name = affiliate.user ? `${affiliate.user.first_name} ${affiliate.user.last_name}`.trim() : null;
+  const synthetic = syntheticLabel(affiliate);
 
   return (
     <Card style={styles.identityCard}>
@@ -100,6 +104,13 @@ function IdentityCard({
         </View>
         <Badge label={status.label} tone={status.tone} />
       </View>
+
+      {synthetic ? (
+        <View style={styles.synthetic} testID="affiliate-detail-synthetic">
+          <Badge label={synthetic} tone="warning" />
+          {affiliate.synthetic?.note ? <Text style={styles.relationship}>{affiliate.synthetic.note}</Text> : null}
+        </View>
+      ) : null}
 
       <View style={styles.relationships}>
         <Text style={styles.relationship}>
@@ -118,6 +129,7 @@ function IdentityCard({
 }
 
 const styles = StyleSheet.create({
+  synthetic: { gap: spacing[2], alignItems: "flex-start" },
   screen: { flex: 1, backgroundColor: colors.background },
   content: {
     padding: measures.mobileGutter,

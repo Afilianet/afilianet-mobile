@@ -1,5 +1,7 @@
 import { CommercialFeatureGate } from "../components/CommercialFeatureGate";
+import { PersonalAffiliateGate } from "../components/PersonalAffiliateGate";
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useRef, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../api/errors";
@@ -33,13 +35,16 @@ import { formatMoney } from "../utils/money";
 export default function PayoutsScreen() {
   return (
     <CommercialFeatureGate>
-      <PayoutsScreenContent />
+      <PersonalAffiliateGate>
+        <PayoutsScreenContent />
+      </PersonalAffiliateGate>
     </CommercialFeatureGate>
   );
 }
 
 function PayoutsScreenContent() {
   const router = useRouter();
+  const close = useCloseScreen();
   const affiliateQuery = useAffiliateProfile();
   const walletQuery = useWallet();
   const destinationsQuery = usePayoutDestinations();
@@ -98,7 +103,7 @@ function PayoutsScreenContent() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.payouts.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>

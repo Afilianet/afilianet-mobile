@@ -2,21 +2,27 @@ import { JetBrainsMono_400Regular, JetBrainsMono_500Medium, JetBrainsMono_700Bol
 import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from "@expo-google-fonts/manrope";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
+import { RootStack } from "../navigation/RootStack";
+import { resetTo } from "../navigation/rootNavigation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { queryClient } from "../api/queryClient";
 import { strings } from "../i18n";
 import { AuthProvider } from "../auth/AuthProvider";
+import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
 import { useAuth } from "../auth/AuthContext";
 import { PushLifecycle } from "../components/PushLifecycle";
 import { AppErrorBoundary } from "../components/AppErrorBoundary";
 import { ErrorState } from "../components/ErrorState";
 import { LoadingState } from "../components/LoadingState";
-import { routes } from "../navigation/routes";
+import { isExemptRoute, resolveRedirect } from "../navigation/rootNavigationGuard";
 import { initSentry } from "../services/sentry";
 import { OrganizationProvider } from "../state/OrganizationProvider";
+import { reviewBlocks, syncPrivacyReview, usePrivacyReview } from "../state/privacyReview";
+import { fetchMyPrivacy, myPrivacyKey } from "../api/privacy";
+import { useApiQuery } from "../hooks/useApiQuery";
 import { useOrganization } from "../state/OrganizationContext";
 
 initSentry();
@@ -66,34 +72,44 @@ export default function RootLayout() {
   );
 }
 
+/**
+ * API #93: whether the server blocks this account until it reviews a notice,
+ * read once per session from GET /me/privacy (exempt from the block); every
+ * 409 privacy_notice_review_required also raises it (api/client.ts). An API
+ * without the route (404) leaves everything as before.
+ */
+function usePrivacyReviewSync(signedIn: boolean, userId: string | undefined) {
+  const query = useApiQuery(myPrivacyKey(userId), fetchMyPrivacy, { enabled: signedIn && Boolean(userId) });
+  useEffect(() => {
+    if (signedIn && query.data !== undefined) syncPrivacyReview(query.data);
+  }, [signedIn, query.data]);
+}
+
 function RootNavigation() {
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, onboardingRoute, user } = useAuth();
+  usePrivacyReviewSync(authStatus === "signedIn", user?.id);
+  const privacyReview = usePrivacyReview();
+  const pendingReferral = usePendingReferral();
+  const pendingPath = pendingReferral ? pendingReferralPath(pendingReferral) : null;
   const { status: orgStatus, organizations, activeOrganization, error: orgError, refresh: refreshOrganizations } = useOrganization();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (authStatus === "loading") return;
-
-    const inAuthGroup = segments[0] === "(auth)";
-    const inJoin = segments[0] === "join";
-    const inOrganizationPicker = segments[0] === "organization-picker";
-
-    if (authStatus === "signedOut") {
-      if (!inAuthGroup && !inJoin && segments[0] !== "privacy") router.replace(routes.login as never);
-      return;
+    const target = resolveRedirect({
+      authStatus,
+      orgStatus,
+      hasActiveOrganization: Boolean(activeOrganization),
+      organizationsCount: organizations.length,
+      segments,
+      pendingReferralPath: pendingPath,
+      onboardingRoute,
+      privacyReviewBlocking: authStatus === "signedIn" && reviewBlocks(privacyReview, activeOrganization?.id),
+    });
+    if (target) {
+      resetTo(router, target);
     }
-
-    if (inAuthGroup || inJoin) {
-      router.replace(routes.home as never);
-      return;
-    }
-
-    const needsOrganizationChoice = orgStatus === "ready" && !activeOrganization && organizations.length > 1;
-    if (needsOrganizationChoice && !inOrganizationPicker && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
-      router.replace(routes.organizationPicker as never);
-    }
-  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router]);
+  }, [authStatus, orgStatus, activeOrganization, organizations.length, segments, router, pendingPath, onboardingRoute, privacyReview]);
 
   if (authStatus === "loading") {
     return <LoadingState message={strings.app.startingUp} />;
@@ -103,9 +119,9 @@ function RootNavigation() {
   // query disabled (they all gate on activeOrganization) with no way to
   // recover -- every screen would sit in permanent, silent loading. This is
   // the one place that state is visible regardless of which screen is active.
-  if (authStatus === "signedIn" && orgStatus === "error" && segments[0] !== "delete-account" && segments[0] !== "privacy" && segments[0] !== "leave-organization") {
+  if (authStatus === "signedIn" && orgStatus === "error" && !isExemptRoute(segments)) {
     return <ErrorState error={orgError} onRetry={() => void refreshOrganizations()} />;
   }
 
-  return <Slot />;
+  return <RootStack />;
 }

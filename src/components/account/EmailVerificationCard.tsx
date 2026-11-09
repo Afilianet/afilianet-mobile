@@ -18,6 +18,8 @@ export function EmailVerificationCard({ user }: { user: User }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [cooldown, setCooldown] = useState(0);
+  // 503 email_unavailable (API #84): no link exists, so "el enlace que te enviamos" would be false.
+  const [emailUnavailable, setEmailUnavailable] = useState(false);
   const current = account.data ?? user;
   const verified = Boolean(current.email_verified_at);
 
@@ -39,12 +41,14 @@ export function EmailVerificationCard({ user }: { user: User }) {
     setPending(true);
     setError("");
     setMessage("");
+    setEmailUnavailable(false);
     try {
       await apiRequest("/api/v1/auth/email-verification", { method: "POST", skipOrganization: true });
       setMessage("Solicitud recibida. Revisa tu correo y la carpeta de spam. El enlace dura 60 minutos.");
       setCooldown(60);
     } catch (cause) {
       setError(isApiError(cause) ? friendlyMessage(cause) : "No se pudo solicitar el correo. Inténtalo de nuevo.");
+      setEmailUnavailable(isApiError(cause) && cause.reason === "email_unavailable");
       if (isApiError(cause) && cause.kind === "rate_limited") setCooldown(60);
     } finally { setPending(false); }
   }
@@ -54,7 +58,7 @@ export function EmailVerificationCard({ user }: { user: User }) {
     <Text style={styles.title}>Correo electrónico</Text>
     <Badge label={verified ? "Correo confirmado" : "Pendiente de confirmar"} tone={verified ? "success" : "warning"} />
     {!verified && <>
-      <Text style={styles.body}>Confirma {current.email} desde el enlace que te enviamos.</Text>
+      {emailUnavailable ? null : <Text style={styles.body}>Confirma {current.email} desde el enlace que te enviamos.</Text>}
       {message ? <Text accessibilityLiveRegion="polite" style={styles.body}>{message}</Text> : null}
       <Button label={cooldown > 0 ? `Reenviar en ${cooldown} s` : "Reenviar correo de verificación"} loading={pending} disabled={cooldown > 0} onPress={() => void resend()} />
       <Button label="Ya confirmé mi correo" variant="ghost" loading={account.isFetching} onPress={() => void refetch()} />

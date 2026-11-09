@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
+import { useCloseScreen } from "../navigation/useCloseScreen";
 import { useEffect, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { PushPreferences } from "../components/PushPreferences";
 import { NotificationRow } from "../components/NotificationRow";
 import { PaginatedSectionCard } from "../components/PaginatedSectionCard";
 import { Button } from "../components/ui/Button";
@@ -13,16 +13,22 @@ import { useMarkAllNotificationsRead } from "../hooks/useMarkAllNotificationsRea
 import { useMarkNotificationRead } from "../hooks/useMarkNotificationRead";
 import { useNotifications } from "../hooks/useNotifications";
 import { useUnreadNotificationCount } from "../hooks/useUnreadNotificationCount";
-import { notificationDestination } from "../navigation/routes";
+import { notificationDetail, surveyNotificationDestination } from "../navigation/routes";
+import { openFromOverlay } from "../navigation/rootNavigation";
 import { analytics } from "../services/analytics";
 import type { Notification } from "../types/api";
 
+/**
+ * Inbox only -- the bell opens this screen. Push preferences live in
+ * notification-settings.tsx, reached from Profile.
+ */
 export default function NotificationsScreen() {
   const router = useRouter();
+  const close = useCloseScreen();
   const notificationsQuery = useNotifications();
   const unreadCountQuery = useUnreadNotificationCount();
-  const markReadMutation = useMarkNotificationRead();
   const markAllReadMutation = useMarkAllNotificationsRead();
+  const { mutate: markRead } = useMarkNotificationRead();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -38,19 +44,19 @@ export default function NotificationsScreen() {
     }
   }
 
-  async function handleOpen(notification: Notification) {
+  // Viewing the inbox never marks anything read. Only opening one
+  // notification does, and only that one: its detail (notification/[id].tsx)
+  // or, for a survey notification, the survey itself -- opened directly, as
+  // its push does. A failed read never blocks opening it.
+  function handleOpen(notification: Notification) {
     analytics.capture("notification_opened");
-    try {
-      await markReadMutation.mutateAsync(notification.id);
-    } catch {
-      // Refresh already happens inside useMarkNotificationRead's onError --
-      // a failed read mutation must never block opening an otherwise-valid
-      // notification below.
+    const survey = surveyNotificationDestination(notification.payload);
+    if (survey) {
+      if (notification.read_at === null) markRead(notification.id);
+      openFromOverlay(router, survey);
+      return;
     }
-    const destination = notificationDestination(notification.payload.screen);
-    if (destination) {
-      router.push(destination as never);
-    }
+    router.push(notificationDetail(notification.id) as never);
   }
 
   async function handleMarkAllRead() {
@@ -73,12 +79,10 @@ export default function NotificationsScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.heading}>{strings.notifications.title}</Text>
-          <IconButton label={strings.common.close} onPress={() => router.back()}>
+          <IconButton label={strings.common.close} onPress={close}>
             <Icon name="cerrar" size={18} color={colors.textPrimary} />
           </IconButton>
         </View>
-
-        <PushPreferences />
 
         {hasUnread ? (
           <View style={styles.markAllRow}>
@@ -99,7 +103,7 @@ export default function NotificationsScreen() {
           query={notificationsQuery}
           emptyTitle={strings.notifications.noneYet}
           renderItem={(notification) => (
-            <NotificationRow notification={notification} onPress={() => void handleOpen(notification)} />
+            <NotificationRow notification={notification} onPress={() => handleOpen(notification)} />
           )}
         />
       </ScrollView>
