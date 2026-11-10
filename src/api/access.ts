@@ -131,12 +131,20 @@ export interface PhoneChannelOffer {
 }
 
 /**
- * PROPOSED (API phone-otp-whatsapp-v2, not deployed): GET
- * /api/v1/auth/phone-verification/channels, authenticated and side-effect free:
- * {channels: [{channel, available}], retry_after, expires_in} (flat or under
- * `data`). Availability is global (provider configured, global limit not
- * reached), never per number. Returns null when the API has no such endpoint
- * (404/405): the caller then offers SMS only, as before.
+ * API #153 (feat/phone-otp-whatsapp-v2 @ bd08f36, not merged; contract in
+ * docs/auth/ACCOUNT_ACCESS_CONTRACT.md §3): GET
+ * /api/v1/auth/phone-verification/channels, authenticated and side-effect free,
+ * flat 200 {channels: [{channel, available}], retry_after, expires_in,
+ * resend_available_in, phone: {present, verified}} (a `data` wrapper is also
+ * accepted). Availability is global (provider configured, global limit not
+ * reached), never per number. `phone` is not read: /me stays the only source
+ * of "verified". Returns null when the API has no such endpoint (404/405):
+ * the caller then offers SMS only, as before.
+ *
+ * POST 422 `recipient_not_allowed` / `daily_limit_reached` create no code and
+ * keep the current one valid. The route's 1/min throttle also counts a request
+ * rejected with 503, so SMS right after a WhatsApp 503 is a 429: shown as a
+ * wait, never retried on its own.
  */
 export async function fetchPhoneChannels(): Promise<PhoneChannelOffer | null> {
   type Offer = { channels?: { channel?: string; available?: boolean }[]; resend_available_in?: number };
@@ -254,6 +262,13 @@ export function accessErrorMessage(error: unknown): string {
     case "whatsapp_unavailable":
       // API #79 503: no code was created and nothing was sent by SMS instead.
       return copy.whatsappUnavailable;
+    case "recipient_not_allowed":
+      // API #153 422: number outside the test recipients or an unserved country. No code
+      // is created and the current one stays valid. It is the number, not the channel.
+      return copy.recipientNotAllowed;
+    case "daily_limit_reached":
+      // API #153 422: daily cap per number, both channels counted. The current code stays valid.
+      return copy.dailyLimitReached;
     case "email_unavailable":
       // API #84 503: decided before any lookup, the same for every address
       // (no enumeration); nothing was sent, so never "te enviamos un enlace".

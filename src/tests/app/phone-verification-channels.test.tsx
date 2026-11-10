@@ -238,6 +238,85 @@ describe("Build switch on: the server decides", () => {
     expect(screen.getByLabelText("Recibir el código por SMS")).toBeTruthy();
   });
 
+  it("reads the final flat API #153 shape, ignoring `phone` (only /me says verified)", async () => {
+    fetchMock.mockResolvedValueOnce(json({ ...offer(true, true), resend_available_in: 0, phone: { present: true, verified: true } }));
+    const screen = await renderVerify();
+
+    expect(screen.getByLabelText("Recibir el código por WhatsApp")).toBeTruthy();
+    expect(phoneCard(screen).queryByText("Verificado")).toBeNull();
+    expect(screen.getByRole("button", { name: "Enviar código por SMS" }).props.accessibilityState?.disabled).toBeFalsy();
+  });
+
+  it("WhatsApp 503 then SMS in the same minute: the route's 429 is shown as a wait, and nothing is resent on its own", async () => {
+    fetchMock.mockResolvedValueOnce(json(offer(true, true)));
+    const screen = await renderVerify();
+
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Recibir el código por WhatsApp"));
+    });
+    fetchMock.mockResolvedValueOnce(json({ reason: "whatsapp_unavailable", message: "WhatsApp unavailable" }, 503));
+    await act(async () => {
+      fireEvent.press(phoneCard(screen).getByText("Enviar código por WhatsApp"));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Recibir el código por SMS"));
+    });
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Too Many Attempts.", retry_after: 48 }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "48" } }),
+    );
+    await act(async () => {
+      fireEvent.press(phoneCard(screen).getByText("Enviar código por SMS"));
+    });
+
+    expect(phoneCard(screen).getByText("Espera 48 segundos para pedir otro código, por SMS o por WhatsApp.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Enviar código por SMS" }).props.accessibilityState?.disabled).toBe(true);
+    expect(sentChannels()).toEqual(["whatsapp", "sms"]);
+    // No code exists yet: no code field is offered for a code that was never created.
+    expect(screen.queryByLabelText("Código de verificación")).toBeNull();
+  });
+});
+
+describe("POST 422s that create no code (API #153)", () => {
+  async function sendThenFail(reason: string) {
+    jest.useFakeTimers();
+    fetchMock.mockResolvedValueOnce(json(offer(true, true)));
+    const screen = await renderVerify();
+    fetchMock.mockResolvedValueOnce(QUEUED("sms"));
+    await act(async () => {
+      fireEvent.press(phoneCard(screen).getByText("Enviar código por SMS"));
+    });
+    // Past the 60 s wait (the countdown ticks one second per render): a new request is allowed again.
+    for (let second = 0; second < 61; second += 1) {
+      await act(async () => {
+        jest.advanceTimersByTime(1000);
+      });
+    }
+    fetchMock.mockResolvedValueOnce(json({ message: "Rejected.", reason }, 422));
+    await act(async () => {
+      fireEvent.press(phoneCard(screen).getByText("Pedir otro código por SMS"));
+    });
+    return screen;
+  }
+
+  it("recipient_not_allowed: says the number cannot receive codes, keeps the current code usable, and suggests no other channel", async () => {
+    const screen = await sendThenFail("recipient_not_allowed");
+
+    expect(phoneCard(screen).getByText("No podemos enviar códigos a este número. No se envió ningún código; si ya tienes uno, sigue sirviendo.")).toBeTruthy();
+    expect(screen.getByLabelText("Código de verificación")).toBeTruthy();
+    expect(phoneCard(screen).queryByText(/Puedes pedir el código por/)).toBeNull();
+    expect(sentChannels()).toEqual(["sms", "sms"]);
+  });
+
+  it("daily_limit_reached: says the day's limit was reached, without naming channels, and keeps the current code usable", async () => {
+    const screen = await sendThenFail("daily_limit_reached");
+
+    expect(phoneCard(screen).getByText("Ya pediste el máximo de códigos de hoy para este número. No se envió ningún código; si ya tienes uno, sigue sirviendo.")).toBeTruthy();
+    expect(screen.getByLabelText("Código de verificación")).toBeTruthy();
+    expect(phoneCard(screen).queryByText(/Puedes pedir el código por/)).toBeNull();
+  });
+});
+
+describe("Phone already verified", () => {
   it("a verified phone never asks for channels", async () => {
     const screen = await renderVerify({ ...ANA, phone_verified_at: "2026-11-10T12:00:00Z" });
 

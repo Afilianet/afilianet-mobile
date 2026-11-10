@@ -178,6 +178,8 @@ export const en = {
       phoneMissing: "Your account has no mobile number.",
       smsUnavailable: "We can't send SMS messages right now. Try again later.",
       whatsappUnavailable: "We can't send codes by WhatsApp right now. No code was sent.",
+      recipientNotAllowed: "We can't send codes to this number. No code was sent; if you already have one, it still works.",
+      dailyLimitReached: "You've requested the most codes allowed today for this number. No code was sent; if you already have one, it still works.",
       channelRejected: "That option can't be used to send the code. Choose another.",
       notAvailableYet: "This option isn't available yet. Try again later.",
       waitSeconds: (seconds: number) => `Wait ${seconds} seconds before trying again.`,

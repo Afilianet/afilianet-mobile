@@ -198,6 +198,8 @@ export const es = {
       phoneMissing: "Tu cuenta no tiene un celular registrado.",
       smsUnavailable: "Por ahora no podemos enviar mensajes SMS. Inténtalo más tarde.",
       whatsappUnavailable: "Por ahora no podemos enviar códigos por WhatsApp. No se envió ningún código.",
+      recipientNotAllowed: "No podemos enviar códigos a este número. No se envió ningún código; si ya tienes uno, sigue sirviendo.",
+      dailyLimitReached: "Ya pediste el máximo de códigos de hoy para este número. No se envió ningún código; si ya tienes uno, sigue sirviendo.",
       channelRejected: "Ese medio no está disponible para enviar el código. Elige otro.",
       notAvailableYet: "Esta opción todavía no está disponible. Inténtalo más tarde.",
       waitSeconds: (seconds: number) => `Espera ${seconds} segundos antes de intentarlo de nuevo.`,
