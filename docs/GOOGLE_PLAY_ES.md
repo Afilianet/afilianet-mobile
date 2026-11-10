@@ -72,10 +72,21 @@ Las apps nuevas en Play usan **Play App Signing**:
 
 La decisión se toma al subir el primer AAB y **no se puede deshacer** para la clave de firma.
 
-| Opción | Qué pasa | Consecuencias |
+| | **A. Google genera la clave de firma** (recomendada) | **B. La clave actual de EAS pasa a ser la de firma** |
 |---|---|---|
-| **A. Google genera la clave de firma** (recomendada) | El almacén de EAS (`5d3974b9…6320ca`, el de vc12 a vc21) pasa a ser la **clave de subida**. No se exporta nada | Lo instalado desde Play lleva otro certificado que los APK instalados a mano (vc12–vc21). **No se actualizan entre sí:** para pasar de un APK a Play, o al revés, hay que desinstalar, y se pierden la sesión, los borradores y el outbox. El A06 se queda con su APK; la prueba en Play se hace en otros teléfonos |
-| B. Subir la clave de EAS como clave de firma | Hay que exportar el almacén de EAS y cifrarlo con la herramienta de Google. **Es una operación de credenciales:** requiere autorización expresa | Play y los APK quedan con la misma firma y se actualizan entre sí. A cambio, la clave que ya se usó para distribuir APK fuera de Play se vuelve la de producción |
+| Qué firma cada cosa | Google firma lo que se instala desde Play. El almacén de EAS (`5d3974b9…6320ca`) solo firma el AAB que se sube: es la **clave de subida** | Google firma con **la misma** clave de EAS, `5d3974b9…6320ca` |
+| vc12–vc21 y los APK ya instalados | **No se actualizan desde Play** ni al revés: el certificado es distinto, así que Android rechaza la actualización. Hay que desinstalar, y se pierden la sesión, los borradores y el outbox | Sí se actualizan: misma firma y un versionCode mayor |
+| Custodia | Google guarda la clave de firma, que no podemos perder. EAS guarda la de subida (credenciales remotas del proyecto) | Hay dos copias de la clave de firma, en Google y en EAS. Esa clave ya firmó APK distribuidos fuera de Play y queda expuesta a más lugares |
+| Si se pierde o se filtra la clave de subida | Se pide en Play Console (**Integridad de la app → Firma de apps**) un **restablecimiento de la clave de subida**: se genera otra (EAS puede crearla) y se registra su certificado. Las instalaciones no se ven afectadas | Si se usa la misma como subida, el mismo restablecimiento. Si se filtra la de firma, no hay restablecimiento simple: firma todas las versiones |
+| Pasos | 1. Subir el primer AAB firmado por EAS. 2. Aceptar «Clave de firma generada por Google». **No se exporta nada** | 1. **Exportar el almacén de EAS** (`eas credentials` → Android → descargar el keystore con sus contraseñas): **es una operación de credenciales y requiere autorización expresa**. 2. Cifrar la clave con la herramienta que indica Play (PEPK) y subirla en «Usar una clave existente». 3. Conviene registrar una clave de subida distinta |
+| App Links | `assetlinks.json` lleva el SHA-256 de la clave de Google (está en Play Console → Firma de apps) y, si se quiere que también verifiquen los APK de staging, el de EAS | Un solo SHA-256 (`5d3974b9…`) para todo |
+
+**Recomendación: A.**
+- No hay que exportar credenciales.
+- La base instalada con APK es mínima: el A06 y equipos de prueba.
+- La clave de producción no queda expuesta donde ya estuvo la de los APK.
+
+Elegir **B** solo tiene sentido si se quiere que los teléfonos con un APK pasen a la versión de Play sin desinstalar.
 
 **¿Un paquete con sufijo de prueba (por ejemplo `com.afilianet.mobile.staging`)? No se recomienda:**
 - sería **otra app** en Play, con su propia ficha;
@@ -179,24 +190,41 @@ La decisión se toma al subir el primer AAB y **no se puede deshacer** para la c
 - **Cifrado en reposo:** según el Terraform de staging (Aurora y S3 con KMS). No es una pregunta del formulario.
 - **Mecanismo para pedir la eliminación:** existe en la app, **pero hoy el servidor lo rechaza** (sección 7). No se marca hasta que funcione.
 
-**Datos que la app recoge y envía a la API.** En Play, enviarlos a proveedores que procesan por cuenta propia de Afilianet (AWS, Expo/FCM) **no** cuenta como «compartir».
+**Cómo se comprobó.** Para cada función se revisó si está en el bundle de `store-beta` y si es **alcanzable**: perfil, banderas y rutas protegidas. Si el código puede enviar un dato en ese build, se declara, aunque esté detrás de una configuración del servidor.
 
-| Categoría de Play | Dato | ¿Opcional? | Fin | Notas |
-|---|---|---|---|---|
-| Información personal → Nombre | Nombre y apellidos | No | Gestión de la cuenta | |
-| Información personal → Correo | Correo | Correo o celular | Cuenta y verificación | |
-| Información personal → Teléfono | Celular | Correo o celular | Cuenta y verificación por SMS | |
-| Información personal → ID de usuario | ID de la cuenta | No | Cuenta | |
-| Información personal → Dirección | Domicilio leído de la credencial | Solo si la organización pide KYC | Verificación de identidad | Lo extrae el servidor de la foto (API-51) |
-| Información personal → Otra información | CURP, clave de elector, fecha de nacimiento, sexo, entidad y sección | Solo con KYC | Verificación de identidad | Ver el tema sensible de la sección 5 |
-| Fotos y videos → Fotos | Frente y reverso de la credencial, y selfie | Solo con KYC | Verificación de identidad y prevención de fraude | Subida con URL prefirmada |
-| Fotos y videos → Videos | Prueba de vida (AWS Rekognition Face Liveness, SDK Amplify UI) | Solo con KYC | Verificación de identidad y prevención de fraude | Se envía directo a AWS con credenciales temporales |
-| Ubicación → Precisa | Coordenadas (precisión `Balanced`) | **Sí** | Prevención de fraude en la verificación | Opcional; con `Balanced` es «precisa» según la definición de Play (< 3 km²) |
-| Contactos u otra información de terceros | Correo o celular de quien se invita; fotos y ubicación de terceros en el registro asistido (staff) | Sí | Invitaciones y registro asistido | Hay que declararlo: son datos de otras personas |
-| ID de dispositivo u otros | Token de push (Expo/FCM) | Sí (con el permiso de notificaciones) | Notificaciones | Cifrado en la API y borrado al cerrar sesión |
-| Información y rendimiento de la app | — | — | — | **No se recoge:** Sentry apagado |
-| Audio | — | — | — | **No se recoge en este build** (sin `RECORD_AUDIO`) |
-| Información financiera | — | — | — | **No se recoge en este build** (comercio oculto) |
+| Función | ¿En el bundle? | ¿Alcanzable en `store-beta`? | Conclusión |
+|---|---|---|---|
+| Identidad: fotos de la credencial; CURP, clave de elector, domicilio, fecha de nacimiento y sexo que devuelve el OCR | Sí | **Sí**, si la organización pide KYC con la captura encendida. Con `capture_enabled=false`, el servidor responde 503 `kyc_unavailable` | **Declarar** |
+| Prueba de vida y rostro (selfie, AWS Face Liveness) | Sí (módulo nativo Amplify UI) | Igual que identidad | **Declarar** |
+| Ubicación de la verificación | Sí | Sí, opcional, con un botón de consentimiento | **Declarar** (precisa, opcional) |
+| Sección electoral y entidad | Las lee el servidor de la credencial; la app muestra los campos | Igual que identidad | **Declarar**; la categoría la decide Andrés |
+| **Registro asistido** (fotos de la INE y ubicación de **otra persona**) | Sí | **Sí, para cualquier persona afiliada:** Red → «Registrar a alguien» (`network.tsx`) | **Declarar** como datos de terceros, o apagarlo en este build con una bandera nueva. **Decide Andrés** |
+| Encuestas y audio | El código sí | **No:** `Tabs.Protected guard={surveysPreviewEnabled}` bloquea también los deep links, el push no navega y el manifiesto no tiene `RECORD_AUDIO` | No se declara |
+| Push | Sí | Sí, con el permiso de notificaciones | **Declarar** (ID del dispositivo) |
+| Contactos del teléfono | No hay `READ_CONTACTS` | No | No se declara. Lo que el usuario escribe al invitar va como «información personal de terceros» |
+| Telemetría: Sentry y PostHog | **Sí, los SDK van incluidos** | **No:** sin `Sentry.init` (`EXPO_PUBLIC_SENTRY_ENABLED=0`, DSN `disabled`, `io.sentry.auto-init=false`) y PostHog sin clave (`analytics` no crea el cliente). `check-build-env` rechaza el build si llega un DSN o una clave | No se declara |
+| Pagos y monedero | El código sí | **No:** `releaseFeatures.commerce=false`. Pestañas en `Tabs.Protected`; `commissions`, `payouts` y `payout-request` en `CommercialFeatureGate` (redirige a Inicio); `routes` anula esos destinos de notificaciones | No se declara |
+
+**Respuestas por categoría de Play (`store-beta`):**
+
+| Categoría → tipo | Recogido | Compartido | Obligatorio u opcional | Finalidad | Tránsito HTTPS | Borrado a petición |
+|---|---|---|---|---|---|---|
+| Info personal → Nombre | Sí | No | Obligatorio | Funcionalidad de la app, gestión de la cuenta | Sí | Sí (*) |
+| Info personal → Correo | Sí | No | Correo o celular | Gestión de la cuenta, comunicaciones | Sí | Sí (*) |
+| Info personal → Teléfono | Sí | No | Correo o celular | Gestión de la cuenta, comunicaciones | Sí | Sí (*) |
+| Info personal → ID de usuario | Sí | No | Obligatorio | Gestión de la cuenta | Sí | Sí (*) |
+| Info personal → Dirección | Sí (OCR) | No | Opcional (solo con KYC) | Prevención de fraude, seguridad y cumplimiento | Sí | Sí (*) |
+| Info personal → Otra información (CURP, clave de elector, nacimiento, sexo, entidad y sección) | Sí | No | Opcional (solo con KYC) | Prevención de fraude, seguridad y cumplimiento | Sí | Sí (*) |
+| Info personal → Creencias políticas o religiosas | **Decide Andrés** | — | — | — | — | — |
+| Fotos y videos → Fotos | Sí (credencial y selfie) | No | Opcional (solo con KYC) | Prevención de fraude, seguridad y cumplimiento | Sí | Sí (*) |
+| Fotos y videos → Videos | Sí (prueba de vida) | No | Opcional (solo con KYC) | Prevención de fraude, seguridad y cumplimiento | Sí | Sí (*) |
+| Ubicación → Precisa | Sí | No | Opcional | Prevención de fraude, seguridad y cumplimiento | Sí | Sí (*) |
+| ID de dispositivo u otros | Sí (token de push) | No | Opcional | Funcionalidad de la app (notificaciones) | Sí | Sí (se borra al cerrar sesión y con la cuenta) |
+| Datos de terceros (registro asistido e invitaciones) | **Decide Andrés** | — | — | — | — | — |
+
+- «Compartido: No»: AWS, Expo, FCM y APNs son **encargados** que procesan por cuenta de Afilianet, y Play no lo cuenta como compartir. OpenAI está apagado. Meta no está integrada en `main`.
+- Cifrado en reposo, según el Terraform de staging: Aurora con CMK y S3 de evidencia con SSE-KMS y versionado. Play no lo pregunta como tal; solo se menciona si Andrés lo quiere en el aviso.
+- (*) «Borrado a petición: Sí» **solo cuando la recepción de solicitudes esté activa**. Hoy responde 503. Además, lo financiero, ser owner y las encuestas pasan a revisión manual, y los respaldos duran hasta 90 días. Mientras tanto, la respuesta honesta es que la solicitud se atiende por el canal de privacidad.
 
 **Retención:**
 - **No se declaran días.** La política (`RETENTION_POLICY.md` v2026-10-02.2) no está adoptada ni aplicada: `PRIVACY_RETENTION_SCHEDULE_ENABLED=false`, y las `EVIDENCE_RETENTION_*` están vacías.
@@ -316,6 +344,32 @@ Para la prueba cerrada, además: el aviso y la página de eliminación publicado
 | Registro asistido (staff) | Captura documentos y ubicación de otra persona | Envía fotos y ubicación de terceros | «No proporcione documentos de terceros sin la base jurídica y el procedimiento correspondiente» | **Decisión de Andrés y legal:** qué procedimiento ampara ese flujo en la prueba de Play |
 | Sección electoral | — (la app muestra los campos de la credencial) | La API recibe clave de elector y sección | «…para conteos administrativos agregados, sin inferir preferencias políticas» | Andrés decide cómo declararlo en Data safety (sección 5) |
 | Retención | La app no promete plazos | — | Plazos «por categoría» aún sin documentar | No declarar días |
+
+## 11. Acceso de revisores y testers en staging (propuesta; no se crea nada)
+
+**Organización y cuentas** (las crea API, con autorización de Andrés):
+- una organización **nueva** de staging solo para Play, con `compliance_config.capture_enabled=false`;
+- sin acceso a las organizaciones A ni B, sin documentos reales y sin datos sintéticos de la demo;
+- un owner de esa organización cuyo código de afiliado sirva de liga de referido para los testers;
+- una **cuenta de revisor** ya afiliada, con correo y contraseña. Su correo debe estar en la lista permitida de staging, para poder verificarlo si hace falta.
+
+**Qué pasa en la app con el SMS apagado y el correo limitado:**
+
+| Paso | Cómo se resuelve | Bloquea |
+|---|---|---|
+| Registro | Correo o celular más contraseña, y el aviso de privacidad publicado en staging. El SMS automático del registro falla sin enviar | No |
+| Inicio de sesión | Correo o celular más contraseña, **sin OTP** (API) | No |
+| Verificar el correo | Llega solo si el correo está en la lista permitida (`auth.email_verification`) | **No en la app.** «Verificar mi cuenta» ofrece «Más tarde» y ninguna pantalla exige verificar (no hay guardas en la navegación). Falta que API confirme si alguna acción del servidor lo exige |
+| Verificar el celular | SMS apagado: no hay código | Igual que el correo |
+| Recuperar la contraseña | Correo: el reset **no** está en la lista permitida, así que no llega. SMS: apagado | **Sí.** Un tester que olvide su contraseña no puede recuperarla en esta prueba. Mitigación: avisarles y que el soporte la restablezca por Admin, si existe esa vía; decide Andrés |
+| Unirse a la organización | Con la liga o el código del owner de la organización de Play | No |
+| KYC | La organización tiene la captura apagada: el servidor responde `kyc_unavailable` y la app no pide documentos | No |
+| Eliminar la cuenta | Hoy responde 503 y la app remite al canal de privacidad. Para la prueba cerrada, activar la recepción (API #155) | No bloquea el uso; sí la declaración de Play |
+
+**Qué puede bloquear a un tester nuevo:**
+- olvidar la contraseña;
+- que una acción del servidor exija el correo o el teléfono verificados (pendiente de API);
+- no recibir la liga de la organización de Play.
 
 ## Referencias oficiales
 - [Requisitos de prueba para cuentas personales nuevas](https://support.google.com/googleplay/android-developer/answer/14151465)

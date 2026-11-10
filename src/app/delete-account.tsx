@@ -8,7 +8,15 @@ import { Button } from "../components/ui/Button";
 import { TextInput } from "../components/ui/TextInput";
 import { colors, spacing, typography } from "../components/ui/theme";
 
-type Receipt = { id: string; status: string; requested_at: string; completed_at: string | null };
+// API #155: response_deadline is the time to ANSWER the request, never a deletion date.
+type Receipt = { id: string; status: string; requested_at: string; completed_at: string | null; response_deadline?: { days?: unknown; kind?: unknown } | null };
+
+function responseDeadline(receipt: Receipt): string | null {
+  const days = receipt.response_deadline?.days;
+  const kind = receipt.response_deadline?.kind;
+  if (typeof days !== "number" || !Number.isInteger(days) || days <= 0 || typeof kind !== "string" || !kind.trim()) return null;
+  return `Te responderemos en un plazo de hasta ${days} días ${kind.trim()}. Responder no significa que tu cuenta ya se haya eliminado.`;
+}
 type NoticeContact = { contact_email: string };
 
 export default function DeleteAccountScreen() {
@@ -61,6 +69,7 @@ export default function DeleteAccountScreen() {
     {receipt ? <>
       <Text accessibilityLiveRegion="polite" style={styles.body}>Solicitud registrada. Tu cuenta todavía no se ha eliminado. Se revisarán los datos que corresponda borrar y cualquier conservación que deba justificarse.</Text>
       <Text selectable style={styles.body}>Folio: {receipt.id}</Text>
+      {responseDeadline(receipt) ? <Text style={styles.body} testID="deletion-response-deadline">{responseDeadline(receipt)}</Text> : null}
     </> : <>
       <Text style={styles.body}>Confirma tu contraseña y escribe ELIMINAR para solicitar la eliminación de la cuenta y sus datos asociados. Enviar la solicitud no cierra tu sesión ni borra archivos de tu teléfono.</Text>
       <TextInput label="Contraseña actual" value={password} onChangeText={setPassword} secureTextEntry maxLength={128} textContentType="password" />

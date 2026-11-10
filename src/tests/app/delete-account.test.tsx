@@ -79,6 +79,29 @@ describe("Delete account", () => {
     expect(screen.getByText(/Tu cuenta todavía no se ha eliminado/)).toBeTruthy();
   });
 
+  it("shows the API's response deadline (API #155) as the time to answer, never as a deletion date", async () => {
+    postResponse = () =>
+      json({ data: { id: "folio-2", status: "received", requested_at: "2026-11-10T12:00:00Z", completed_at: null, response_deadline: { days: 20, kind: "hábiles" } } }, 202);
+    const screen = await renderScreen();
+    await request(screen);
+
+    expect(screen.getByTestId("deletion-response-deadline").props.children).toBe(
+      "Te responderemos en un plazo de hasta 20 días hábiles. Responder no significa que tu cuenta ya se haya eliminado.",
+    );
+    // Nothing about an acknowledgement email: the API does not say whether it was sent.
+    expect(screen.queryByText(/te enviamos|recibirás un correo|acuse/i)).toBeNull();
+  });
+
+  it("says nothing about a deadline when the API gives none or an invalid one", async () => {
+    postResponse = () =>
+      json({ data: { id: "folio-3", status: "received", requested_at: "2026-11-10T12:00:00Z", completed_at: null, response_deadline: { days: "20", kind: "" } } }, 202);
+    const screen = await renderScreen();
+    await request(screen);
+
+    expect(screen.getByText("Folio: folio-3")).toBeTruthy();
+    expect(screen.queryByTestId("deletion-response-deadline")).toBeNull();
+  });
+
   it("always offers the notice's privacy channel as an alternative", async () => {
     const screen = await renderScreen();
 
