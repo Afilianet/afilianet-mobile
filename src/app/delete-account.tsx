@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
@@ -8,6 +9,7 @@ import { TextInput } from "../components/ui/TextInput";
 import { colors, spacing, typography } from "../components/ui/theme";
 
 type Receipt = { id: string; status: string; requested_at: string; completed_at: string | null };
+type NoticeContact = { contact_email: string };
 
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -16,6 +18,15 @@ export default function DeleteAccountScreen() {
   const [pending, setPending] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState("");
+  const [unavailable, setUnavailable] = useState(false);
+  // The notice's privacy channel: it promises that deletion can always be requested there,
+  // even when this in-app option is off (same query and cache as the Aviso de privacidad screen).
+  const notice = useQuery({
+    queryKey: ["privacy-notice"],
+    retry: false,
+    queryFn: () => apiRequest<{ data: NoticeContact }>("/api/v1/privacy/notice", { skipAuth: true, skipOrganization: true }),
+  });
+  const contactEmail = notice.data?.data?.contact_email || null;
   useEffect(() => {
     let active = true;
     apiRequest<{ data: Receipt | null }>("/api/v1/account/deletion-request", { skipOrganization: true })
@@ -28,6 +39,7 @@ export default function DeleteAccountScreen() {
     if (pending || !password || confirmation !== "ELIMINAR") return;
     setPending(true);
     setError("");
+    setUnavailable(false);
     try {
       const result = await apiRequest<{ data: Receipt }>("/api/v1/account/deletion-request", {
         method: "POST", skipOrganization: true, body: { password, confirmation },
@@ -36,7 +48,10 @@ export default function DeleteAccountScreen() {
       setPassword("");
       setConfirmation("");
     } catch (cause) {
-      setError(isApiError(cause) && cause.status === 422 ? "No pudimos verificar tu contraseña. Revisa tus datos." : isApiError(cause) ? friendlyMessage(cause) : "No se pudo enviar la solicitud. Inténtalo de nuevo.");
+      // 503: the server is not taking requests from the app right now. Nothing was registered.
+      const off = isApiError(cause) && cause.status === 503;
+      setUnavailable(off);
+      setError(off ? "Por ahora no podemos recibir la solicitud desde la app. No se registró ninguna solicitud." : isApiError(cause) && cause.status === 422 ? "No pudimos verificar tu contraseña. Revisa tus datos." : isApiError(cause) ? friendlyMessage(cause) : "No se pudo enviar la solicitud. Inténtalo de nuevo.");
     } finally { setPending(false); }
   }
 
@@ -53,6 +68,13 @@ export default function DeleteAccountScreen() {
       <Button label="Solicitar eliminación" onPress={() => void submit()} loading={pending} disabled={!password || confirmation !== "ELIMINAR"} />
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    {contactEmail ? (
+      <Text selectable style={styles.body} testID="deletion-privacy-channel">
+        {unavailable ? "Puedes pedir la eliminación" : "También puedes pedir la eliminación"} escribiendo a {contactEmail}. El Aviso de privacidad explica qué datos incluir.
+      </Text>
+    ) : unavailable ? (
+      <Text style={styles.body} testID="deletion-privacy-channel">Puedes pedir la eliminación al contacto de privacidad que aparece en el Aviso de privacidad.</Text>
+    ) : null}
     <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
     <Button label="Volver" variant="secondary" onPress={() => router.back()} />
   </ScrollView>;

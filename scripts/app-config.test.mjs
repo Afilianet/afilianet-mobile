@@ -85,14 +85,17 @@ test("demo-apk is the beta app itself: same package, no own name or scheme, Fire
   }
 });
 
-test("WhatsApp code channel: only demo-apk allows it (and then only if the server offers it); production forbids it", () => {
+test("WhatsApp code channel: only demo-apk allows it (and then only if the server offers it); the Play AAB and production forbid it", () => {
   const resolvedEnv = (profile) => {
     const own = eas.build[profile];
     return own.extends ? { ...resolvedEnv(own.extends), ...own.env } : { ...own.env };
   };
   assert.equal(resolvedEnv("demo-apk").EXPO_PUBLIC_PHONE_WHATSAPP, "1");
   assert.equal(resolvedEnv("production").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
-  for (const profile of Object.keys(eas.build).filter((name) => !["demo-apk", "production"].includes(name))) {
+  // store-beta is the Play AAB (internal and closed testing): explicitly off, inherited by store-beta-apk.
+  assert.equal(resolvedEnv("store-beta").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
+  assert.equal(resolvedEnv("store-beta-apk").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
+  for (const profile of Object.keys(eas.build).filter((name) => !["demo-apk", "production", "store-beta", "store-beta-apk"].includes(name))) {
     assert.equal(resolvedEnv(profile).EXPO_PUBLIC_PHONE_WHATSAPP, undefined, profile);
   }
 });

@@ -52,7 +52,7 @@ Las cuentas personales creadas después del 13 de noviembre de 2023 deben pasar 
 | API | `https://staging-api.afilianet.mx`, la que exige `check-build-env` |
 | Paquete | `com.afilianet.mobile`, sin cambios |
 | versionCode | El remoto está en 21, así que el AAB sería el **22** |
-| Funciones | Encuestas y audio **apagados** (`SURVEYS_PREVIEW=0`, sin `RECORD_AUDIO`); WhatsApp **sin definir**, así que solo SMS; comercio (ventas, monedero y pagos) **oculto** (`releaseFeatures.commerce=false`); Sentry y PostHog **apagados** |
+| Funciones | Encuestas y audio **apagados** (`SURVEYS_PREVIEW=0`, sin `RECORD_AUDIO`); WhatsApp **`"0"` explícito** (este PR; antes sin definir), así que solo SMS y la app no consulta canales; comercio (ventas, monedero y pagos) **oculto** (`releaseFeatures.commerce=false`); Sentry y PostHog **apagados** |
 | SDK | `targetSdk` 36 y `minSdk` 24, comprobado en vc21. Play exige el 36 desde el 31 de agosto de 2026 ([target API](https://support.google.com/googleplay/android-developer/answer/11926878)) |
 | 16 KB | Las 31 librerías arm64 de vc21 tienen alineación ELF ≥ 16 KB y están alineadas en el ZIP ([16 KB](https://developer.android.com/guide/practices/page-sizes)) |
 
@@ -206,7 +206,7 @@ Congelar o desactivar la cuenta no cuenta como eliminación.
 
 | Requisito | Estado |
 |---|---|
-| Opción en la app | **Hecha:** Perfil → «Administrar mi cuenta» → «Eliminar mi cuenta». Pide la contraseña y escribir ELIMINAR, y muestra el folio (`delete-account.tsx`, desde 0190e68) |
+| Opción en la app | **Hecha:** Perfil → «Administrar mi cuenta» → «Eliminar mi cuenta». Pide la contraseña y escribir ELIMINAR, y muestra el folio (`delete-account.tsx`, desde 0190e68). **En este PR:** la pantalla muestra siempre el canal de privacidad del aviso (el `contact_email` de `/privacy/notice`). Con un 503 dice «No se registró ninguna solicitud» y remite a ese canal, como promete el aviso, en lugar del error genérico |
 | El servidor la acepta | **No:** `PRIVACY_DELETION_REQUESTS_ENABLED` no está definida en staging (vale false), así que responde 503 «no disponible por el momento». Lo decide Andrés; lo ejecuta API o Infra |
 | Página web | `https://afilianet.mx/eliminar-cuenta` responde 200, **pero es un marcador** («El texto oficial… aún no está publicado»). No describe cómo pedirla ni qué se borra. Tiene que publicarse el procedimiento real |
 | Vía web sin la app | La API tiene `POST /api/v1/privacy/deletion-requests` (correo, contraseña y ELIMINAR), pero no un formulario HTML, y hoy responde 503. La página puede ofrecer un formulario que llame a esa API, o un correo con un procedimiento descrito. Decide Andrés. Una cuenta sin contraseña no puede usar la vía de la API |
@@ -294,6 +294,19 @@ Después, lo que Mobile ejecuta solo con autorización en su sesión:
 Para la prueba cerrada, además: el aviso y la página de eliminación publicados, las solicitudes de eliminación activas en staging, la cuenta del revisor, el cuestionario de contenido, Data safety completo y los 12 testers.
 
 ---
+
+## 10. Textos de la app frente al aviso `2026-11-03.general.2`
+
+| Tema | Qué dice la app | Qué hace | Qué dice el aviso | Acción |
+|---|---|---|---|---|
+| Eliminación con el servidor apagado | Antes: error genérico de servidor | 503, sin solicitud registrada | «Puede solicitar la cancelación por el canal de privacidad aunque una opción automática no esté disponible» | **Corregido en este PR** (sección 7) |
+| Permiso de cámara | Antes: «…para fotografiar tu identificación y verificar tu identidad» | Credencial, selfie y prueba de vida | Verificación facial y prueba de vida con consentimiento expreso | **Corregido en este PR** (`app.json`). En Android el diálogo del sistema no muestra este texto (solo iOS). En Android lo explica el consentimiento de identidad, que transcribe la finalidad del aviso |
+| Ubicación | «…de forma opcional, para ayudar a proteger tu cuenta durante la verificación» | Coordenadas con un botón de consentimiento | Coordenadas de la captura; «se informará su finalidad antes de obtenerla» | Coherente |
+| Micrófono | «solo para grabar entrevistas de encuestas…» | Solo el grabador de encuestas; no está en `store-beta` | Grabaciones solo al participar | Coherente |
+| Token de push | Preferencias de notificaciones | Token enviado a la API (cifrado) y a Expo/FCM | Solo de forma genérica: «datos técnicos del dispositivo necesarios para operar la función» | Sugerencia para el responsable del aviso: nombrarlo, porque Data safety lo declara |
+| Registro asistido (staff) | Captura documentos y ubicación de otra persona | Envía fotos y ubicación de terceros | «No proporcione documentos de terceros sin la base jurídica y el procedimiento correspondiente» | **Decisión de Andrés y legal:** qué procedimiento ampara ese flujo en la prueba de Play |
+| Sección electoral | — (la app muestra los campos de la credencial) | La API recibe clave de elector y sección | «…para conteos administrativos agregados, sin inferir preferencias políticas» | Andrés decide cómo declararlo en Data safety (sección 5) |
+| Retención | La app no promete plazos | — | Plazos «por categoría» aún sin documentar | No declarar días |
 
 ## Referencias oficiales
 - [Requisitos de prueba para cuentas personales nuevas](https://support.google.com/googleplay/android-developer/answer/14151465)
