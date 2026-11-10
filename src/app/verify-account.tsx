@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   accessErrorMessage,
+  fetchPhoneChannels,
   isSmsUnavailable,
   requestEmailVerification,
   requestPhoneVerification,
@@ -151,9 +152,36 @@ function EmailChannel({ email, verified, refreshUser }: { email: string; verifie
 }
 
 type ChannelFlags = Record<PhoneCodeChannel, boolean>;
-// Only channels the server really offers: WhatsApp needs an explicit build switch (see config/phoneChannels).
-const CHANNELS: PhoneCodeChannel[] = whatsappCodeChannelEnabled ? ["sms", "whatsapp"] : ["sms"];
-const SEVERAL_CHANNELS = CHANNELS.length > 1;
+type ChannelOffer = { loading: boolean; channels: PhoneCodeChannel[]; resendInSeconds?: number };
+const SMS_ONLY: ChannelOffer = { loading: false, channels: ["sms"] };
+
+/**
+ * Only channels the server really offers. WhatsApp needs the build switch AND
+ * the server's channels endpoint saying it is available now (config/phoneChannels).
+ * Without the switch nothing is asked and only SMS is offered, as before; an API
+ * without the endpoint, or a failed read, also means SMS only.
+ */
+function useOfferedChannels(active: boolean): ChannelOffer {
+  const asks = whatsappCodeChannelEnabled && active;
+  const [offer, setOffer] = useState<ChannelOffer>(asks ? { loading: true, channels: [] } : SMS_ONLY);
+  useEffect(() => {
+    if (!asks) return;
+    let alive = true;
+    fetchPhoneChannels().then(
+      (server) => {
+        if (alive) setOffer(server ? { loading: false, channels: server.channels, resendInSeconds: server.resendAvailableInSeconds } : SMS_ONLY);
+      },
+      () => {
+        if (alive) setOffer(SMS_ONLY);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [asks]);
+  return offer;
+}
+
 const otherChannel = (channel: PhoneCodeChannel): PhoneCodeChannel => (channel === "sms" ? "whatsapp" : "sms");
 
 /**
@@ -166,7 +194,12 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
   const copy = strings.access.verify;
   const mounted = useMounted();
   const countdown = useCountdown();
-  const [channel, setChannel] = useState<PhoneCodeChannel>("sms");
+  const offer = useOfferedChannels(!verified);
+  const CHANNELS = offer.channels;
+  const SEVERAL_CHANNELS = CHANNELS.length > 1;
+  const [pickedChannel, setChannel] = useState<PhoneCodeChannel>("sms");
+  // The server may offer only WhatsApp (SMS down): a channel it does not offer is never the one used.
+  const channel = CHANNELS.includes(pickedChannel) ? pickedChannel : (CHANNELS[0] ?? pickedChannel);
   // Channel the API says it queued the latest code on; null until one is accepted.
   const [sentChannel, setSentChannel] = useState<PhoneCodeChannel | null>(null);
   const [codeStep, setCodeStep] = useState(false);
@@ -184,6 +217,12 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
   const [downChannel, setDownChannel] = useState<PhoneCodeChannel | null>(null);
   const busy = sending || verifying;
   const name = (value: PhoneCodeChannel) => copy.channelNames[value];
+
+  // The API's own remaining wait for this account, so reopening the screen does not end in a 429.
+  const { start: startCountdown } = countdown;
+  useEffect(() => {
+    if (offer.resendInSeconds) startCountdown(offer.resendInSeconds);
+  }, [offer.resendInSeconds, startCountdown]);
 
   async function send() {
     if (busy || countdown.active) return;
@@ -206,7 +245,7 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
       countdown.start(delivery.retryAfterSeconds);
     } catch (cause) {
       if (!mounted.current) return;
-      setError(sendErrorMessage(cause));
+      setError(sendErrorMessage(cause, SEVERAL_CHANNELS));
       // Rejected before any code exists (503, or a channel the API refuses): stay before "type the code".
       const down = unavailablePhoneChannel(cause) ?? (isChannelRejected(cause) ? requested : null);
       if (down) {
@@ -358,13 +397,19 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
               {SEVERAL_CHANNELS ? <Text style={styles.meta}>{copy.sharedWait}</Text> : null}
             </>
           ) : null}
-          <Button
-            label={sentChannel ? copy.resendCodeBy(name(channel)) : copy.sendCodeBy(name(channel))}
-            variant={codeStep ? "ghost" : "secondary"}
-            loading={sending}
-            disabled={countdown.active || verifying}
-            onPress={() => void send()}
-          />
+          {offer.loading ? (
+            <Text accessibilityLiveRegion="polite" style={styles.meta}>{copy.checkingChannels}</Text>
+          ) : CHANNELS.length === 0 ? (
+            <Text accessibilityRole="alert" style={styles.description}>{copy.noChannelAvailable}</Text>
+          ) : (
+            <Button
+              label={sentChannel ? copy.resendCodeBy(name(channel)) : copy.sendCodeBy(name(channel))}
+              variant={codeStep ? "ghost" : "secondary"}
+              loading={sending}
+              disabled={countdown.active || verifying}
+              onPress={() => void send()}
+            />
+          )}
         </>
       )}
     </Card>
@@ -372,8 +417,8 @@ function PhoneChannel({ phone, hasEmail, verified, refreshUser }: { phone: strin
 }
 
 /** Sending is limited once a minute for SMS and WhatsApp together: say so (when both are offered), with the API's own wait. */
-function sendErrorMessage(error: unknown): string {
-  if (SEVERAL_CHANNELS && isApiError(error) && error.kind === "rate_limited" && error.retryAfterSeconds) return strings.access.verify.rateLimited(error.retryAfterSeconds);
+function sendErrorMessage(error: unknown, severalChannels: boolean): string {
+  if (severalChannels && isApiError(error) && error.kind === "rate_limited" && error.retryAfterSeconds) return strings.access.verify.rateLimited(error.retryAfterSeconds);
   return accessErrorMessage(error);
 }
 

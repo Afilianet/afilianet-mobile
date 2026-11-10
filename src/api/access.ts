@@ -122,6 +122,41 @@ export async function requestPhoneVerification(channel: PhoneCodeChannel = "sms"
   };
 }
 
+/** What the server says it can send codes through right now (API phone-otp-whatsapp-v2). */
+export interface PhoneChannelOffer {
+  /** Channels with `available: true`, in the server's order; unknown names are ignored. */
+  channels: PhoneCodeChannel[];
+  /** Seconds this account still has to wait before requesting a code, when the API says. */
+  resendAvailableInSeconds?: number;
+}
+
+/**
+ * PROPOSED (API phone-otp-whatsapp-v2, not deployed): GET
+ * /api/v1/auth/phone-verification/channels, authenticated and side-effect free:
+ * {channels: [{channel, available}], retry_after, expires_in} (flat or under
+ * `data`). Availability is global (provider configured, global limit not
+ * reached), never per number. Returns null when the API has no such endpoint
+ * (404/405): the caller then offers SMS only, as before.
+ */
+export async function fetchPhoneChannels(): Promise<PhoneChannelOffer | null> {
+  type Offer = { channels?: { channel?: string; available?: boolean }[]; resend_available_in?: number };
+  try {
+    const body = await apiRequest<Maybe<Offer> | null>("/api/v1/auth/phone-verification/channels", { skipOrganization: true });
+    const offer = body?.data ?? body;
+    const channels = (offer?.channels ?? [])
+      .filter((entry) => entry?.available === true && (entry.channel === "sms" || entry.channel === "whatsapp"))
+      .map((entry) => entry.channel as PhoneCodeChannel);
+    const wait = offer?.resend_available_in;
+    return {
+      channels: [...new Set(channels)],
+      resendAvailableInSeconds: typeof wait === "number" && wait > 0 ? Math.ceil(wait) : undefined,
+    };
+  } catch (error) {
+    if (isApiError(error) && (error.kind === "not_found" || error.status === 405)) return null;
+    throw error;
+  }
+}
+
 /** Returns the server's user (contract: 200 {user}); phone_verified_at is the only source of truth. */
 export async function verifyPhone(code: string): Promise<User> {
   const body = await apiRequest<Maybe<{ user?: User }>>("/api/v1/auth/verify-phone", {

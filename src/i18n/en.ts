@@ -119,6 +119,7 @@ export const en = {
       newestCodeOnly: "Use the latest code you requested: earlier ones no longer work.",
       tryOtherChannel: (channel: string) => `You can request the code by ${channel}.`,
       noChannelAvailable: "We can't send codes by SMS or WhatsApp right now. Try again later.",
+      checkingChannels: "Checking how we can send you the code…",
       verifyUnavailable: "We can't check codes right now. Your code is still typed: try again later.",
       acceptedNotConfirmed: "We sent your code, but the server doesn't show your mobile as verified yet. Tap “Check status”.",
       checkStatus: "Check status",

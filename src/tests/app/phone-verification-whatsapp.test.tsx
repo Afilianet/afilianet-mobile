@@ -15,7 +15,7 @@ import type { User } from "../../types/api";
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: jest.fn(), push: jest.fn() }) }));
 jest.mock("../../auth/pendingReferral", () => ({ usePendingReferral: () => null, pendingReferralPath: () => "/" }));
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 5000 } }));
-// These journeys need a build that offers WhatsApp (API #79 deployed); the default build offers SMS only.
+// These journeys need a build that allows WhatsApp; the default build offers SMS only and never asks the server.
 jest.mock("../../config/phoneChannels", () => ({ whatsappCodeChannelEnabled: true }));
 
 const originalFetch = global.fetch;
@@ -115,9 +115,15 @@ const sentChannels = () => requests("/api/v1/auth/phone-verification").map(([, i
 const sendButtonDisabled = (screen: Screen, label: string) =>
   Boolean(screen.getByRole("button", { name: label }).props.accessibilityState?.disabled);
 
+// GET /auth/phone-verification/channels (API phone-otp-whatsapp-v2): here the server offers both channels.
+// It is answered apart from fetchMock so each journey's own queue of responses stays as written.
+const CHANNELS_PATH = "https://api.test/api/v1/auth/phone-verification/channels";
+const BOTH_AVAILABLE = { channels: [{ channel: "sms", available: true }, { channel: "whatsapp", available: true }], retry_after: 60, expires_in: 600 };
+
 beforeEach(() => {
   fetchMock.mockReset();
-  global.fetch = fetchMock as typeof fetch;
+  global.fetch = ((url: string, init?: RequestInit) =>
+    url === CHANNELS_PATH ? Promise.resolve(json(BOTH_AVAILABLE)) : fetchMock(url, init)) as typeof fetch;
   // An active organization exists, but account verification never sends it (#67: account-level).
   configureApiClient({ getToken: () => "session-token", getOrganizationId: () => "org-1" });
 });
