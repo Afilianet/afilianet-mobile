@@ -122,6 +122,49 @@ export async function requestPhoneVerification(channel: PhoneCodeChannel = "sms"
   };
 }
 
+/** What the server says it can send codes through right now (API phone-otp-whatsapp-v2). */
+export interface PhoneChannelOffer {
+  /** Channels with `available: true`, in the server's order; unknown names are ignored. */
+  channels: PhoneCodeChannel[];
+  /** Seconds this account still has to wait before requesting a code, when the API says. */
+  resendAvailableInSeconds?: number;
+}
+
+/**
+ * API #153 (feat/phone-otp-whatsapp-v2 @ bd08f36, not merged; contract in
+ * docs/auth/ACCOUNT_ACCESS_CONTRACT.md §3): GET
+ * /api/v1/auth/phone-verification/channels, authenticated and side-effect free,
+ * flat 200 {channels: [{channel, available}], retry_after, expires_in,
+ * resend_available_in, phone: {present, verified}} (a `data` wrapper is also
+ * accepted). Availability is global (provider configured, global limit not
+ * reached), never per number. `phone` is not read: /me stays the only source
+ * of "verified". Returns null when the API has no such endpoint (404/405):
+ * the caller then offers SMS only, as before.
+ *
+ * POST 422 `recipient_not_allowed` / `daily_limit_reached` create no code and
+ * keep the current one valid. The route's 1/min throttle also counts a request
+ * rejected with 503, so SMS right after a WhatsApp 503 is a 429: shown as a
+ * wait, never retried on its own.
+ */
+export async function fetchPhoneChannels(): Promise<PhoneChannelOffer | null> {
+  type Offer = { channels?: { channel?: string; available?: boolean }[]; resend_available_in?: number };
+  try {
+    const body = await apiRequest<Maybe<Offer> | null>("/api/v1/auth/phone-verification/channels", { skipOrganization: true });
+    const offer = body?.data ?? body;
+    const channels = (offer?.channels ?? [])
+      .filter((entry) => entry?.available === true && (entry.channel === "sms" || entry.channel === "whatsapp"))
+      .map((entry) => entry.channel as PhoneCodeChannel);
+    const wait = offer?.resend_available_in;
+    return {
+      channels: [...new Set(channels)],
+      resendAvailableInSeconds: typeof wait === "number" && wait > 0 ? Math.ceil(wait) : undefined,
+    };
+  } catch (error) {
+    if (isApiError(error) && (error.kind === "not_found" || error.status === 405)) return null;
+    throw error;
+  }
+}
+
 /** Returns the server's user (contract: 200 {user}); phone_verified_at is the only source of truth. */
 export async function verifyPhone(code: string): Promise<User> {
   const body = await apiRequest<Maybe<{ user?: User }>>("/api/v1/auth/verify-phone", {
@@ -219,6 +262,13 @@ export function accessErrorMessage(error: unknown): string {
     case "whatsapp_unavailable":
       // API #79 503: no code was created and nothing was sent by SMS instead.
       return copy.whatsappUnavailable;
+    case "recipient_not_allowed":
+      // API #153 422: number outside the test recipients or an unserved country. No code
+      // is created and the current one stays valid. It is the number, not the channel.
+      return copy.recipientNotAllowed;
+    case "daily_limit_reached":
+      // API #153 422: daily cap per number, both channels counted. The current code stays valid.
+      return copy.dailyLimitReached;
     case "email_unavailable":
       // API #84 503: decided before any lookup, the same for every address
       // (no enumeration); nothing was sent, so never "te enviamos un enlace".

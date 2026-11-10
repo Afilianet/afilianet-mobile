@@ -49,6 +49,7 @@ Se comprobó con `eas.json`, `eas env:list` (entornos de EAS), `eas config` y un
    - Staging no tiene API #79: ignora el canal y manda un SMS.
    - La API no expone ningún endpoint para preguntar qué canales hay.
    - **Corrección:** WhatsApp solo aparece si el build lleva `EXPO_PUBLIC_PHONE_WHATSAPP=1`. Por defecto la pantalla ofrece solo SMS, sin selector y sin mencionar WhatsApp en la espera ni en los errores.
+   - **Desde la API phone-otp-whatsapp-v2 (propuesta, sin desplegar):** con `EXPO_PUBLIC_PHONE_WHATSAPP=1`, la app además pregunta `GET /auth/phone-verification/channels` y solo ofrece los canales con `available: true`. Si el endpoint no existe (404/405) o falla, solo SMS. Sin la bandera no pregunta nada.
 2. **Los betatesters de tienda recibían encuestas de ejemplo,** con el botón «Simular cierre de esta encuesta (ejemplo)», y no había forma de apagarlas fuera de producción.
    - **Corrección:** `EXPO_PUBLIC_SURVEYS_PREVIEW=0` las apaga, y `store-beta` lo declara.
    - El hook previo a la instalación exige que `store-beta` lo decida de forma explícita, y solo acepta `0` o `1`.
@@ -208,7 +209,7 @@ El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture`
 6. El hito A aprobado.
 
 **Posponible (no bloquea ninguno de los dos hitos):**
-- WhatsApp OTP: espera a Meta y a la API #79; se activa con `EXPO_PUBLIC_PHONE_WHATSAPP=1`.
+- WhatsApp OTP: espera a Meta y a la API phone-otp-whatsapp-v2 (#79 recuperado). Se ofrece solo con `EXPO_PUBLIC_PHONE_WHATSAPP=1` **y** si el servidor lo da como disponible.
 - Encuestas y su audio en la tienda.
 - Ventas y comisiones: siguen con `commerce: false`.
 - Ampliaciones electorales (Mobile no tiene ninguna).
