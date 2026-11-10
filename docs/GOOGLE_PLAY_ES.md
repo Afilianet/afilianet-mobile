@@ -43,11 +43,11 @@ Las cuentas personales creadas después del 13 de noviembre de 2023 deben pasar 
   - falta `GOOGLE_SERVICES_JSON` en el entorno EAS `production`.
 - Detalle: [`PERFIL_PRODUCCION_ES.md`](PERFIL_PRODUCCION_ES.md).
 
-### Prueba interna y cerrada: `store-beta` desde `297f5b0`
+### Prueba interna y cerrada: `store-beta` desde el head de #95
 
 | | Valor |
 |---|---|
-| Commit | `297f5b0ea8021ef01e646ebbb77fadb087c54e38` (#94 ⊃ #93 ⊃ #92), el mismo código que vc21 |
+| Commit | El head de #95 (`docs/google-play-readiness`): `297f5b0` (#94 ⊃ #93 ⊃ #92, el código de vc21) más las correcciones de Play de este PR. El SHA exacto se registra al autorizar el build |
 | Perfil | `store-beta`, que genera un **AAB** (`app-bundle`), distribución `store` y entorno EAS `preview` |
 | API | `https://staging-api.afilianet.mx`, la que exige `check-build-env` |
 | Paquete | `com.afilianet.mobile`, sin cambios |
@@ -276,7 +276,7 @@ Primero, lo que decide o hace Andrés:
 
 Después, lo que Mobile ejecuta solo con autorización en su sesión:
 5. Autorizar **un** build AAB:
-   - perfil `store-beta`, desde `297f5b0ea8021ef01e646ebbb77fadb087c54e38`;
+   - perfil `store-beta`, desde el head de #95 con el CI en verde (el SHA completo se registra antes de lanzar);
    - versionCode 22;
    - comando: `npx eas-cli build -p android -e store-beta --non-interactive --no-wait`.
    Antes de lanzarlo, Mobile comprueba que el CI siga en verde, que el 22 esté libre y que el entorno resuelto sea staging, sin WhatsApp ni encuestas. Al terminar verifica:
