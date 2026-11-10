@@ -106,14 +106,15 @@ test("eas.json: store-beta-apk is the same store beta as an installable APK (sam
   assert.ok(validateBuildEnvironment({ EAS_BUILD_PROFILE: "store-beta-apk", ...eas.build["store-beta"].env, EXPO_PUBLIC_SURVEYS_PREVIEW: undefined }).length);
 });
 
-test("eas.json: demo-apk is store-beta-apk plus real staging surveys, and nothing else", async () => {
+test("eas.json: demo-apk is store-beta-apk plus real staging surveys and the WhatsApp code channel, and nothing else", async () => {
   const { readFile } = await import("node:fs/promises");
   const eas = JSON.parse(await readFile(new URL("../eas.json", import.meta.url), "utf8"));
   const demo = eas.build["demo-apk"];
   assert.equal(demo.extends, "store-beta-apk");
-  // Only the two switches: environment, distribution, buildType, autoIncrement and every other value are inherited.
+  // Only its switches: environment, distribution, buildType, autoIncrement and every other value are inherited.
+  // WhatsApp "1" only lets the app ASK the server (GET /auth/phone-verification/channels); the server decides (vc21).
   assert.deepEqual(Object.keys(demo).sort(), ["env", "extends"]);
-  assert.deepEqual(demo.env, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1", EXPO_PUBLIC_SURVEYS_SOURCE: "api" });
+  assert.deepEqual(demo.env, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1", EXPO_PUBLIC_SURVEYS_SOURCE: "api", EXPO_PUBLIC_PHONE_WHATSAPP: "1" });
   // As eas-cli builds it: @expo/eas-json merges the chain's env child-over-parent.
   const env = { EAS_BUILD_PROFILE: "demo-apk", ...eas.build["store-beta"].env, ...demo.env };
   assert.equal(env.EXPO_PUBLIC_API_BASE_URL, "https://staging-api.afilianet.mx");
