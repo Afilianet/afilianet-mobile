@@ -85,6 +85,18 @@ test("demo-apk is the beta app itself: same package, no own name or scheme, Fire
   }
 });
 
+test("WhatsApp code channel: only demo-apk allows it (and then only if the server offers it); production forbids it", () => {
+  const resolvedEnv = (profile) => {
+    const own = eas.build[profile];
+    return own.extends ? { ...resolvedEnv(own.extends), ...own.env } : { ...own.env };
+  };
+  assert.equal(resolvedEnv("demo-apk").EXPO_PUBLIC_PHONE_WHATSAPP, "1");
+  assert.equal(resolvedEnv("production").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
+  for (const profile of Object.keys(eas.build).filter((name) => !["demo-apk", "production"].includes(name))) {
+    assert.equal(resolvedEnv(profile).EXPO_PUBLIC_PHONE_WHATSAPP, undefined, profile);
+  }
+});
+
 test("demo-apk: store permissions, but the microphone stays in the manifest because surveys are on", () => {
   const blocked = resolve({ EAS_BUILD_PROFILE: "demo-apk", ...demoEnv }).android.blockedPermissions;
   assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE"].sort());

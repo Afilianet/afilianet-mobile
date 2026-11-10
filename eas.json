@@ -81,7 +81,8 @@
       "extends": "store-beta-apk",
       "env": {
         "EXPO_PUBLIC_SURVEYS_PREVIEW": "1",
-        "EXPO_PUBLIC_SURVEYS_SOURCE": "api"
+        "EXPO_PUBLIC_SURVEYS_SOURCE": "api",
+        "EXPO_PUBLIC_PHONE_WHATSAPP": "1"
       }
     },
     "privacy-test-apk": {

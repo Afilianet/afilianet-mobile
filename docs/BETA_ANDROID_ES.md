@@ -210,6 +210,7 @@ El servidor es quien aplica el control: #92 rechaza la creación y `kyc.capture`
 
 **Posponible (no bloquea ninguno de los dos hitos):**
 - WhatsApp OTP: espera a Meta y a la API phone-otp-whatsapp-v2 (#79 recuperado). Se ofrece solo con `EXPO_PUBLIC_PHONE_WHATSAPP=1` **y** si el servidor lo da como disponible.
+  - Solo `demo-apk` lleva `"1"` (candidato vc21). staging, store-beta y store-beta-apk no la definen, y production la fija en `"0"`.
 - Encuestas y su audio en la tienda.
 - Ventas y comisiones: siguen con `commerce: false`.
 - Ampliaciones electorales (Mobile no tiene ninguna).
