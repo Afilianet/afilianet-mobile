@@ -30,6 +30,11 @@ Las cuentas personales creadas después del 13 de noviembre de 2023 deben pasar 
 | 3. Solicitud de producción | Formulario de Play sobre la prueba cerrada | Sí | — |
 | 4. Producción | Lanzamiento público | Sí | **Producción**, con el perfil `production`. Nunca un AAB de staging |
 
+**Opción que decide Andrés:** una cuenta de **organización** a nombre de LUNI LABS SAPI DE CV, el responsable del aviso.
+- No tiene el requisito de 12 testers durante 14 días y muestra a la empresa como desarrollador.
+- Pide un número D-U-N-S y su propia verificación.
+- Este documento no supone cuál conviene.
+
 **Regla:** una versión de staging nunca se promueve a producción. Producción usa un AAB propio del perfil `production`, con un versionCode mayor.
 
 ---
@@ -71,6 +76,10 @@ La decisión se toma al subir el primer AAB y **no se puede deshacer** para la c
 |---|---|---|
 | **A. Google genera la clave de firma** (recomendada) | El almacén de EAS (`5d3974b9…6320ca`, el de vc12 a vc21) pasa a ser la **clave de subida**. No se exporta nada | Lo instalado desde Play lleva otro certificado que los APK instalados a mano (vc12–vc21). **No se actualizan entre sí:** para pasar de un APK a Play, o al revés, hay que desinstalar, y se pierden la sesión, los borradores y el outbox. El A06 se queda con su APK; la prueba en Play se hace en otros teléfonos |
 | B. Subir la clave de EAS como clave de firma | Hay que exportar el almacén de EAS y cifrarlo con la herramienta de Google. **Es una operación de credenciales:** requiere autorización expresa | Play y los APK quedan con la misma firma y se actualizan entre sí. A cambio, la clave que ya se usó para distribuir APK fuera de Play se vuelve la de producción |
+
+**¿Un paquete con sufijo de prueba (por ejemplo `com.afilianet.mobile.staging`)? No se recomienda:**
+- sería **otra app** en Play, con su propia ficha;
+- su prueba cerrada **no** cuenta para el acceso a producción de `com.afilianet.mobile`, porque el requisito de 12 × 14 y el acceso son por app.
 
 **No se cambia el paquete.** `com.afilianet.mobile` queda fijado en Play con la primera subida y ninguna otra app puede usarlo. Un teléfono no puede tener a la vez la versión de Play y un APK de staging del mismo paquete.
 
