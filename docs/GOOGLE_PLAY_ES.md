@@ -359,17 +359,17 @@ Para la prueba cerrada, además: el aviso y la página de eliminación publicado
 |---|---|---|
 | Registro | Correo o celular más contraseña, y el aviso de privacidad publicado en staging. El SMS automático del registro falla sin enviar | No |
 | Inicio de sesión | Correo o celular más contraseña, **sin OTP** (API) | No |
-| Verificar el correo | Llega solo si el correo está en la lista permitida (`auth.email_verification`) | **No en la app.** «Verificar mi cuenta» ofrece «Más tarde» y ninguna pantalla exige verificar (no hay guardas en la navegación). Falta que API confirme si alguna acción del servidor lo exige |
+| Verificar el correo | Llega solo si el correo está en la lista permitida (`auth.email_verification`) | **No.** En la app, «Verificar mi cuenta» ofrece «Más tarde» y no hay guardas en la navegación. En la API (`main` `c62d7fe4`, API-51) no hay middleware `verified`: iniciar sesión, unirse e invitar no lo exigen. **Excepción:** un consentimiento como `identity_verification` solo vale con la cuenta «verificada como titular» (`privacy.consent_holder_verification`; por defecto, correo **o** teléfono verificado). No afecta mientras la organización de Play tenga la captura apagada. Si se enciende, los testers necesitarán el correo verificado en la lista permitida, porque el SMS está apagado |
 | Verificar el celular | SMS apagado: no hay código | Igual que el correo |
-| Recuperar la contraseña | Correo: el reset **no** está en la lista permitida, así que no llega. SMS: apagado | **Sí.** Un tester que olvide su contraseña no puede recuperarla en esta prueba. Mitigación: avisarles y que el soporte la restablezca por Admin, si existe esa vía; decide Andrés |
+| Recuperar la contraseña | Correo: el reset **no** está en la lista permitida, así que no llega. SMS: apagado | **Sí.** Un tester que olvide su contraseña no puede recuperarla en esta prueba. No consta en la API ninguna vía de restablecimiento por soporte o desde Admin (API-51). Lo decide Andrés: abrir `password_reset` en la lista de staging, avisar a los testers, o crear esa vía |
 | Unirse a la organización | Con la liga o el código del owner de la organización de Play | No |
 | KYC | La organización tiene la captura apagada: el servidor responde `kyc_unavailable` y la app no pide documentos | No |
 | Eliminar la cuenta | Hoy responde 503 y la app remite al canal de privacidad. Para la prueba cerrada, activar la recepción (API #155) | No bloquea el uso; sí la declaración de Play |
 
 **Qué puede bloquear a un tester nuevo:**
 - olvidar la contraseña;
-- que una acción del servidor exija el correo o el teléfono verificados (pendiente de API);
-- no recibir la liga de la organización de Play.
+- no recibir la liga de la organización de Play;
+- solo si se enciende la captura: no tener el correo verificado.
 
 ## Referencias oficiales
 - [Requisitos de prueba para cuentas personales nuevas](https://support.google.com/googleplay/android-developer/answer/14151465)
