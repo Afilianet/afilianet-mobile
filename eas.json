@@ -65,6 +65,7 @@
         "EXPO_PUBLIC_API_BASE_URL": "https://staging-api.afilianet.mx",
         "EXPO_NO_DOTENV": "1",
         "EXPO_PUBLIC_SURVEYS_PREVIEW": "0",
+        "EXPO_PUBLIC_PHONE_WHATSAPP": "0",
         "EXPO_PUBLIC_SENTRY_ENABLED": "0",
         "EXPO_PUBLIC_SENTRY_DSN": "disabled",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"

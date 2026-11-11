@@ -40,7 +40,7 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Afilianet necesita acceder a tu c\u00e1mara para fotografiar tu identificaci\u00f3n y verificar tu identidad.",
+          "cameraPermission": "Afilianet usa la c\u00e1mara para fotografiar tu identificaci\u00f3n, tomar tu selfie y hacer la prueba de vida al verificar tu identidad.",
           "microphonePermission": "Afilianet usa el micrófono solo para grabar entrevistas de encuestas, siempre después de que la persona entrevistada dé su consentimiento.",
           "photosPermission": false
         }

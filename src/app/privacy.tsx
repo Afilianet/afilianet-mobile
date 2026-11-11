@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { ScrollView, Text } from "react-native";
 import { apiRequest } from "../api/client";
+import { PublicPrivacyLinks } from "../components/privacy/PublicPrivacyLinks";
 import { Button } from "../components/ui/Button";
 import { colors, spacing, typography } from "../components/ui/theme";
 
@@ -23,6 +24,8 @@ export default function PrivacyScreen() {
       {notice.sections.map((section) => <Text key={section.title} style={typography.body}>{section.title}{"\n"}{section.text}</Text>)}
       <Text>Plazo de respuesta a solicitudes de eliminación: {notice.deletion_response_days} días {notice.deletion_response_days_kind}.</Text>
     </> : null}
+    {/* Fixed public pages: available even when the notice above fails to load. */}
+    <PublicPrivacyLinks privacy privacyLabel="Ver la versión pública del aviso" deletion />
     <Button label="Volver" variant="secondary" onPress={() => router.canGoBack() ? router.back() : router.replace("/(auth)/login" as never)} />
   </ScrollView>;
 }

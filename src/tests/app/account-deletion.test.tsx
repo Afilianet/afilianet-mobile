@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import DeleteAccountScreen from "../../app/delete-account";
 import { configureApiClient } from "../../api/client";
@@ -6,16 +7,27 @@ jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jes
 jest.mock("../../config/env", () => ({ config: { apiBaseUrl: "https://api.test", apiTimeoutMs: 5000 } }));
 const originalFetch = global.fetch;
 const fetchMock = jest.fn();
+// The privacy notice (contact channel) is answered apart, so the deletion calls below are counted as before.
+const NOTICE = "https://api.test/api/v1/privacy/notice";
+const renderScreen = () =>
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <DeleteAccountScreen />
+    </QueryClientProvider>,
+  );
 beforeEach(() => {
   fetchMock.mockReset();
-  global.fetch = fetchMock as typeof fetch;
+  global.fetch = ((url: string, init?: RequestInit) =>
+    url === NOTICE
+      ? Promise.resolve(new Response(JSON.stringify({ data: { contact_email: "servicioalcliente@afilianet.mx" } })))
+      : fetchMock(url, init)) as typeof fetch;
   configureApiClient({ getToken: () => "own-token", getOrganizationId: () => "selected-org" });
   fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: null })));
 });
 afterEach(() => { global.fetch = originalFetch; configureApiClient({ getToken: () => null, getOrganizationId: () => null }); });
 
 it("requires confirmation and submits for the account without a tenant header", async () => {
-  const screen = await render(<DeleteAccountScreen />);
+  const screen = await renderScreen();
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   await fireEvent.changeText(screen.getByLabelText("Contraseña actual"), "secret");
   await fireEvent.press(screen.getByText("Solicitar eliminación"));
@@ -33,7 +45,7 @@ it("requires confirmation and submits for the account without a tenant header", 
 });
 
 it("does not claim success after a server failure", async () => {
-  const screen = await render(<DeleteAccountScreen />);
+  const screen = await renderScreen();
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
   fetchMock.mockResolvedValueOnce(new Response("{}", { status: 500 }));
   await fireEvent.changeText(screen.getByLabelText("Contraseña actual"), "secret");
