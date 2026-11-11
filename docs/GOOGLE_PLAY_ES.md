@@ -225,7 +225,10 @@ Elegir **B** solo tiene sentido si se quiere que los teléfonos con un APK pasen
 
 - «Compartido: No»: AWS, Expo, FCM y APNs son **encargados** que procesan por cuenta de Afilianet, y Play no lo cuenta como compartir. OpenAI está apagado. Meta no está integrada en `main`.
 - Cifrado en reposo, según el Terraform de staging: Aurora con CMK y S3 de evidencia con SSE-KMS y versionado. Play no lo pregunta como tal; solo se menciona si Andrés lo quiere en el aviso.
-- (*) «Borrado a petición: Sí» **solo cuando la recepción de solicitudes esté activa**. Hoy responde 503. Además, lo financiero, ser owner y las encuestas pasan a revisión manual. Sobre respaldos, solo el texto del aviso (§6): «Los respaldos aislados se extinguirán según su ciclo documentado». No se declara ningún límite de días para el borrado. Mientras tanto, la respuesta honesta es que la solicitud se atiende por el canal de privacidad, como describe `https://afilianet.mx/eliminar-cuenta` (la URL que se declara en «Eliminación de datos»).
+- (*) «Se puede solicitar la eliminación: **Sí, por el canal publicado (correo)**; el formulario en la app está cerrado por ahora». Son dos vías distintas:
+  - **Formulario** en la app y en la web de Admin de staging: hoy **cerrado** (`accepting:false`, 503).
+  - **Canal por correo:** **publicado** en `https://afilianet.mx/eliminar-cuenta` (`servicioalcliente@afilianet.mx`, asunto «Privacidad Afilianet»). Google admite ese canal, así que la respuesta no depende solo de abrir el formulario.
+- **Que los datos efectivamente se eliminan: pendiente de confirmar la operación** (API-51 confirma quién atiende y cómo se ejecuta una eliminación procedente con el borrado automático apagado). Recibir solicitudes no equivale a poder completarlas; no se cierra esta declaración hasta tener esa respuesta. Además, lo financiero, ser owner y las encuestas pasan a revisión manual. Sobre respaldos, solo el texto del aviso (§6): «Los respaldos aislados se extinguirán según su ciclo documentado». No se declara ningún límite de días para el borrado. La URL que se declara en «Eliminación de datos» es `https://afilianet.mx/eliminar-cuenta`.
 
 **Retención:**
 - **No se declaran días.** La política (`RETENTION_POLICY.md` v2026-10-02.2) no está adoptada ni aplicada: `PRIVACY_RETENTION_SCHEDULE_ENABLED=false`, y las `EVIDENCE_RETENTION_*` están vacías.
@@ -242,12 +245,20 @@ Play exige dos cosas ([requisitos](https://support.google.com/googleplay/android
 
 Congelar o desactivar la cuenta no cuenta como eliminación.
 
+**Cómo se llega al canal desde la app (código de #95 sobre #94):**
+- **Con sesión:** Perfil → «Administrar mi cuenta» → «Eliminar mi cuenta». La pantalla muestra siempre el correo del aviso (`contact_email` de `/privacy/notice`) como texto seleccionable, y con el 503 lo pone como vía principal («Puedes pedir la eliminación escribiendo a …»). También se llega desde la revisión obligatoria de aviso.
+- **No hay `mailto:`:** el correo no se abre al tocarlo, ni lleva el asunto «Privacidad Afilianet».
+- **No hay enlace** a `https://afilianet.mx/eliminar-cuenta` ni a `https://afilianet.mx/privacidad` en ninguna pantalla.
+- **Sin sesión:** «Eliminar mi cuenta» no es accesible (el guardián manda al login). Solo se llega al «Aviso de privacidad» desde Registro o «Tengo una invitación», no desde el login. Esa pantalla muestra el contacto y el plazo, pero depende de la API: si no responde, no muestra ningún canal.
+- **Si el aviso no carga y hay 503:** remite al contacto del Aviso de privacidad sin mostrar la dirección.
+- **Cambio mínimo propuesto, pendiente de que Andrés lo decida (no programado):** en «Eliminar mi cuenta», un botón «Escribir a privacidad» con `mailto:` y asunto «Privacidad Afilianet», y un enlace «Cómo eliminar tu cuenta» a `https://afilianet.mx/eliminar-cuenta`; el mismo enlace en el login y en «Aviso de privacidad», para que funcione sin sesión y sin la API.
+
 | Requisito | Estado |
 |---|---|
 | Opción en la app | **Hecha:** Perfil → «Administrar mi cuenta» → «Eliminar mi cuenta». Pide la contraseña y escribir ELIMINAR, y muestra el folio (`delete-account.tsx`, desde 0190e68). **En este PR:** la pantalla muestra siempre el canal de privacidad del aviso (el `contact_email` de `/privacy/notice`). Con un 503 dice «No se registró ninguna solicitud» y remite a ese canal, como promete el aviso, en lugar del error genérico |
-| El servidor la acepta | **No:** `PRIVACY_DELETION_REQUESTS_ENABLED` no está definida en staging (vale false), así que responde 503 «no disponible por el momento». Lo decide Andrés; lo ejecuta API o Infra |
+| El formulario (app y web de Admin) la acepta | **No, cerrado:** `accepting:false`; `PRIVACY_DELETION_REQUESTS_ENABLED` no está definida en staging (vale false), así que responde 503 «no disponible por el momento». Lo decide Andrés; lo ejecuta API o Infra |
 | Página web | **Publicada el 2026-11-10:** `https://afilianet.mx/eliminar-cuenta` responde 200 sin sesión. Describe el procedimiento por correo (canal y datos a indicar del aviso §7), los plazos de §7 y la conservación y respaldos de §6, literales, y enlaza a `/privacidad`. Sin marcadores; `noindex, nofollow`. Es la URL de Data safety → «Eliminación de datos». Cuando se abra la recepción en la app, la página pasará a la variante con app y web |
-| Vía web sin la app | **Hoy es por correo** (la página publicada). La API tiene `POST /api/v1/privacy/deletion-requests`, pero sin formulario HTML y hoy responde 503. La opción en la app responde 503 y remite al mismo canal, coherente con la página |
+| Vía web sin la app | **Canal por correo, publicado** (la página). Es la vía vigente y Google la admite. La API tiene `POST /api/v1/privacy/deletion-requests`, pero sin formulario HTML y hoy responde 503. La opción en la app responde 503 y remite al mismo canal, coherente con la página |
 | Qué pasa después | Según el aviso (§7): «se resolverán en un máximo de 20 días hábiles desde su recepción; si resultan procedentes, se harán efectivas dentro de los 15 días hábiles siguientes». La app muestra solo el plazo de respuesta de `response_deadline`. Lo ejecuta un operador; no hay borrado automático. Conservación, con el texto del aviso (§6): «Los comprobantes de consentimiento y atención de solicitudes podrán conservarse separados por el periodo necesario para acreditar cumplimiento» y «Los respaldos aislados se extinguirán según su ciclo documentado». Los «36 meses» del folio y los «90 días» de respaldos de los documentos de la API están **documentados, no adoptados**: Aurora de staging guarda 7 días y el bucket de evidencias tiene versionado sin expiración. No se publican como hecho. Lo financiero, ser owner o superadmin y las encuestas pasan a revisión manual. Los docs de la API dicen «no publicar como servicio de eliminación terminado»: hay que alinear el texto de la página con eso |
 
 ### Aviso de privacidad
@@ -364,7 +375,7 @@ Para la prueba cerrada, además: el aviso y la página de eliminación publicado
 | Recuperar la contraseña | Correo: el reset **no** está en la lista permitida, así que no llega. SMS: apagado | **Sí.** Un tester que olvide su contraseña no puede recuperarla en esta prueba. No consta en la API ninguna vía de restablecimiento por soporte o desde Admin (API-51). Lo decide Andrés: abrir `password_reset` en la lista de staging, avisar a los testers, o crear esa vía |
 | Unirse a la organización | Con la liga o el código del owner de la organización de Play | No |
 | KYC | La organización tiene la captura apagada: el servidor responde `kyc_unavailable` y la app no pide documentos | No |
-| Eliminar la cuenta | Hoy responde 503 y la app remite al canal de privacidad. Para la prueba cerrada, activar la recepción (API #155) | No bloquea el uso; sí la declaración de Play |
+| Eliminar la cuenta | El formulario responde 503 y la app remite al canal por correo publicado. La declaración «se puede solicitar» se apoya en ese canal; la de «se eliminan» espera confirmar la operación | No bloquea el uso |
 
 **Qué puede bloquear a un tester nuevo:**
 - olvidar la contraseña;
