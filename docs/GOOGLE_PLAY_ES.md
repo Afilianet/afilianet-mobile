@@ -348,7 +348,13 @@ Después, lo que Mobile ejecuta solo con autorización en su sesión:
 ### Registro de la prueba interna (vc22)
 - [x] 5. AAB construido: EAS `67c288cb-0114-41a9-becd-602172401b19`, #95 @ `370f472aec5e4d421db7cdda7ce71419ab4b0d10`, versionCode 22, SHA-256 `dbe09b92d36a91d578c797e2d162ca05f680f3b9d80de2dcd61a1242d4ebe8b9` (2026-11-11). Sin R8: no hay mapping; la advertencia de desofuscación de Play es informativa.
 - [x] 6. Subido por Andrés a Prueba interna.
-- [x] 7. Instalado **desde Google Play** en el Galaxy A06 y **seis pruebas físicas satisfactorias**, según confirma Andrés. Decisión de Andrés sobre el A06, en lugar de otro teléfono. No hizo falta otro build. El detalle de cada prueba lo da Andrés; aquí no se infiere.
+- [x] 7. Instalado **desde Google Play** en el Galaxy A06 y **seis pruebas físicas satisfactorias**, según confirma Andrés. Decisión de Andrés sobre el A06, en lugar de otro teléfono. No hizo falta otro build. Las seis pruebas, todas satisfactorias:
+  1. **Privacidad y eliminación:** los dos enlaces abren bien desde el login.
+  2. **Acceso:** inicio de sesión, Inicio y selección de las organizaciones A y B correctos.
+  3. **Navegación:** Perfil, Red y Notificaciones, y el regreso con los botones de la app y con el de Android, correctos.
+  4. **Datos existentes:** los afiliados y las notificaciones existentes se ven.
+  5. **«Escribir a privacidad»:** abre el borrador con el destinatario y el asunto correctos, sin enviarlo.
+  6. **Reapertura:** al cerrar la app por completo y reabrirla, la sesión se conserva.
 
 Para la prueba cerrada, además: el aviso y la página de eliminación publicados, las solicitudes de eliminación activas en staging, la cuenta del revisor, el cuestionario de contenido, Data safety completo y los 12 testers.
 
