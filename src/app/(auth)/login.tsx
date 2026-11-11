@@ -7,6 +7,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePendingReferral } from "../../auth/pendingReferral";
 import { ChannelToggle, type AccessChannel } from "../../components/account/ChannelToggle";
 import { PhoneField } from "../../components/account/PhoneField";
+import { PublicPrivacyLinks } from "../../components/privacy/PublicPrivacyLinks";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { colors, measures, spacing, typography } from "../../components/ui/theme";
@@ -115,6 +116,8 @@ export default function LoginScreen() {
           <Button label={copy.createAccount} variant="secondary" onPress={() => router.push(routes.register as never)} disabled={submitting} />
           <Button label={copy.haveInvitation} variant="ghost" onPress={() => router.push(routes.invitation as never)} disabled={submitting} />
           <Button label={copy.forgotPassword} variant="ghost" onPress={() => router.push(routes.forgotPassword as never)} disabled={submitting} />
+          {/* Without a session: the public notice and the deletion procedure (Google Play). */}
+          <PublicPrivacyLinks privacy deletion />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

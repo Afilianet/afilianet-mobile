@@ -245,13 +245,13 @@ Play exige dos cosas ([requisitos](https://support.google.com/googleplay/android
 
 Congelar o desactivar la cuenta no cuenta como eliminación.
 
-**Cómo se llega al canal desde la app (código de #95 sobre #94):**
-- **Con sesión:** Perfil → «Administrar mi cuenta» → «Eliminar mi cuenta». La pantalla muestra siempre el correo del aviso (`contact_email` de `/privacy/notice`) como texto seleccionable, y con el 503 lo pone como vía principal («Puedes pedir la eliminación escribiendo a …»). También se llega desde la revisión obligatoria de aviso.
-- **No hay `mailto:`:** el correo no se abre al tocarlo, ni lleva el asunto «Privacidad Afilianet».
-- **No hay enlace** a `https://afilianet.mx/eliminar-cuenta` ni a `https://afilianet.mx/privacidad` en ninguna pantalla.
-- **Sin sesión:** «Eliminar mi cuenta» no es accesible (el guardián manda al login). Solo se llega al «Aviso de privacidad» desde Registro o «Tengo una invitación», no desde el login. Esa pantalla muestra el contacto y el plazo, pero depende de la API: si no responde, no muestra ningún canal.
-- **Si el aviso no carga y hay 503:** remite al contacto del Aviso de privacidad sin mostrar la dirección.
-- **Cambio mínimo propuesto, pendiente de que Andrés lo decida (no programado):** en «Eliminar mi cuenta», un botón «Escribir a privacidad» con `mailto:` y asunto «Privacidad Afilianet», y un enlace «Cómo eliminar tu cuenta» a `https://afilianet.mx/eliminar-cuenta`; el mismo enlace en el login y en «Aviso de privacidad», para que funcione sin sesión y sin la API.
+**Cómo se llega al canal desde la app (en este PR, autorizado por Andrés el 2026-11-10):**
+- Destinos fijos en `src/config/publicPrivacy.ts`, sin tokens ni datos de la cuenta: `https://afilianet.mx/privacidad`, `https://afilianet.mx/eliminar-cuenta` y `mailto:servicioalcliente@afilianet.mx?subject=Privacidad%20Afilianet` (solo el asunto; nada de contraseña, folio ni datos).
+- **«Eliminar mi cuenta» (con sesión):** muestra siempre el correo, visible y copiable; botón «Escribir a privacidad» (abre el correo con el asunto) y enlace «Cómo eliminar tu cuenta». Con el 503 remite a ese canal. Ya no depende de `/privacy/notice`.
+- **Login (sin sesión):** «Aviso de privacidad» y «Cómo eliminar tu cuenta» abren las páginas públicas en el navegador, sin llamar a la API.
+- **Aviso de privacidad dentro de la app:** «Ver la versión pública del aviso» y «Cómo eliminar tu cuenta», disponibles aunque el aviso no cargue.
+- **Si no se puede abrir:** sin aplicación de correo, dice «No se envió ninguna solicitud», ofrece «Copiar correo» y la página pública; sin navegador, muestra las direcciones para escribirlas. Nunca dice que se envió algo.
+- Pruebas: `src/tests/app/public-privacy-links.test.tsx` y `delete-account.test.tsx`. Solo se ve en un build nuevo (vc22).
 
 | Requisito | Estado |
 |---|---|

@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
 import { apiRequest } from "../api/client";
 import { friendlyMessage, isApiError } from "../api/errors";
+import { PublicPrivacyLinks } from "../components/privacy/PublicPrivacyLinks";
 import { Button } from "../components/ui/Button";
 import { TextInput } from "../components/ui/TextInput";
 import { colors, spacing, typography } from "../components/ui/theme";
@@ -17,7 +17,6 @@ function responseDeadline(receipt: Receipt): string | null {
   if (typeof days !== "number" || !Number.isInteger(days) || days <= 0 || typeof kind !== "string" || !kind.trim()) return null;
   return `Te responderemos en un plazo de hasta ${days} días ${kind.trim()}. Responder no significa que tu cuenta ya se haya eliminado.`;
 }
-type NoticeContact = { contact_email: string };
 
 export default function DeleteAccountScreen() {
   const router = useRouter();
@@ -27,14 +26,6 @@ export default function DeleteAccountScreen() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState("");
   const [unavailable, setUnavailable] = useState(false);
-  // The notice's privacy channel: it promises that deletion can always be requested there,
-  // even when this in-app option is off (same query and cache as the Aviso de privacidad screen).
-  const notice = useQuery({
-    queryKey: ["privacy-notice"],
-    retry: false,
-    queryFn: () => apiRequest<{ data: NoticeContact }>("/api/v1/privacy/notice", { skipAuth: true, skipOrganization: true }),
-  });
-  const contactEmail = notice.data?.data?.contact_email || null;
   useEffect(() => {
     let active = true;
     apiRequest<{ data: Receipt | null }>("/api/v1/account/deletion-request", { skipOrganization: true })
@@ -77,13 +68,12 @@ export default function DeleteAccountScreen() {
       <Button label="Solicitar eliminación" onPress={() => void submit()} loading={pending} disabled={!password || confirmation !== "ELIMINAR"} />
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-    {contactEmail ? (
-      <Text selectable style={styles.body} testID="deletion-privacy-channel">
-        {unavailable ? "Puedes pedir la eliminación" : "También puedes pedir la eliminación"} escribiendo a {contactEmail}. El Aviso de privacidad explica qué datos incluir.
-      </Text>
-    ) : unavailable ? (
-      <Text style={styles.body} testID="deletion-privacy-channel">Puedes pedir la eliminación al contacto de privacidad que aparece en el Aviso de privacidad.</Text>
-    ) : null}
+    {/* The published email channel (afilianet.mx/eliminar-cuenta): fixed, so it shows
+        with or without the API, and it is the way in while the form answers 503. */}
+    <Text style={styles.body} testID="deletion-privacy-channel">
+      {unavailable ? "Puedes pedir la eliminación por correo." : "También puedes pedir la eliminación por correo."} «Cómo eliminar tu cuenta» explica qué datos incluir.
+    </Text>
+    <PublicPrivacyLinks mail deletion />
     <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
     <Button label="Volver" variant="secondary" onPress={() => router.back()} />
   </ScrollView>;
