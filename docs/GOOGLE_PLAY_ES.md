@@ -228,7 +228,13 @@ Elegir **B** solo tiene sentido si se quiere que los teléfonos con un APK pasen
 - (*) «Se puede solicitar la eliminación: **Sí, por el canal publicado (correo)**; el formulario en la app está cerrado por ahora». Son dos vías distintas:
   - **Formulario** en la app y en la web de Admin de staging: hoy **cerrado** (`accepting:false`, 503).
   - **Canal por correo:** **publicado** en `https://afilianet.mx/eliminar-cuenta` (`servicioalcliente@afilianet.mx`, asunto «Privacidad Afilianet»). Google admite ese canal, así que la respuesta no depende solo de abrir el formulario.
-- **Que los datos efectivamente se eliminan: pendiente de confirmar la operación** (API-51 confirma quién atiende y cómo se ejecuta una eliminación procedente con el borrado automático apagado). Recibir solicitudes no equivale a poder completarlas; no se cierra esta declaración hasta tener esa respuesta. Además, lo financiero, ser owner y las encuestas pasan a revisión manual. Sobre respaldos, solo el texto del aviso (§6): «Los respaldos aislados se extinguirán según su ciclo documentado». No se declara ningún límite de días para el borrado. La URL que se declara en «Eliminación de datos» es `https://afilianet.mx/eliminar-cuenta`.
+- «Se puede solicitar la eliminación: **Sí (correo publicado)**». Firme.
+- **Que los datos efectivamente se eliminan: PENDIENTE.** Recibir solicitudes no equivale a poder completarlas. Se cierra solo cuando Andrés autorice el despliegue de API #156 y de Infra #222 y pase el ensayo completo con una cuenta desechable. Estado (API-51, 2026-11-10):
+  - **Preparado, sin desplegar ni ejecutar:** API #156 (`91cce3bf`): cancelar antes de borrar, escaneo técnico con conteos y registro del folio de las solicitudes por correo; `complete` exige el escaneo limpio y las 5 comprobaciones. Infra #222 (`21121857`): workflow de una sola ejecución por acción, con el flag solo en esa tarea y autorización por folio y etapa (ensayo local 23/23).
+  - **Roles propuestos, pendientes de confirmar por Andrés:** Andrés recibe en `servicioalcliente@afilianet.mx`, valida la identidad, decide y autoriza cada etapa; Infra ejecuta. Falta un suplente.
+  - **Plazos:** los del aviso §7 (20 días hábiles para resolver y 15 para hacerlo efectivo).
+  - **Límites:** el borrado no es automático, lo ejecuta una persona etapa por etapa; los respaldos se extinguen según su ciclo (staging, 7 días), sin purga inmediata.
+- Además, lo financiero, ser owner y las encuestas pasan a revisión manual. Sobre respaldos, solo el texto del aviso (§6): «Los respaldos aislados se extinguirán según su ciclo documentado». No se declara ningún límite de días para el borrado. La URL que se declara en «Eliminación de datos» es `https://afilianet.mx/eliminar-cuenta`.
 
 **Retención:**
 - **No se declaran días.** La política (`RETENTION_POLICY.md` v2026-10-02.2) no está adoptada ni aplicada: `PRIVACY_RETENTION_SCHEDULE_ENABLED=false`, y las `EVIDENCE_RETENTION_*` están vacías.
