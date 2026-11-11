@@ -14,7 +14,7 @@ import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { Icon } from "../design-system/icons/Icon";
 import { useAuth } from "../auth/AuthContext";
 import { strings } from "../i18n";
-import { identityCaptureAvailable } from "../state/membership";
+import { assistedEnrollmentAvailable, identityCaptureAvailable } from "../state/membership";
 import { useOrganization } from "../state/OrganizationContext";
 import { removePendingAssisted, savePendingAssisted } from "../services/assistedQueue";
 import { assistedAccessInstructions, assistedVerificationNote } from "../utils/assistedAccess";
@@ -44,6 +44,9 @@ export default function AssistedEnrollmentScreen() {
   const { activeOrganization } = useOrganization();
   // API #86: registering someone stays available; capturing their ID does not.
   const captureAvailable = identityCaptureAvailable(activeOrganization);
+  // New enrollments only while the organization allows them; a missing setting
+  // is unknown and keeps the form, leaving the decision to the API.
+  const assistedAvailable = assistedEnrollmentAvailable(activeOrganization);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,9 +60,11 @@ export default function AssistedEnrollmentScreen() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AssistedEnrollmentResult | null>(null);
   const [queued, setQueued] = useState(false);
+  // The server refused the creation (503 assisted_enrollment_unavailable): nothing was created or saved.
+  const [refused, setRefused] = useState(false);
 
   async function submit() {
-    if (!user || !activeOrganization || saving) return;
+    if (!user || !activeOrganization || saving || !assistedAvailable || refused) return;
     const normalizedEmail = email.trim().toLowerCase();
     const typedPhone = phone.trim();
     const normalizedPhone = typedPhone ? normalizePhone(country, typedPhone) : null;
@@ -91,12 +96,15 @@ export default function AssistedEnrollmentScreen() {
     } catch (cause) {
       if (isApiError(cause) && (cause.kind === "offline" || cause.kind === "timeout")) {
         try {
-          await savePendingAssisted({ sponsorUserId: user.id, organizationId: activeOrganization.id, input });
+          await savePendingAssisted({ sponsorUserId: user.id, organizationId: activeOrganization.id, input }, { assistedEnrollmentAvailable: assistedAvailable });
           setSubmitted(input);
           setQueued(true);
         } catch (storageError) {
           setError(storageError instanceof Error ? storageError.message : "No se pudo guardar en este teléfono.");
         }
+      } else if (isApiError(cause) && cause.reason === "assisted_enrollment_unavailable") {
+        // Not a server fault and not retryable: never queued, the typed data stays only in memory.
+        setRefused(true);
       } else if (isApiError(cause) && cause.kind === "validation" && (cause.details?.email || cause.details?.phone)) {
         // Everything typed stays in the form; only the rejected field is marked.
         setFieldErrors(contactErrorsFrom(cause));
@@ -133,6 +141,16 @@ export default function AssistedEnrollmentScreen() {
           <Text style={styles.success}>Guardado en este teléfono</Text>
           {captureAvailable ? <Button label="Capturar INE sin conexión" onPress={() => router.replace(`/assisted-offline/${requestId}` as never)} /> : null}
           <Text style={styles.description}>Aún no se creó el afiliado ni se le envió ningún mensaje. Al recuperar la conexión, abre Red y pulsa «Sincronizar registros pendientes».</Text>
+          <Button label="Volver a Red" onPress={() => router.back()} />
+        </Card>
+      ) : !assistedAvailable || refused ? (
+        <Card style={styles.card} testID="assisted-enrollment-unavailable">
+          <Text accessibilityRole="alert" style={styles.success}>Registro asistido no disponible en esta organización</Text>
+          <Text style={styles.description}>
+            {refused
+              ? `${strings.shared.apiErrors.assistedEnrollmentUnavailable} Lo que escribiste no se guardó en este teléfono.`
+              : "La organización desactivó el registro de personas desde la app. No se puede crear un registro nuevo ni guardarlo en este teléfono para enviarlo después."}
+          </Text>
           <Button label="Volver a Red" onPress={() => router.back()} />
         </Card>
       ) : (

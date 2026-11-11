@@ -401,6 +401,7 @@ export const en = {
       loginTimeout: "That took too long. Please try again.",
       emailUnavailable: "We can't send emails right now. No link was sent; try again later.",
       kycUnavailable: "Identity verification isn't available in this organization.",
+      assistedEnrollmentUnavailable: "Assisted enrollment is turned off in this organization. No enrollment was created.",
     },
   },
   joinAffiliateProgram: {

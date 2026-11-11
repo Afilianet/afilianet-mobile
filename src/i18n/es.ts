@@ -421,6 +421,7 @@ export const es = {
       loginTimeout: "Esto tardó demasiado. Inténtalo de nuevo.",
       emailUnavailable: "Por ahora no podemos enviar correos. No se envió ningún enlace; inténtalo más tarde.",
       kycUnavailable: "Verificación de identidad no disponible en esta organización.",
+      assistedEnrollmentUnavailable: "El registro asistido no está disponible en esta organización. No se creó ningún registro.",
     },
   },
   joinAffiliateProgram: {

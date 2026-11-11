@@ -113,7 +113,7 @@ it("syncs a phone-only draft unchanged, with its original request id", async () 
   await savePendingAssisted(phoneOnly);
   const result = await syncPendingAssisted("sponsor-a", "org-a");
   expect(createAssistedEnrollment).toHaveBeenCalledWith(phoneOnly.input);
-  expect(result).toEqual({ completed: [enrollment], remaining: 0, blocked: 0, error: undefined });
+  expect(result).toEqual({ completed: [enrollment], remaining: 0, blocked: 0, held: 0, error: undefined });
 });
 
 describe("organization refusals (API #92 assisted_enrollment_unavailable, API #86 kyc_unavailable) are not retried", () => {
@@ -132,7 +132,7 @@ describe("organization refusals (API #92 assisted_enrollment_unavailable, API #8
     await draftWithPhotos();
     (createAssistedEnrollment as jest.Mock).mockRejectedValue(refusal(reason));
     const first = await syncPendingAssisted("sponsor-a", "org-a");
-    expect(first).toEqual({ completed: [], remaining: 1, blocked: 1, error: undefined });
+    expect(first).toEqual({ completed: [], remaining: 1, blocked: 1, held: 0, error: undefined });
     const [item] = await listPendingAssisted("sponsor-a", "org-a");
     expect(item.blocked?.reason).toBe(reason);
     expect(item.photos).toHaveLength(2);
@@ -272,5 +272,50 @@ describe("organization refusals (API #92 assisted_enrollment_unavailable, API #8
     expect(removeAssistedPhoto).toHaveBeenCalledTimes(1);
     expect(removeAssistedPhoto).toHaveBeenCalledWith(expect.objectContaining({ fileName: "request-a-back.sealed" }));
     expect((await listPendingAssisted("sponsor-a", "org-a")).map((item) => item.input.client_request_id)).toEqual(["request-b"]);
+  });
+});
+
+describe("assisted enrollment switched off in the organization (assisted_enrollment_available false)", () => {
+  it("no new offline draft is kept for it; unknown or true still saves as before", async () => {
+    await expect(savePendingAssisted(draft, { assistedEnrollmentAvailable: false })).rejects.toThrow("No se guardó nada en este teléfono");
+    expect(await listPendingAssisted("sponsor-a", "org-a")).toEqual([]);
+    await savePendingAssisted(draft, { assistedEnrollmentAvailable: true });
+    await savePendingAssisted({ ...draft, input: { ...draft.input, client_request_id: "request-b" } });
+    expect(await listPendingAssisted("sponsor-a", "org-a")).toHaveLength(2);
+  });
+
+  it("an existing draft that never left the phone is held: not sent, not marked blocked, not deleted", async () => {
+    await savePendingAssisted(draft);
+    const result = await syncPendingAssisted("sponsor-a", "org-a", { assistedEnrollmentAvailable: false });
+    expect(createAssistedEnrollment).not.toHaveBeenCalled();
+    expect(result).toEqual({ completed: [], remaining: 1, blocked: 0, held: 1, error: undefined });
+    const [item] = await listPendingAssisted("sponsor-a", "org-a");
+    expect(item.blocked).toBeUndefined();
+    expect(item.input).toEqual(draft.input);
+    expect(removeAssistedPhoto).not.toHaveBeenCalled();
+
+    // Back on (the next organization list says so): the same draft goes out as usual, with its original request id.
+    const later = await syncPendingAssisted("sponsor-a", "org-a", { assistedEnrollmentAvailable: true });
+    expect(createAssistedEnrollment).toHaveBeenCalledWith(draft.input);
+    expect(later.remaining).toBe(0);
+  });
+
+  it("a draft whose creation may already exist on the server still syncs: the API answers its request id even when off", async () => {
+    await savePendingAssisted(draft);
+    (createAssistedEnrollment as jest.Mock).mockRejectedValueOnce(new ApiError("timeout", "timeout"));
+    await syncPendingAssisted("sponsor-a", "org-a");
+    expect((await listPendingAssisted("sponsor-a", "org-a"))[0].createAttempted).toBe(true);
+
+    const result = await syncPendingAssisted("sponsor-a", "org-a", { assistedEnrollmentAvailable: false });
+    expect(createAssistedEnrollment).toHaveBeenLastCalledWith(draft.input);
+    expect(result).toEqual({ completed: [enrollment], remaining: 0, blocked: 0, held: 0, error: undefined });
+  });
+
+  it("the server stays authoritative when the setting is unknown: its refusal blocks the draft and keeps it", async () => {
+    await savePendingAssisted(draft);
+    (createAssistedEnrollment as jest.Mock).mockRejectedValue(new ApiError("server", "off", 503, undefined, { reason: "assisted_enrollment_unavailable" }));
+    const result = await syncPendingAssisted("sponsor-a", "org-a");
+    expect(result).toEqual({ completed: [], remaining: 1, blocked: 1, held: 0, error: undefined });
+    expect((await listPendingAssisted("sponsor-a", "org-a"))[0].blocked?.reason).toBe("assisted_enrollment_unavailable");
   });
 });

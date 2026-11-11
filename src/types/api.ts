@@ -74,6 +74,13 @@ export interface Organization {
    * offline before it: unknown, never false (see state/membership.ts).
    */
   identity_verification_available?: boolean;
+  /**
+   * API fe81252: whether this organization accepts NEW assisted enrollments
+   * ("Registrar a alguien"), computed by the server. Absent on older APIs and
+   * on lists saved offline before it: unknown, never false. The create route
+   * refuses on its own (503 assisted_enrollment_unavailable) whatever this says.
+   */
+  assisted_enrollment_available?: boolean;
 }
 
 // afilianet-api has no standalone Membership/OrganizationMembership resource --

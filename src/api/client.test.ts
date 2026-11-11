@@ -48,6 +48,21 @@ describe("apiRequest", () => {
     });
   });
 
+  it("reports a 503 assisted_enrollment_unavailable for the request's own organization, with the server's reason kept", async () => {
+    const onAssistedEnrollmentUnavailable = jest.fn();
+    const onKycUnavailable = jest.fn();
+    configureApiClient({ getToken: () => "tok123", getOrganizationId: () => "org-off", onAssistedEnrollmentUnavailable, onKycUnavailable });
+    global.fetch = jest.fn().mockResolvedValue(new Response(JSON.stringify({
+      reason: "assisted_enrollment_unavailable", message: "El registro asistido no está disponible en esta organización.",
+    }), { status: 503 })) as unknown as typeof fetch;
+
+    await expect(apiRequest("/api/v1/affiliates/me/assisted-enrollments", { method: "POST", body: {} }))
+      .rejects.toMatchObject({ reason: "assisted_enrollment_unavailable", status: 503 });
+    expect(onAssistedEnrollmentUnavailable).toHaveBeenCalledWith("org-off");
+    expect(onKycUnavailable).not.toHaveBeenCalled();
+    configureApiClient({ onAssistedEnrollmentUnavailable: () => {}, onKycUnavailable: () => {} });
+  });
+
   it("calls onUnauthorized and throws on a 401", async () => {
     const onUnauthorized = jest.fn();
     configureApiClient({ onUnauthorized });
