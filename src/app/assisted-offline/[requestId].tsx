@@ -10,13 +10,13 @@ import { ErrorState } from "../../components/ErrorState";
 import { LoadingState } from "../../components/LoadingState";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useDocumentCamera } from "../../hooks/useDocumentCamera";
-import { canRetryBlocked, listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
+import { listPendingAssisted, removePendingAssisted, replaceAssistedPhoto, replaceAssistedGeolocation, retryBlockedAssisted } from "../../services/assistedQueue";
 import { removeAssistedPhoto, sealAssistedPhoto, type AssistedPhoto } from "../../services/assistedEvidenceVault";
-import { identityCaptureAvailable } from "../../state/membership";
+import { assistedEnrollmentAvailable, identityCaptureAvailable } from "../../state/membership";
 import { useOrganization } from "../../state/OrganizationContext";
 import { strings } from "../../i18n";
 import { assistedAccessInstructions } from "../../utils/assistedAccess";
-import { blockedExplanation, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
+import { assistedCreationOff, blockedExplanation, canOfferRetry, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 import { resolveMimeType, validateCapturedAsset } from "../../utils/documentCapture";
 
 import { captureDeviceGeolocation, buildGeolocationSubmission } from "../../utils/geolocation";
@@ -31,6 +31,7 @@ export default function AssistedOfflineScreen() {
   // organization. What is already saved here stays, and is only sent by a
   // later sync, which the server refuses without losing it while it is off.
   const captureAvailable = identityCaptureAvailable(activeOrganization);
+  const assistedAvailable = assistedEnrollmentAvailable(activeOrganization);
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export default function AssistedOfflineScreen() {
   );
 
   async function capture(type: AssistedPhoto["evidenceType"]) {
-    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable) return;
+    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable || assistedCreationOff(query.data, assistedAvailable)) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -73,7 +74,7 @@ export default function AssistedOfflineScreen() {
   }
 
   async function captureLocation() {
-    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable) return;
+    if (!user || !activeOrganization || !query.data || busyRef.current || !captureAvailable || assistedCreationOff(query.data, assistedAvailable)) return;
     busyRef.current = true;
     setBusy(true);
     setError(null);
@@ -124,6 +125,10 @@ export default function AssistedOfflineScreen() {
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   const item = query.data;
   if (!item) return <Card><Text>Este registro ya se sincronizó o no pertenece a esta sesión.</Text><Button label="Volver" onPress={() => router.back()} /></Card>;
+  // Assisted enrollment off and this draft would have to create one: it cannot be
+  // sent, so no new photo or location is added; what is saved stays until discarded.
+  const creationOff = assistedCreationOff(item, assistedAvailable);
+  const canCapture = captureAvailable && !creationOff;
   const savedCount = (["id_document_front", "id_document_back"] as const)
     .filter((type) => item.photos?.some((photo) => photo.evidenceType === type)).length;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -132,8 +137,11 @@ export default function AssistedOfflineScreen() {
     {item.blocked ? <Card style={styles.card} testID="assisted-blocked">
       <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation(item.blocked.reason).title}</Text>
       <Text style={styles.description}>{blockedExplanation(item.blocked.reason).description}</Text>
-      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} /> : null}
+      {canOfferRetry(item.blocked.reason, assistedAvailable) ? <Button label="Reintentar envío" variant="secondary" disabled={busy} onPress={retry} /> : null}
       <Button label="Descartar" variant="danger" disabled={busy} loading={checking} onPress={() => void discard()} />
+    </Card> : creationOff ? <Card style={styles.card} testID="assisted-held">
+      <Text accessibilityRole="alert" style={styles.label}>{blockedExplanation("assisted_enrollment_unavailable").title}</Text>
+      <Text style={styles.description}>{blockedExplanation("assisted_enrollment_unavailable").description}</Text>
     </Card> : null}
     {captureAvailable ? null : <Card style={styles.card} testID="kyc-capture-unavailable">
       <Text accessibilityRole="alert" style={styles.label}>{strings.compliance.captureUnavailable.title}</Text>
@@ -150,14 +158,14 @@ export default function AssistedOfflineScreen() {
       return <Card key={type} style={saved ? styles.savedCard : styles.card}>
         <Text style={styles.label}>{label}</Text>
         <Text accessibilityLiveRegion="polite" style={saved ? styles.savedLabel : styles.description}>{saved ? "✓ Foto guardada en este teléfono" : "Sin foto guardada"}</Text>
-        {captureAvailable ? <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} /> : null}
+        {canCapture ? <Button label={saved ? `Volver a tomar: ${label}` : `Capturar: ${label}`} loading={busy} onPress={() => void capture(type)} /> : null}
       </Card>;
     })}
     <Card style={styles.card}>
       <Text style={styles.label}>Ubicación opcional</Text>
       <Text style={styles.description}>Con el consentimiento de la persona, guarda la ubicación de este teléfono durante el registro asistido. No acredita su domicilio. Se conservará protegida y se enviará al sincronizar, junto con la fecha original de captura.</Text>
       <Text accessibilityLiveRegion="polite" style={styles.description}>{item.geolocation?.capture_status === "captured" ? `Ubicación guardada: ${new Date(item.geolocation.captured_at!).toLocaleString("es-MX")}` : "Sin ubicación guardada. Puedes continuar sin compartirla."}</Text>
-      {captureAvailable ? <Button label={item.geolocation ? "Actualizar ubicación con consentimiento" : "Compartir ubicación con consentimiento"} loading={busy} onPress={() => void captureLocation()} /> : null}
+      {canCapture ? <Button label={item.geolocation ? "Actualizar ubicación con consentimiento" : "Compartir ubicación con consentimiento"} loading={busy} onPress={() => void captureLocation()} /> : null}
       {item.geolocation && <Button label="Quitar ubicación guardada" variant="secondary" disabled={busy} onPress={() => {
         void replaceAssistedGeolocation(user!.id, activeOrganization!.id, requestId, undefined).then(() => query.refetch()).catch(() => setError("No se pudo quitar la ubicación."));
       }} />}

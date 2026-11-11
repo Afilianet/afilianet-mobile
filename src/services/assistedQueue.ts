@@ -91,7 +91,11 @@ export async function listPendingAssisted(sponsorUserId: string, organizationId:
   });
 }
 
-export async function savePendingAssisted(item: PendingAssistedEnrollment): Promise<void> {
+/** Refused when the organization is known to have new assisted enrollments off: no third party's data is kept for a draft that cannot be sent. */
+export async function savePendingAssisted(item: PendingAssistedEnrollment, options: { assistedEnrollmentAvailable?: boolean } = {}): Promise<void> {
+  if (options.assistedEnrollmentAvailable === false) {
+    throw new Error("La organización desactivó el registro asistido. No se guardó nada en este teléfono.");
+  }
   return mutate(async () => {
     const existing = await ids();
     const id = item.input.client_request_id;
@@ -172,12 +176,27 @@ export function isAssistedSyncInProgress(): boolean {
   return syncing;
 }
 
+/**
+ * Held, not blocked: the organization is known to have new assisted
+ * enrollments off and no creation request for this draft ever left the
+ * phone, so sync does not send it (the person's data stays here). It is not
+ * marked blocked either: once the organization's list says the setting is on
+ * again, the next sync sends it as usual, and the server still decides.
+ */
+export function isHeldBySetting(item: PendingAssistedEnrollment, options: { assistedEnrollmentAvailable?: boolean }): boolean {
+  return options.assistedEnrollmentAvailable === false && !item.blocked && !item.enrollmentId && !item.createAttempted;
+}
+
 export async function syncPendingAssisted(
-  sponsorUserId: string, organizationId: string,
-): Promise<{ completed: AssistedEnrollmentResult[]; remaining: number; blocked: number; error?: string }> {
+  sponsorUserId: string, organizationId: string, options: { assistedEnrollmentAvailable?: boolean } = {},
+): Promise<{ completed: AssistedEnrollmentResult[]; remaining: number; blocked: number; held: number; error?: string }> {
   const counts = async () => {
     const items = await listPendingAssisted(sponsorUserId, organizationId);
-    return { remaining: items.length, blocked: items.filter((item) => item.blocked).length };
+    return {
+      remaining: items.length,
+      blocked: items.filter((item) => item.blocked).length,
+      held: items.filter((item) => isHeldBySetting(item, options)).length,
+    };
   };
   if (syncing) return { completed: [], ...(await counts()) };
   const stillCurrent = captureApiSessionGuard(organizationId);
@@ -190,12 +209,12 @@ export async function syncPendingAssisted(
   try {
     const items = await listPendingAssisted(sponsorUserId, organizationId);
     for (const snapshot of items) {
-      if (snapshot.blocked) continue;
+      if (snapshot.blocked || isHeldBySetting(snapshot, options)) continue;
       try {
         await mutate(async () => {
           requireCurrent();
           const item = (await listPendingAssisted(sponsorUserId, organizationId)).find((value) => value.input.client_request_id === snapshot.input.client_request_id);
-          if (!item || item.blocked) return;
+          if (!item || item.blocked || isHeldBySetting(item, options)) return;
           if (!item.createAttempted) {
             item.createAttempted = true;
             await secureStorage.set(ITEM_PREFIX + item.input.client_request_id, JSON.stringify(item));

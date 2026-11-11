@@ -56,6 +56,15 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         setOrganizations((orgs) => (orgs.some((org) => refuse(org) !== org) ? orgs.map(refuse) : orgs));
         setActiveOrganization((active) => (active ? refuse(active) : active));
       },
+      // Same for new assisted enrollments (503 assisted_enrollment_unavailable):
+      // the entry and offline drafts stop at once for that organization only,
+      // until the next list from the server says otherwise.
+      onAssistedEnrollmentUnavailable: (organizationId) => {
+        const refuse = (org: Organization) =>
+          org.id === organizationId && org.assisted_enrollment_available !== false ? { ...org, assisted_enrollment_available: false } : org;
+        setOrganizations((orgs) => (orgs.some((org) => refuse(org) !== org) ? orgs.map(refuse) : orgs));
+        setActiveOrganization((active) => (active ? refuse(active) : active));
+      },
     });
   }, []);
 

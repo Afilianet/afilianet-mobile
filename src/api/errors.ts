@@ -73,6 +73,8 @@ export function friendlyMessage(error: ApiError): string {
   // right away does not help, so they never read as a generic server error.
   if (error.reason === "email_unavailable") return strings.shared.apiErrors.emailUnavailable;
   if (error.reason === "kyc_unavailable") return strings.shared.apiErrors.kycUnavailable;
+  // API fe81252: the organization turned new assisted enrollments off; retrying does not help.
+  if (error.reason === "assisted_enrollment_unavailable") return strings.shared.apiErrors.assistedEnrollmentUnavailable;
   // KYC terms (API A5): nothing was recorded; the case is reloaded to show what is current.
   if (error.reason === "terms_document_changed") return strings.compliance.terms.documentChanged;
   if (error.reason === "terms_not_published") return strings.compliance.terms.notPublishedError;

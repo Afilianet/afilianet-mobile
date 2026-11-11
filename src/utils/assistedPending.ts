@@ -1,6 +1,6 @@
 import { lookupAssistedEnrollmentByRequest, type AssistedEnrollmentResult } from "../api/assistedEnrollment";
 import { captureApiSessionGuard } from "../api/client";
-import { isAssistedSyncInProgress, serverStateOf, type BlockingReason, type PendingAssistedEnrollment } from "../services/assistedQueue";
+import { canRetryBlocked, isAssistedSyncInProgress, serverStateOf, type BlockingReason, type PendingAssistedEnrollment } from "../services/assistedQueue";
 
 /** Why a saved assisted enrollment stopped syncing: an organization setting, not a connection problem. */
 export function blockedExplanation(reason: BlockingReason): { title: string; description: string } {
@@ -18,8 +18,28 @@ export function blockedExplanation(reason: BlockingReason): { title: string; des
   }
   return {
     title: "Registro asistido no disponible en esta organización",
-    description: "La organización desactivó el registro asistido. No se volverá a enviar automáticamente; lo guardado sigue cifrado en este teléfono. Puedes descartarlo o reintentar cuando la organización lo reactive.",
+    description: "La organización desactivó el registro asistido, así que este registro no puede enviarse. No se volverá a enviar automáticamente; lo guardado sigue cifrado en este teléfono. Puedes descartarlo, o enviarlo si la organización lo reactiva.",
   };
+}
+
+/**
+ * This draft would need to CREATE an enrollment while the organization has
+ * new assisted enrollments off: refused by the server (blocked), or known off
+ * locally before any request left the phone (held). A draft whose creation
+ * already reached the server, or may have, is not held: the API answers a
+ * known client_request_id with the existing enrollment even when switched
+ * off, so its sync may still recover it. Nothing here deletes anything.
+ */
+export function assistedCreationOff(item: PendingAssistedEnrollment, assistedAvailable: boolean): boolean {
+  if (item.enrollmentId) return false;
+  if (item.blocked) return item.blocked.reason === "assisted_enrollment_unavailable";
+  return !assistedAvailable && !item.createAttempted;
+}
+
+/** The manual retry only makes sense once the setting allows it again; the server still decides. */
+export function canOfferRetry(reason: BlockingReason, assistedAvailable: boolean): boolean {
+  if (!canRetryBlocked(reason)) return false;
+  return reason !== "assisted_enrollment_unavailable" || assistedAvailable;
 }
 
 export type ServerCheck =

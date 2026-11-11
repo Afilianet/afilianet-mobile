@@ -4,9 +4,9 @@ import { fetchPendingAssistedEnrollments } from "../../api/assistedEnrollment";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAuth } from "../../auth/AuthContext";
 import { useOrganization } from "../../state/OrganizationContext";
-import { hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
-import { canRetryBlocked, listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
-import { blockedExplanation, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
+import { assistedEnrollmentAvailable, hasPersonalAffiliateAccess, isOrganizationStaff } from "../../state/membership";
+import { isHeldBySetting, listPendingAssisted, removePendingAssisted, retryBlockedAssisted, syncPendingAssisted, type PendingAssistedEnrollment } from "../../services/assistedQueue";
+import { assistedCreationOff, blockedExplanation, canOfferRetry, checkServerBeforeDiscard, discardConfirmation } from "../../utils/assistedPending";
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { isApiError } from "../../api/errors";
 import { AffiliateRow } from "../../components/AffiliateRow";
@@ -44,6 +44,8 @@ export default function NetworkScreen() {
   // profile in THIS organization; staff without one get the management view.
   const personal = hasPersonalAffiliateAccess(activeOrganization);
   const staff = isOrganizationStaff(activeOrganization);
+  // Only an explicit false from the server (or its refusal) turns the entry off; unknown keeps it.
+  const assistedAvailable = assistedEnrollmentAvailable(activeOrganization);
   const [assistedPage, setAssistedPage] = useState(1);
   const assistedQuery = useApiQuery(
     ["assisted-enrollments", user?.id, activeOrganization?.id, assistedPage],
@@ -68,10 +70,11 @@ export default function NetworkScreen() {
     if (!user || !activeOrganization) return;
     setSyncing(true);
     try {
-      const { completed, remaining, blocked, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id);
+      const { completed, remaining, blocked, held, error: syncError } = await syncPendingAssisted(user.id, activeOrganization.id, { assistedEnrollmentAvailable: assistedAvailable });
       setPendingItems(await listPendingAssisted(user.id, activeOrganization.id));
-      const blockedNote = blocked ? ` ${blocked} detenido(s) por la configuración de la organización; no se reintentarán solos.` : "";
-      setSyncMessage((syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : blocked ? "Sin registros por enviar." : "No se pudo sincronizar aún. Revisa la conexión y los datos.")) + blockedNote);
+      const stopped = blocked + held;
+      const blockedNote = stopped ? ` ${stopped} detenido(s) por la configuración de la organización; no se reintentarán solos.` : "";
+      setSyncMessage((syncError ?? (completed.length ? `${completed.length} registro(s) sincronizado(s). ${remaining} pendiente(s).` : stopped ? "Sin registros por enviar." : "No se pudo sincronizar aún. Revisa la conexión y los datos.")) + blockedNote);
       if (completed.length) await Promise.all([sponsoredQuery.refetch(), placementChildrenQuery.refetch(), assistedQuery.refetch()]);
     } catch {
       setSyncMessage("No se pudo sincronizar. Los registros siguen guardados en este teléfono.");
@@ -162,23 +165,30 @@ export default function NetworkScreen() {
   const visiblePending = pendingItems.filter((item) => item.sponsorUserId === user?.id && item.organizationId === activeOrganization?.id);
   const assistedSection = user && activeOrganization && personal ? (
     <>
-      <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
+      {assistedAvailable ? (
+        <Button label="Registrar a alguien" variant="secondary" onPress={() => router.push("/assisted-enrollment" as never)} />
+      ) : (
+        <Card style={styles.pendingCard} testID="assisted-enrollment-off">
+          <Text style={styles.pendingHeading}>Registro asistido no disponible en esta organización</Text>
+          <Text style={styles.pendingText}>La organización desactivó «Registrar a alguien». Puedes seguir con la verificación de los registros que ya existen.</Text>
+        </Card>
+      )}
           {visiblePending.length > 0 ? (
             <Card style={styles.pendingCard}>
               <Text style={styles.pendingText}>{visiblePending.length} registro(s) pendiente(s) de sincronizar. Revisa la INE guardada y recupera la conexión para enviar.</Text>
               {visiblePending.map((item) => (
                 <View key={item.input.client_request_id} style={styles.pendingCard}>
                   <Text style={styles.pendingText}>{item.input.first_name} {item.input.last_name}</Text>
-                  {item.blocked ? (
+                  {item.blocked || isHeldBySetting(item, { assistedEnrollmentAvailable: assistedAvailable }) ? (
                     <>
-                      <Text accessibilityRole="alert" style={styles.pendingHeading}>{blockedExplanation(item.blocked.reason).title}</Text>
-                      <Text style={styles.pendingText}>{blockedExplanation(item.blocked.reason).description}</Text>
-                      {canRetryBlocked(item.blocked.reason) ? <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} /> : null}
+                      <Text accessibilityRole="alert" style={styles.pendingHeading}>{blockedExplanation(item.blocked?.reason ?? "assisted_enrollment_unavailable").title}</Text>
+                      <Text style={styles.pendingText}>{blockedExplanation(item.blocked?.reason ?? "assisted_enrollment_unavailable").description}</Text>
+                      {item.blocked && canOfferRetry(item.blocked.reason, assistedAvailable) ? <Button label="Reintentar envío" variant="secondary" disabled={syncing} onPress={() => retryPending(item)} /> : null}
                       {checkingId === item.input.client_request_id ? <Text accessibilityLiveRegion="polite" style={styles.pendingText}>Comprobando en el servidor…</Text> : null}
                       <Button label="Descartar" variant="danger" disabled={syncing || Boolean(checkingId)} loading={checkingId === item.input.client_request_id} onPress={() => void discardPending(item)} />
                     </>
                   ) : null}
-                  <Button label="Capturar o revisar INE guardada" variant="secondary" disabled={syncing}
+                  <Button label={assistedCreationOff(item, assistedAvailable) ? "Revisar registro guardado" : "Capturar o revisar INE guardada"} variant="secondary" disabled={syncing}
                     onPress={() => router.push(`/assisted-offline/${item.input.client_request_id}` as never)} />
                 </View>
               ))}

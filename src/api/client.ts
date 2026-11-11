@@ -7,11 +7,13 @@ type OrganizationIdGetter = () => string | null;
 /** Receives the token the refused request carried, so a late 401 of an earlier session is recognizable. */
 type UnauthorizedHandler = (requestToken: string | null) => void;
 type KycUnavailableHandler = (organizationId: string) => void;
+type AssistedEnrollmentUnavailableHandler = (organizationId: string) => void;
 
 let getToken: TokenGetter = () => null;
 let getOrganizationId: OrganizationIdGetter = () => null;
 let onUnauthorized: UnauthorizedHandler = () => {};
 let onKycUnavailable: KycUnavailableHandler = () => {};
+let onAssistedEnrollmentUnavailable: AssistedEnrollmentUnavailableHandler = () => {};
 
 /**
  * Wires the API client to the current auth/organization state. Called once
@@ -23,11 +25,13 @@ export function configureApiClient(options: {
   getOrganizationId?: OrganizationIdGetter;
   onUnauthorized?: UnauthorizedHandler;
   onKycUnavailable?: KycUnavailableHandler;
+  onAssistedEnrollmentUnavailable?: AssistedEnrollmentUnavailableHandler;
 }) {
   if (options.getToken) getToken = options.getToken;
   if (options.getOrganizationId) getOrganizationId = options.getOrganizationId;
   if (options.onUnauthorized) onUnauthorized = options.onUnauthorized;
   if (options.onKycUnavailable) onKycUnavailable = options.onKycUnavailable;
+  if (options.onAssistedEnrollmentUnavailable) onAssistedEnrollmentUnavailable = options.onAssistedEnrollmentUnavailable;
 }
 
 export interface ApiRequestOptions {
@@ -168,6 +172,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     // (its header, not whichever is active by the time a late answer lands).
     const requestOrganizationId = headers["X-Organization-ID"];
     if (error.reason === "kyc_unavailable" && requestOrganizationId) onKycUnavailable(requestOrganizationId);
+    if (error.reason === "assisted_enrollment_unavailable" && requestOrganizationId) onAssistedEnrollmentUnavailable(requestOrganizationId);
     // API #93: the server blocks this account until it reviews a notice. Only
     // an answer for the session still signed in may raise the review screen.
     if (error.reason === "privacy_notice_review_required" && requestToken && requestToken === getToken()) {

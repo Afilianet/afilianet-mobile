@@ -17,6 +17,7 @@ export type AffiliateProfilePresence = "present" | "absent" | "unknown";
 
 type Membership = Pick<Organization, "my_role" | "my_membership_status" | "has_affiliate_profile">;
 type CaptureSetting = Pick<Organization, "identity_verification_available">;
+type AssistedSetting = Pick<Organization, "assisted_enrollment_available">;
 
 /** MembershipRole::canManageOrganization() in afilianet-api: staff, not affiliates. */
 const STAFF_ROLES = new Set(["owner", "admin", "manager"]);
@@ -47,4 +48,17 @@ export function isOrganizationStaff(organization: Membership | null | undefined)
  */
 export function identityCaptureAvailable(organization: CaptureSetting | null | undefined): boolean {
   return organization?.identity_verification_available !== false;
+}
+
+/**
+ * NEW assisted enrollments ("Registrar a alguien", including drafts saved
+ * offline) may be offered in this organization. Same rule as capture: only an
+ * explicit `false` (from the server's list, or an `assisted_enrollment_unavailable`
+ * refusal recorded by OrganizationProvider) turns it off; a missing field is
+ * unknown and keeps the previous behaviour, leaving the decision to the API,
+ * whose create route refuses on its own. Enrollments that already exist, and
+ * their verification, are never gated by this.
+ */
+export function assistedEnrollmentAvailable(organization: AssistedSetting | null | undefined): boolean {
+  return organization?.assisted_enrollment_available !== false;
 }

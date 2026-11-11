@@ -8,7 +8,8 @@ const mockReplace = jest.fn();
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), replace: mockReplace }) }));
 jest.mock("expo-crypto", () => ({ randomUUID: () => "request-a" }));
 jest.mock("../../auth/AuthContext", () => ({ useAuth: () => ({ user: { id: "sponsor-a" } }) }));
-jest.mock("../../state/OrganizationContext", () => ({ useOrganization: () => ({ activeOrganization: { id: "org-a" } }) }));
+let mockOrganization: { id: string; assisted_enrollment_available?: boolean } = { id: "org-a" };
+jest.mock("../../state/OrganizationContext", () => ({ useOrganization: () => ({ activeOrganization: mockOrganization }) }));
 jest.mock("../../api/assistedEnrollment", () => ({ createAssistedEnrollment: jest.fn() }));
 jest.mock("../../services/assistedQueue", () => ({ savePendingAssisted: jest.fn(), removePendingAssisted: jest.fn() }));
 
@@ -37,6 +38,7 @@ async function submit(screen: Screen) {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockOrganization = { id: "org-a" };
   (createAssistedEnrollment as jest.Mock).mockResolvedValue(created);
 });
 
@@ -164,7 +166,7 @@ describe("Registrar a alguien -- errors keep the form", () => {
     expect(savePendingAssisted).toHaveBeenCalledWith({
       sponsorUserId: "sponsor-a", organizationId: "org-a",
       input: { first_name: "Ana", last_name: "López", phone: "+525512345678", client_request_id: "request-a", consent_confirmed: true },
-    });
+    }, { assistedEnrollmentAvailable: true });
     expect(screen.getByText("Guardado en este teléfono")).toBeTruthy();
     expect(screen.getByText(/ni se le envió ningún mensaje/)).toBeTruthy();
   });
@@ -195,5 +197,53 @@ describe("Registrar a alguien -- errors keep the form", () => {
     expect(screen.getByText("Registrar")).toBeTruthy();
     expect(screen.getByLabelText("Celular de la persona").props.value).toBe("5512345678");
     expect(savePendingAssisted).not.toHaveBeenCalled();
+  });
+});
+
+describe("Registrar a alguien -- the organization's assisted-enrollment setting", () => {
+  it("explicit false: no form, nothing sent and nothing saved on this phone", async () => {
+    mockOrganization = { id: "org-a", assisted_enrollment_available: false };
+    const screen = await render(<AssistedEnrollmentScreen />);
+
+    expect(screen.getByTestId("assisted-enrollment-unavailable")).toBeTruthy();
+    expect(screen.getByText("Registro asistido no disponible en esta organización")).toBeTruthy();
+    expect(screen.getByText(/ni guardarlo en este teléfono/)).toBeTruthy();
+    expect(screen.queryByLabelText("Nombre")).toBeNull();
+    expect(screen.queryByText("Registrar")).toBeNull();
+    expect(createAssistedEnrollment).not.toHaveBeenCalled();
+    expect(savePendingAssisted).not.toHaveBeenCalled();
+  });
+
+  it("missing setting (older API or a list saved before it): unknown, the form works as before", async () => {
+    const screen = await render(<AssistedEnrollmentScreen />);
+    expect(screen.queryByTestId("assisted-enrollment-unavailable")).toBeNull();
+    await fill(screen, { email: "ana@example.com" });
+    await submit(screen);
+    expect(createAssistedEnrollment).toHaveBeenCalledTimes(1);
+  });
+
+  it("the server still decides: a 503 refusal with the setting unknown says why, never queues and never offers a retry", async () => {
+    (createAssistedEnrollment as jest.Mock).mockRejectedValue(
+      new ApiError("server", "unavailable", 503, undefined, { reason: "assisted_enrollment_unavailable" }),
+    );
+    const screen = await render(<AssistedEnrollmentScreen />);
+    await fill(screen, { email: "ana@example.com" });
+    await submit(screen);
+
+    expect(screen.getByTestId("assisted-enrollment-unavailable")).toBeTruthy();
+    expect(screen.getByText("El registro asistido no está disponible en esta organización. No se creó ningún registro. Lo que escribiste no se guardó en este teléfono.")).toBeTruthy();
+    expect(screen.queryByText(/Algo salió mal de nuestro lado/)).toBeNull();
+    expect(screen.queryByText("Registrar")).toBeNull();
+    expect(savePendingAssisted).not.toHaveBeenCalled();
+    expect(createAssistedEnrollment).toHaveBeenCalledTimes(1);
+  });
+
+  it("offline with the setting unknown still saves the draft; the server decides when it syncs", async () => {
+    (createAssistedEnrollment as jest.Mock).mockRejectedValue(new ApiError("offline", "offline"));
+    const screen = await render(<AssistedEnrollmentScreen />);
+    await fill(screen, { email: "ana@example.com" });
+    await submit(screen);
+    expect(savePendingAssisted).toHaveBeenCalledWith(expect.objectContaining({ organizationId: "org-a" }), { assistedEnrollmentAvailable: true });
+    expect(screen.getByText("Guardado en este teléfono")).toBeTruthy();
   });
 });

@@ -55,3 +55,12 @@ describe("loginErrorMessage", () => {
     expect(message).not.toContain("SQLSTATE");
   });
 });
+
+describe("friendlyMessage: assisted enrollment switched off (API fe81252)", () => {
+  it("says what is off, not a server fault to retry", () => {
+    const { ApiError, friendlyMessage } = jest.requireActual("./errors") as typeof import("./errors");
+    const error = new ApiError("server", "x", 503, undefined, { reason: "assisted_enrollment_unavailable" });
+    expect(friendlyMessage(error)).toBe("El registro asistido no está disponible en esta organización. No se creó ningún registro.");
+    expect(friendlyMessage(error)).not.toMatch(/Inténtalo de nuevo/);
+  });
+});

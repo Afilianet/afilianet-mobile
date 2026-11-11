@@ -559,7 +559,7 @@ describe("Mi red: a pending registration stopped by the organization (API #92, A
   });
 
   it("the sync message tells stopped drafts apart from connection problems", async () => {
-    queue().syncPendingAssisted.mockResolvedValue({ completed: [], remaining: 1, blocked: 1 });
+    queue().syncPendingAssisted.mockResolvedValue({ completed: [], remaining: 1, blocked: 1, held: 0 });
     const screen = await renderNetwork();
     await act(async () => { fireEvent.press(await screen.findByText("Sincronizar registros pendientes")); });
     expect(await screen.findByText("Sin registros por enviar. 1 detenido(s) por la configuración de la organización; no se reintentarán solos.")).toBeTruthy();
@@ -570,5 +570,59 @@ describe("Mi red: a pending registration stopped by the organization (API #92, A
     const screen = await renderNetwork();
     await act(async () => { fireEvent.press(await screen.findByText("Reintentar envío")); });
     expect(queue().retryBlockedAssisted).toHaveBeenCalledWith("ra");
+  });
+});
+
+describe("Mi red: «Registrar a alguien» follows the organization's setting (assisted_enrollment_available)", () => {
+  const queue = () => jest.requireMock("../../../services/assistedQueue") as Record<"listPendingAssisted" | "syncPendingAssisted" | "removePendingAssisted" | "retryBlockedAssisted", jest.Mock>;
+  const OFF: Organization = { ...ORG_A, assisted_enrollment_available: false };
+  const held = {
+    sponsorUserId: "sponsor-user", organizationId: "org-a",
+    input: { client_request_id: "rh", first_name: "Hugo", last_name: "Guardado", consent_confirmed: true },
+  };
+  const refused = {
+    sponsorUserId: "sponsor-user", organizationId: "org-a", createAttempted: true,
+    blocked: { reason: "assisted_enrollment_unavailable", at: "2026-10-26T12:00:00Z" },
+    input: { client_request_id: "rb", first_name: "Bea", last_name: "Rechazada", consent_confirmed: true },
+  };
+
+  beforeEach(() => {
+    const router = jest.requireMock("expo-router") as { useFocusEffect: jest.Mock };
+    const React = jest.requireActual("react") as typeof import("react");
+    router.useFocusEffect.mockImplementation((effect: () => void) => React.useEffect(effect, [effect]));
+    queue().listPendingAssisted.mockResolvedValue([]);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("off: no entry to register someone, and it says why", async () => {
+    const screen = await renderNetwork(orgValue({ organizations: [OFF], activeOrganization: OFF }));
+    expect(await screen.findByTestId("assisted-enrollment-off")).toBeTruthy();
+    expect(screen.queryByText("Registrar a alguien")).toBeNull();
+  });
+
+  it("missing setting: unknown, the entry stays as before", async () => {
+    const screen = await renderNetwork();
+    expect(await screen.findByText("Registrar a alguien")).toBeTruthy();
+    expect(screen.queryByTestId("assisted-enrollment-off")).toBeNull();
+  });
+
+  it("off with drafts already saved: each explains why it cannot be sent, offers discard and no retry; nothing is deleted on its own", async () => {
+    queue().listPendingAssisted.mockResolvedValue([held, refused]);
+    const screen = await renderNetwork(orgValue({ organizations: [OFF], activeOrganization: OFF }));
+    expect(await screen.findByText("Hugo Guardado")).toBeTruthy();
+    expect(screen.getAllByText(/este registro no puede enviarse/)).toHaveLength(2);
+    expect(screen.getAllByText("Descartar")).toHaveLength(2);
+    expect(screen.queryByText("Reintentar envío")).toBeNull();
+    expect(screen.getAllByText("Revisar registro guardado")).toHaveLength(2);
+    expect(queue().removePendingAssisted).not.toHaveBeenCalled();
+  });
+
+  it("the sync passes the setting along and counts held drafts as stopped by the organization", async () => {
+    queue().listPendingAssisted.mockResolvedValue([held]);
+    queue().syncPendingAssisted.mockResolvedValue({ completed: [], remaining: 1, blocked: 0, held: 1 });
+    const screen = await renderNetwork(orgValue({ organizations: [OFF], activeOrganization: OFF }));
+    await act(async () => { fireEvent.press(await screen.findByText("Sincronizar registros pendientes")); });
+    expect(queue().syncPendingAssisted).toHaveBeenCalledWith("sponsor-user", "org-a", { assistedEnrollmentAvailable: false });
+    expect(await screen.findByText("Sin registros por enviar. 1 detenido(s) por la configuración de la organización; no se reintentarán solos.")).toBeTruthy();
   });
 });
