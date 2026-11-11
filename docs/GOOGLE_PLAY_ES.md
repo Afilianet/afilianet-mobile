@@ -345,6 +345,11 @@ Después, lo que Mobile ejecuta solo con autorización en su sesión:
 6. Andrés lo sube **a mano** en Prueba interna, acepta Play App Signing con la opción elegida, agrega la lista de testers internos y comparte el enlace.
 7. Instalar desde Play en un teléfono que **no** tenga un APK de Afilianet: el A06 tiene vc19 con la cuenta protegida, así que no.
 
+### Registro de la prueba interna (vc22)
+- [x] 5. AAB construido: EAS `67c288cb-0114-41a9-becd-602172401b19`, #95 @ `370f472aec5e4d421db7cdda7ce71419ab4b0d10`, versionCode 22, SHA-256 `dbe09b92d36a91d578c797e2d162ca05f680f3b9d80de2dcd61a1242d4ebe8b9` (2026-11-11). Sin R8: no hay mapping; la advertencia de desofuscación de Play es informativa.
+- [x] 6. Subido por Andrés a Prueba interna.
+- [x] 7. Instalado **desde Google Play** en el Galaxy A06 y **seis pruebas físicas satisfactorias**, según confirma Andrés. Decisión de Andrés sobre el A06, en lugar de otro teléfono. No hizo falta otro build. El detalle de cada prueba lo da Andrés; aquí no se infiere.
+
 Para la prueba cerrada, además: el aviso y la página de eliminación publicados, las solicitudes de eliminación activas en staging, la cuenta del revisor, el cuestionario de contenido, Data safety completo y los 12 testers.
 
 ---
