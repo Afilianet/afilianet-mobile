@@ -138,7 +138,9 @@ describe("Sign-up without an organization", () => {
 
     expect(checked(view)).toBe(false);
     expect(view.getByText("Se puso a mi disposición el Aviso de privacidad de Afilianet (versión prueba-general.1) antes de continuar.")).toBeTruthy();
-    expect(view.getByText("Marcar esta casilla no es un consentimiento ni la aceptación de términos.")).toBeTruthy();
+    // Compact: no precautionary note under the box, and no document unfolded in the form.
+    expect(view.queryByText(/no es un consentimiento/)).toBeNull();
+    expect(view.queryByTestId("notice-sheet")).toBeNull();
     await press(view, "Crear cuenta");
     expect(register).not.toHaveBeenCalled();
     expect(view.getByText("Marca la casilla para continuar.")).toBeTruthy();
@@ -179,8 +181,10 @@ describe("Sign-up without an organization", () => {
     const view = await mount(<RegisterScreen />, authValue({ register }));
     await waitFor(() => expect(view.getByTestId("step-notices")).toBeTruthy());
     await fillRegister(view);
-    await press(view, "Ver aviso");
+    await act(async () => { fireEvent.press(view.getByTestId("notice-link-general")); });
     expect(view.getByText("Texto de prueba-general.1")).toBeTruthy();
+    await press(view, "Cerrar");
+    expect(view.queryByTestId("notice-sheet")).toBeNull();
     await tick(view);
     await press(view, "Crear cuenta");
     expect(view.getByText(/El aviso de privacidad cambió/)).toBeTruthy();
@@ -224,7 +228,7 @@ describe("Joining by referral link", () => {
     on(LOOKUP, ok(block(O1)));
     const auth = authValue();
     const view = await mount(<JoinScreen />, auth);
-    await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
+    await waitFor(() => expect(view.getAllByTestId(/^notice-link-/)).toHaveLength(2));
     await fillVisitor(view);
     expect(view.getByText("Se pusieron a mi disposición el Aviso de privacidad de Afilianet (versión prueba-general.1) y el aviso de privacidad de la organización (versión prueba-suplemento-org-1.1) antes de continuar.")).toBeTruthy();
     await tick(view);
@@ -263,7 +267,7 @@ describe("Joining by referral link", () => {
       on("GET /me/privacy", myPrivacy("review"));
       on(ACCEPT, ok({ data: { organization_role: "affiliate" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
+      await waitFor(() => expect(view.getAllByTestId(/^notice-link-/)).toHaveLength(2));
       await tick(view);
       await press(view, "Unirme con mi cuenta");
       expect(sent(ACCEPT)[0]).toEqual({ privacy_notice: ref(G1), organization_notice: ref(O1), client_request_id: expect.any(String) });
@@ -274,7 +278,7 @@ describe("Joining by referral link", () => {
       on("GET /me/privacy", myPrivacy("none"));
       on(ACCEPT, ok({ data: { organization_role: "affiliate" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(1));
+      await waitFor(() => expect(view.getAllByTestId(/^notice-link-/)).toHaveLength(1));
       expect(view.queryByText("Aviso de privacidad general")).toBeNull();
       await tick(view);
       await press(view, "Unirme con mi cuenta");
@@ -290,11 +294,11 @@ describe("Joining by referral link", () => {
         ok({ data: { organization_role: "affiliate" } }),
       );
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(1));
+      await waitFor(() => expect(view.getAllByTestId(/^notice-link-/)).toHaveLength(1));
       await tick(view);
       await press(view, "Unirme con mi cuenta");
       expect(view.getByText("Para unirte, primero lee el aviso de privacidad general vigente.")).toBeTruthy();
-      await waitFor(() => expect(view.getByText("Aviso de privacidad general")).toBeTruthy());
+      await waitFor(() => expect(view.getByTestId("notice-link-general")).toBeTruthy());
       // A new document joined the list: the earlier confirmation does not cover it.
       expect(checked(view)).toBe(false);
       await press(view, "Unirme con mi cuenta");
@@ -310,8 +314,8 @@ describe("Joining by referral link", () => {
       on(LOOKUP, ok(block(O1)));
       on("GET /me/privacy", () => ({ status: 404, body: { message: "Not Found" } }));
       const view = await mount(<JoinScreen />, signedIn());
-      await waitFor(() => expect(view.getAllByText("Ver aviso")).toHaveLength(2));
-      expect(view.getByText("Aviso de privacidad general")).toBeTruthy();
+      await waitFor(() => expect(view.getAllByTestId(/^notice-link-/)).toHaveLength(2));
+      expect(view.getByTestId("notice-link-general")).toBeTruthy();
     });
   });
 });

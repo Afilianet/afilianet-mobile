@@ -1,7 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
-import { strings } from "../../i18n";
 import { Checkbox } from "../ui/Checkbox";
-import { colors, spacing, typography } from "../ui/theme";
 
 /**
  * The one explicit confirmation a notice step asks for (API #91): the listed
@@ -20,15 +17,5 @@ export function NoticeConfirmation({
   disabled?: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  return (
-    <View style={styles.group}>
-      <Checkbox label={label} checked={checked} disabled={disabled} onChange={onChange} testID="notice-confirmation" />
-      <Text style={styles.note}>{strings.privacyNotices.step.notConsent}</Text>
-    </View>
-  );
+  return <Checkbox label={label} checked={checked} disabled={disabled} onChange={onChange} testID="notice-confirmation" />;
 }
-
-const styles = StyleSheet.create({
-  group: { gap: spacing.xs },
-  note: { ...typography.caption, color: colors.textTertiary },
-});

@@ -47,7 +47,7 @@ export default function RegisterScreen() {
   // unpublished notice (503) shows nothing and sends nothing, as before.
   const notices = useStepNotices({ enabled: true, withOrganization: false, general: "always" });
   // Registration consents v1: no organization, so identity verification is asked at KYC start, not here.
-  const consents = useRegistrationConsents(notices, { verificationExpected: false });
+  const consents = useRegistrationConsents(notices);
   const attemptId = useAttemptId();
   // A second tap before the first re-render must not send a second request.
   const busy = useRef(false);
@@ -143,7 +143,6 @@ export default function RegisterScreen() {
           <Button label={copy.submit} size="lg" fullWidth loading={submitting} disabled={notices.status === "loading"} onPress={() => void submit()} />
           <Button label={copy.withInvitation} variant="ghost" onPress={() => router.push(routes.invitation as never)} disabled={submitting} />
           <Button label={copy.haveAccount} variant="ghost" onPress={() => router.replace(routes.login as never)} disabled={submitting} />
-          <Button label="Aviso de privacidad" variant="ghost" onPress={() => router.push("/privacy" as never)} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

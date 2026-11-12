@@ -281,7 +281,7 @@ function VisitorRegistration({ organizationId, code, referral, onNoticesChanged 
   // the referral's own block; without a block (an older API) nothing changes.
   const notices = useStepNotices({ enabled: true, withOrganization: true, block: referral.privacy, general: "always" });
   // Registration consents v1: identity verification only where this organization verifies identity.
-  const consents = useRegistrationConsents(notices, { verificationExpected: referral.privacy?.verification_expected === true });
+  const consents = useRegistrationConsents(notices);
   const noticesReady = notices.status !== "loading" && !notices.blockedMessage;
   const attemptId = useAttemptId();
   const busy = useRef(false);
