@@ -650,10 +650,15 @@ describe("Survey journey with a real recording: finish on exit, offline, pending
     expect(await listReceipts(SCOPE)).toEqual([]);
     // Type and size keep their own message.
     expect(top(screen).getByText(/El servidor no aceptó el audio \(tipo o tamaño\)/)).toBeTruthy();
-    expect(top(screen).queryByText(/falta el texto de consentimiento/)).toBeNull();
+    expect(top(screen).queryByText(/consentimiento de grabación válido/)).toBeNull();
   });
 
-  it("API A1: a refusal for missing consent text says so, never «tipo o tamaño», and offers «Descartar audio»", async () => {
+  // audio_consent_required has two server causes (API #162): the version has no consent text (A1),
+  // or the stored decision is not «accepted». The app cannot tell them apart and says what is true for both.
+  it.each([
+    ["the version has no consent text (A1)", "Esta versión no tiene texto de consentimiento."],
+    ["the stored consent is not accepted", "La respuesta no tiene consentimiento de grabación aceptado."],
+  ])("audio_consent_required (%s): one accurate message, never «tipo o tamaño», and «Descartar audio»", async (_cause, serverMessage) => {
     mockRealRecorder = true;
     const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-vecinal"]);
     await recordAndSaveDraft(screen);
@@ -671,7 +676,7 @@ describe("Survey journey with a real recording: finish on exit, offline, pending
     const { ApiError } = jest.requireActual("../../api/errors");
     jest
       .spyOn(surveySource, "uploadAudio")
-      .mockRejectedValue(new ApiError("validation", "Sin texto de consentimiento.", 422, undefined, { reason: "audio_consent_required" }));
+      .mockRejectedValue(new ApiError("validation", serverMessage, 422, undefined, { reason: "audio_consent_required" }));
     await tap(screen, "Sincronizar ahora");
     await settle(100);
 
@@ -681,9 +686,12 @@ describe("Survey journey with a real recording: finish on exit, offline, pending
     expect(item.audio?.rejected).toBe("audio_consent_required");
     expect(top(screen).getByText("Audio no aceptado")).toBeTruthy();
     expect(
-      top(screen).getByText("No se pudo subir el audio porque falta el texto de consentimiento de esta encuesta. La respuesta ya fue recibida. Puedes descartar el audio."),
+      top(screen).getByText("No se pudo subir el audio porque esta respuesta no tiene un consentimiento de grabación válido. La respuesta ya fue recibida. Puedes descartar el audio."),
     ).toBeTruthy();
     expect(top(screen).queryByText(/tipo o tamaño/)).toBeNull();
+    expect(top(screen).queryByText(/falta el texto de consentimiento/)).toBeNull();
+    // The server's own message is never shown or used to pick the text.
+    expect(top(screen).queryByText(serverMessage)).toBeNull();
     expect(top(screen).getByText("Descartar audio")).toBeTruthy();
     expect(top(screen).queryByText("Recibido")).toBeNull();
   });
