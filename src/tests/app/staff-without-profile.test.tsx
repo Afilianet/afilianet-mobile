@@ -240,6 +240,15 @@ describe("Staff without an affiliate profile (has_affiliate_profile: false)", ()
     expect(personalRequests("org-staff")).toEqual([]);
   });
 
+  it("Perfil: an email-only account can add a phone from here; nothing is required to keep using the app", async () => {
+    const profile = await show(<ProfileScreen />, STAFF_ORG);
+    await waitFor(() => expect(profile.getByTestId("profile-phone-change")).toBeTruthy());
+    expect(profile.getByText("Agregar celular")).toBeTruthy();
+    expect(profile.queryByTestId("profile-phone")).toBeNull();
+    await act(async () => { fireEvent.press(profile.getByTestId("profile-phone-change")); });
+    expect(mockRouter.push).toHaveBeenCalledWith("/verify-account");
+  });
+
   it("Verificación: nothing to start, a neutral «not available for this account», no request", async () => {
     const compliance = await show(<ComplianceScreen />, STAFF_ORG);
     expect(compliance.getByTestId("personal-affiliate-unavailable")).toBeTruthy();

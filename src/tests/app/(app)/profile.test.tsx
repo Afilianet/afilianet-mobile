@@ -153,8 +153,14 @@ describe("Profile: real affiliate data", () => {
   it("shows the phone of a phone-only account instead of an empty email line", async () => {
     const { findByText, queryByText } = await renderProfile({ auth: { user: { ...USER, email: null, phone: "+525512345678" } } });
     expect(await findByText("Jordan Lee")).toBeTruthy();
-    expect(await findByText("+52 55 1234 5678")).toBeTruthy();
+    // The number with its verification state, read only from the server's user.
+    expect(await findByText("+52 55 1234 5678 · Pendiente")).toBeTruthy();
     expect(queryByText("jordan@example.com")).toBeNull();
+  });
+
+  it("a verified phone reads as verified", async () => {
+    const { findByText } = await renderProfile({ auth: { user: { ...USER, email: null, phone: "+525512345678", phone_verified_at: "2026-11-12T00:00:00Z" } } });
+    expect(await findByText("+52 55 1234 5678 · Verificado")).toBeTruthy();
   });
 
   it("shows the active organization's name", async () => {

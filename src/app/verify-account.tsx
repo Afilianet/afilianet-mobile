@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { PhoneChangeCard } from "../components/account/PhoneChangeCard";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
@@ -67,6 +68,8 @@ export default function VerifyAccountScreen() {
         {user.phone ? (
           <PhoneChannel key={`phone-${user.id}-${user.phone}`} phone={user.phone} hasEmail={Boolean(user.email)} verified={phoneVerified} refreshUser={refreshUser} />
         ) : null}
+        {/* Add a phone or change it (PATCH /me/phone); a pending number is confirmed here too. */}
+        <PhoneChangeCard key={`phone-change-${user.id}`} user={user} refreshUser={refreshUser} />
         <Button label={allVerified ? copy.continue : copy.later} variant={allVerified ? "primary" : "ghost"} onPress={next} />
       </ScrollView>
     </KeyboardAvoidingView>
