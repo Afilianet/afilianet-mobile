@@ -137,7 +137,9 @@ describe("Staff without an affiliate profile (has_affiliate_profile: false)", ()
   it("Home: says what the account is and where its work is; no personal card, no «No iniciado», no «Comenzar verificación», no personal request", async () => {
     const screen = await show(<HomeScreen />, STAFF_ORG);
     await waitFor(() => expect(screen.getByTestId("home-staff-without-profile")).toBeTruthy());
-    expect(screen.getByText("Administras esta organización desde Admin. Esta cuenta no tiene perfil de afiliado. Para participar como afiliado, en Admin → Afiliados se crea un enlace de invitación para esta cuenta y lo aceptas con ella.")).toBeTruthy();
+    expect(screen.getByText("Esta cuenta administra la organización y no tiene perfil de afiliado.")).toBeTruthy();
+    // Self-invitation is suspended: nothing suggests creating an invitation for this account.
+    expect(screen.queryByText(/invitaci/i)).toBeNull();
     expect(screen.queryByText(/No iniciado/)).toBeNull();
     expect(screen.queryByText("Comenzar verificación")).toBeNull();
     expect(screen.queryByText("Únete al programa de afiliados")).toBeNull();
