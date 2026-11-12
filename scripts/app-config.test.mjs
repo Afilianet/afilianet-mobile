@@ -63,8 +63,8 @@ test("privacy-test-apk is a separate app: own package, name and scheme, no Fireb
 });
 
 test("every other profile keeps the beta's identity and its Firebase file", () => {
-  for (const profile of ["store-beta", "store-beta-apk", "staging", "production"]) {
-    const resolved = resolve({ EAS_BUILD_PROFILE: profile, ...eas.build[profile].env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+  for (const profile of ["store-beta", "store-beta-apk", "store-beta-surveys", "staging", "production"]) {
+    const resolved = resolve({ EAS_BUILD_PROFILE: profile, ...storeBetaEnv, ...eas.build[profile].env, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
     assert.equal(resolved.android.package, "com.afilianet.mobile", profile);
     assert.equal(resolved.scheme, undefined, profile);
     assert.equal(resolved.android.googleServicesFile, "/tmp/google-services.json", profile);
@@ -95,12 +95,27 @@ test("WhatsApp code channel: only demo-apk allows it (and then only if the serve
   // store-beta is the Play AAB (internal and closed testing): explicitly off, inherited by store-beta-apk.
   assert.equal(resolvedEnv("store-beta").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
   assert.equal(resolvedEnv("store-beta-apk").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
-  for (const profile of Object.keys(eas.build).filter((name) => !["demo-apk", "production", "store-beta", "store-beta-apk"].includes(name))) {
+  // store-beta-surveys is a Play AAB too (vc25): it inherits the explicit "0" and must never override it.
+  assert.equal(resolvedEnv("store-beta-surveys").EXPO_PUBLIC_PHONE_WHATSAPP, "0");
+  assert.equal(eas.build["store-beta-surveys"].env.EXPO_PUBLIC_PHONE_WHATSAPP, undefined);
+  for (const profile of Object.keys(eas.build).filter((name) => !["demo-apk", "production", "store-beta", "store-beta-apk", "store-beta-surveys"].includes(name))) {
     assert.equal(resolvedEnv(profile).EXPO_PUBLIC_PHONE_WHATSAPP, undefined, profile);
   }
 });
 
 test("demo-apk: store permissions, but the microphone stays in the manifest because surveys are on", () => {
   const blocked = resolve({ EAS_BUILD_PROFILE: "demo-apk", ...demoEnv }).android.blockedPermissions;
+  assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE"].sort());
+});
+
+test("store-beta-surveys (vc25): store permissions, the microphone kept because surveys are on, same app", () => {
+  const env = { ...storeBetaEnv, ...eas.build["store-beta-surveys"].env };
+  for (const withProfile of [{ EAS_BUILD_PROFILE: "store-beta-surveys", ...env }, { ...env }]) {
+    const resolved = resolve({ ...withProfile, GOOGLE_SERVICES_JSON: "/tmp/google-services.json" });
+    assert.equal(resolved.android.package, "com.afilianet.mobile");
+    assert.equal(resolved.name, undefined);
+    assert.equal(resolved.scheme, undefined);
+  }
+  const blocked = resolve({ EAS_BUILD_PROFILE: "store-beta-surveys", ...env }).android.blockedPermissions;
   assert.deepEqual([...blocked].sort(), ["android.permission.SYSTEM_ALERT_WINDOW", "android.permission.READ_EXTERNAL_STORAGE"].sort());
 });

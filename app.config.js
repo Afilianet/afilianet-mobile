@@ -2,7 +2,7 @@
 // Android permissions that no feature enabled in that build uses. Development
 // and staging builds keep their manifest as it was.
 // demo-apk is the store beta APK with real staging surveys (demo 2026-11-09): same app, package and signature.
-const STORE_PROFILES = new Set(["store-beta", "store-beta-apk", "demo-apk", "privacy-test-apk", "production"]);
+const STORE_PROFILES = new Set(["store-beta", "store-beta-apk", "store-beta-surveys", "demo-apk", "privacy-test-apk", "production"]);
 
 // The physical privacy test (Mobile #75) runs against a disposable API, never
 // staging. It is selected by APP_VARIANT from the profile's env, NOT by

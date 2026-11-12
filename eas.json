@@ -78,6 +78,13 @@
         "buildType": "apk"
       }
     },
+    "store-beta-surveys": {
+      "extends": "store-beta",
+      "env": {
+        "EXPO_PUBLIC_SURVEYS_PREVIEW": "1",
+        "EXPO_PUBLIC_SURVEYS_SOURCE": "api"
+      }
+    },
     "demo-apk": {
       "extends": "store-beta-apk",
       "env": {

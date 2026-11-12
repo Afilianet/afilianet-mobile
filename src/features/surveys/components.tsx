@@ -153,7 +153,9 @@ export function OutboxPanel({
                   ? copy.audioResponseUnavailableHelp
                   : item.audio.rejected === "invalid_identifier"
                     ? copy.audioInvalidIdentifierHelp
-                    : copy.audioRejectedHelp}
+                    : item.audio.rejected === "audio_consent_required"
+                      ? copy.audioConsentRequiredHelp
+                      : copy.audioRejectedHelp}
               </Text>
               <Button label={copy.discardAudio} variant="ghost" size="sm" onPress={() => onDiscardAudio(item.id)} />
             </>
@@ -173,7 +175,6 @@ export function OutboxPanel({
           <Completeness missingRequired={receipt.missingRequired} />
         </View>
       ))}
-      {receipts.some((receipt) => receipt.withAudio) ? <Text style={styles.meta}>{copy.serverProcessing}</Text> : null}
     </Card>
   );
 }

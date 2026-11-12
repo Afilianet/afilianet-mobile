@@ -224,3 +224,38 @@ test("production rejects incomplete or contradictory configuration", () => {
   // WhatsApp explicitly off is fine.
   assert.deepEqual(checkDecided({ ...production, EXPO_PUBLIC_PHONE_WHATSAPP: "0" }), []);
 });
+
+test("eas.json: store-beta-surveys (vc25) is the store beta AAB plus real staging surveys, and nothing else", () => {
+  const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
+  const surveys = eas.build["store-beta-surveys"];
+  assert.equal(surveys.extends, "store-beta");
+  // Only its two switches: AAB, store distribution, environment, autoIncrement, WhatsApp "0" and telemetry off are inherited.
+  assert.deepEqual(Object.keys(surveys).sort(), ["env", "extends"]);
+  assert.deepEqual(surveys.env, { EXPO_PUBLIC_SURVEYS_PREVIEW: "1", EXPO_PUBLIC_SURVEYS_SOURCE: "api" });
+  const env = { EAS_BUILD_PROFILE: "store-beta-surveys", ...eas.build["store-beta"].env, ...surveys.env };
+  assert.equal(env.EXPO_PUBLIC_PHONE_WHATSAPP, "0");
+  assert.deepEqual(validateBuildEnvironment(env), []);
+  // A server value can neither turn surveys off nor bring back telemetry (profile env wins).
+  const server = { EXPO_PUBLIC_SURVEYS_PREVIEW: "0", EXPO_PUBLIC_SENTRY_DSN: "https://key@sentry.example/1", EXPO_PUBLIC_PHONE_WHATSAPP: "1" };
+  assert.deepEqual(validateBuildEnvironment({ ...server, ...env }), []);
+});
+
+test("store-beta-surveys fails with WhatsApp, without either switch, telemetry, another API, environment or a variant", () => {
+  const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
+  const env = { EAS_BUILD_PROFILE: "store-beta-surveys", ...eas.build["store-beta"].env, ...eas.build["store-beta-surveys"].env };
+  for (const change of [
+    { EXPO_PUBLIC_PHONE_WHATSAPP: "1" },
+    { EXPO_PUBLIC_PHONE_WHATSAPP: undefined },
+    { EXPO_PUBLIC_SURVEYS_PREVIEW: "0" },
+    { EXPO_PUBLIC_SURVEYS_PREVIEW: undefined },
+    { EXPO_PUBLIC_SURVEYS_SOURCE: undefined },
+    { EXPO_PUBLIC_SENTRY_ENABLED: "1" },
+    { EXPO_PUBLIC_SENTRY_DSN: "https://key@sentry.example/1" },
+    { EXPO_PUBLIC_POSTHOG_API_KEY: "phc_x" },
+    { EXPO_PUBLIC_API_BASE_URL: "https://api.example.test" },
+    { EXPO_PUBLIC_APP_ENV: "production" },
+    { APP_VARIANT: "privacy-test" },
+  ]) {
+    assert.ok(validateBuildEnvironment({ ...env, ...change }).length, JSON.stringify(change));
+  }
+});

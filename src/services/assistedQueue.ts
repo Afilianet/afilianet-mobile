@@ -91,6 +91,16 @@ export async function listPendingAssisted(sponsorUserId: string, organizationId:
   });
 }
 
+/**
+ * Drafts this account keeps on the phone, in EVERY organization (read-only).
+ * Sign-out warns with it: the drafts stay, encrypted, and only reappear for
+ * this same account. Another account's drafts never count.
+ */
+export async function countPendingAssistedForUser(sponsorUserId: string): Promise<number> {
+  const values = await Promise.all((await ids()).map((id) => secureStorage.get(ITEM_PREFIX + id)));
+  return values.filter((raw) => raw && (JSON.parse(raw) as PendingAssistedEnrollment).sponsorUserId === sponsorUserId).length;
+}
+
 /** Refused when the organization is known to have new assisted enrollments off: no third party's data is kept for a draft that cannot be sent. */
 export async function savePendingAssisted(item: PendingAssistedEnrollment, options: { assistedEnrollmentAvailable?: boolean } = {}): Promise<void> {
   if (options.assistedEnrollmentAvailable === false) {

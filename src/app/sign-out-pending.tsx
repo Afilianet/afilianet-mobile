@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
+import { countPendingAssistedForUser } from "../services/assistedQueue";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
@@ -23,12 +24,16 @@ export default function SignOutPendingScreen() {
   const { organizations, activeOrganization } = useOrganization();
   const copy = strings.surveys.signOut;
   const [pending, setPending] = useState<PendingSurveyData[] | null>(null);
+  // Assisted-enrollment drafts are never deleted here: only said to be kept.
+  const [assisted, setAssisted] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
-    setPending(await pendingSurveyData(user.id));
+    const [surveys, drafts] = await Promise.all([pendingSurveyData(user.id), countPendingAssistedForUser(user.id).catch(() => 0)]);
+    setPending(surveys);
+    setAssisted(drafts);
   }, [user]);
 
   useEffect(() => {
@@ -79,6 +84,7 @@ export default function SignOutPendingScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="sign-out-pending">
       <Text style={styles.heading} accessibilityRole="header">{copy.title}</Text>
       {pending ? <Text style={styles.body}>{copy.description(total)}</Text> : null}
+      {assisted > 0 ? <Text style={styles.body} testID="sign-out-pending-assisted">{copy.assistedNote(assisted)}</Text> : null}
       {(pending ?? []).map((value) => (
         <Card key={value.scope.organizationId} style={styles.card}>
           <Text style={styles.cardTitle}>{organizationName(value.scope.organizationId)}</Text>
