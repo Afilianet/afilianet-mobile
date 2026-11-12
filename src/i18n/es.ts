@@ -298,7 +298,7 @@ export const es = {
       decline: "Continuar sin grabar",
       note: "El micrófono solo se activa después de este consentimiento, y solo cuando toques «Iniciar grabación».",
       noText: "Esta encuesta no trae un texto de consentimiento. Explica a la persona que la entrevista se grabará en audio, para qué, y que puede negarse.",
-      final: "La decisión queda registrada con la respuesta y no se puede cambiar después.",
+      final: "La decisión se guarda con esta respuesta. Si la persona cambia de opinión, puede retirar su consentimiento y pedir que se elimine la grabación por el canal que indica el texto de consentimiento.",
       required: "Esta encuesta requiere grabar la entrevista. Si la persona no acepta, la entrevista se envía sin audio y queda marcada para seguimiento.",
       decisionRequired: "Registra si la persona acepta o no la grabación antes de guardar.",
       unavailableRequired: "Esta versión de la app no puede grabar audio. Si la persona acepta, las respuestas se conservarán como borrador hasta que instales una versión de la app que pueda grabar.",

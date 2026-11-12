@@ -130,10 +130,16 @@ beforeEach(() => {
 });
 
 describe("Survey response: consent and recording (interviews only)", () => {
-  it("shows the version's consent text before any microphone control, and states the decision is final", async () => {
+  it("shows the version's consent text before any microphone control, and how the person can withdraw consent later", async () => {
     const screen = await renderScreen();
     expect(screen.getByText("Esta entrevista se grabará.")).toBeTruthy();
-    expect(screen.getByText("La decisión queda registrada con la respuesta y no se puede cambiar después.")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "La decisión se guarda con esta respuesta. Si la persona cambia de opinión, puede retirar su consentimiento y pedir que se elimine la grabación por el canal que indica el texto de consentimiento.",
+      ),
+    ).toBeTruthy();
+    // The old wording said the decision could never change: it must not come back.
+    expect(screen.queryByText(/no se puede cambiar después/)).toBeNull();
     expect(screen.queryByText("Iniciar grabación")).toBeNull();
     await press(screen, "La persona acepta que se grabe");
     expect(screen.getByText("Iniciar grabación")).toBeTruthy();

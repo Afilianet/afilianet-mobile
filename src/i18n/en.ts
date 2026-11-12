@@ -278,7 +278,7 @@ export const en = {
       decline: "Continue without recording",
       note: "The microphone only turns on after this consent, and only when you tap Start recording.",
       noText: "This survey has no consent text. Explain to the person that the interview will be audio-recorded, why, and that they may refuse.",
-      final: "The decision is recorded with the response and can't be changed later.",
+      final: "The decision is saved with this response. If the person changes their mind, they can withdraw consent and ask for the recording to be deleted through the channel given in the consent text.",
       required: "This survey requires recording the interview. If the person declines, the interview is sent without audio and flagged for follow-up.",
       decisionRequired: "Record whether the person accepts the recording before saving.",
       unavailableRequired: "This version of the app can't record audio. If the person accepts, the answers will be kept as a draft until you install a version of the app that can record.",
