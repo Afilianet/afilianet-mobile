@@ -24,7 +24,7 @@ import { useUnreadNotificationCount } from "../../hooks/useUnreadNotificationCou
 import { routes } from "../../navigation/routes";
 import { analytics } from "../../services/analytics";
 import { useOrganization } from "../../state/OrganizationContext";
-import { affiliateProfilePresence, identityCaptureAvailable, isOrganizationStaff } from "../../state/membership";
+import { affiliateProfilePresence, identityCaptureAvailable, isOrganizationStaff, ownerSelfEnrollment } from "../../state/membership";
 import { affiliateStatusCopy, complianceStatusCopy, commissionStatusCopy } from "../../design-system/statusMapping";
 import { formatDate } from "../../utils/date";
 import { formatMoney } from "../../utils/money";
@@ -98,7 +98,7 @@ export default function HomeScreen() {
       {surveysPreviewEnabled ? <HomeSurveysCard /> : null}
 
       {profileAbsent ? (
-        <StaffWithoutProfileCard staff={isOrganizationStaff(activeOrganization)} />
+        <StaffWithoutProfileCard staff={isOrganizationStaff(activeOrganization)} selfEnrollment={ownerSelfEnrollment(activeOrganization)} />
       ) : (
         <>
       {noAffiliateProfile ? (
@@ -157,16 +157,29 @@ export default function HomeScreen() {
  * this organization: what it is, and -- for staff -- where its work is.
  * Never «No iniciada» nor «Iniciar verificación».
  */
-function StaffWithoutProfileCard({ staff }: { staff: boolean }) {
+function StaffWithoutProfileCard({ staff, selfEnrollment }: { staff: boolean; selfEnrollment: { available: boolean; suggested: boolean } }) {
   const router = useRouter();
   return (
     <Card style={styles.enrollmentCard} testID="home-staff-without-profile">
       <Text style={styles.enrollmentTitle}>{strings.staffWithoutProfile.title}</Text>
       <Text style={styles.meta}>{staff ? strings.staffWithoutProfile.staffDescription : strings.staffWithoutProfile.description}</Text>
+      {/* API #158: only the active owner, only when the server offers it; highlighted when creation suggested it. */}
+      {selfEnrollment.available ? (
+        <>
+          {selfEnrollment.suggested ? <Text style={styles.meta}>{strings.ownerEnrollment.cardSuggested}</Text> : null}
+          <Button
+            label={strings.ownerEnrollment.cardAction}
+            variant={selfEnrollment.suggested ? "primary" : "secondary"}
+            size="sm"
+            testID="owner-enrollment-start"
+            onPress={() => router.push(routes.ownerEnrollment as never)}
+          />
+        </>
+      ) : null}
       {staff ? (
         <Button label={strings.organizationAffiliates.open} variant="secondary" size="sm" onPress={() => router.push(routes.network as never)} />
       ) : null}
-      {/* A profile created later (accepting the invitation) shows up here without signing out. */}
+      {/* A profile created later shows up here without signing out. */}
       <OrganizationReloadButton variant="ghost" />
     </Card>
   );

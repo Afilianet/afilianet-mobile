@@ -1,7 +1,7 @@
 import { strings } from "../i18n";
 import type { LoginResponse, User } from "../types/api";
 import { apiRequest } from "./client";
-import type { StepNoticeRefs } from "./privacy";
+import type { StepNoticeRefs, StepPrivacy } from "./privacy";
 import { ApiError, friendlyMessage, isApiError } from "./errors";
 
 /**
@@ -301,4 +301,40 @@ function validationMessage(error: ApiError): string {
   if (fields.includes("phone")) return copy.phoneRejected;
   if (fields.includes("password")) return copy.passwordRejected;
   return copy.checkFields;
+}
+
+/** API #158: what the owner's own enrollment step must show. */
+export interface OwnerEnrollmentStep {
+  available: boolean;
+  reason: "already_affiliated" | "organization_inactive" | null;
+  pending_from_creation: boolean;
+  privacy: (StepPrivacy & { general_required?: boolean }) | null;
+}
+
+export interface OwnerEnrollmentResult {
+  organization_role?: string;
+  already_affiliated?: boolean;
+  affiliate?: { id: string; affiliate_code: string; status: string };
+}
+
+/** GET /me/organizations/{id}/affiliate-profile -- account-level, no X-Organization-ID. */
+export async function fetchOwnerEnrollment(organizationId: string): Promise<OwnerEnrollmentStep> {
+  const { data } = await apiRequest<{ data: OwnerEnrollmentStep }>(
+    `/api/v1/me/organizations/${encodeURIComponent(organizationId)}/affiliate-profile`,
+    { skipOrganization: true },
+  );
+  return data;
+}
+
+/**
+ * POST the same body as accepting an invitation with a session: the notices
+ * shown, the optional decisions and the attempt id. The owner's own decisions,
+ * in their own session; no KYC case or capture starts.
+ */
+export async function enrollAsOwner(organizationId: string, body: StepNoticeRefs): Promise<OwnerEnrollmentResult> {
+  const response = await apiRequest<{ data?: OwnerEnrollmentResult } | null>(
+    `/api/v1/me/organizations/${encodeURIComponent(organizationId)}/affiliate-profile`,
+    { method: "POST", body, skipOrganization: true },
+  );
+  return response?.data ?? {};
 }

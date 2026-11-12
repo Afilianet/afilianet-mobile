@@ -81,6 +81,13 @@ export interface Organization {
    * refuses on its own (503 assisted_enrollment_unavailable) whatever this says.
    */
   assisted_enrollment_available?: boolean;
+  /**
+   * API #158 (draft, OWNER_AFFILIATE_ENROLLMENT.md): whether the active owner,
+   * without a profile here, may enroll as an affiliate in their own session
+   * (`available`), and whether creating the organization left it suggested.
+   * Absent on older APIs: treated as not available.
+   */
+  affiliate_self_enrollment?: { available: boolean; suggested: boolean };
 }
 
 // afilianet-api has no standalone Membership/OrganizationMembership resource --

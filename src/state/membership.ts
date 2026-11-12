@@ -62,3 +62,14 @@ export function identityCaptureAvailable(organization: CaptureSetting | null | u
 export function assistedEnrollmentAvailable(organization: AssistedSetting | null | undefined): boolean {
   return organization?.assisted_enrollment_available !== false;
 }
+
+/**
+ * «Incorporarme como afiliado» (API #158): only what the server says for this
+ * organization; a missing field is "not available". The POST refuses on its
+ * own for anyone but the active owner (403 not_owner).
+ */
+export function ownerSelfEnrollment(organization: Pick<Organization, "affiliate_self_enrollment"> | null | undefined): { available: boolean; suggested: boolean } {
+  const value = organization?.affiliate_self_enrollment;
+  const available = value?.available === true;
+  return { available, suggested: available && value?.suggested === true };
+}
