@@ -1,0 +1,383 @@
+{
+ "source": "afilianet-api #158 @ cbfcf43c78bba9dfbf6016d9a5ba65d19a23cd25, docs/organizations/owner-affiliate-enrollment/examples/",
+ "examples": {
+  "03-me-organizations-owner": {
+   "request": {
+    "method": "GET",
+    "path": "/me/organizations"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+      "name": "Organización de ejemplo",
+      "slug": "org-ejemplo",
+      "legal_name": null,
+      "status": "active",
+      "timezone": "America/Mexico_City",
+      "locale": "es",
+      "currency": "MXN",
+      "metadata": {
+       "privacy": {
+        "supplement_document": "org.1"
+       },
+       "owner_onboarding": {
+        "affiliate_enrollment": "pending"
+       }
+      },
+      "created_at": "2026-11-12T01:03:16.000000Z",
+      "updated_at": "2026-11-12T01:03:16.000000Z",
+      "my_role": "owner",
+      "my_membership_status": "active",
+      "has_affiliate_profile": false,
+      "identity_verification_available": true,
+      "assisted_enrollment_available": true,
+      "affiliate_self_enrollment": {
+       "available": true,
+       "suggested": true
+      }
+     },
+     {
+      "id": "6218d629-9b16-40bb-ad27-c9a6c805788d",
+      "name": "Organización solo de gestión",
+      "slug": "org-solo-gestion",
+      "legal_name": null,
+      "status": "active",
+      "timezone": "America/Mexico_City",
+      "locale": "es",
+      "currency": "MXN",
+      "metadata": {
+       "owner_onboarding": {
+        "affiliate_enrollment": "declined"
+       }
+      },
+      "created_at": "2026-11-12T01:03:16.000000Z",
+      "updated_at": "2026-11-12T01:03:16.000000Z",
+      "my_role": "owner",
+      "my_membership_status": "active",
+      "has_affiliate_profile": false,
+      "identity_verification_available": true,
+      "assisted_enrollment_available": true,
+      "affiliate_self_enrollment": {
+       "available": true,
+       "suggested": false
+      }
+     }
+    ]
+   }
+  },
+  "04-get-available": {
+   "request": {
+    "method": "GET",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "available": true,
+     "reason": null,
+     "pending_from_creation": true,
+     "privacy": {
+      "required": true,
+      "privacy_notice": {
+       "version": "general.1",
+       "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+      },
+      "organization_notice": {
+       "scope": "organization:bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+       "version": "org.1",
+       "controller_name": "Responsable de prueba",
+       "controller_address": "Domicilio de prueba",
+       "contact_email": "privacidad@example.test",
+       "deletion_response_days": 20,
+       "deletion_response_days_kind": "hábiles",
+       "sections": [
+        {
+         "title": "Prueba",
+         "text": "Texto de prueba."
+        }
+       ],
+       "content_sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101",
+       "classification": {
+        "change_class": "initial",
+        "status": "approved",
+        "approved_by": "Prueba",
+        "approved_at": "2026-10-27"
+       },
+       "summary_of_changes": null,
+       "review_baseline": {
+        "version": "org.1",
+        "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+       },
+       "purposes": [],
+       "simplified_notice": null
+      },
+      "verification_expected": false,
+      "general_required": true
+     }
+    }
+   }
+  },
+  "06-post-409-notice-outdated": {
+   "request": {
+    "method": "POST",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile",
+    "body": {
+     "privacy_notice": {
+      "version": "general.1",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+     },
+     "organization_notice": {
+      "version": "org.1",
+      "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+     }
+    }
+   },
+   "status": 409,
+   "response": {
+    "message": "El aviso de privacidad cambió. Vuelve a mostrarlo antes de continuar.",
+    "reason": "privacy_notice_outdated",
+    "current": {
+     "privacy_notice": {
+      "version": "general.1",
+      "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+     },
+     "organization_notice": {
+      "version": "org.1",
+      "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+     }
+    }
+   }
+  },
+  "07-post-201-joined": {
+   "request": {
+    "method": "POST",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile",
+    "body": {
+     "privacy_notice": {
+      "version": "general.1",
+      "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+     },
+     "organization_notice": {
+      "version": "org.1",
+      "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+     },
+     "client_request_id": "6d1f6f0e-3c43-4c1b-9a51-3f0f3b0a7e21"
+    }
+   },
+   "status": 201,
+   "response": {
+    "data": {
+     "organization_id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+     "organization_role": "owner",
+     "affiliate": {
+      "id": "e2be6dd8-65dc-4ba2-a65c-1f21e4cc9724",
+      "affiliate_code": "EJEM4420",
+      "status": "pending"
+     },
+     "already_affiliated": false,
+     "privacy": {
+      "terms_acceptance": null,
+      "acknowledgements": [
+       {
+        "kind": "general",
+        "organization_id": null,
+        "version": "general.1",
+        "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e",
+        "context": "affiliate_self_enrollment"
+       },
+       {
+        "kind": "organization",
+        "organization_id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+        "version": "org.1",
+        "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101",
+        "context": "affiliate_self_enrollment"
+       }
+      ],
+      "consents": []
+     }
+    }
+   }
+  },
+  "08-post-200-already-affiliated": {
+   "request": {
+    "method": "POST",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile",
+    "body": {
+     "privacy_notice": {
+      "version": "general.1",
+      "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+     },
+     "organization_notice": {
+      "version": "org.1",
+      "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+     },
+     "client_request_id": "6d1f6f0e-3c43-4c1b-9a51-3f0f3b0a7e21"
+    }
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "organization_id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+     "organization_role": "owner",
+     "affiliate": {
+      "id": "e2be6dd8-65dc-4ba2-a65c-1f21e4cc9724",
+      "affiliate_code": "EJEM4420",
+      "status": "pending"
+     },
+     "already_affiliated": true,
+     "privacy": {
+      "terms_acceptance": null,
+      "acknowledgements": [
+       {
+        "kind": "general",
+        "organization_id": null,
+        "version": "general.1",
+        "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e",
+        "context": "affiliate_self_enrollment"
+       },
+       {
+        "kind": "organization",
+        "organization_id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+        "version": "org.1",
+        "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101",
+        "context": "affiliate_self_enrollment"
+       }
+      ],
+      "consents": []
+     }
+    }
+   }
+  },
+  "09-get-already-affiliated": {
+   "request": {
+    "method": "GET",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "available": false,
+     "reason": "already_affiliated",
+     "pending_from_creation": false,
+     "privacy": {
+      "required": true,
+      "privacy_notice": {
+       "version": "general.1",
+       "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+      },
+      "organization_notice": {
+       "scope": "organization:bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+       "version": "org.1",
+       "controller_name": "Responsable de prueba",
+       "controller_address": "Domicilio de prueba",
+       "contact_email": "privacidad@example.test",
+       "deletion_response_days": 20,
+       "deletion_response_days_kind": "hábiles",
+       "sections": [
+        {
+         "title": "Prueba",
+         "text": "Texto de prueba."
+        }
+       ],
+       "content_sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101",
+       "classification": {
+        "change_class": "initial",
+        "status": "approved",
+        "approved_by": "Prueba",
+        "approved_at": "2026-10-27"
+       },
+       "summary_of_changes": null,
+       "review_baseline": {
+        "version": "org.1",
+        "sha256": "a3d408a8cb2eeafda73bcc0177b333d6c8fba2b3906f369b8d559504fe02c101"
+       },
+       "purposes": [],
+       "simplified_notice": null
+      },
+      "verification_expected": false,
+      "general_required": false
+     }
+    }
+   }
+  },
+  "10-me-organizations-after": {
+   "request": {
+    "method": "GET",
+    "path": "/me/organizations"
+   },
+   "status": 200,
+   "response": {
+    "data": [
+     {
+      "id": "bca1a119-ec09-40bd-bbe5-3b6855ae1b3f",
+      "name": "Organización de ejemplo",
+      "slug": "org-ejemplo",
+      "legal_name": null,
+      "status": "active",
+      "timezone": "America/Mexico_City",
+      "locale": "es",
+      "currency": "MXN",
+      "metadata": {
+       "privacy": {
+        "supplement_document": "org.1"
+       },
+       "owner_onboarding": {
+        "affiliate_enrollment": "completed"
+       }
+      },
+      "created_at": "2026-11-12T01:03:16.000000Z",
+      "updated_at": "2026-11-12T01:03:16.000000Z",
+      "my_role": "owner",
+      "my_membership_status": "active",
+      "has_affiliate_profile": true,
+      "identity_verification_available": true,
+      "assisted_enrollment_available": true,
+      "affiliate_self_enrollment": {
+       "available": false,
+       "suggested": false
+      }
+     },
+     {
+      "id": "6218d629-9b16-40bb-ad27-c9a6c805788d",
+      "name": "Organización solo de gestión",
+      "slug": "org-solo-gestion",
+      "legal_name": null,
+      "status": "active",
+      "timezone": "America/Mexico_City",
+      "locale": "es",
+      "currency": "MXN",
+      "metadata": {
+       "owner_onboarding": {
+        "affiliate_enrollment": "declined"
+       }
+      },
+      "created_at": "2026-11-12T01:03:16.000000Z",
+      "updated_at": "2026-11-12T01:03:16.000000Z",
+      "my_role": "owner",
+      "my_membership_status": "active",
+      "has_affiliate_profile": false,
+      "identity_verification_available": true,
+      "assisted_enrollment_available": true,
+      "affiliate_self_enrollment": {
+       "available": true,
+       "suggested": false
+      }
+     }
+    ]
+   }
+  },
+  "11-get-403-not-owner": {
+   "request": {
+    "method": "GET",
+    "path": "/me/organizations/bca1a119-ec09-40bd-bbe5-3b6855ae1b3f/affiliate-profile"
+   },
+   "status": 403,
+   "response": {
+    "message": "Solo el owner de esta organización puede incorporarse como afiliado desde aquí.",
+    "reason": "not_owner"
+   }
+  }
+ }
+}
