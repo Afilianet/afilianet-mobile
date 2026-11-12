@@ -344,6 +344,7 @@ export const es = {
       },
       audioRejected: "Audio no aceptado",
       audioRejectedHelp: "Las respuestas ya llegaron. El servidor no aceptó el audio (tipo o tamaño); se conserva en el teléfono hasta que lo descartes.",
+      audioConsentRequiredHelp: "No se pudo subir el audio porque falta el texto de consentimiento de esta encuesta. La respuesta ya fue recibida. Puedes descartar el audio.",
       audioResponseUnavailableHelp: "Las respuestas ya llegaron, pero el servidor no encontró esa respuesta en esta organización para recibir el audio. Se conserva en el teléfono hasta que lo descartes.",
       audioInvalidIdentifierHelp: "Las respuestas ya llegaron, pero la respuesta no tiene el formato que pide el servidor para recibir el audio, así que no se intentó. Se conserva en el teléfono hasta que lo descartes.",
       discardAudio: "Descartar audio",

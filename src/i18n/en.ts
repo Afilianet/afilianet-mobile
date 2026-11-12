@@ -324,6 +324,7 @@ export const en = {
       },
       audioRejected: "Audio not accepted",
       audioRejectedHelp: "The answers arrived. The server didn't accept the audio (type or size); it's kept on the phone until you discard it.",
+      audioConsentRequiredHelp: "The audio couldn't be uploaded because this survey is missing its consent text. The response was already received. You can discard the audio.",
       audioResponseUnavailableHelp: "The answers arrived, but the server couldn't find that response in this organization to receive the audio. It's kept on the phone until you discard it.",
       audioInvalidIdentifierHelp: "The answers arrived, but the response isn't in the format the server requires to receive the audio, so it wasn't attempted. It's kept on the phone until you discard it.",
       discardAudio: "Discard audio",

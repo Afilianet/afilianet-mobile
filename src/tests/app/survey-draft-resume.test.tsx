@@ -648,5 +648,43 @@ describe("Survey journey with a real recording: finish on exit, offline, pending
     expect(top(screen).getByText("Audio no aceptado")).toBeTruthy();
     expect(top(screen).queryByText("Recibido")).toBeNull();
     expect(await listReceipts(SCOPE)).toEqual([]);
+    // Type and size keep their own message.
+    expect(top(screen).getByText(/El servidor no aceptó el audio \(tipo o tamaño\)/)).toBeTruthy();
+    expect(top(screen).queryByText(/falta el texto de consentimiento/)).toBeNull();
+  });
+
+  it("API A1: a refusal for missing consent text says so, never «tipo o tamaño», and offers «Descartar audio»", async () => {
+    mockRealRecorder = true;
+    const screen = await renderNavigator("slot", [HOME, "/surveys", "/surveys/fx-vecinal"]);
+    await recordAndSaveDraft(screen);
+    await tap(screen, "Continuar");
+    await tap(screen, "Menos de 1 año");
+    await type(screen, "Tu respuesta", "Baches");
+    await tap(screen, "7");
+    mockOnline = false;
+    await tap(screen, "Enviar respuesta");
+    await settle(50);
+    await close(screen);
+
+    mockOnline = true;
+    const { surveySource } = jest.requireMock("../../features/surveys/runtime") as { surveySource: { uploadAudio: () => Promise<void> } };
+    const { ApiError } = jest.requireActual("../../api/errors");
+    jest
+      .spyOn(surveySource, "uploadAudio")
+      .mockRejectedValue(new ApiError("validation", "Sin texto de consentimiento.", 422, undefined, { reason: "audio_consent_required" }));
+    await tap(screen, "Sincronizar ahora");
+    await settle(100);
+
+    // What the message claims matches the state shown: the answers were received, the audio was not, it can be discarded.
+    const [item] = await listOutbox(SCOPE);
+    expect(item.responseId).toBeTruthy();
+    expect(item.audio?.rejected).toBe("audio_consent_required");
+    expect(top(screen).getByText("Audio no aceptado")).toBeTruthy();
+    expect(
+      top(screen).getByText("No se pudo subir el audio porque falta el texto de consentimiento de esta encuesta. La respuesta ya fue recibida. Puedes descartar el audio."),
+    ).toBeTruthy();
+    expect(top(screen).queryByText(/tipo o tamaño/)).toBeNull();
+    expect(top(screen).getByText("Descartar audio")).toBeTruthy();
+    expect(top(screen).queryByText("Recibido")).toBeNull();
   });
 });
