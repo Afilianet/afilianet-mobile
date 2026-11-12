@@ -394,6 +394,12 @@ export const es = {
       wipe: "Cerrar sesión y borrarlas",
       wipeConfirm: "Se borrarán definitivamente de este teléfono y no se enviarán. ¿Continuar?",
       cancel: "Cancelar",
+      assistedTitle: "Registros pendientes",
+      assistedMessage: (count: number) =>
+        `Tienes ${count === 1 ? "1 registro pendiente" : `${count} registros pendientes`}. Se conservarán cifrados en este teléfono y solo aparecerán al volver a entrar con esta cuenta.`,
+      assistedContinue: "Continuar",
+      assistedNote: (count: number) =>
+        `También tienes ${count === 1 ? "1 registro pendiente" : `${count} registros pendientes`}. Ninguna opción los borra: se conservarán cifrados en este teléfono y solo aparecerán al volver a entrar con esta cuenta.`,
     },
     storageFull: "Tu teléfono tiene poco espacio libre o llegaste al límite de encuestas guardadas. Sincroniza o libera espacio.",
     fixture: { closeSurvey: "Simular cierre de esta encuesta (ejemplo)", reopenSurvey: "Reabrir esta encuesta (ejemplo)" },

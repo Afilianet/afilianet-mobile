@@ -426,6 +426,31 @@ describe("survey outbox", () => {
     expect((await listReceipts(ORG_A)).map((receipt) => [receipt.id, receipt.withAudio])).toEqual([["r-1", true]]);
   });
 
+  it("«Cerrar sesión y conservarlas»: the response and its audio stay on the phone, another account never sends them, and the same account sends both once on its return", async () => {
+    // Saved offline; signing out and keeping them runs no storage operation at all.
+    online = false;
+    await interviewWithAudio(ORG_A, "r-1", "aud-1");
+    expect((await syncOutbox(ORG_A, source)).stoppedReason).toBe("offline");
+    online = true;
+    const submit = jest.spyOn(source, "submitResponse");
+    const upload = jest.spyOn(source, "uploadAudio");
+
+    // Another account signs in on the same phone: nothing of user-1 is listed or sent.
+    await syncOutbox(OTHER_USER, source, { force: true });
+    expect(submit).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(true);
+    expect((await pendingForAccount("user-1")).map(({ items }) => items.map((value) => [value.id, displayState(value)]))).toEqual([[["r-1", "pending_sync"]]]);
+
+    // The same account comes back: answers once, then the audio once; only then is the local copy gone.
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(submit.mock.calls.map(([org, , submission]) => [org, submission.client_response_id])).toEqual([["org-a", "r-1"]]);
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(hasItem(ORG_A, "audio-aud-1")).toBe(false);
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect((await listReceipts(ORG_A)).map((receipt) => [receipt.id, receipt.withAudio])).toEqual([["r-1", true]]);
+  });
+
   it("never lists, sends or reports one account's or organization's pending items for another", async () => {
     await enqueueResponse(ORG_A, selfItem("a-1"), []);
     await enqueueResponse(ORG_B, selfItem("b-1"), []);

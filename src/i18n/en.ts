@@ -374,6 +374,12 @@ export const en = {
       wipe: "Sign out and delete them",
       wipeConfirm: "They'll be permanently deleted from this phone and not sent. Continue?",
       cancel: "Cancel",
+      assistedTitle: "Pending registrations",
+      assistedMessage: (count: number) =>
+        `You have ${count === 1 ? "1 pending registration" : `${count} pending registrations`}. They'll stay encrypted on this phone and only appear when you sign back in with this account.`,
+      assistedContinue: "Continue",
+      assistedNote: (count: number) =>
+        `You also have ${count === 1 ? "1 pending registration" : `${count} pending registrations`}. No option deletes them: they'll stay encrypted on this phone and only appear when you sign back in with this account.`,
     },
     storageFull: "Your phone is low on space or you reached the saved-surveys limit. Sync or free up space.",
     fixture: { closeSurvey: "Simulate closing this survey (sample)", reopenSurvey: "Reopen this survey (sample)" },

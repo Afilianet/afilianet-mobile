@@ -400,6 +400,25 @@ describe("AuthProvider: one sign-out, and never with a revoked token", () => {
     mockedSignOutRequest.mockResolvedValue(undefined);
   });
 
+  it("a forced sign-out (expired session, 401) and a plain sign-out never delete pending surveys, their audio, or assisted drafts", async () => {
+    const pendingData = (key: string) => key.startsWith("afn.surveys.") || key.startsWith("afn.assisted.");
+    await signedIn();
+    await act(async () => {
+      mockOnUnauthorized?.("tok-a");
+    });
+    await waitFor(() => expect(authValue.status).toBe("signedOut"));
+    expect(mockedDeleteItem).toHaveBeenCalled(); // the session itself is cleared...
+    expect(mockedDeleteItem.mock.calls.map(([key]) => key as string).filter(pendingData)).toEqual([]); // ...the pending data is not
+
+    mockedDeleteItem.mockClear();
+    await signedIn();
+    await act(async () => {
+      await authValue.signOut();
+    });
+    expect(authValue.status).toBe("signedOut");
+    expect(mockedDeleteItem.mock.calls.map(([key]) => key as string).filter(pendingData)).toEqual([]);
+  });
+
   it("two sign-outs at once (double tap) run the requests once", async () => {
     await signedIn();
     await act(async () => {
