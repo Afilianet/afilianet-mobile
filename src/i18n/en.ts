@@ -750,8 +750,13 @@ export const en = {
   staffWithoutProfile: {
     title: "Management account",
     description: "This account manages the organization; it has no affiliate profile.",
+    staffDescription: "This account manages the organization and has no affiliate profile.",
     personalUnavailable: "Not available for this account: it has no affiliate profile in this organization.",
     selfSurveyUnavailable: "Answering on your own requires an affiliate profile in this organization.",
+  },
+  organizationReload: {
+    button: "Refresh",
+    unchanged: "We checked again and nothing changed in your organizations.",
   },
   organizationBar: {
     label: "Active organization",

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { AppState } from "react-native";
 import { queryClient } from "../api/queryClient";
 import { configureApiClient } from "../api/client";
 import { isApiError, type ApiError } from "../api/errors";
@@ -33,6 +34,8 @@ const TENANT_QUERY_DOMAINS = [
 ] as const;
 
 const ACTIVE_ORG_KEY = "afilianet_active_organization_id";
+/** Minimum time between two automatic reloads on returning to the foreground. */
+export const FOREGROUND_RELOAD_MIN_MS = 60_000;
 
 export function OrganizationProvider({ children }: { children: ReactNode }) {
   const { status: authStatus, user } = useAuth();
@@ -95,7 +98,30 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     [organizations],
   );
 
+  // Picks the active organization for a fresh list: the stored one if still
+  // there, the only one if there is exactly one, otherwise none.
+  const applyList = useCallback(async (orgs: Organization[]) => {
+    setOrganizations(orgs);
+    const storedId = await secureStorage.get(ACTIVE_ORG_KEY);
+    const restored = storedId ? orgs.find((org) => org.id === storedId) : undefined;
+    if (restored) {
+      activeOrgIdRef.current = restored.id;
+      setActiveOrganization(restored);
+    } else if (orgs.length === 1) {
+      activeOrgIdRef.current = orgs[0].id;
+      setActiveOrganization(orgs[0]);
+      await secureStorage.set(ACTIVE_ORG_KEY, orgs[0].id);
+    } else {
+      activeOrgIdRef.current = null;
+      setActiveOrganization(null);
+    }
+  }, []);
+
+  const lastFetchRef = useRef(0);
+  const quietReloadRef = useRef<Promise<void> | null>(null);
+
   const load = useCallback(async (removedOrganizationId?: string) => {
+    lastFetchRef.current = Date.now();
     if (removedOrganizationId) {
       await queryClient.cancelQueries();
       queryClient.clear();
@@ -121,29 +147,53 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         orgs = saved;
       }
       orgs = orgs.filter(org => org.id !== removedOrganizationId);
-      setOrganizations(orgs);
-
-      const storedId = await secureStorage.get(ACTIVE_ORG_KEY);
-      const restored = storedId ? orgs.find((org) => org.id === storedId) : undefined;
-
-      if (restored) {
-        activeOrgIdRef.current = restored.id;
-        setActiveOrganization(restored);
-      } else if (orgs.length === 1) {
-        activeOrgIdRef.current = orgs[0].id;
-        setActiveOrganization(orgs[0]);
-        await secureStorage.set(ACTIVE_ORG_KEY, orgs[0].id);
-      } else {
-        activeOrgIdRef.current = null;
-        setActiveOrganization(null);
-      }
+      await applyList(orgs);
 
       setStatus("ready");
     } catch (err) {
       if (isApiError(err)) setError(err);
       setStatus("error");
     }
-  }, [userId]);
+  }, [userId, applyList]);
+
+  /**
+   * A membership created elsewhere (Admin) after this session started shows
+   * up without signing out. Same request and offline copy as `load`, but it
+   * never shows a loading state and a failure (offline, timeout, server)
+   * leaves the current list untouched. Nothing is created here: no
+   * invitation, no profile, no personal /affiliates/me call.
+   */
+  const reloadOrganizations = useCallback(async () => {
+    if (authStatus !== "signedIn") return;
+    if (quietReloadRef.current) return quietReloadRef.current;
+    lastFetchRef.current = Date.now();
+    const run = (async () => {
+      try {
+        const orgs = await fetchMyOrganizations();
+        if (userId) await saveOfflineOrganizations(userId, orgs).catch(() => undefined);
+        await applyList(orgs);
+        setError(null);
+        setStatus("ready");
+      } catch {
+        // Keep what is shown; the next foreground or «Actualizar» tries again.
+      } finally {
+        quietReloadRef.current = null;
+      }
+    })();
+    quietReloadRef.current = run;
+    return run;
+  }, [authStatus, userId, applyList]);
+
+  // Back to the foreground: ask again, at most once per FOREGROUND_RELOAD_MIN_MS.
+  useEffect(() => {
+    if (authStatus !== "signedIn") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      if (Date.now() - lastFetchRef.current < FOREGROUND_RELOAD_MIN_MS) return;
+      void reloadOrganizations();
+    });
+    return () => subscription.remove();
+  }, [authStatus, reloadOrganizations]);
 
   useEffect(() => {
     void (async () => {
@@ -168,8 +218,9 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       error,
       selectOrganization,
       refresh: load,
+      reloadOrganizations,
     }),
-    [status, organizations, activeOrganization, error, selectOrganization, load],
+    [status, organizations, activeOrganization, error, selectOrganization, load, reloadOrganizations],
   );
 
   return <OrganizationContext.Provider value={value}>{children}</OrganizationContext.Provider>;

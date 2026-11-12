@@ -14,6 +14,12 @@ jest.mock("../../auth/AuthContext", () => ({
   useAuth: jest.fn(),
 }));
 
+// Only the organization list can be asked for again from here; nothing is created.
+const mockReload = jest.fn(async () => undefined);
+jest.mock("../../state/OrganizationContext", () => ({
+  useOrganization: () => ({ status: "ready", organizations: [], activeOrganization: null, error: null, selectOrganization: jest.fn(), refresh: jest.fn(), reloadOrganizations: mockReload }),
+}));
+
 jest.mock("../../auth/pendingReferral", () => ({
   usePendingReferral: () => mockPendingReferral,
   pendingReferralPath: (referral: { organizationId: string; code: string }) => `/join/${referral.organizationId}/${referral.code}`,
@@ -110,5 +116,23 @@ describe("Independent user home (access MVP)", () => {
       fireEvent.press(getByText("Revisar invitación"));
     });
     expect(mockPush).toHaveBeenCalledWith("/join/org-1/AFF100");
+  });
+});
+
+describe("No-organization: a membership created in Admin appears without signing out", () => {
+  it("«Actualizar» asks for the organization list again and says when nothing changed", async () => {
+    const screen = await renderScreen();
+    await act(async () => { fireEvent.press(screen.getByTestId("organization-reload")); });
+    expect(mockReload).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Revisamos de nuevo y no hay cambios en tus organizaciones.")).toBeTruthy();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("pull to refresh does the same", async () => {
+    const screen = await renderScreen();
+    await act(async () => {
+      await screen.getByTestId("no-organization-scroll").props.refreshControl.props.onRefresh();
+    });
+    expect(mockReload).toHaveBeenCalledTimes(1);
   });
 });

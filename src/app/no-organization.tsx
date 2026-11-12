@@ -1,10 +1,12 @@
 import { useRouter } from "expo-router";
-import { useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/AuthContext";
 import { useSafeSignOut } from "../features/surveys/signOut";
 import { pendingReferralPath, usePendingReferral } from "../auth/pendingReferral";
 import { InvitationFinder } from "../components/account/InvitationFinder";
+import { OrganizationReloadButton } from "../components/OrganizationReloadButton";
+import { useOrganization } from "../state/OrganizationContext";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
@@ -27,6 +29,9 @@ export default function NoOrganizationScreen() {
   const { user } = useAuth();
   const signOut = useSafeSignOut();
   const pendingReferral = usePendingReferral();
+  // A membership created elsewhere (Admin) appears without signing out.
+  const { reloadOrganizations } = useOrganization();
+  const [refreshing, setRefreshing] = useState(false);
   // Server state only: a channel counts as verified when the API says so.
   const hasUnverifiedChannel = Boolean(user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)));
 
@@ -35,7 +40,20 @@ export default function NoOrganizationScreen() {
   }, []);
 
   return (
-    <ScrollView testID="no-organization-scroll" style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      testID="no-organization-scroll"
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={reloadOrganizations ? (
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            void reloadOrganizations().finally(() => setRefreshing(false));
+          }}
+        />
+      ) : undefined}
+    >
       <View style={styles.header}>
         <Text style={styles.greeting}>{user ? strings.home.greeting(user.first_name) : strings.home.welcome}</Text>
       </View>
@@ -46,6 +64,7 @@ export default function NoOrganizationScreen() {
         <Text style={styles.body}>{strings.noOrganization.acceptInvitationHint}</Text>
         {/* No bottom bar here on purpose (docs/NAVEGACION_BARRA_INFERIOR_ES.md): say why, so it doesn't look unfinished. */}
         <Text style={styles.body}>{strings.noOrganization.sectionsAfterJoining}</Text>
+        <OrganizationReloadButton />
       </Card>
 
       {pendingReferral ? (

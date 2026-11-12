@@ -2,6 +2,8 @@ import { act, render, waitFor } from "@testing-library/react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import * as SecureStore from "expo-secure-store";
+import { AppState } from "react-native";
+import { ApiError } from "../api/errors";
 import { queryClient } from "../api/queryClient";
 import { signInWith } from "../api/access";
 import { fetchMe, fetchMyAffiliateProfile, fetchMyOrganizations } from "../api/endpoints";
@@ -273,5 +275,84 @@ describe("organization switching and tenant query isolation", () => {
     }
 
     invalidateSpy.mockRestore();
+  });
+});
+
+describe("reloading the organization list without signing out (play-pruebas owner)", () => {
+  const statuses: string[] = [];
+  function StatusLog() {
+    const org = useOrganization();
+    useEffect(() => { statuses.push(org.status); }, [org.status]);
+    return null;
+  }
+  async function signedInWith(first: unknown[]) {
+    statuses.length = 0;
+    mockedSignIn.mockResolvedValue({ token: "tok-abc", user: { id: "user-1" } });
+    mockedFetchMe.mockResolvedValue({ id: "user-1", first_name: "Real" });
+    mockedFetchMyOrganizations.mockResolvedValueOnce(first);
+    await act(async () => {
+      await render(<AuthProvider><OrganizationProvider><Capture /><StatusLog /></OrganizationProvider></AuthProvider>);
+    });
+    await waitFor(() => expect(authValue.status).not.toBe("loading"));
+    await act(async () => { await authValue.signIn("person@example.com", "hunter2"); });
+    await waitFor(() => expect(orgValue.status).toBe("ready"));
+  }
+
+  it("«Actualizar»: the list goes from 0 to 1 and selects it, with no loading screen and no other request", async () => {
+    await signedInWith([]);
+    expect(orgValue.organizations).toEqual([]);
+    const loadingBefore = statuses.filter((status) => status === "loading").length;
+
+    mockedFetchMyOrganizations.mockResolvedValueOnce([{ ...ORG, has_affiliate_profile: false }]);
+    await act(async () => { await orgValue.reloadOrganizations!(); });
+
+    expect(orgValue.organizations).toHaveLength(1);
+    expect(orgValue.activeOrganization?.id).toBe("org-1");
+    expect(orgValue.status).toBe("ready");
+    expect(statuses.filter((status) => status === "loading").length).toBe(loadingBefore);
+    expect(mockedFetchMyOrganizations).toHaveBeenCalledTimes(2);
+    // Nothing personal and nothing created: only the organization list was asked for.
+    expect(fetchMyAffiliateProfile).not.toHaveBeenCalled();
+  });
+
+  it("a failed reload (offline) keeps the current list and selection", async () => {
+    await signedInWith([ORG]);
+    mockedFetchMyOrganizations.mockRejectedValueOnce(new ApiError("offline", "offline"));
+    await act(async () => { await orgValue.reloadOrganizations!(); });
+    expect(orgValue.organizations).toHaveLength(1);
+    expect(orgValue.activeOrganization?.id).toBe("org-1");
+    expect(orgValue.status).toBe("ready");
+  });
+
+  it("back to the foreground: asks again only after the minimum interval", async () => {
+    let onChange: ((state: string) => void) | undefined;
+    const spy = jest.spyOn(AppState, "addEventListener").mockImplementation((_type, handler) => {
+      onChange = handler as (state: string) => void;
+      return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
+    });
+    const now = jest.spyOn(Date, "now");
+    let clock = 1_000_000;
+    now.mockImplementation(() => clock);
+    try {
+      await signedInWith([]);
+      const calls = () => mockedFetchMyOrganizations.mock.calls.length;
+      const base = calls();
+
+      clock += 10_000;
+      await act(async () => { onChange?.("active"); });
+      expect(calls()).toBe(base);
+
+      clock += 60_000;
+      mockedFetchMyOrganizations.mockResolvedValueOnce([ORG]);
+      await act(async () => { onChange?.("active"); });
+      await waitFor(() => expect(orgValue.organizations).toHaveLength(1));
+      expect(calls()).toBe(base + 1);
+
+      await act(async () => { onChange?.("background"); });
+      expect(calls()).toBe(base + 1);
+    } finally {
+      spy.mockRestore();
+      now.mockRestore();
+    }
   });
 });

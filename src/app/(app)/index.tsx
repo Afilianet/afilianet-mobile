@@ -5,6 +5,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import { isApiError } from "../../api/errors";
 import { useAuth } from "../../auth/AuthContext";
 import { strings } from "../../i18n";
+import { OrganizationReloadButton } from "../../components/OrganizationReloadButton";
 import { ActiveOrganizationBar } from "../../components/ActiveOrganizationBar";
 import { NotificationBell } from "../../components/NotificationBell";
 import { Card } from "../../components/ui/Card";
@@ -161,10 +162,12 @@ function StaffWithoutProfileCard({ staff }: { staff: boolean }) {
   return (
     <Card style={styles.enrollmentCard} testID="home-staff-without-profile">
       <Text style={styles.enrollmentTitle}>{strings.staffWithoutProfile.title}</Text>
-      <Text style={styles.meta}>{strings.staffWithoutProfile.description}</Text>
+      <Text style={styles.meta}>{staff ? strings.staffWithoutProfile.staffDescription : strings.staffWithoutProfile.description}</Text>
       {staff ? (
         <Button label={strings.organizationAffiliates.open} variant="secondary" size="sm" onPress={() => router.push(routes.network as never)} />
       ) : null}
+      {/* A profile created later (accepting the invitation) shows up here without signing out. */}
+      <OrganizationReloadButton variant="ghost" />
     </Card>
   );
 }
