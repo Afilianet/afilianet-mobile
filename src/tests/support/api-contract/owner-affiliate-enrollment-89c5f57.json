@@ -1,5 +1,5 @@
 {
- "source": "afilianet-api #158 @ cbfcf43c78bba9dfbf6016d9a5ba65d19a23cd25, docs/organizations/owner-affiliate-enrollment/examples/",
+ "source": "afilianet-api #158 @ 89c5f57f3c76fc5b51bb481bbd182a50026471fc, docs/organizations/owner-affiliate-enrollment/examples/ (01-11 byte-identical to cbfcf43)",
  "examples": {
   "03-me-organizations-owner": {
    "request": {
@@ -377,6 +377,44 @@
    "response": {
     "message": "Solo el owner de esta organización puede incorporarse como afiliado desde aquí.",
     "reason": "not_owner"
+   }
+  },
+  "12-get-privacy-notice-general": {
+   "request": {
+    "method": "GET",
+    "path": "/privacy/notice"
+   },
+   "status": 200,
+   "response": {
+    "data": {
+     "scope": "global",
+     "version": "general.1",
+     "controller_name": "Responsable de prueba",
+     "controller_address": "Domicilio de prueba",
+     "contact_email": "privacidad@example.test",
+     "deletion_response_days": 20,
+     "deletion_response_days_kind": "hábiles",
+     "sections": [
+      {
+       "title": "Prueba",
+       "text": "Texto de prueba."
+      }
+     ],
+     "content_sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e",
+     "classification": {
+      "change_class": "initial",
+      "status": "approved",
+      "approved_by": "Prueba",
+      "approved_at": "2026-10-27"
+     },
+     "summary_of_changes": null,
+     "review_baseline": {
+      "version": "general.1",
+      "sha256": "2903928b726dc131665659ca28b76bc93f314cf0ad0bc549e2dac533a41f2f5e"
+     },
+     "purposes": [],
+     "simplified_notice": null
+    }
    }
   }
  }

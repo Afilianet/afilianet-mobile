@@ -3,14 +3,12 @@ import { configureApiClient } from "../../api/client";
 import OwnerEnrollmentScreen from "../../app/owner-enrollment";
 import { ownerSelfEnrollment } from "../../state/membership";
 import type { Organization } from "../../types/api";
-import contract from "../support/api-contract/owner-affiliate-enrollment-cbfcf43.json";
-import { notice } from "../support/registrationConsentsFixtures";
+import contract from "../support/api-contract/owner-affiliate-enrollment-89c5f57.json";
 
 /**
- * API #158's captured examples (cbfcf43), served to the real API client and
- * screen: the request the app makes and the body it sends must be the
- * example's. Only the general notice document is synthetic (version and hash
- * from example 04): the examples do not include GET /privacy/notice.
+ * API #158's captured examples (89c5f57, 01-12), served to the real API client
+ * and screen: the request the app makes and the body it sends must be the
+ * example's. Nothing synthetic: 12 is the GET /privacy/notice of the same run.
  */
 type Example = { request: { method: string; path: string; body?: Record<string, unknown> }; status: number; response: unknown };
 const ex = (name: string) => (contract.examples as Record<string, Example>)[name];
@@ -22,8 +20,7 @@ const NOT_OWNER = ex("11-get-403-not-owner");
 const AFTER = ex("10-me-organizations-after");
 const orgs = (LIST.response as { data: Organization[] }).data;
 const owner = orgs[0];
-const generalRef = (GET.response as { data: { privacy: { privacy_notice: { version: string; sha256: string } } } }).data.privacy.privacy_notice;
-const GENERAL = notice(generalRef.version, generalRef.sha256, []);
+const GENERAL_NOTICE = ex("12-get-privacy-notice-general");
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn(), back: jest.fn() };
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
@@ -45,7 +42,7 @@ beforeEach(() => {
   calls.length = 0;
   mockActive = owner;
   served = {
-    "GET /api/v1/privacy/notice": { status: 200, response: { data: GENERAL } },
+    "GET /api/v1/privacy/notice": GENERAL_NOTICE,
     [`GET /api/v1${GET.request.path}`]: GET,
     [`POST /api/v1${JOINED.request.path}`]: JOINED,
   };
@@ -69,6 +66,13 @@ async function mount() {
   await act(async () => { view = await render(<OwnerEnrollmentScreen />); });
   return view;
 }
+
+it("12 is the general notice 04 references and 07 sends", () => {
+  const general = (GENERAL_NOTICE.response as { data: { version: string; content_sha256: string } }).data;
+  const shown = (GET.response as { data: { privacy: { privacy_notice: { version: string; sha256: string } } } }).data.privacy.privacy_notice;
+  expect({ version: general.version, sha256: general.content_sha256 }).toEqual(shown);
+  expect(JOINED.request.body!.privacy_notice).toEqual(shown);
+});
 
 it("03 and 10: the list's field decides the Home action, before and after", () => {
   expect(ownerSelfEnrollment(owner)).toEqual({ available: true, suggested: true });
