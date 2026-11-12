@@ -97,8 +97,9 @@ const originalFetch = global.fetch;
 let queryClient: QueryClient;
 let currentOrganizationId = "org-staff";
 
+const mockReload = jest.fn(async () => undefined);
 function orgValue(active: Organization, organizations: Organization[] = [STAFF_ORG, AFF_ORG]): OrganizationContextValue {
-  return { status: "ready", organizations, activeOrganization: active, error: null, selectOrganization: jest.fn(), refresh: jest.fn() } as unknown as OrganizationContextValue;
+  return { status: "ready", organizations, activeOrganization: active, error: null, selectOrganization: jest.fn(), refresh: jest.fn(), reloadOrganizations: mockReload } as unknown as OrganizationContextValue;
 }
 
 function tree(screen: ReactElement, active: Organization) {
@@ -136,7 +137,7 @@ describe("Staff without an affiliate profile (has_affiliate_profile: false)", ()
   it("Home: says what the account is and where its work is; no personal card, no «No iniciado», no «Comenzar verificación», no personal request", async () => {
     const screen = await show(<HomeScreen />, STAFF_ORG);
     await waitFor(() => expect(screen.getByTestId("home-staff-without-profile")).toBeTruthy());
-    expect(screen.getByText("Esta cuenta administra la organización; no tiene perfil de afiliado.")).toBeTruthy();
+    expect(screen.getByText("Administras esta organización desde Admin. Esta cuenta no tiene perfil de afiliado. Para participar como afiliado, en Admin → Afiliados se crea un enlace de invitación para esta cuenta y lo aceptas con ella.")).toBeTruthy();
     expect(screen.queryByText(/No iniciado/)).toBeNull();
     expect(screen.queryByText("Comenzar verificación")).toBeNull();
     expect(screen.queryByText("Únete al programa de afiliados")).toBeNull();
@@ -144,6 +145,16 @@ describe("Staff without an affiliate profile (has_affiliate_profile: false)", ()
       fireEvent.press(screen.getByText("Ver afiliados de la organización"));
     });
     expect(mockRouter.push).toHaveBeenCalledWith("/(app)/network");
+    expect(personalRequests("org-staff")).toEqual([]);
+  });
+
+  it("Home: «Actualizar» only reloads the organization list; it creates nothing and asks for nothing personal", async () => {
+    const screen = await show(<HomeScreen />, STAFF_ORG);
+    await waitFor(() => expect(screen.getByTestId("home-staff-without-profile")).toBeTruthy());
+    const before = requests.length;
+    await act(async () => { fireEvent.press(screen.getByTestId("organization-reload")); });
+    expect(mockReload).toHaveBeenCalledTimes(1);
+    expect(requests.slice(before)).toEqual([]);
     expect(personalRequests("org-staff")).toEqual([]);
   });
 

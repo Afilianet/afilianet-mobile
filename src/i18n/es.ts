@@ -812,8 +812,13 @@ export const es = {
   staffWithoutProfile: {
     title: "Cuenta de gestión",
     description: "Esta cuenta administra la organización; no tiene perfil de afiliado.",
+    staffDescription: "Administras esta organización desde Admin. Esta cuenta no tiene perfil de afiliado. Para participar como afiliado, en Admin → Afiliados se crea un enlace de invitación para esta cuenta y lo aceptas con ella.",
     personalUnavailable: "No disponible para esta cuenta: no tiene perfil de afiliado en esta organización.",
     selfSurveyUnavailable: "Responder por tu cuenta requiere un perfil de afiliado en esta organización.",
+  },
+  organizationReload: {
+    button: "Actualizar",
+    unchanged: "Revisamos de nuevo y no hay cambios en tus organizaciones.",
   },
   organizationBar: {
     label: "Organización activa",
