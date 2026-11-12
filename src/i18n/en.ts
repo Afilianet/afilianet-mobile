@@ -338,7 +338,6 @@ export const en = {
       discard: "Discard from phone",
       discardConfirm: "Discard this submission? Its answers and audio will be deleted from this phone and not sent.",
       empty: "No pending submissions.",
-      serverProcessing: "Audio transcription and analysis run on the server after it's received.",
       receivedAt: (date: string) => `Received ${date}`,
       withAudio: "with audio",
       notEditable: "Sent from this phone; it can no longer be edited.",

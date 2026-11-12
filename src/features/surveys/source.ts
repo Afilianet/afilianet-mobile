@@ -15,7 +15,6 @@ import type { AudioConfig, AvailableSurvey, ResponseReceipt, ResponseSubmission,
  * - Audio needs an accepted consent and an existing response (answers first):
  *   upload session -> PUT to the presigned URL -> complete (idempotent). An
  *   interrupted upload restarts from a NEW session; there is no byte-range resume.
- * - Transcription and quality analysis run on the server after the audio lands.
  */
 export interface SurveySource {
   /** "fixture" = sample data shown as a preview; "api" = afilianet-api. */

@@ -173,7 +173,6 @@ export function OutboxPanel({
           <Completeness missingRequired={receipt.missingRequired} />
         </View>
       ))}
-      {receipts.some((receipt) => receipt.withAudio) ? <Text style={styles.meta}>{copy.serverProcessing}</Text> : null}
     </Card>
   );
 }

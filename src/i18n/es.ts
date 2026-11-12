@@ -358,7 +358,6 @@ export const es = {
       discard: "Descartar del teléfono",
       discardConfirm: "¿Descartar este envío? Sus respuestas y su audio se borrarán de este teléfono y no se enviarán.",
       empty: "No hay envíos pendientes.",
-      serverProcessing: "La transcripción y el análisis del audio se hacen en el servidor después de recibirlo.",
       receivedAt: (date: string) => `Recibido el ${date}`,
       withAudio: "con audio",
       notEditable: "Enviada desde este teléfono; ya no se puede editar.",

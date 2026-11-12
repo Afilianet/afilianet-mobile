@@ -465,6 +465,24 @@ describe("Survey journey: sending incomplete, completeness after the receipt", (
     expect(screen.queryByText("Completa")).toBeNull();
     expect(screen.queryByText(/Incompleta/)).toBeNull();
   });
+
+  it("a receipt with audio says only that it arrived with audio: no promise of transcription or analysis", async () => {
+    const screen = await render(
+      <OutboxPanel
+        items={[]}
+        receipts={[{ id: "with-audio", surveyTitle: "Entrevista", receivedAt: "2026-11-12T10:00:00Z", withAudio: true, missingRequired: 0 }]}
+        syncing={false}
+        progress={null}
+        message={null}
+        onSync={jest.fn()}
+        onDiscard={jest.fn()}
+        onDiscardAudio={jest.fn()}
+      />,
+    );
+    expect(screen.getByText("Recibido")).toBeTruthy();
+    expect(screen.getByText(/· con audio$/)).toBeTruthy();
+    expect(screen.queryByText(/transcrip|análisis|analiza/i)).toBeNull();
+  });
 });
 
 describe("Survey journey: answering without a manual download", () => {
