@@ -160,6 +160,34 @@ describe("Staff without an affiliate profile (has_affiliate_profile: false)", ()
     expect(personalRequests("org-staff")).toEqual([]);
   });
 
+  it("Home, owner (API #158): «Incorporarme como afiliado» only when the server offers it; highlighted when suggested; nothing is requested until tapped", async () => {
+    const OWNER_SUGGESTED = { ...STAFF_ORG, affiliate_self_enrollment: { available: true, suggested: true } } as Organization;
+    const screen = await show(<HomeScreen />, OWNER_SUGGESTED);
+    await waitFor(() => expect(screen.getByTestId("owner-enrollment-start")).toBeTruthy());
+    expect(screen.getByText("Puedes incorporarte como afiliado de esta organización con esta misma cuenta.")).toBeTruthy();
+    expect(personalRequests("org-staff")).toEqual([]);
+    expect(requests.some((request) => request.path.includes("affiliate-profile"))).toBe(false);
+    await act(async () => { fireEvent.press(screen.getByTestId("owner-enrollment-start")); });
+    expect(mockRouter.push).toHaveBeenCalledWith("/owner-enrollment");
+  });
+
+  it("Home, owner available but not suggested: the action without the suggestion line", async () => {
+    const OWNER = { ...STAFF_ORG, affiliate_self_enrollment: { available: true, suggested: false } } as Organization;
+    const screen = await show(<HomeScreen />, OWNER);
+    await waitFor(() => expect(screen.getByTestId("owner-enrollment-start")).toBeTruthy());
+    expect(screen.queryByText(/Puedes incorporarte/)).toBeNull();
+  });
+
+  it.each([
+    ["admin (server says not available)", { ...STAFF_ORG, my_role: "admin", affiliate_self_enrollment: { available: false, suggested: false } }],
+    ["an API without the field", STAFF_ORG],
+  ])("Home, %s: neutral text, no enrollment action", async (_label, organization) => {
+    const screen = await show(<HomeScreen />, organization as Organization);
+    await waitFor(() => expect(screen.getByTestId("home-staff-without-profile")).toBeTruthy());
+    expect(screen.getByText("Esta cuenta administra la organización y no tiene perfil de afiliado.")).toBeTruthy();
+    expect(screen.queryByTestId("owner-enrollment-start")).toBeNull();
+  });
+
   it("Home: pull to refresh never re-requests personal data (refetch ignores `enabled`)", async () => {
     const screen = await show(<HomeScreen />, STAFF_ORG);
     await waitFor(() => expect(screen.getByTestId("home-staff-without-profile")).toBeTruthy());

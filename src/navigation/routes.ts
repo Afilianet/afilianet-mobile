@@ -23,6 +23,7 @@ export const routes = {
   noOrganization: "/no-organization",
   surveys: "/surveys",
   organizationAffiliates: "/organization-affiliates",
+  ownerEnrollment: "/owner-enrollment",
   signOutPending: "/sign-out-pending",
   privacyReview: "/privacy-review",
 } as const;
