@@ -6,7 +6,6 @@ import { acceptReferralInvitation, fetchMyAffiliateProfile, fetchMyCompliance, s
 import type { RecordedPrivacy } from "../../api/privacy";
 import { AuthContext, type AuthContextValue } from "../../auth/AuthContext";
 import { completeRegistrationReceipt } from "../../auth/registrationReceipt";
-import { RegistrationReceiptCard } from "../../components/privacy/RegistrationReceiptCard";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import ComplianceScreen from "../../app/compliance";
 import JoinScreen from "../../app/join/[organizationId]/[code]";
@@ -123,9 +122,9 @@ it("the real box texts: hashes stable across the draft's later edits (#118 @ 8bc
   expect(JSON.stringify(notice)).not.toMatch(/PENDIENTE/);
 });
 
-it("joining by link with the real lookup (15) and notice (02): the three boxes with the real texts; what 04 stored reads as recorded", async () => {
-  // Example 04 sends quality_testing as an explicit `refused`; the app never does (an unticked box sends nothing),
-  // so here only the identity box is ticked and the body is compared with the example's granted decisions.
+it("joining by link with the real lookup (15) and notice (02): compact step with the real texts; the link opens the exact version sent; no identity box", async () => {
+  // Identity is decided at verification start (next test), never in the sign-up form; the API
+  // never requires a purpose to create the account (StepDecisions: consents 'sometimes').
   mockParams = { organizationId, code };
   serve(`GET ${LOOKUP.request.path}`, LOOKUP);
   serve("GET /api/v1/privacy/notice", NOTICE);
@@ -136,10 +135,11 @@ it("joining by link with the real lookup (15) and notice (02): the three boxes w
     response: { data: { user: registered.user, organization_role: "affiliate", affiliate: { id: "aff-x", affiliate_code: "AFF200", status: "pending" }, token: registered.token, already_affiliated: false, privacy: registered.privacy } },
   });
   const view = await mount(<JoinScreen />, auth());
-  await waitFor(() => expect(view.getByTestId("consent-identity_verification")).toBeTruthy());
-  expect(view.getByText(identity.text)).toBeTruthy();
-  expect(view.getByText(identity.help!)).toBeTruthy();
+  await waitFor(() => expect(view.getByTestId("consent-quality_testing")).toBeTruthy());
+  expect(view.queryByTestId("consent-identity_verification")).toBeNull();
+  expect(view.queryByText(identity.text)).toBeNull();
   expect(view.getByText(quality.text)).toBeTruthy();
+  expect(view.getByText(quality.title)).toBeTruthy();
   expect(view.getByText(notice.simplified_notice)).toBeTruthy();
 
   await act(async () => {
@@ -149,17 +149,19 @@ it("joining by link with the real lookup (15) and notice (02): the three boxes w
     fireEvent.changeText(view.getByLabelText("Contraseña"), "clave-ficticia-1");
     fireEvent.changeText(view.getByLabelText("Confirma tu contraseña"), "clave-ficticia-1");
   });
+  // «Aviso de privacidad» opens the integral text of the very version the step sends.
+  await pressId(view, "notice-link-general");
+  expect(view.getByTestId("notice-sheet")).toBeTruthy();
+  expect(view.getByText(`Versión ${notice.version}`)).toBeTruthy();
+  await press(view, "Cerrar");
+  expect(view.getByLabelText("Nombre").props.value).toBe("Ana");
   await pressId(view, "notice-confirmation");
-  await pressId(view, "consent-box-identity_verification");
   await press(view, "Crear cuenta");
 
   const [body] = sent("POST /api/v1/invitations/tok-real/accept");
-  expect(body.consents).toEqual((REGISTERED.request.body!.consents as { decision: string }[]).filter((consent) => consent.decision === "granted"));
   expect(body.privacy_notice).toEqual(REGISTERED.request.body!.privacy_notice);
-  const card = await render(<RegistrationReceiptCard userId={registered.user.id} />);
-  expect(card.getByText(`Registrada: ${identity.title}`)).toBeTruthy();
-  // Not sent, so not listed: the receipt only covers what this step sent.
-  expect(card.queryByText(new RegExp(quality.title.replace(/[()]/g, "\\$&")))).toBeNull();
+  expect((body.privacy_notice as { version: string }).version).toBe(notice.version);
+  expect(body).not.toHaveProperty("consents");
 });
 
 it("KYC start with the real notice (09 → 10, and the replay 10b answers the same)", async () => {

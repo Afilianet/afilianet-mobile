@@ -119,7 +119,7 @@ async function receipt() {
 }
 
 describe("Direct sign-up", () => {
-  it("every box starts unticked; the optional one says so; the full notice opens before deciding; no identity box without an organization", async () => {
+  it("every box starts unticked; the optional one says so; the full notice opens over the form before deciding; no identity box", async () => {
     on("GET /privacy/notice", ok({ data: G1 }));
     const view = await mount(<RegisterScreen />, authValue());
     await waitFor(() => expect(view.getByTestId("registration-consents")).toBeTruthy());
@@ -127,18 +127,55 @@ describe("Direct sign-up", () => {
     expect(isChecked(view, "notice-confirmation")).toBe(false);
     expect(isChecked(view, "consent-box-quality_testing")).toBe(false);
     expect(view.queryByTestId("consent-identity_verification")).toBeNull();
-    expect(view.getByText("Opcional")).toBeTruthy();
-    expect(view.getByText("Es opcional. Si no la marcas, tu cuenta se crea igual.")).toBeTruthy();
+    // The served title names the purpose; «Opcional» is shown once, never as a long note.
+    expect(view.getByText(QUALITY.title)).toBeTruthy();
+    expect(view.getAllByText(/opcional/i).length).toBeGreaterThan(0);
+    expect(view.queryByText(/Si no la marcas/)).toBeNull();
     // The served texts, as they are: the box text is the purpose's own `text`.
     expect(view.getByText(QUALITY.text)).toBeTruthy();
     expect(view.getByTestId("simplified-notice")).toBeTruthy();
     expect(view.getByText("Resumen FICTICIO de prueba-general.2.")).toBeTruthy();
 
-    // The link opens the full notice before any box is ticked.
+    // «Ver detalles» opens the full notice over the form before any box is ticked; closing it changes nothing.
     expect(view.queryByText("Texto de prueba-general.2")).toBeNull();
-    await press(view, "Ver aviso completo");
+    await press(view, "Ver detalles");
     expect(view.getByText("Texto de prueba-general.2")).toBeTruthy();
+    await press(view, "Cerrar");
+    expect(view.queryByText("Texto de prueba-general.2")).toBeNull();
     expect(isChecked(view, "consent-box-quality_testing")).toBe(false);
+    expect(isChecked(view, "notice-confirmation")).toBe(false);
+  });
+
+  it("opening and closing «Aviso de privacidad» or «Ver detalles» never ticks or clears a box and keeps everything typed", async () => {
+    on("GET /privacy/notice", ok({ data: G1 }));
+    const view = await mount(<RegisterScreen />, authValue());
+    await waitFor(() => expect(view.getByTestId("registration-consents")).toBeTruthy());
+    await fillRegister(view);
+    const typed = () => ["Nombre", "Apellidos", "Correo electrónico", "Contraseña", "Confirma tu contraseña"]
+      .map((label) => view.getByLabelText(label).props.value);
+    const before = typed();
+
+    // Unticked: opening either link does not tick anything.
+    await pressId(view, "notice-link-general");
+    expect(view.getByTestId("notice-sheet")).toBeTruthy();
+    await press(view, "Cerrar");
+    await press(view, "Ver detalles");
+    await press(view, "Cerrar");
+    expect(isChecked(view, "notice-confirmation")).toBe(false);
+    expect(isChecked(view, "consent-box-quality_testing")).toBe(false);
+    expect(typed()).toEqual(before);
+
+    // Ticked: opening and closing again does not clear them.
+    await pressId(view, "notice-confirmation");
+    await pressId(view, "consent-box-quality_testing");
+    await pressId(view, "notice-link-general");
+    await press(view, "Cerrar");
+    await press(view, "Ver detalles");
+    await press(view, "Cerrar");
+    expect(isChecked(view, "notice-confirmation")).toBe(true);
+    expect(isChecked(view, "consent-box-quality_testing")).toBe(true);
+    expect(typed()).toEqual(before);
+    expect(view.queryByTestId("notice-sheet")).toBeNull();
   });
 
   it("refusing the optional box still creates the account; nothing is sent for it and no receipt claims anything", async () => {
@@ -316,15 +353,13 @@ describe("Joining by referral link as a visitor", () => {
     });
   }
 
-  it("an organization that verifies identity shows the identity box, unticked and not required to create the account", async () => {
+  it("an organization that verifies identity: no identity box at sign-up (asked at verification start); quality stays optional", async () => {
     on(LOOKUP, lookup(true));
     const auth = authValue();
     const view = await mount(<JoinScreen />, auth);
-    await waitFor(() => expect(view.getByTestId("consent-identity_verification")).toBeTruthy());
-    expect(isChecked(view, "consent-box-identity_verification")).toBe(false);
-    expect(view.getByText(IDENTITY.text)).toBeTruthy();
-    expect(view.getByText(IDENTITY.help)).toBeTruthy();
-    expect(view.getByText(/No es el permiso de la cámara/)).toBeTruthy();
+    await waitFor(() => expect(view.getByTestId("consent-quality_testing")).toBeTruthy());
+    expect(view.queryByTestId("consent-identity_verification")).toBeNull();
+    expect(view.queryByText(IDENTITY.text)).toBeNull();
 
     await fillVisitor(view);
     await pressId(view, "notice-confirmation");
@@ -333,20 +368,7 @@ describe("Joining by referral link as a visitor", () => {
     expect(first).not.toHaveProperty("consents");
   });
 
-  it("ticking it sends it as granted on the general notice shown", async () => {
-    on(LOOKUP, lookup(true));
-    const auth = authValue();
-    const view = await mount(<JoinScreen />, auth);
-    await waitFor(() => expect(view.getByTestId("consent-identity_verification")).toBeTruthy());
-    await fillVisitor(view);
-    await pressId(view, "notice-confirmation");
-    await pressId(view, "consent-box-identity_verification");
-    await press(view, "Crear cuenta");
-    const [, body] = (auth.registerFromReferral as jest.Mock).mock.calls[0];
-    expect(body.consents).toEqual([{ document: ref(G1), purpose: "identity_verification", decision: "granted" }]);
-  });
-
-  it.each([[false], [undefined]])("verification_expected=%s: no identity box (asked at KYC start instead)", async (expected) => {
+  it.each([[false], [undefined]])("verification_expected=%s: no identity box either", async (expected) => {
     on(LOOKUP, lookup(expected));
     const view = await mount(<JoinScreen />, authValue());
     await waitFor(() => expect(view.getByTestId("consent-quality_testing")).toBeTruthy());

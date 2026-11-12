@@ -1219,11 +1219,7 @@ export const en = {
   },
   registrationConsents: {
     optional: "Optional",
-    readNotice: "Read full notice",
-    hideNotice: "Hide notice",
-    simplifiedTitle: "Simplified privacy notice",
-    optionalNote: "Optional. If you leave it unticked, your account is still created.",
-    identityNote: "This is not the camera permission. If you leave it unticked, your account is still created and we will ask before verifying your identity.",
+    details: "See details",
     receipt: {
       title: "Your authorizations",
       recorded: (title: string) => `Recorded: ${title}`,
@@ -1258,13 +1254,13 @@ export const en = {
       organizationUnavailable: "This organization hasn't published its privacy notice yet, so you can't join for now. Your details are still in the form.",
     },
     step: {
-      title: "Privacy notices",
-      intro: "Before continuing, these notices are available to you. You can open them here.",
       general: "General privacy notice",
       organization: (name?: string) => (name ? `${name} privacy notice` : "Organization privacy notice"),
       version: (version: string) => `Version ${version}`,
       read: "View notice",
       hide: "Hide notice",
+      link: "Privacy notice",
+      close: "Close",
       mustConfirm: "Tick the box to continue.",
       confirmation: (general: string | null, organization: { name: string; version: string } | null) =>
         general && organization
@@ -1273,7 +1269,6 @@ export const en = {
             ? `The Afilianet privacy notice (version ${general}) was made available to me before continuing.`
             : `The ${organization?.name ?? ""} privacy notice (version ${organization?.version ?? ""}) was made available to me before continuing.`,
       anOrganization: "the organization",
-      notConsent: "Ticking this box is not consent or acceptance of terms.",
       loading: "Loading privacy notices…",
       loadFailed: "We couldn't load the privacy notice. Check your connection and try again.",
       retry: "Load again",

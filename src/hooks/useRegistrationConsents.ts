@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  IDENTITY_VERIFICATION_PURPOSE,
   QUALITY_TESTING_PURPOSE,
   refOf,
   type NoticeDocument,
@@ -14,8 +13,8 @@ export interface RegistrationConsentItem {
   key: string;
   purpose: NoticePurpose;
   document: NoticeDocument;
-  /** Never blocks creating the account; `quality_testing` is also shown as optional. */
-  optional: boolean;
+  /** Never blocks creating the account. */
+  optional: true;
 }
 
 export interface RegistrationConsents {
@@ -34,23 +33,19 @@ const itemKey = (document: NoticeDocument, purpose: NoticePurpose) =>
  * read from the general notice the step already shows. Nothing is invented:
  * a notice without these purposes shows no box and sends nothing, as before.
  *
- * - `identity_verification` only where the organization verifies identity
- *   (`verificationExpected`); direct sign-up asks for it at KYC start.
- * - `quality_testing` always, as optional.
- *
- * Neither one is ever required to create the account.
+ * Only `quality_testing`, always optional. `identity_verification` is never
+ * asked here, not even where the organization verifies identity: it is its
+ * own decision, taken at verification start (IdentityConsentGate), where the
+ * API requires it (privacy.consent middleware). The API never requires any
+ * purpose to create the account.
  */
-export function useRegistrationConsents(notices: StepNotices, options: { verificationExpected: boolean }): RegistrationConsents {
+export function useRegistrationConsents(notices: StepNotices): RegistrationConsents {
   const [checked, setCheckedKeys] = useState<Set<string>>(() => new Set());
   const general = notices.items.find((item) => item.kind === "general")?.document;
   const items: RegistrationConsentItem[] = [];
   if (general && refOf(general)) {
     const purposes = general.purposes ?? [];
-    const identity = purposes.find((purpose) => purpose.key === IDENTITY_VERIFICATION_PURPOSE);
     const quality = purposes.find((purpose) => purpose.key === QUALITY_TESTING_PURPOSE);
-    if (identity && options.verificationExpected) {
-      items.push({ key: itemKey(general, identity), purpose: identity, document: general, optional: false });
-    }
     if (quality) items.push({ key: itemKey(general, quality), purpose: quality, document: general, optional: true });
   }
 

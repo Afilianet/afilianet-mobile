@@ -1,22 +1,22 @@
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import type { StepNotices } from "../../hooks/useStepNotices";
+import type { StepNoticeItem, StepNotices } from "../../hooks/useStepNotices";
 import { strings } from "../../i18n";
 import { Button } from "../ui/Button";
-import { Card } from "../ui/Card";
 import { colors, spacing, typography } from "../ui/theme";
 import { NoticeConfirmation } from "./NoticeConfirmation";
-import { NoticeDocumentView } from "./NoticeDocumentView";
+import { NoticeLink, NoticeSheet } from "./NoticeSheet";
 
 /**
- * The notices of a registration or join step: each one can be opened here
- * (optional), and one explicit, never preselected box confirms the listed
- * versions were made available. That confirmation is what the step needs;
- * opening a document is not required and never claimed.
+ * The notices of a registration or join step, compact: the approved
+ * simplified notice as served, a link per listed version that opens its full
+ * text over the form (NoticeSheet), and one explicit, never preselected box
+ * confirming those versions were made available. Opening a document is not
+ * required, never ticks the box and never touches the form.
  */
 export function StepNoticesView({ notices, disabled }: { notices: StepNotices; disabled?: boolean }) {
   const copy = strings.privacyNotices.step;
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<StepNoticeItem | null>(null);
   if (notices.status === "loading") return <Text style={styles.info}>{copy.loading}</Text>;
   if (notices.status === "error") {
     return (
@@ -32,39 +32,27 @@ export function StepNoticesView({ notices, disabled }: { notices: StepNotices; d
   if (notices.items.length === 0) return null;
   const general = notices.items.find((item) => item.kind === "general");
   const organization = notices.items.find((item) => item.kind === "organization");
+  const linkLabel = (item: StepNoticeItem) => (item.kind === "general" ? copy.link : item.title);
   return (
     <View style={styles.group} testID="step-notices">
-      <Text style={styles.title}>{copy.title}</Text>
-      <Text style={styles.info}>{copy.intro}</Text>
-      {/* Registration consents v1: shown next to the form as served; nothing asks to accept it. */}
+      {/* Registration consents v1: the simplified notice as served; nothing asks to accept it. */}
       {general?.document.simplified_notice ? (
-        <Card style={styles.card} testID="simplified-notice">
-          <Text style={styles.label}>{strings.registrationConsents.simplifiedTitle}</Text>
-          <Text style={styles.info}>{general.document.simplified_notice}</Text>
-        </Card>
+        <Text style={styles.simplified} testID="simplified-notice">{general.document.simplified_notice}</Text>
       ) : null}
-      {notices.items.map((item) => {
-        const isOpen = open === item.key;
-        return (
-          <Card key={item.key} style={styles.card}>
-            <Text style={styles.label}>{item.title}</Text>
-            {isOpen ? <NoticeDocumentView document={item.document} /> : null}
-            <Button
-              label={isOpen ? copy.hide : copy.read}
-              variant="ghost"
-              accessibilityLabel={`${isOpen ? copy.hide : copy.read}: ${item.title}`}
-              onPress={() => {
-                if (isOpen) {
-                  setOpen(null);
-                  return;
-                }
-                setOpen(item.key);
-                notices.markOpened(item.key);
-              }}
-            />
-          </Card>
-        );
-      })}
+      <View style={styles.links}>
+        {notices.items.map((item) => (
+          <NoticeLink
+            key={item.key}
+            label={linkLabel(item)}
+            accessibilityLabel={`${linkLabel(item)}, ${copy.version(item.document.version)}`}
+            testID={`notice-link-${item.kind}`}
+            onPress={() => {
+              setOpen(item);
+              notices.markOpened(item.key);
+            }}
+          />
+        ))}
+      </View>
       <NoticeConfirmation
         label={copy.confirmation(
           general?.document.version ?? null,
@@ -74,15 +62,15 @@ export function StepNoticesView({ notices, disabled }: { notices: StepNotices; d
         disabled={disabled}
         onChange={notices.setConfirmed}
       />
+      <NoticeSheet document={open?.document ?? null} title={open ? open.title : ""} onClose={() => setOpen(null)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  group: { gap: spacing.sm },
-  card: { gap: spacing.sm },
-  title: { ...typography.bodyStrong, color: colors.textPrimary },
-  label: { ...typography.bodyStrong, color: colors.textPrimary },
+  group: { gap: spacing.xs },
+  links: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md },
+  simplified: { ...typography.caption, color: colors.textSecondary },
   info: { ...typography.body, color: colors.textSecondary },
   error: { ...typography.body, color: colors.danger },
 });

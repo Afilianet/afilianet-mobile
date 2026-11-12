@@ -1306,11 +1306,7 @@ export const es = {
   },
   registrationConsents: {
     optional: "Opcional",
-    readNotice: "Ver aviso completo",
-    hideNotice: "Ocultar aviso",
-    simplifiedTitle: "Aviso de privacidad simplificado",
-    optionalNote: "Es opcional. Si no la marcas, tu cuenta se crea igual.",
-    identityNote: "No es el permiso de la cámara. Si no la marcas, tu cuenta se crea igual y te la pediremos antes de verificar tu identidad.",
+    details: "Ver detalles",
     receipt: {
       title: "Tus autorizaciones",
       recorded: (title: string) => `Registrada: ${title}`,
@@ -1345,13 +1341,13 @@ export const es = {
       organizationUnavailable: "Esta organización todavía no publica su aviso de privacidad, así que no es posible unirse por ahora. Tus datos siguen en el formulario.",
     },
     step: {
-      title: "Avisos de privacidad",
-      intro: "Antes de continuar, estos avisos están a tu disposición. Puedes abrirlos aquí.",
       general: "Aviso de privacidad general",
       organization: (name?: string) => (name ? `Aviso de privacidad de ${name}` : "Aviso de privacidad de la organización"),
       version: (version: string) => `Versión ${version}`,
       read: "Ver aviso",
       hide: "Ocultar aviso",
+      link: "Aviso de privacidad",
+      close: "Cerrar",
       mustConfirm: "Marca la casilla para continuar.",
       // Availability, never reading (API agreed wording, pending legal review).
       confirmation: (general: string | null, organization: { name: string; version: string } | null) =>
@@ -1361,7 +1357,6 @@ export const es = {
             ? `Se puso a mi disposición el Aviso de privacidad de Afilianet (versión ${general}) antes de continuar.`
             : `Se puso a mi disposición el aviso de privacidad de ${organization?.name ?? ""} (versión ${organization?.version ?? ""}) antes de continuar.`,
       anOrganization: "la organización",
-      notConsent: "Marcar esta casilla no es un consentimiento ni la aceptación de términos.",
       loading: "Cargando avisos de privacidad…",
       loadFailed: "No pudimos cargar el aviso de privacidad. Revisa tu conexión e inténtalo de nuevo.",
       retry: "Volver a cargar",
