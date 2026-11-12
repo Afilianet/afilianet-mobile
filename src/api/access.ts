@@ -166,6 +166,24 @@ export async function fetchPhoneChannels(): Promise<PhoneChannelOffer | null> {
 }
 
 /** Returns the server's user (contract: 200 {user}); phone_verified_at is the only source of truth. */
+/**
+ * Add or change the account's phone (ACCOUNT_ACCESS_CONTRACT §5): the number
+ * goes to `pending_phone`, an SMS code is queued to it, and the SAME
+ * POST /auth/verify-phone confirms it, swapping it in. The current phone, if
+ * any, keeps working until then. 503 sms_unavailable is answered before
+ * anything is written. Sending again to the pending number is this same call.
+ */
+export async function changePhone(phone: string): Promise<User> {
+  const body = await apiRequest<Maybe<{ user?: User }>>("/api/v1/me/phone", {
+    method: "PATCH",
+    body: { phone },
+    skipOrganization: true,
+  });
+  const user = body?.user ?? body?.data?.user;
+  if (!user) throw new ApiError("unknown", "Unexpected change-phone response.");
+  return user;
+}
+
 export async function verifyPhone(code: string): Promise<User> {
   const body = await apiRequest<Maybe<{ user?: User }>>("/api/v1/auth/verify-phone", {
     method: "POST",

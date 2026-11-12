@@ -48,13 +48,20 @@ export default function ProfileScreen() {
           </Text>
           {/* Accounts may have only a phone (#49); show whichever identifiers exist. */}
           {user?.email ? <Text style={styles.email}>{user.email}</Text> : null}
-          {user?.phone ? <Text style={styles.email}>{formatPhoneForDisplay(user.phone)}</Text> : null}
+          {user?.phone ? (
+            <Text style={styles.email} testID="profile-phone">
+              {formatPhoneForDisplay(user.phone)} · {user.phone_verified_at ? strings.access.verify.verified : strings.access.verify.pending}
+            </Text>
+          ) : null}
         </View>
       </Card>
 
       {user ? <EmailVerificationCard key={user.id} user={user} /> : null}
-      {user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at)) ? (
+      {user && ((user.email && !user.email_verified_at) || (user.phone && !user.phone_verified_at) || user.pending_phone) ? (
         <Button label={strings.noOrganization.verifyAccount} variant="secondary" onPress={() => router.push(routes.verifyAccount as never)} />
+      ) : user ? (
+        // Adding or changing the phone lives on the same account screen; nothing is required to use the app.
+        <Button label={user.phone ? strings.access.verify.changePhone : strings.access.verify.addPhone} variant="ghost" onPress={() => router.push(routes.verifyAccount as never)} testID="profile-phone-change" />
       ) : null}
 
       {activeOrganization && affiliateProfilePresence(activeOrganization) === "absent" ? (
