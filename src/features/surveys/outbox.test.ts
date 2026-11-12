@@ -196,6 +196,36 @@ describe("survey outbox", () => {
     expect((await listReceipts(ORG_A))[0]).toMatchObject({ id: "r-1", withAudio: false });
   });
 
+  it("M2 offline: an interview without consent text sent offline keeps consent_audio null, survives a restart and is sent once on reconnect, with no audio", async () => {
+    // What the response screen hands over when the version has no consent text: no decision, no audio.
+    await enqueueResponse(
+      ORG_A,
+      selfItem("r-m2", { surveyId: "fx-vecinal", versionId: INTERVIEW_VERSION, respondentType: "interviewed_external", consentAudio: null, audio: null }),
+      [{ question_id: 1, value_choice_ids: [1] }],
+    );
+    const submit = jest.spyOn(source, "submitResponse");
+    const upload = jest.spyOn(source, "uploadAudio");
+
+    online = false;
+    const offline = await syncOutbox(ORG_A, source);
+    expect(offline.stoppedReason).toBe("offline");
+    // Reopening the app reads the queue back from the phone: still pending, still without audio.
+    const [kept] = await listOutbox(ORG_A);
+    expect(displayState(kept)).toBe("pending_sync");
+    expect(kept).toMatchObject({ id: "r-m2", consentAudio: null, audio: null });
+
+    online = true;
+    await syncOutbox(ORG_A, source, { force: true });
+    await syncOutbox(ORG_A, source, { force: true });
+    const sent = submit.mock.calls.filter(([, , submission]) => submission.client_response_id === "r-m2");
+    // One attempt failed offline; exactly one reached the server, and nothing is sent again.
+    expect(sent).toHaveLength(2);
+    expect(sent.at(-1)?.[2]).toMatchObject({ consent_audio: null, consent_version: null });
+    expect(upload).not.toHaveBeenCalled();
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect(await listReceipts(ORG_A)).toEqual([expect.objectContaining({ id: "r-m2", withAudio: false })]);
+  });
+
   it("reads the audio limits from the server and keeps a too-large audio until the person discards it", async () => {
     await interviewWithAudio(ORG_A, "r-1", "aud-1", { bytes: 16 * 1024 * 1024 });
     const upload = jest.spyOn(source, "uploadAudio");

@@ -170,9 +170,21 @@ export async function deleteDraft(scope: SurveyScope, id: string): Promise<void>
   await sealJson(scope, DRAFTS, ids.filter((value) => value !== id));
 }
 
-/** Audio applies only to interviews whose version records audio, and only with accepted consent. */
+/**
+ * API A1: a version that records audio must carry its own approved consent
+ * text. Without it (null, empty or only spaces) nothing is recorded: no
+ * consent card, no microphone, and the interview is answered without audio.
+ */
+export function recordingBlocked(version: SurveyVersion, respondentType: RespondentType): boolean {
+  return respondentType === "interviewed_external" && version.audio_mode !== "none" && !version.consent_text?.trim();
+}
+
+/**
+ * Audio applies only to interviews whose version records audio AND has its
+ * consent text (see recordingBlocked), and only with accepted consent.
+ */
 export function audioApplies(version: SurveyVersion, respondentType: RespondentType): boolean {
-  return respondentType === "interviewed_external" && version.audio_mode !== "none";
+  return respondentType === "interviewed_external" && version.audio_mode !== "none" && !recordingBlocked(version, respondentType);
 }
 
 /**

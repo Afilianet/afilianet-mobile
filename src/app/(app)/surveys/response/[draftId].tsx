@@ -17,6 +17,7 @@ import {
   getDownloaded,
   loadDraft,
   missingRequired,
+  recordingBlocked,
   requiredAudioMissing,
   saveDraft,
   toSubmissionAnswers,
@@ -43,7 +44,8 @@ const AUTOSAVE_MS = 600;
  * - Interviews may be saved incomplete after an explicit warning: missing
  *   answers go as `skipped` (the server flags omissions for review; it never
  *   rejects them).
- * - Audio only for interviews whose version records audio, only after the
+ * - Audio only for interviews whose version records audio and carries its
+ *   consent text (API A1: otherwise no recording at all), only after the
  *   consent was accepted; the decision is final once submitted.
  * - Only a draft of the ACTIVE origin can be edited, recorded or sent. One of
  *   another origin, or an unconfirmed one, opens view-only: nothing on this
@@ -170,6 +172,8 @@ export default function SurveyResponseScreen() {
   const { version, readOnly } = loaded;
   const interview = draft.respondentType === "interviewed_external";
   const withAudio = audioApplies(version, draft.respondentType);
+  // API A1: the version records audio but has no approved consent text -- never record.
+  const noConsentText = recordingBlocked(version, draft.respondentType);
   const audioRequired = withAudio && version.audio_mode === "required";
   const cannotRecord = recorder.phase === "unavailable" || recorder.phase === "denied" || (recorder.phase === "failed" && !recorder.pendingFinalize);
   const finalizing = finishing || recorder.phase === "saving";
@@ -314,6 +318,12 @@ export default function SurveyResponseScreen() {
   }
 
   function confirmAndSend(draft: SurveyDraft) {
+    // An older draft may already hold audio from a version without consent text: that audio is
+    // never sent nor deleted silently. The person discards it first («Borrar audio»); answers stay.
+    if (noConsentText && draft.audio) {
+      setMessage(copy.consent.noApprovedText);
+      return;
+    }
     // Required audio (contract): a decline is a valid, sendable choice, but no decision is not a
     // decline, and an accepted consent without its recording stays a draft -- never sent as complete.
     if (consentDecisionMissing(version, draft)) {
@@ -369,11 +379,23 @@ export default function SurveyResponseScreen() {
           </Card>
         ) : null}
 
+        {!readOnly && noConsentText ? (
+          <Card style={styles.card} testID="recording-blocked">
+            <Text accessibilityRole="alert" style={styles.body}>{copy.consent.noApprovedText}</Text>
+            {draft.audio ? (
+              <>
+                <Text style={styles.body}>{copy.recording.saved(formatDuration(draft.audio.durationMs))}</Text>
+                <Button label={copy.recording.deleteAudio} variant="ghost" size="sm" onPress={deleteAudio} />
+              </>
+            ) : null}
+          </Card>
+        ) : null}
+
         {!readOnly && withAudio && draft.consentAudio === null ? (
           <Card style={styles.card} testID="recording-consent">
             <Text style={styles.cardTitle}>{copy.consent.title}</Text>
-            <Text style={styles.body}>{version.consent_text ? copy.consent.read : copy.consent.noText}</Text>
-            {version.consent_text ? <Text style={styles.consent}>{version.consent_text}</Text> : null}
+            <Text style={styles.body}>{copy.consent.read}</Text>
+            <Text style={styles.consent}>{version.consent_text}</Text>
             <Text style={styles.meta}>{copy.consent.note}</Text>
             <Text style={styles.meta}>{copy.consent.final}</Text>
             {audioRequired ? <Text style={styles.body}>{copy.consent.required}</Text> : null}
