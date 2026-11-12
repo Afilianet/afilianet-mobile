@@ -96,6 +96,7 @@ it("04 → 07: the GET has no X-Organization-ID; the POST body is the example's,
   expect(sent.path).toBe(`/api/v1${JOINED.request.path}`);
   expect(sent.headers["X-Organization-ID"]).toBeUndefined();
   expect(sent.body).toEqual(JOINED.request.body);
+  expect(sent.body).not.toHaveProperty("consents");
   expect(mockReload).toHaveBeenCalled();
   // Only these three requests: nothing personal, no KYC, no invitation.
   expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([

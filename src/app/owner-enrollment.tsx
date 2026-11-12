@@ -5,13 +5,11 @@ import { accessErrorMessage, enrollAsOwner, fetchOwnerEnrollment, type OwnerEnro
 import { isApiError } from "../api/errors";
 import { isNoticeOutdated, needsGeneralNotice } from "../api/privacy";
 import { useAuth } from "../auth/AuthContext";
-import { RegistrationConsentsView } from "../components/privacy/RegistrationConsentsView";
 import { StepNoticesView } from "../components/privacy/StepNoticesView";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { colors, measures, spacing, typography } from "../components/ui/theme";
 import { useAttemptId } from "../hooks/useAttemptId";
-import { useRegistrationConsents } from "../hooks/useRegistrationConsents";
 import { useStepNotices } from "../hooks/useStepNotices";
 import { strings } from "../i18n";
 import { closeTo } from "../navigation/rootNavigation";
@@ -24,8 +22,8 @@ type Answer = { key: string; step?: OwnerEnrollmentStep; failed?: boolean; notOw
  * «Incorporarme como afiliado» (API #158, OWNER_AFFILIATE_ENROLLMENT.md): the
  * active owner creates their OWN affiliate profile in the active organization,
  * in their own session. The step shows the notices the server lists (compact,
- * as in sign-up), the optional purpose boxes, and sends exactly what was
- * shown. It keeps the owner role, starts no KYC and captures nothing.
+ * as in sign-up) and sends their refs; it offers no optional purpose box
+ * (existing decisions are not touched). It keeps the owner role, starts no KYC and captures nothing.
  */
 export default function OwnerEnrollmentScreen() {
   const router = useRouter();
@@ -69,7 +67,6 @@ export default function OwnerEnrollmentScreen() {
     general: "when-needed",
     needsGeneral: Boolean(step?.privacy?.general_required),
   });
-  const consents = useRegistrationConsents(notices);
   const attemptId = useAttemptId();
   const noticesReady = notices.status !== "loading" && !notices.blockedMessage;
 
@@ -88,11 +85,10 @@ export default function OwnerEnrollmentScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const refs = notices.refs();
-      const decisions = consents.consents();
+      // Only the notices shown and the attempt id: no optional purpose box in this
+      // step (Andrés, 2026-11-11), the same body Admin #128 sends.
       const result = await enrollAsOwner(organizationId, {
-        ...refs,
-        ...(decisions.length ? { consents: decisions } : {}),
+        ...notices.refs(),
         client_request_id: attemptId(`${user.id}/${organizationId}/owner-enrollment`),
       });
       if (!mounted.current) return;
@@ -145,7 +141,6 @@ export default function OwnerEnrollmentScreen() {
         <>
           <Text style={styles.info}>{copy.description}</Text>
           <StepNoticesView notices={notices} disabled={submitting} />
-          <RegistrationConsentsView consents={consents} disabled={submitting} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Button label={copy.submit} size="lg" fullWidth loading={submitting} disabled={!noticesReady} onPress={() => void submit()} />
           <Button label={copy.cancel} variant="ghost" disabled={submitting} onPress={() => closeTo(router, routes.home)} />

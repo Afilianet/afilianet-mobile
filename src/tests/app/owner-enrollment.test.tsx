@@ -76,24 +76,17 @@ describe("Incorporarme como afiliado", () => {
     expect(mockRouter.dismissTo.mock.calls.length + mockRouter.replace.mock.calls.length).toBe(1);
   });
 
-  it("general notice required: both refs; the optional box stays unticked and sends nothing unless ticked", async () => {
+  it("general notice required: both refs and the attempt id; no optional box in this step and never `consents`", async () => {
     getStep.mockResolvedValue(step(true));
     const view = await mount();
     await waitFor(() => expect(view.getByTestId("notice-link-general")).toBeTruthy());
-    expect(view.getByText(QUALITY.text)).toBeTruthy();
+    // The general notice served carries the quality purpose; this step still offers no box for it.
+    expect(view.queryByTestId("registration-consents")).toBeNull();
+    expect(view.queryByText(QUALITY.text)).toBeNull();
     await pressId(view, "notice-confirmation");
     await press(view, "Incorporarme");
     expect(post.mock.calls[0][1]).toEqual({ privacy_notice: ref(G1), organization_notice: ref(ORG_NOTICE), client_request_id: expect.any(String) });
-  });
-
-  it("ticking the optional box sends it as granted on the general notice shown", async () => {
-    getStep.mockResolvedValue(step(true));
-    const view = await mount();
-    await waitFor(() => expect(view.getByTestId("consent-box-quality_testing")).toBeTruthy());
-    await pressId(view, "notice-confirmation");
-    await pressId(view, "consent-box-quality_testing");
-    await press(view, "Incorporarme");
-    expect(post.mock.calls[0][1].consents).toEqual([{ document: ref(G1), purpose: "quality_testing", decision: "granted" }]);
+    expect(post.mock.calls[0][1]).not.toHaveProperty("consents");
   });
 
   it("200 already_affiliated: says nothing changed and stays", async () => {
