@@ -19,6 +19,9 @@ jest.mock("@react-native-async-storage/async-storage", () => jest.requireActual(
 jest.mock("expo-audio", () => {
   throw new Error("Cannot find native module 'ExpoAudio'");
 });
+jest.mock("expo-sms", () => {
+  throw new Error("Cannot find native module 'ExpoSMS'");
+});
 
 const APP_DIR = join(__dirname, "..", "..", "app");
 
@@ -31,7 +34,7 @@ function routeFiles(dir: string): string[] {
 }
 
 describe("JavaScript from this branch on the previous APK (no ExpoAudio native module)", () => {
-  it("evaluates every route file, as expo-router does at startup, without importing expo-audio", () => {
+  it("evaluates every route file without importing missing audio or SMS native modules", () => {
     const files = routeFiles(APP_DIR);
     expect(files.length).toBeGreaterThan(30);
     // One module registry, like the app: each route is evaluated once.

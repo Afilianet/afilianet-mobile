@@ -611,11 +611,12 @@ export const es = {
     copyLink: "Copiar liga",
     shareWhatsapp: "Compartir por WhatsApp",
     shareEmail: "Invitar por correo",
+    shareSms: "Compartir por SMS",
     emailSubject: (organization: string) => `Te invito a unirte a ${organization} en Afilianet`,
     emailBody: (organization: string, url: string) =>
       `Hola:\n\nTe invito a unirte a mi red en ${organization} a través de Afilianet. Abre este enlace para registrarte o unirte con tu cuenta:\n\n${url}\n\n¡Gracias!`,
     noAppOpened: (app: string) => `No se pudo abrir ${app}. Elige otra forma de compartir o copia la liga.`,
-    publicLinkOnly: "Correo y WhatsApp necesitan la liga pública (https), que en esta versión de la app no está disponible. Usa «Compartir» o «Copiar liga».",
+    publicLinkOnly: "Correo, WhatsApp y SMS necesitan la liga pública (https), que en esta versión de la app no está disponible. Usa «Compartir» o «Copiar liga».",
     sentByYou: "Afilianet no envía estos mensajes: tú eliges a quién y confirmas el envío.",
     myInvitations: "Mis invitaciones",
     seeInvitations: "Consulta a quién has invitado y su estado en Red.",

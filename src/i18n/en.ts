@@ -587,11 +587,12 @@ export const en = {
     copyLink: "Copy link",
     shareWhatsapp: "Share on WhatsApp",
     shareEmail: "Invite by email",
+    shareSms: "Share by SMS",
     emailSubject: (organization: string) => `Join ${organization} on Afilianet`,
     emailBody: (organization: string, url: string) =>
       `Hi,\n\nI'm inviting you to join my network in ${organization} on Afilianet. Open this link to sign up or join with your account:\n\n${url}\n\nThanks!`,
     noAppOpened: (app: string) => `${app} couldn't be opened. Choose another way to share or copy the link.`,
-    publicLinkOnly: "Email and WhatsApp need the public (https) link, which isn't available in this version of the app. Use “Share” or “Copy link”.",
+    publicLinkOnly: "Email, WhatsApp and SMS need the public (https) link, which isn't available in this version of the app. Use “Share” or “Copy link”.",
     sentByYou: "Afilianet doesn't send these messages: you choose who gets them and confirm the send.",
     myInvitations: "My invitations",
     seeInvitations: "See who you've invited and their status under Network.",
