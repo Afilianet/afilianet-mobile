@@ -334,7 +334,7 @@ export const es = {
       blocked: "No se puede enviar",
       blockedHelp: "Se conserva en el teléfono. Puedes descartarla si ya no la necesitas.",
       blockedReason: {
-        survey_version_closed: "No se pudo contar: la encuesta cerró antes de que llegara.",
+        survey_version_closed: "La encuesta estaba cerrada cuando se sincronizó, así que el servidor no aceptó esta respuesta. Se conserva en este teléfono.",
         not_assigned_surveyor: "No se puede enviar: ya no estás asignado como encuestador.",
         respondent_type_not_allowed: "No se puede enviar: la encuesta ya no admite esta modalidad.",
         not_a_member: "No se puede enviar: tu cuenta no tiene perfil de afiliado en esta organización.",
@@ -362,13 +362,14 @@ export const es = {
       receivedAt: (date: string) => `Recibido el ${date}`,
       withAudio: "con audio",
       // Where the answers are, in words: on this phone only, or already received by the server.
-      onPhoneOnly: "Guardada solo en este teléfono; el servidor aún no la recibe. Ya no se puede editar.",
-      blockedOnPhone: "Guardada solo en este teléfono; no se envió. Ya no se puede editar.",
+      onPhoneOnly: "Respuesta guardada en este teléfono; pendiente de confirmación del servidor.",
+      // Never claims it did not reach the server: a closed survey may have recorded the refusal.
+      blockedOnPhone: "Respuesta conservada en este teléfono; el servidor no la aceptó.",
       answersReceived: "El servidor ya recibió las respuestas. Ya no se puede editar.",
       lastTry: {
         offline: "Último intento: el teléfono no tenía conexión. Se enviará en cuanto tenga internet.",
         session: "Último intento: tu sesión ya no era válida. Vuelve a iniciar sesión con esta cuenta para enviarla.",
-        server: "Último intento: el servidor no la recibió. Se reintentará sola.",
+        server: "No se pudo confirmar la recepción. Se reintentará automáticamente.",
       },
       complete: "Completa",
       incomplete: (count: number) => (count === 1 ? "Incompleta: 1 pregunta obligatoria sin responder" : `Incompleta: ${count} preguntas obligatorias sin responder`),

@@ -318,6 +318,89 @@ describe("survey outbox", () => {
     expect(hasItem(ORG_A, "answers-r-1")).toBe(false);
   });
 
+  // The sample server applies the API's rules (a7e7d27, SurveyResponseService::submit):
+  // one row per (version, client_response_id), looked up BEFORE the closed check;
+  // a row stored as rejected_closed answers 422 survey_version_closed on every repeat.
+  async function serverRows(versionId: string): Promise<{ id: string; client_response_id: string; status: string }[]> {
+    const AsyncStorage = jest.requireMock("@react-native-async-storage/async-storage") as { getItem: (key: string) => Promise<string | null> };
+    const raw = await AsyncStorage.getItem("afn.surveys.fixtureServer.v2");
+    const state = raw ? (JSON.parse(raw) as { responses: Record<string, { receipt: { id: string; client_response_id: string; status: string } }> }) : { responses: {} };
+    return Object.entries(state.responses)
+      .filter(([key]) => key.startsWith(`${versionId}:`))
+      .map(([, value]) => value.receipt);
+  }
+
+  it("closed at first send: 422 survey_version_closed; a repeat with the same id gets the same refusal, and the server keeps one row", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    await source.setClosed(SELF_VERSION, true);
+    const submit = source.submitResponse.bind(source);
+    const sentIds: string[] = [];
+    const refusals: (string | undefined)[] = [];
+    // First send: the server stores the refusal, but its 422 is lost on the way back.
+    jest.spyOn(source, "submitResponse").mockImplementationOnce(async (org, versionId, submission) => {
+      sentIds.push(submission.client_response_id);
+      await submit(org, versionId, submission).catch((error: ApiError) => refusals.push(error.reason));
+      throw new ApiError("timeout", "lost reply");
+    });
+    await syncOutbox(ORG_A, source);
+    expect(displayState((await listOutbox(ORG_A))[0])).toBe("pending_sync");
+
+    // Automatic retry, same id: the same refusal, now received.
+    jest.spyOn(source, "submitResponse").mockImplementation(async (org, versionId, submission) => {
+      sentIds.push(submission.client_response_id);
+      return submit(org, versionId, submission).catch((error: ApiError) => {
+        refusals.push(error.reason);
+        throw error;
+      });
+    });
+    await syncOutbox(ORG_A, source);
+
+    expect(sentIds).toEqual(["r-1", "r-1"]);
+    expect(refusals).toEqual(["survey_version_closed", "survey_version_closed"]);
+    const rows = await serverRows(SELF_VERSION);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ client_response_id: "r-1", status: "rejected_closed" });
+
+    // Kept, visible and blocked with its original id and answers; never resent nor re-identified.
+    const [kept] = await listOutbox(ORG_A);
+    expect(kept.id).toBe("r-1");
+    expect(kept.blocked).toBe("survey_version_closed");
+    expect(hasItem(ORG_A, "answers-r-1")).toBe(true);
+    await syncOutbox(ORG_A, source, { force: true });
+    expect(sentIds).toHaveLength(2);
+    expect((await listOutbox(ORG_A)).map((item) => item.id)).toEqual(["r-1"]);
+    expect(await serverRows(SELF_VERSION)).toHaveLength(1);
+  });
+
+  it("accepted, confirmation lost, survey closed, retry with the same id: the original accepted response comes back, one row", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), [{ question_id: 1, value_choice_ids: [1] }]);
+    const submit = source.submitResponse.bind(source);
+    const receipts: { id: string; status: string }[] = [];
+    jest.spyOn(source, "submitResponse").mockImplementationOnce(async (org, versionId, submission) => {
+      receipts.push(await submit(org, versionId, submission));
+      throw new ApiError("timeout", "lost reply");
+    });
+    await syncOutbox(ORG_A, source);
+    expect(await listOutbox(ORG_A)).toHaveLength(1); // still on the phone: never confirmed
+
+    await source.setClosed(SELF_VERSION, true);
+    jest.spyOn(source, "submitResponse").mockImplementation(async (org, versionId, submission) => {
+      const receipt = await submit(org, versionId, submission);
+      receipts.push(receipt);
+      return receipt;
+    });
+    await syncOutbox(ORG_A, source); // automatic: no force needed after a lost reply
+
+    expect(receipts).toHaveLength(2);
+    expect(receipts[1].id).toBe(receipts[0].id);
+    expect(receipts[1].status).toBe("submitted");
+    const rows = await serverRows(SELF_VERSION);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ client_response_id: "r-1", status: "submitted" });
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect((await listReceipts(ORG_A)).map((receipt) => receipt.id)).toEqual(["r-1"]);
+  });
+
   // API #66 (merged 2026-10-19): survey routes require the active organization
   // (400 without X-Organization-ID) and answer 404 for anything outside it.
   it("API #66: a 404 for the version blocks and KEEPS the response, never retried automatically, discarded only on request", async () => {

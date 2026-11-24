@@ -29,7 +29,7 @@ describe("«Envíos» card (vc25 field report)", () => {
   it("a response not yet received says it is on this phone only, never «Enviada desde este teléfono»", async () => {
     await renderPanel([{ ...base, attempts: 2, lastError: "offline" }]);
     expect(screen.getByText("Pendiente de sincronizar")).toBeTruthy();
-    expect(screen.getByText("Guardada solo en este teléfono; el servidor aún no la recibe. Ya no se puede editar.")).toBeTruthy();
+    expect(screen.getByText("Respuesta guardada en este teléfono; pendiente de confirmación del servidor.")).toBeTruthy();
     expect(screen.getByText("Último intento: el teléfono no tenía conexión. Se enviará en cuanto tenga internet.")).toBeTruthy();
     expect(screen.queryByText(/Enviada desde este teléfono/)).toBeNull();
   });
@@ -40,7 +40,32 @@ describe("«Envíos» card (vc25 field report)", () => {
       { ...base, id: "b", attempts: 1, lastError: "server" },
     ]);
     expect(screen.getByTestId("outbox-a-last-try")).toHaveTextContent(/tu sesión ya no era válida/);
-    expect(screen.getByTestId("outbox-b-last-try")).toHaveTextContent(/el servidor no la recibió/);
+    expect(screen.getByTestId("outbox-b-last-try")).toHaveTextContent("No se pudo confirmar la recepción. Se reintentará automáticamente.");
+  });
+
+  it("a response refused because the survey was closed stays visible and kept, never said to have not reached the server", async () => {
+    const onDiscard = jest.fn();
+    await render(
+      <OutboxPanel
+        items={[{ ...base, attempts: 1, blocked: "survey_version_closed" }]}
+        receipts={[]}
+        syncing={false}
+        progress={null}
+        message={null}
+        onSync={() => {}}
+        onDiscard={onDiscard}
+        onDiscardAudio={() => {}}
+        destination="Se envían a: prueba."
+      />,
+    );
+    expect(screen.getByText(base.surveyTitle)).toBeTruthy();
+    expect(screen.getByText("No se puede enviar")).toBeTruthy();
+    expect(screen.getByTestId("outbox-r-1-where")).toHaveTextContent("Respuesta conservada en este teléfono; el servidor no la aceptó.");
+    expect(screen.getByText("La encuesta estaba cerrada cuando se sincronizó, así que el servidor no aceptó esta respuesta. Se conserva en este teléfono.")).toBeTruthy();
+    expect(screen.queryByText(/no se envió|nunca llegó|no llegó/)).toBeNull();
+    // Shown, not acted on: discarding is only the person's choice.
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("outbox-r-1-last-try")).toBeNull();
   });
 
   it("saved but never tried shows no last-try line", async () => {

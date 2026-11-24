@@ -342,7 +342,7 @@ describe.each<Mode>(["slot", "native"])("Survey journey (%s navigation)", (mode)
       await close(screen);
       expect(currentStack).toEqual([HOME, "/surveys"]);
       expect(top(screen).getByText("Completa")).toBeTruthy();
-      expect(top(screen).getByText(/Guardada solo en este teléfono; el servidor aún no la recibe/)).toBeTruthy();
+      expect(top(screen).getByText(/Respuesta guardada en este teléfono; pendiente de confirmación del servidor/)).toBeTruthy();
       expect(top(screen).queryByText("Continuar")).toBeNull();
 
       await close(screen);
