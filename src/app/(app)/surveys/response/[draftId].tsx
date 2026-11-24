@@ -1,6 +1,7 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { EmptyState } from "../../../../components/EmptyState";
 import { SkeletonGroup } from "../../../../components/Skeleton";
 import { Button } from "../../../../components/ui/Button";
@@ -37,6 +38,8 @@ import { registerLeaveGuard } from "../../../../navigation/leaveGuard";
 import { routes } from "../../../../navigation/routes";
 
 const AUTOSAVE_MS = 600;
+/** Space kept between the focused field and the top of the keyboard. */
+const KEYBOARD_GAP = 24;
 
 /**
  * One response, captured fully offline from the downloaded version.
@@ -354,8 +357,16 @@ export default function SurveyResponseScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="survey-response-scroll">
+    // vc25 field report: on Android (edge-to-edge) the keyboard covered the
+    // comments. This scroll view keeps the focused field -- also a growing
+    // multiline answer and its caret -- above the keyboard.
+    <KeyboardAwareScrollView
+      style={styles.flex}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={KEYBOARD_GAP}
+      testID="survey-response-scroll"
+    >
         <View style={styles.header}>
           <Text style={styles.heading} accessibilityRole="header">{version.title}</Text>
           <IconButton label={strings.common.close} disabled={saving || finalizing} onPress={() => void saveDraftAndExit()}>
@@ -475,8 +486,7 @@ export default function SurveyResponseScreen() {
             <Button label={copy.form.saveDraftAndExit} variant="secondary" fullWidth disabled={saving || finalizing} onPress={() => void saveDraftAndExit()} />
           </>
         )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

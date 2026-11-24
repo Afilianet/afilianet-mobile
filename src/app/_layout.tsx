@@ -1,6 +1,7 @@
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium, JetBrainsMono_700Bold } from "@expo-google-fonts/jetbrains-mono";
 import { Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold } from "@expo-google-fonts/manrope";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useFonts } from "expo-font";
 import { useRouter, useSegments } from "expo-router";
 import { RootStack } from "../navigation/RootStack";
@@ -60,14 +61,19 @@ export default function RootLayout() {
           design-system/theme.ts). Flip to "light" alongside that file if
           the app ever switches back to a dark default. */}
       <StatusBar style="dark" />
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <OrganizationProvider>
-            <PushLifecycle />
-            <RootNavigation />
-          </OrganizationProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      {/* Android is edge-to-edge: the window no longer resizes for the keyboard
+          (Expo SDK 57 keyboard guide). Screens with fields use
+          KeyboardAwareScrollView from this provider. */}
+      <KeyboardProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <OrganizationProvider>
+              <PushLifecycle />
+              <RootNavigation />
+            </OrganizationProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </KeyboardProvider>
     </AppErrorBoundary>
   );
 }

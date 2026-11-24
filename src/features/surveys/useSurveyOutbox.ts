@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState } from "react-native";
 import { strings } from "../../i18n";
 import type { SurveyOrigin } from "./origin";
+import { subscribeReconnect } from "./connectivity";
 import { upgradeLegacyOrigins } from "./originUpgrade";
 import { discardRejectedAudio, discardResponse, listOutbox, listReceipts, subscribeOutbox, syncOutbox, type OutboxItem, type OutboxReceipt, type SyncProgress } from "./outbox";
 import { surveySource } from "./runtime";
@@ -12,7 +13,8 @@ const AUTO_SYNC_INTERVAL_MS = 60_000;
 /**
  * Outbox state and syncing for the CURRENT account+organization only.
  * Syncs on open, as soon as a response is saved (from any screen), when the
- * app returns to the foreground and every minute while anything is pending
+ * app returns to the foreground, when the phone regains a connection, and
+ * every minute while anything is pending
  * (each item still honours its retry backoff); "Sincronizar ahora" forces it.
  * Any sync or discard elsewhere refreshes what it shows. Results for a
  * previous scope are dropped.
@@ -105,7 +107,13 @@ export function useSurveyOutbox(scope: SurveyScope | null) {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") void sync(false);
     });
-    return () => subscription.remove();
+    // vc25 field report: the connection came back with the app open and
+    // nothing was sent until the next tick. Now it is sent on reconnection.
+    const unsubscribeReconnect = subscribeReconnect(() => void sync(false));
+    return () => {
+      subscription.remove();
+      unsubscribeReconnect();
+    };
   }, [reload, sync]);
 
   // A response saved on another screen is sent right away, not at the next
