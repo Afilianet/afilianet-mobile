@@ -187,6 +187,24 @@ function ReferralBody({
     }
   }
 
+  async function handleSmsShare() {
+    analytics.capture("referral_sms_opened");
+    try {
+      // Keep route evaluation safe on an older APK without ExpoSMS. The
+      // composer is loaded only after this button is pressed; no number is
+      // supplied, so the person chooses recipients and confirms the send.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- defer native module loading until the composer is requested.
+      const SMS: typeof import("expo-sms") = require("expo-sms");
+      if (!(await SMS.isAvailableAsync())) throw new Error("sms_unavailable");
+      await SMS.sendSMSAsync([], strings.referral.shareMessage(url));
+      // Android returns "unknown", not delivery confirmation. Cancelling is
+      // also a normal outcome: neither creates an invitation nor shows sent.
+    } catch {
+      onNotice(strings.referral.noAppOpened("Mensajes"));
+      await handleShare();
+    }
+  }
+
   async function handleCopy() {
     await Clipboard.setStringAsync(url);
     analytics.capture("referral_link_copied");
@@ -256,6 +274,14 @@ function ReferralBody({
                   fullWidth
                   iconLeft={<Icon name="compartir" size={16} color={colors.textPrimary} />}
                   onPress={() => void handleEmailShare()}
+                />
+                <Button
+                  label={strings.referral.shareSms}
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  iconLeft={<Icon name="compartir" size={16} color={colors.textPrimary} />}
+                  onPress={() => void handleSmsShare()}
                 />
               </>
             ) : (

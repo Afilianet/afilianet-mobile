@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, waitFor } from "@testing-library/react-native";
 import { Linking, Share } from "react-native";
+import * as SMS from "expo-sms";
 import { fetchMyAffiliateProfile } from "../../api/endpoints";
 import { OrganizationContext, type OrganizationContextValue } from "../../state/OrganizationContext";
 import type { AffiliateProfile, Organization } from "../../types/api";
@@ -20,6 +21,7 @@ const env = (jest.requireMock("../../config/env") as { config: { appEnv: string 
 jest.mock("expo-router", () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock("../../api/endpoints", () => ({ fetchMyAffiliateProfile: jest.fn() }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn().mockResolvedValue(true) }));
+jest.mock("expo-sms", () => ({ isAvailableAsync: jest.fn(), sendSMSAsync: jest.fn() }));
 jest.mock("../../services/analytics", () => ({ analytics: { capture: jest.fn(), identify: jest.fn(), reset: jest.fn() } }));
 
 const base = { slug: "s", legal_name: null, status: "active", timezone: "UTC", locale: "es", currency: "MXN", metadata: null, created_at: "x", updated_at: "x", my_role: "affiliate", my_membership_status: "active" };
@@ -60,6 +62,8 @@ beforeEach(() => {
   env.appEnv = "staging";
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   fetchProfile.mockResolvedValue(affiliate("NORTE1", "org-1"));
+  jest.mocked(SMS.isAvailableAsync).mockResolvedValue(true);
+  jest.mocked(SMS.sendSMSAsync).mockResolvedValue({ result: "unknown" });
 });
 afterEach(() => {
   queryClient.clear();
@@ -104,11 +108,55 @@ describe("Invite by email", () => {
   it("with a link that is not public HTTPS (no web landing in this environment): explains why there is no email or WhatsApp, keeps share and copy", async () => {
     env.appEnv = "development";
     const view = await renderReferral();
-    expect(await view.findByText(/Correo y WhatsApp necesitan la liga pública/)).toBeTruthy();
+    expect(await view.findByText(/Correo, WhatsApp y SMS necesitan la liga pública/)).toBeTruthy();
     expect(view.queryByText("Invitar por correo")).toBeNull();
     expect(view.queryByText("Compartir por WhatsApp")).toBeNull();
+    expect(view.queryByText("Compartir por SMS")).toBeNull();
     expect(view.getByText("Compartir")).toBeTruthy();
     expect(view.getByText("Copiar liga")).toBeTruthy();
+  });
+});
+
+describe("Share by SMS", () => {
+  it("opens the native composer with the current referral link, no recipients, and no server-side invitation", async () => {
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" } as never);
+    const view = await renderReferral();
+    await act(async () => {
+      fireEvent.press(await view.findByText("Compartir por SMS"));
+    });
+
+    expect(SMS.sendSMSAsync).toHaveBeenCalledWith([], `Únete a Afilianet: ${URL_1}`);
+    expect(SMS.sendSMSAsync).toHaveBeenCalledTimes(1);
+    expect(share).not.toHaveBeenCalled();
+    expect(view.getByText("Afilianet no envía estos mensajes: tú eliges a quién y confirmas el envío.")).toBeTruthy();
+  });
+
+  it.each(["unavailable", "failed"])("offers another way to share when the SMS composer is %s", async (failure) => {
+    if (failure === "unavailable") jest.mocked(SMS.isAvailableAsync).mockResolvedValue(false);
+    else jest.mocked(SMS.sendSMSAsync).mockRejectedValue(new Error("no handler"));
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "dismissedAction" } as never);
+    const view = await renderReferral();
+    await act(async () => {
+      fireEvent.press(await view.findByText("Compartir por SMS"));
+    });
+
+    expect(view.getByText("No se pudo abrir Mensajes. Elige otra forma de compartir o copia la liga.")).toBeTruthy();
+    expect(share).toHaveBeenCalledTimes(1);
+    expect((share.mock.calls[0][0] as { message: string }).message).toContain(URL_1);
+    if (failure === "unavailable") expect(SMS.sendSMSAsync).not.toHaveBeenCalled();
+  });
+
+  it.each(["cancelled", "unknown", "sent"] as const)("does not claim delivery or open a fallback for a %s composer result", async (result) => {
+    jest.mocked(SMS.sendSMSAsync).mockResolvedValue({ result });
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" } as never);
+    const view = await renderReferral();
+    await act(async () => {
+      fireEvent.press(await view.findByText("Compartir por SMS"));
+    });
+
+    expect(share).not.toHaveBeenCalled();
+    expect(view.queryByText(/No se pudo abrir Mensajes/)).toBeNull();
+    expect(view.queryByText(/SMS enviado|SMS entregado|Invitación enviada/)).toBeNull();
   });
 });
 
@@ -126,6 +174,7 @@ describe("The link always belongs to the active organization", () => {
     // While the new organization's profile loads, nothing of the previous one is offered.
     expect(view.queryByText(URL_1)).toBeNull();
     expect(view.queryByText("Invitar por correo")).toBeNull();
+    expect(view.queryByText("Compartir por SMS")).toBeNull();
 
     await act(async () => {
       resolveSecond(affiliate("SUR2", "org-2"));
@@ -136,6 +185,10 @@ describe("The link always belongs to the active organization", () => {
     });
     expect(open.mock.calls.at(-1)?.[0]).toContain(encodeURIComponent(URL_2));
     expect(open.mock.calls.at(-1)?.[0]).not.toContain(encodeURIComponent("NORTE1"));
+    await act(async () => {
+      fireEvent.press(view.getByText("Compartir por SMS"));
+    });
+    expect(SMS.sendSMSAsync).toHaveBeenLastCalledWith([], `Únete a Afilianet: ${URL_2}`);
   });
 
   it("a profile that states another organization is never turned into a link", async () => {
@@ -144,6 +197,7 @@ describe("The link always belongs to the active organization", () => {
     await act(async () => {});
     expect(view.queryByText(/join\/org-2\/NORTE1/)).toBeNull();
     expect(view.queryByText("Compartir por WhatsApp")).toBeNull();
+    expect(view.queryByText("Compartir por SMS")).toBeNull();
   });
 });
 
@@ -153,6 +207,7 @@ describe("Accounts without a referral link", () => {
     const view = await renderReferral(managerWithoutProfile);
     expect(view.getByText("No disponible para esta cuenta: no tiene perfil de afiliado en esta organización.")).toBeTruthy();
     expect(view.queryByText("Invitar por correo")).toBeNull();
+    expect(view.queryByText("Compartir por SMS")).toBeNull();
     expect(view.queryByText(/join\//)).toBeNull();
     expect(fetchProfile).not.toHaveBeenCalled();
   });
