@@ -35,7 +35,10 @@ export function Badge({ label, tone = "neutral", mono = false }: BadgeProps) {
 const styles = StyleSheet.create({
   badge: {
     alignSelf: "flex-start",
-    height: 24,
+    // At least 24: with the system text size enlarged the label grows instead of being clipped.
+    minHeight: 24,
+    paddingVertical: 2,
+    maxWidth: "100%",
     justifyContent: "center",
     borderRadius: radius.pill,
     paddingHorizontal: spacing[3] - 2, // 10px

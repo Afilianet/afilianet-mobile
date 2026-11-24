@@ -243,7 +243,7 @@ describe("survey outbox", () => {
     expect((await listReceipts(ORG_A))[0]).toMatchObject({ id: "r-1", withAudio: false });
   });
 
-  it("stops in airplane mode, backs off, and retries on demand", async () => {
+  it("stops in airplane mode without a growing wait, and the first automatic sync after reconnecting sends everything", async () => {
     await enqueueResponse(ORG_A, selfItem("r-1"), []);
     await enqueueResponse(ORG_A, selfItem("r-2"), []);
     online = false;
@@ -254,13 +254,49 @@ describe("survey outbox", () => {
     expect(spy).toHaveBeenCalledTimes(1); // no point hammering the rest while offline
     const [first] = await listOutbox(ORG_A);
     expect(first.attempts).toBe(1);
-    expect(first.nextAttemptAt).toBe(6_000);
+    expect(first.lastError).toBe("offline");
+    expect(first.nextAttemptAt).toBeUndefined();
 
     online = true;
     await syncOutbox(ORG_A, source, { now: () => 2_000 });
-    expect((await listOutbox(ORG_A)).map((value) => value.id)).toEqual(["r-1"]); // r-1 still backing off
-    await syncOutbox(ORG_A, source, { force: true });
     expect(await listOutbox(ORG_A)).toEqual([]);
+    expect((await listReceipts(ORG_A)).map((value) => value.id).sort()).toEqual(["r-1", "r-2"]);
+  });
+
+  it("vc25 field report: many offline tries never delay the send once the connection is back", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
+    online = false;
+    let clock = 1_000_000;
+    // Ten minutes in airplane mode: the screen's triggers keep trying (60 s tick, foreground).
+    for (let tick = 0; tick < 10; tick += 1) {
+      await syncOutbox(ORG_A, source, { now: () => clock });
+      clock += 60_000;
+    }
+    const [waiting] = await listOutbox(ORG_A);
+    expect(waiting.attempts).toBe(10);
+    expect(waiting.nextAttemptAt).toBeUndefined();
+
+    online = true;
+    const spy = jest.spyOn(source, "submitResponse");
+    await syncOutbox(ORG_A, source, { now: () => clock + 1 }); // no force: an automatic trigger
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    expect(await listReceipts(ORG_A)).toHaveLength(1);
+  });
+
+  it("an item stored by vc25 with a long offline wait is sent at the next automatic sync, once", async () => {
+    await enqueueResponse(ORG_A, selfItem("r-1"), []);
+    // What vc25 wrote after repeated offline tries: a wait of up to 10 min.
+    const [stored] = await listOutbox(ORG_A);
+    const { sealJson } = jest.requireMock("./vault") as { sealJson: (scope: SurveyScope, name: string, value: unknown) => Promise<void> };
+    await sealJson(ORG_A, "outbox", [{ ...stored, attempts: 8, lastError: "offline", nextAttemptAt: 9_999_999 }]);
+
+    const spy = jest.spyOn(source, "submitResponse");
+    await syncOutbox(ORG_A, source, { now: () => 1_000 });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(await listOutbox(ORG_A)).toEqual([]);
+    await syncOutbox(ORG_A, source, { now: () => 2_000 });
+    expect(spy).toHaveBeenCalledTimes(1); // nothing left to send: never a duplicate
   });
 
   it("closed while offline: 422 survey_version_closed blocks and KEEPS it, never retried, discarded only on request", async () => {

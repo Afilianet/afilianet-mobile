@@ -361,7 +361,15 @@ export const es = {
       empty: "No hay envíos pendientes.",
       receivedAt: (date: string) => `Recibido el ${date}`,
       withAudio: "con audio",
-      notEditable: "Enviada desde este teléfono; ya no se puede editar.",
+      // Where the answers are, in words: on this phone only, or already received by the server.
+      onPhoneOnly: "Guardada solo en este teléfono; el servidor aún no la recibe. Ya no se puede editar.",
+      blockedOnPhone: "Guardada solo en este teléfono; no se envió. Ya no se puede editar.",
+      answersReceived: "El servidor ya recibió las respuestas. Ya no se puede editar.",
+      lastTry: {
+        offline: "Último intento: el teléfono no tenía conexión. Se enviará en cuanto tenga internet.",
+        session: "Último intento: tu sesión ya no era válida. Vuelve a iniciar sesión con esta cuenta para enviarla.",
+        server: "Último intento: el servidor no la recibió. Se reintentará sola.",
+      },
       complete: "Completa",
       incomplete: (count: number) => (count === 1 ? "Incompleta: 1 pregunta obligatoria sin responder" : `Incompleta: ${count} preguntas obligatorias sin responder`),
     },

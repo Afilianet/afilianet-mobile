@@ -394,14 +394,20 @@ export async function syncOutbox(
     await update(item.id, (current) => ({
       ...current,
       attempts: current.attempts + 1,
-      nextAttemptAt: now() + backoff(current.attempts + 1),
+      // No connection says nothing about the server: no growing wait, so the
+      // next trigger (reconnection, foreground, the periodic tick) sends it.
+      // Only a server-side failure backs off.
+      nextAttemptAt: offline ? undefined : now() + backoff(current.attempts + 1),
       lastError: offline ? "offline" : isApiError(error) ? error.kind : "unknown",
     }));
     if (offline) throw error;
     result.errors.push(item.id);
   };
 
-  const due = (item: OutboxItem) => !item.blocked && (options.force || !item.nextAttemptAt || item.nextAttemptAt <= now());
+  // An item whose last try failed for lack of connection is always due: items
+  // stored by vc25 may still carry a wait of up to 10 min from offline tries.
+  const due = (item: OutboxItem) =>
+    !item.blocked && (options.force || item.lastError === "offline" || !item.nextAttemptAt || item.nextAttemptAt <= now());
 
   try {
     // Pass 1: answers, of this source's origin only.
