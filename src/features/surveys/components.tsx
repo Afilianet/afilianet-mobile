@@ -68,6 +68,32 @@ const STATE_COPY: Record<OutboxDisplayState, { label: string; tone: BadgeTone }>
   blocked: { label: strings.surveys.outbox.blocked, tone: "danger" },
 };
 
+/**
+ * Where the answers are, never merged: «on this phone only» until the server
+ * confirmed them (saved, pending, blocked), «received» once it did (only the
+ * audio may still be on the phone). vc25 said «Enviada desde este teléfono»
+ * for all of them, which read as received while it was still only local.
+ */
+function whereText(item: OutboxItem): string {
+  const copy = strings.surveys.outbox;
+  const state = displayState(item);
+  if (state === "audio_pending" || state === "audio_rejected") return copy.answersReceived;
+  if (state === "blocked") return copy.blockedOnPhone;
+  return copy.onPhoneOnly;
+}
+
+/**
+ * Why the last try did not reach the server, kept apart: the phone had no
+ * connection, the session was no longer valid, or the server failed. Shown
+ * only after a failed try; a blocked item explains itself below.
+ */
+function LastTry({ item }: { item: OutboxItem }) {
+  if (item.blocked || !item.lastError || item.attempts === 0) return null;
+  const copy = strings.surveys.outbox.lastTry;
+  const text = item.lastError === "offline" ? copy.offline : item.lastError === "unauthorized" ? copy.session : copy.server;
+  return <Text style={styles.body} testID={`outbox-${item.id}-last-try`}>{text}</Text>;
+}
+
 export function OutboxStateBadge({ item }: { item: OutboxItem }) {
   const copy = STATE_COPY[displayState(item)];
   return <Badge label={copy.label} tone={copy.tone} />;
@@ -138,7 +164,8 @@ export function OutboxPanel({
           </View>
           <Text style={styles.meta}>{formatDateTime(item.completedAt)}{item.audio ? ` · ${copy.withAudio}` : ""}</Text>
           <Completeness missingRequired={item.missingRequired} />
-          <Text style={styles.meta}>{copy.notEditable}</Text>
+          <Text style={styles.meta} testID={`outbox-${item.id}-where`}>{whereText(item)}</Text>
+          <LastTry item={item} />
           {item.blocked ? (
             <>
               <Text style={styles.body}>{copy.blockedReason[item.blocked]}</Text>
@@ -301,6 +328,9 @@ const styles = StyleSheet.create({
   body: { ...typography.body, color: colors.textSecondary },
   meta: { ...typography.caption, color: colors.textTertiary },
   row: { gap: spacing.xs, paddingVertical: spacing.xs, borderTopWidth: 1, borderTopColor: colors.border },
-  rowHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
-  rowTitle: { ...typography.body, color: colors.textPrimary, flexShrink: 1 },
+  // Title above its badge, each at full width: side by side, a long badge
+  // («Pendiente de sincronizar») with enlarged text squeezed the title into
+  // a column of fragments (vc25 field report).
+  rowHeader: { gap: spacing.xs, alignItems: "flex-start" },
+  rowTitle: { ...typography.body, color: colors.textPrimary, alignSelf: "stretch" },
 });

@@ -16,7 +16,10 @@
         "foregroundImage": "./assets/brand/android-adaptive-foreground-432.png",
         "backgroundImage": "./assets/brand/android-adaptive-background-432.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.ACCESS_WIFI_STATE"
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.afilianet.mobile",
